@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Jessibuca Pro 流测试</title>
+    <!-- 直接引用官方 CDN 的 pro 版本，无需本地文件 -->
+    <script src="https://jessibuca.com/pro/jessibuca-pro.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        h2 { color: #fff; margin-bottom: 15px; }
+        #player { width: 100%; max-width: 1200px; height: 600px; background: #000; }
+        #info { color: #0f0; margin-top: 10px; width: 100%; max-width: 1200px; }
+    </style>
+</head>
+<body>
+    <h2>FLV 流有效性测试（Jessibuca Pro）</h2>
+    <div id="player"></div>
+    <div id="info">加载中...</div>
+
+    <script>
+        // ===== 把你的 FLV 地址填在这里 =====
+        const flvUrl = "http://27.8.193.205:6082/rtp/gb_play_50010100001310000041_50010100001310000041.live.flv?secret=035c73f7-bb6b-4889-a715-d9eb2d192xxx";
+
+        const infoEl = document.getElementById("info");
+        const player = new Jessibuca({
+            container: document.getElementById("player"),
+            videoBuffer: 0.2,      // 缓冲时长（秒）
+            isResize: true,         // 自适应容器
+            debug: true,            // 开启调试（控制台看详情）
+            debugLevel: "debug",
+            showControl: true,      // 显示控制栏
+            loadingText: "连接中..."
+        });
+
+        // 事件监听（方便判断流是否有效）
+        player.on("load", () => {
+            infoEl.textContent = "状态：加载成功，准备播放";
+        });
+        player.on("play", () => {
+            infoEl.textContent = "状态：正在播放 ✅";
+        });
+        player.on("error", (e) => {
+            infoEl.textContent = "状态：播放失败 ❌ 错误：" + JSON.stringify(e);
+            console.error("播放错误：", e);
+        });
+        player.on("timeout", () => {
+            infoEl.textContent = "状态：连接超时 ❌";
+        });
+
+        // 开始播放
+        player.play(flvUrl);
+    </script>
+</body>
+</html>
+
+

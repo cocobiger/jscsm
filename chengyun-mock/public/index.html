@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>模拟城运中心 · Mock City-Ops Center</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+    --txt:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --accent2:#22c55e;
+    --warn:#f59e0b; --danger:#ef4444; --ok:#22c55e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 20px;background:linear-gradient(90deg,#0c4a6e,#0f172a);border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0}
+  header .sub{color:var(--muted);font-size:12px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);align-items:center}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#06283d;border-color:var(--accent);font-weight:600}
+  button.success{background:var(--accent2);color:#052e16;border-color:var(--accent2);font-weight:600}
+  button.warn{background:var(--warn);color:#3a2a02;border-color:var(--warn);font-weight:600}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .stats{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;text-align:center;min-width:78px}
+  .stat b{display:block;font-size:20px}
+  .stat span{color:var(--muted);font-size:11px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+  input,select{background:#0b1220;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;padding:18px 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .card .thumb{height:150px;background:#0b1220;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .card .thumb img{width:100%;height:100%;object-fit:cover}
+  .card .body{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .card .et{font-weight:700;font-size:15px;color:var(--accent)}
+  .card .row{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
+  .card .row b{color:var(--txt);font-weight:600}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .badge.pending{background:#3b2533;color:#fda4af}
+  .badge.processing{background:#3a3320;color:#fcd34d}
+  .badge.closed{background:#14331f;color:#86efac}
+  .badge.video{background:#1e3a5f;color:#7dd3fc}
+  .card .acts{display:flex;gap:6px;margin-top:6px}
+  .card .acts button{flex:1;padding:6px}
+  .empty{padding:60px;text-align:center;color:var(--muted)}
+  /* modal */
+  .mask{position:fixed;inset:0;background:rgba(2,6,23,.7);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .mask.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:920px;width:100%;max-height:90vh;overflow:auto}
+  .modal header{display:flex;justify-content:space-between;align-items:center;background:var(--panel2);padding:14px 18px;border-bottom:1px solid var(--line)}
+  .modal header h3{margin:0;font-size:16px}
+  .modal .content{padding:18px}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px;margin:0}
+  .kv div{display:flex;gap:8px;border-bottom:1px dashed var(--line);padding:4px 0}
+  .kv div span{color:var(--muted);min-width:96px}
+  .kv div b{font-weight:600;word-break:break-all}
+  pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;max-height:320px;font-size:12px;color:#cbd5e1}
+  .imgs{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+  .imgs figure{margin:0}
+  .imgs img{height:160px;border:1px solid var(--line);border-radius:8px}
+  .imgs figcaption{color:var(--muted);font-size:11px;text-align:center;margin-top:4px}
+  .cblog{margin-top:10px}
+  .cblog .item{background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px}
+  .cblog .item .t{color:var(--muted)}
+  .seg{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  label.fld{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  label.fld input,label.fld select{flex:1}
+  .hint{color:var(--muted);font-size:12px;line-height:1.7}
+  code{background:#0b1220;padding:2px 6px;border-radius:6px;color:var(--accent);font-size:12px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--accent);padding:10px 18px;border-radius:10px;display:none;z-index:99}
+  .toast.show{display:block}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--muted)}
+  .danger{color:var(--danger)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏙️ 模拟城运中心</h1>
+  <span class="sub">Mock City-Ops Center · 真实模拟「智治推送」事件推送闭环 · 依据《全景影像视频平台接口规范 V1.0》</span>
+</header>
+
+<div class="bar">
+  <button class="primary" id="btnSample">＋ 发送样例事件</button>
+  <button id="btnSettings">⚙️ 回执设置</button>
+  <button id="btnClear" class="warn">🗑️ 清空</button>
+  <button id="btnRefresh">🔄 刷新</button>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="filters">
+  <input id="fKw" placeholder="搜索 eventId / 相机 / 地址 / push_id…" style="min-width:260px" />
+  <select id="fType"><option value="">全部事件类型</option></select>
+  <select id="fStatus">
+    <option value="">全部回执状态</option>
+    <option value="pending">待回执</option>
+    <option value="processing">受理中</option>
+    <option value="closed">已结案</option>
+  </select>
+  <button id="fReset">重置</button>
+  <span class="pill" id="basePill"></span>
+</div>
+
+<div class="list" id="list"><div class="empty">暂无事件，点击「发送样例事件」或等待智治推送…</div></div>
+
+<!-- 详情弹窗 -->
+<div class="mask" id="detailMask">
+  <div class="modal">
+    <header><h3 id="dTitle">事件详情</h3><button onclick="closeModal('detailMask')">✕ 关闭</button></header>
+    <div class="content" id="dContent">加载中…</div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="mask" id="setMask">
+  <div class="modal">
+    <header><h3>回执设置</h3><button onclick="closeModal('setMask')">✕ 关闭</button></header>
+    <div class="content">
+      <div class="seg">
+        <label class="fld">JSC 回调基础地址
+          <input id="setBase" placeholder="http://127.0.0.1:81" style="min-width:320px" />
+        </label>
+        <label class="fld">X-Callback-Token（可选）
+          <input id="setToken" placeholder="若 JSC 设了 CHENGYUN_CALLBACK_TOKEN 则填相同值" style="min-width:280px" />
+        </label>
+      </div>
+      <div class="seg">
+        <label class="fld">自动回执
+          <select id="setAuto">
+            <option value="off">关闭（手动回执）</option>
+            <option value="processing">收到即回执「受理中」</option>
+            <option value="closed">收到即「受理中」并延迟「结案」</option>
+          </select>
+        </label>
+        <label class="fld">延迟结案(毫秒)
+          <input id="setDelay" type="number" value="5000" style="width:120px" />
+        </label>
+      </div>
+      <div class="hint" style="margin:10px 0">
+        回执将 POST 到 <code id="cbUrlHint">…</code> ，并带 <code>X-Push-Id</code> 头（= 事件的 push_id）。
+        该地址建议用 <code>127.0.0.1</code> 走回环，命中 JSC 的 <code>CHENGYUN_ALLOW_IPS</code> 白名单（默认含 127.0.0.1）。
+      </div>
+      <div class="hint" style="margin:10px 0;border-top:1px dashed var(--line);padding-top:10px">
+        <b>接入 JSC 智治推送（手动建平台）：</b><br/>
+        在 JSC 后台「智治推送 → 目标平台」新增平台，<code>api_url</code> 填
+        <code id="recvUrlHint">http://127.0.0.1:8088/client/handle_event</code>，
+        并记录一条识别事件即可触发推送，本页会实时收到。<br/>
+        副接口 <code>api_url_other</code> 填 <code id="recvUrlOtherHint">http://127.0.0.1:8088/client/handle_event_other</code>。
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="primary" id="setSave">保存</button>
+        <button id="setCopy">复制接收地址</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = (location.pathname.match(/^(\/[^\/]+)\//) || ['', ''])[1]
+const EV_TYPES = {
+  1:'工程车作业',2:'工程车数量',3:'烟尘',4:'工地裸露地未覆盖',5:'生物质燃烧',
+  6:'烟囱烟雾',7:'扬尘',8:'人员入侵',9:'卡车脏车',10:'脏车',12:'建渣未覆盖',
+  16:'车辆冒装',17:'工业烟羽'
+}
+const $ = (s) => document.querySelector(s)
+let pollTimer = null
+
+function api(path, opts){ return fetch(BASE + path, opts).then(r => r.json()) }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200) }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
+
+async function loadStats(){
+  try{ const s = await api('/api/stats'); $('#stats').innerHTML = [
+    ['事件', s.eventTotal],['待回执', s.pending],['受理中', s.processing],['已结案', s.closed],['短视频', s.videos]
+  ].map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('') }catch(e){}
+}
+async function loadEvents(){
+  const kw=$('#fKw').value.trim(), type=$('#fType').value, st=$('#fStatus').value
+  let url='/api/events?'
+  if(st) url+='status='+encodeURIComponent(st)+'&'
+  if(type) url+='eventType='+encodeURIComponent(type)+'&'
+  if(kw) url+='keyword='+encodeURIComponent(kw)+'&'
+  const data = await api(url)
+  const list = $('#list')
+  if(!data.items || !data.items.length){ list.innerHTML='<div class="empty">无匹配事件</div>'; return }
+  list.innerHTML = data.items.map(e=>{
+    if(e.kind==='video'){
+      return `<div class="card"><div class="thumb" style="color:var(--muted)">🎬 短视频</div><div class="body">
+        <div class="et">短视频事件 <span class="badge video">VIDEO</span></div>
+        <div class="row"><span>关联事件</span><b>${esc((e.linkedEventIds||[]).join(', ')||'-')}</b></div>
+        <div class="row"><span>接收时间</span><b>${esc(e.receivedAt)}</b></div>
+        <div class="row"><span>fileUrl</span><b style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(e.videoUrl||'-')}</b></div>
+      </div></div>`
+    }
+    const raw=e.raw||{}
+    const stt=e.callbackStatus||'pending'
+    const stLabel={pending:'待回执',processing:'受理中',closed:'已结案'}[stt]
+    const img=raw.eventImgSmall?`<img src="${esc(raw.eventImgSmall)}" onerror="this.parentNode.innerHTML='📷 无图'">`:'📷 无图'
+    return `<div class="card"><div class="thumb">${img}</div><div class="body">
+      <div class="et">${esc(e.eventTypeLabel||raw.eventType)}</div>
+      <div class="row"><span>eventId</span><b style="max-width:170px;overflow:hidden;text-overflow:ellipsis">${esc(raw.eventId||'-')}</b></div>
+      <div class="row"><span>相机</span><b>${esc(raw.cameraId||'-')}</b></div>
+      <div class="row"><span>时间</span><b>${esc(raw.eventTime||'-')}</b></div>
+      <div class="row"><span>地点</span><b style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(raw.address||'-')}</b></div>
+      <div class="row"><span>审核</span><b>${raw.confirm==1?'已审核':(raw.confirm==0?'未审核':'-')}</b></div>
+      <div class="row"><span>push_id</span><b style="max-width:170px;overflow:hidden;text-overflow:ellipsis">${esc(e.pushId||'无')}</b></div>
+      <div class="row"><span>回执</span><span class="badge ${stt}">${stLabel}</span></div>
+      <div class="acts">
+        <button onclick="openDetail('${e.id}')">详情</button>
+        <button class="success" ${stt==='closed'?'disabled':''} onclick="doCallback('${e.id}','processing')">受理中</button>
+        <button class="warn" ${stt==='closed'?'disabled':''} onclick="doCallback('${e.id}','closed')">结案</button>
+      </div>
+    </div></div>`
+  }).join('')
+}
+async function openDetail(id){
+  const e = await api('/api/events/'+id)
+  const raw=e.raw||{}
+  const stt=e.callbackStatus||'pending'
+  const fields=[
+    ['eventId',raw.eventId],['eventTime',raw.eventTime],['cameraId',raw.cameraId],
+    ['eventType',`${raw.eventType} / ${EV_TYPES[raw.eventType]||'未知'}`],['subType',raw.subType],
+    ['elevation(上下角)',raw.elevation],['azimuth(水平角)',raw.azimuth],['absoluteZoom(放大)',raw.absoluteZoom],
+    ['distance(距离)',raw.distance],['latitude',raw.latitude],['longitude',raw.longitude],
+    ['address',raw.address],['count',raw.count],['total',raw.total],
+    ['presetPosNum',raw.presetPosNum],['presetPosName',raw.presetPosName],
+    ['processEventId',raw.processEventId],['processEventStatus',raw.processEventStatus],
+    ['confirm',raw.confirm==1?'已审核':(raw.confirm==0?'未审核':raw.confirm)],
+    ['districtId',raw.districtId],['districtName',raw.districtName],
+    ['townId',raw.townId],['townName',raw.townName],
+    ['spid',raw.spid],['deviceName',raw.deviceName],
+    ['push_id',e.pushId],['callback_url',e.callbackUrl],
+  ]
+  const kv = fields.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v==null?'':v)}</b></div>`).join('')
+  const imgs = `
+    <div class="imgs">
+      ${raw.eventImgSmall?`<figure><img src="${esc(raw.eventImgSmall)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'小图加载失败'}))"><figcaption>eventImgSmall</figcaption></figure>`:''}
+      ${raw.eventImgBig?`<figure><img src="${esc(raw.eventImgBig)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'大图加载失败'}))"><figcaption>eventImgBig</figcaption></figure>`:''}
+      ${raw.watermarkImage?`<figure><img src="${esc(raw.watermarkImage)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'水印图加载失败'}))"><figcaption>watermarkImage</figcaption></figure>`:''}
+      ${e.videoUrl?`<figure><video src="${esc(e.videoUrl)}" controls style="height:160px;border:1px solid var(--line);border-radius:8px"></video><figcaption>关联短视频</figcaption></figure>`:''}
+    </div>`
+  const log = (e.callbackHistory||[]).slice().reverse().map(h=>{
+    const r=h.response||{}
+    const ok = !r.error && r.httpStatus && r.httpStatus<400
+    return `<div class="item"><span class="t">${esc(h.time)} · ${esc(h.status)}</span><br/>
+      处置结论：${esc(h.result||'(空)')} ｜ 处置人：${esc(h.operator||'-')}<br/>
+      JSC 响应：${ok?`<span style="color:var(--ok)">✅ ${esc(r.httpStatus)} ${esc((r.json&&r.json.message)||'')}</span>`:`<span class="danger">❌ ${esc(r.error||r.httpStatus||'失败')} ${esc((r.json&&r.json.message)||'')}</span>`}</div>`
+  }).join('') || '<div class="hint">尚无回执记录</div>'
+  $('#dTitle').textContent = (e.eventTypeLabel||raw.eventType||'事件') + ' · ' + esc(raw.eventId||'')
+  $('#dContent').innerHTML = `
+    <div class="imgs">${imgs||''}</div>
+    <div class="seg">
+      <span class="badge ${stt}">${({pending:'待回执',processing:'受理中',closed:'已结案'}[stt])}</span>
+      <span class="pill">接收：${esc(e.receivedAt)}</span>
+      ${e.callbackTime?`<span class="pill">回执：${esc(e.callbackTime)}</span>`:''}
+    </div>
+    <h4 style="margin:14px 0 6px">文档字段</h4>
+    <div class="kv">${kv}</div>
+    <h4 style="margin:14px 0 6px">回执操作</h4>
+    <div class="seg">
+      <label class="fld">处置结论<input id="dResult" placeholder="如：已现场处置并覆盖"></label>
+      <label class="fld">处置人<input id="dOperator" placeholder="模拟城运中心" value="模拟城运中心"></label>
+    </div>
+    <div class="seg">
+      <button class="success" ${stt==='closed'?'disabled':''} onclick="doCallback('${e.id}','processing',true)">回复：受理中</button>
+      <button class="warn" ${stt==='closed'?'disabled':''} onclick="doCallback('${e.id}','closed',true)">回复：已结案</button>
+    </div>
+    <h4 style="margin:14px 0 6px">回执记录</h4>
+    <div class="cblog">${log}</div>
+    <h4 style="margin:14px 0 6px">原始报文 (JSON)</h4>
+    <pre>${esc(JSON.stringify(raw,null,2))}</pre>`
+  $('#detailMask').classList.add('show')
+}
+async function doCallback(id, status, fromModal){
+  let result='', operator='模拟城运中心'
+  if(fromModal){ result=$('#dResult').value; operator=$('#dOperator').value||'模拟城运中心' }
+  const r = await api('/api/events/'+id+'/callback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,disposal_result:result,disposal_operator:operator})})
+  if(r.ok){ toast('回执已发送：'+status); if(fromModal) openDetail(id); }
+  else toast('回执失败：'+(r.result&&r.result.error)||'未知')
+  loadStats(); loadEvents()
+}
+function closeModal(id){ $('#'+id).classList.remove('show') }
+
+// 设置
+async function loadSettings(){
+  const c = await api('/api/config')
+  $('#setBase').value=c.jscCallbackBase||'http://127.0.0.1:81'
+  $('#setToken').value=c.chengyunToken||''
+  $('#setAuto').value=c.autoReply||'off'
+  $('#setDelay').value=c.autoClosedDelayMs||5000
+  $('#cbUrlHint').textContent=(c.jscCallbackBase||'http://127.0.0.1:81').replace(/\/+$/,'')+'/api/smart-push/callback'
+}
+async function saveSettings(){
+  const body={ jscCallbackBase:$('#setBase').value.trim(), chengyunToken:$('#setToken').value.trim(),
+    autoReply:$('#setAuto').value, autoClosedDelayMs:parseInt($('#setDelay').value)||5000 }
+  await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  $('#cbUrlHint').textContent=body.jscCallbackBase.replace(/\/+$/,'')+'/api/smart-push/callback'
+  toast('设置已保存'); loadSettings()
+}
+
+// 事件类型下拉
+function fillTypes(){
+  let h='<option value="">全部事件类型</option>'
+  for(const k in EV_TYPES) h+=`<option value="${k}">${k} ${EV_TYPES[k]}</option>`
+  $('#fType').innerHTML=h
+}
+async function init(){
+  $('#basePill').textContent='接收接口: '+(BASE||'')+'/client/handle_event  ·  端口 8088'
+  $('#recvUrlHint').textContent='http://127.0.0.1:8088/client/handle_event'
+  $('#recvUrlOtherHint').textContent='http://127.0.0.1:8088/client/handle_event_other'
+  fillTypes(); await loadSettings(); await loadStats(); await loadEvents()
+  $('#btnSample').onclick=async()=>{ await api('/api/sample',{method:'POST'}); toast('已注入样例事件'); loadStats(); loadEvents() }
+  $('#btnSettings').onclick=()=>{ loadSettings(); $('#setMask').classList.add('show') }
+  $('#btnClear').onclick=async()=>{ if(confirm('确认清空所有接收事件？')){ await api('/api/events',{method:'DELETE'}); toast('已清空'); loadStats(); loadEvents() } }
+  $('#btnRefresh').onclick=()=>{ loadStats(); loadEvents() }
+  $('#setSave').onclick=saveSettings
+  $('#setCopy').onclick=()=>{ navigator.clipboard.writeText('http://127.0.0.1:8088/client/handle_event'); toast('已复制接收地址') }
+  $('#fReset').onclick=()=>{ $('#fKw').value='';$('#fType').value='';$('#fStatus').value=''; loadEvents() }
+  $('#fKw').oninput=debounce(loadEvents,300); $('#fType').onchange=loadEvents; $('#fStatus').onchange=loadEvents
+  document.querySelectorAll('.mask').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('show') }))
+  pollTimer=setInterval(()=>{ loadStats(); loadEvents() }, 4000)
+}
+function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms) } }
+init()
+</script>
+</body>
+</html>

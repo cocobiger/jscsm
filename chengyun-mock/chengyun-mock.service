@@ -1,0 +1,18 @@
+[Unit]
+Description=模拟城运中心 (Mock City-Ops Center)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jsc/chengyun-mock
+ExecStart=/home/jsc/.nvm/versions/node/v22.22.3/bin/node /opt/jsc/chengyun-mock/server.js
+Restart=always
+RestartSec=3
+Environment=PORT=8088
+Environment=DATA_DIR=/opt/jsc/chengyun-mock/data
+User=root
+StandardOutput=append:/opt/jsc/chengyun-mock/data/server.log
+StandardError=append:/opt/jsc/chengyun-mock/data/server.log
+
+[Install]
+WantedBy=multi-user.target

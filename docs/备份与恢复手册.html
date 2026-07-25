@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSC 驾驶舱服务器 · 备份与恢复手册</title>
+<style>
+  :root{--bg:#0f1419;--card:#1a2230;--card2:#222c3d;--line:#2e3a4f;--txt:#e6edf3;--mut:#9fb0c3;
+    --acc:#3ea6ff;--ok:#3fb950;--warn:#f0a93b;--bad:#f85149;}
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0b0f14,#0f1419 320px);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.65}
+  .wrap{max-width:1060px;margin:0 auto;padding:32px 22px 80px}
+  header.hero{padding:28px;padding-left:28px;border-radius:16px;background:radial-gradient(900px 300px at 0% 0%,#16314a,transparent),var(--card);
+    border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .hero h1{margin:0 0 6px;font-size:24px}
+  .hero .sub{color:var(--mut);font-size:13.5px}
+  .badge{display:inline-block;margin-top:12px;padding:5px 12px;border-radius:999px;font-size:12.5px;
+    background:rgba(63,185,80,.14);color:var(--ok);border:1px solid rgba(63,185,80,.4)}
+  h2{margin:36px 0 12px;font-size:19px;border-left:4px solid var(--acc);padding-left:12px}
+  h3{margin:20px 0 8px;font-size:15px;color:#cfe3ff}
+  p{font-size:14.5px;color:#d6e0ea}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;background:var(--card2)}
+  td.mono{font-family:"SF Mono",Consolas,monospace;color:#bcd3ff;font-size:12.5px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600}
+  .pill.ok{background:rgba(63,185,80,.16);color:var(--ok)}
+  .pill.mut{background:rgba(159,176,195,.16);color:var(--mut)}
+  .pre{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#0b0f14;border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;color:#bfe0c9;overflow:auto;white-space:pre-wrap}
+  .note{font-size:13px;color:var(--mut);border-left:3px solid var(--warn);padding:6px 12px;background:rgba(240,169,59,.07);border-radius:0 8px 8px 0;margin:10px 0}
+  .crit{font-size:13.5px;color:#ffd9b0;border-left:3px solid var(--bad);padding:8px 12px;background:rgba(248,81,73,.08);border-radius:0 8px 8px 0;margin:12px 0}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:8px 0}
+  ol.steps li{counter-increment:s;position:relative;padding:10px 12px 10px 46px;margin:8px 0;background:var(--card2);
+    border:1px solid var(--line);border-radius:10px;font-size:14px}
+  ol.steps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:24px;height:24px;border-radius:50%;
+    background:var(--acc);color:#06121f;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  footer{margin-top:46px;color:var(--mut);font-size:12.5px;border-top:1px solid var(--line);padding-top:16px}
+  .tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:5px;background:var(--card2);color:var(--mut);margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>JSC 驾驶舱服务器 · 备份与恢复手册</h1>
+    <div class="sub">服务器：172.16.8.12（LAN）／ 111.10.220.226（公网）· 主机名 userver · 用途：万州生态环境局驾驶舱</div>
+    <div class="sub">备份目的：重大改动前建立可随时恢复的备份节点 · 生成时间：2026-07-09</div>
+    <span class="badge">状态：已建立双重备份（脚本快照 T1 + 完整 tarball T2 + 异地副本）</span>
+  </header>
+
+  <!-- 1. 备份清单 -->
+  <h2>一、本次建立的备份清单</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>标识</th><th>类型</th><th>位置</th><th>内容</th><th>校验</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">T1<br>20260709-025452</td>
+          <td><span class="pill ok">脚本快照</span></td>
+          <td class="mono">/opt/jsc/backups/20260709-025452/</td>
+          <td>前端 + 后端代码 + jsc.db + nginx 站点 + systemd（jsc-rollback 自动捕获）</td>
+          <td>脚本自带 verify</td>
+        </tr>
+        <tr>
+          <td class="mono">T2<br>pre-major-20260709-025453</td>
+          <td><span class="pill ok">完整 tarball</span></td>
+          <td class="mono">/opt/jsc/backups/pre-major-20260709-025453/jsc-full.tar.gz</td>
+          <td>在 T1 基础上<b>补齐缺口</b>（见第三节），可移植、自包含</td>
+          <td class="mono">sha256 ✓</td>
+        </tr>
+        <tr>
+          <td class="mono">异地副本</td>
+          <td><span class="pill ok">异地</span></td>
+          <td class="mono">.workbuddy/backups/pre-major-20260709-025453/</td>
+          <td>T2 的完整拷贝（含 MANIFEST + sha256 + docker inspect），服务器磁盘损坏时仍可恢复</td>
+          <td class="mono">sha256 已比对一致</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note">T2 的 tarball 已通过 <span class="mono">sha256sum</span> 校验，且本地异地副本与服务器哈希完全一致（<span class="mono">2382f8aeb9…b8523</span>），可放心用于恢复。</div>
+  </div>
+
+  <!-- 2. 恢复方式 -->
+  <h2>二、两种恢复方式</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">方式 A：脚本化恢复（推荐，最快）</h3>
+      <p style="font-size:13.5px">使用既有的 <span class="mono">jsc-rollback</span> 工具，7 步原子回滚（自动先建急救快照），无需手动搬文件。</p>
+      <div class="pre"># 查看可用快照
+jsc-rollback list
+
+# 回滚到 T1
+jsc-rollback restore 20260709-025452</div>
+      <p style="font-size:13px;color:var(--mut)">⚠️ 该方式<b>不含 iotcloud.env</b>（见第三节关键提醒）。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">方式 B：tarball 完整恢复（覆盖缺口）</h3>
+      <p style="font-size:13.5px">适合需要恢复 IoTCloud 凭据、ZLMediaKit、nginx 主配置等 T1 未覆盖内容的场景，或从异地副本恢复。</p>
+      <div class="pre"># 服务器上解包（相对路径，恢复到 /）
+tar -xzf jsc-full.tar.gz -C /
+
+# 关键：修复 iotcloud.env 权限
+chown jsc:jsc /opt/jsc/backend/iotcloud.env
+chmod 600 /opt/jsc/backend/iotcloud.env
+
+# 重载并启动
+systemctl daemon-reload
+systemctl restart jsc-backend
+nginx -t && nginx -s reload
+docker start zlmediakit   # 若容器仅停止</div>
+    </div>
+  </div>
+
+  <!-- 3. 关键提醒 -->
+  <h2>三、关键提醒（踩坑点）</h2>
+  <div class="crit"><b>① iotcloud.env 必须存在且权限正确，否则 IoTCloud 登录失败。</b><br>
+    该文件（chmod 600，属主 jsc）存放 IoTCloud 凭据 <span class="mono">IOT_CLOUD_*</span>，由 systemd 经 <span class="mono">EnvironmentFile=</span> 注入。
+    旧的 Jun-17 快照<b>不含此文件</b>——若只回滚到那些旧快照，IoTCloud 拉取会静默失败（日志报“未设置环境变量 IOT_CLOUD_PASSWORD”）。
+    用 T2 tarball 恢复可确保它被正确还原。</div>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">② 数据库为 WAL 模式</h4>
+      <p style="font-size:13px">备份包含 <span class="mono">jsc.db</span> + <span class="mono">jsc.db-wal</span> + <span class="mono">jsc.db-shm</span>。恢复时三个文件一起放回，SQLite 首次打开会自动合并 WAL，无需手动 checkpoint。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">③ ZLMediaKit 是 docker 容器</h4>
+      <p style="font-size:13px">配置 <span class="mono">/opt/zlm/config.ini</span> 已备份（bind 挂载）。容器仅停止用 <span class="mono">docker start zlmediakit</span>；若镜像丢失，需 <span class="mono">docker pull zlmediakit/zlmediakit:master</span> 并依据 <span class="mono">zlmediakit-docker-inspect.json</span> 重建（端口/挂载/镜像同原值）。</p>
+    </div>
+  </div>
+  <div class="note">④ 恢复后只需确认服务状态与接口，<b>无需改任何业务代码</b>——JSC 拉取逻辑无日期过滤，IoTCloud 一旦恢复新记录会自动流入。</div>
+
+  <!-- 4. 异地恢复 -->
+  <h2>四、从异地副本恢复（服务器整盘损坏时）</h2>
+  <ol class="steps">
+    <li>在可用的目标机（同规格 Linux）重装基础环境：Node 22（nvm 路径 <span class="mono">/home/jsc/.nvm/versions/node/v22.22.3/bin/node</span>）、nginx、docker、systemd。</li>
+    <li>将本地 <span class="mono">.workbuddy/backups/pre-major-20260709-025453/jsc-full.tar.gz</span> 传到目标机（先 <span class="mono">sha256sum -c</span> 比对一致）。</li>
+    <li><span class="mono">tar -xzf jsc-full.tar.gz -C /</span> 还原全部目录与配置。</li>
+    <li>修复权限：<span class="mono">chown -R jsc:jsc /opt/jsc/backend /opt/jsc/frontend</span>，并单独修 <span class="mono">iotcloud.env</span>（600/jsc）。</li>
+    <li><span class="mono">systemctl daemon-reload &amp;&amp; systemctl restart jsc-backend</span>；<span class="mono">nginx -t &amp;&amp; nginx -s reload</span>；<span class="mono">docker start zlmediakit</span>。</li>
+    <li>放通防火墙端口：81（nginx 对外）、7170（后端内部）、6080（ZLMediaKit）；公网 81→内网 80 映射由云厂商控制台设置。</li>
+  </ol>
+
+  <!-- 5. 重大改动前后建议 -->
+  <h2>五、重大改动前 / 后的最佳实践</h2>
+  <div class="card">
+    <ol class="steps">
+      <li><b>改动前</b>：已建立本备份（T1+T2+异地）。再额外跑一次 <span class="mono">jsc-rollback create</span> 作为“改动前基准”，记下时间戳。</li>
+      <li><b>改动中</b>：若改动只动前端/后端代码，可随时 <span class="mono">jsc-rollback restore &lt;改动前基准&gt;</span> 一键回退。</li>
+      <li><b>改动成功后</b>：再跑一次 <span class="mono">jsc-rollback create</span> 固化“新稳定态”，旧的预改动快照可保留 1~2 份作兜底，其余清理。</li>
+      <li><b>若改动失败且无法回退</b>：用 T2 完整 tarball 或异地副本做全量还原（见第三、四节）。</li>
+    </ol>
+    <div class="note">清理旧快照前务必确认新版本稳定。可用 <span class="mono">jsc-rollback list</span> 查看全部快照及占用空间（当前备份盘 1.4T 可用，空间充足）。</div>
+  </div>
+
+  <!-- 6. 恢复后验证 -->
+  <h2>六、恢复后验证清单</h2>
+  <div class="pre"># 服务状态
+systemctl is-active jsc-backend      # 期望 active
+systemctl is-active nginx            # 期望 active
+docker ps | grep zlmediakit          # 期望运行
+
+# 接口自检（服务器内）
+curl -s localhost:7170/api/health                # 后端健康
+curl -s "http://127.0.0.1:7170/api/iot-analysis/iot-channels" \
+  -H "Authorization: Bearer &lt;admin_token&gt;"    # 期望 ok=true, total=9
+
+# 前端
+curl -sI localhost:81/jsc/ | head -1            # 期望 200
+
+# 日志
+journalctl -u jsc-backend -f | grep "\[IoT\]"   # 期望出现“登录成功 / 拉取完成”</div>
+
+  <footer>
+    <span class="tag">T1=20260709-025452</span>
+    <span class="tag">T2=pre-major-20260709-025453</span>
+    <span class="tag">异地副本已校验</span>
+    <span class="tag">未改动任何线上服务</span>
+    <br>生成：2026-07-09 · 万州生态环境局驾驶舱（JSC）· 重大改动前备份专项
+  </footer>
+
+</div>
+</body>
+</html>

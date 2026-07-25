@@ -1,0 +1,11 @@
+{
+  "name": "chengyun-mock",
+  "version": "1.0.0",
+  "description": "模拟城运中心：依据《全景影像视频平台接口规范 V1.0》接收智治推送事件并回执，用于真实模拟闭环。",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

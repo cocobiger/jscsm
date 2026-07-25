@@ -1,0 +1,11 @@
+packages:
+  - '.'
+overrides:
+  vite: 6.3.5
+  webworkify-webpack: "git+https://github.com/xqq/webworkify-webpack.git"
+  lru-cache: 6.0.0
+allowBuilds:
+  '@tailwindcss/oxide': true
+  esbuild: true
+# 允许子依赖通过 git 仓库安装（mpegts.js → webworkify-webpack 来自 GitHub）
+blockExoticSubdeps: false

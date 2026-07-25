@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>智治推送第③环「PDF 结案存档」技术选型调研</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2d3d; --sub:#5a6b7b;
+    --line:#e3e8ef; --brand:#2563eb; --brand-soft:#eef3ff;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 24px 64px}
+  header{border-bottom:3px solid var(--brand);padding-bottom:16px;margin-bottom:24px}
+  h1{font-size:26px;margin:0 0 6px}
+  .meta{color:var(--sub);font-size:13px}
+  h2{font-size:20px;margin:34px 0 12px;padding-left:10px;border-left:4px solid var(--brand)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--brand)}
+  p{margin:8px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;margin:14px 0;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+  th{background:var(--brand-soft);color:var(--ink);font-weight:600}
+  tr:nth-child(even) td{background:#fafbfc}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+  .t-ok{background:#e7f7ee;color:var(--ok)}
+  .t-warn{background:#fdf1e0;color:var(--warn)}
+  .t-bad{background:#fdeaea;color:var(--bad)}
+  .stars{color:var(--warn);letter-spacing:1px;font-weight:700}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:#eef1f5;padding:1px 6px;border-radius:5px;font-size:13px;
+    font-family:ui-monospace,Consolas,monospace}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+  .node{background:var(--brand-soft);border:1px solid #c7d7ff;color:#16387a;
+    border-radius:8px;padding:8px 12px;font-size:13px}
+  .arrow{color:var(--sub);font-weight:700}
+  .note{border-left:4px solid var(--warn);background:#fff8ef;padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .okbox{border-left:4px solid var(--ok);background:#f1fbf5;padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:12px 0}
+  .step{display:flex;gap:10px;align-items:flex-start;margin:8px 0}
+  .step .n{flex:0 0 26px;height:26px;border-radius:50%;background:var(--brand);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  footer{margin-top:40px;color:var(--sub);font-size:12px;text-align:center}
+  a{color:var(--brand);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>智治推送第③环「PDF 结案存档」技术选型调研</h1>
+  <div class="meta">目标：事件推送城运中心 → 处置回执闭环后，按<b>甲方模板</b>生成结案 PDF 并存档　|　调研日期：2026-07-12</div>
+</header>
+
+<div class="card">
+<h3 style="margin-top:0">一句话结论</h3>
+<p>GitHub 上最成熟的套路是<b>「模板与代码分离 + 数据注入」</b>：把甲方版式做成一份可编辑模板（HTML 或 JSON Schema），运行时把结案数据填进去再渲染成 PDF。结合本项目现状（<b>Node 后端 + 服务器已装 Playwright/Chromium</b>、且 P0–P2 已把"非技术人员可配置"作为主线），最稳的落地路径是：</p>
+<ul>
+  <li><b>MVP（推荐先做）</b>：HTML + Handlebars 套版模板，用 Playwright <code>page.pdf()</code> 打印。复用现有 Chromium，1:1 还原甲方红头/印章/表格最忠实，零新增重依赖。</li>
+  <li><b>增强（甲方自服务）</b>：内嵌 <code>pdfme</code> 可视化设计器，让不懂技术的人拖拽摆字段、存为 JSON 模板，Node 端 <code>@pdfme/generator</code> 直出 PDF（无需浏览器）。</li>
+</ul>
+</div>
+
+<h2>一、GitHub 主流方案横向对比</h2>
+<table>
+<thead><tr><th>方案 / 代表仓库</th><th>渲染引擎</th><th>模板形态</th><th>中文支持</th><th>是否需浏览器</th><th>适合度</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>Puppeteer + Handlebars</b><br><span style="color:var(--sub)">chuongtrh/html_to_pdf、dharmeshkanzariya23/puppeteer-pdf-generator</span></td>
+  <td>无头 Chromium</td>
+  <td>HTML + <code>{{}}</code> 占位</td>
+  <td>需装 CJK 字体</td>
+  <td>是</td>
+  <td><span class="stars">★★★★★</span><br>保真度最高</td>
+</tr>
+<tr>
+  <td><b>pdf-creator-node</b>（npm 主流包）</td>
+  <td>无头 Chromium</td>
+  <td>HTML + Handlebars，内置页眉/页脚/边距</td>
+  <td>需装 CJK 字体</td>
+  <td>是</td>
+  <td><span class="stars">★★★★☆</span></td>
+</tr>
+<tr>
+  <td><b>HTML-to-PDF 微服务</b><br><span style="color:var(--sub)">its-abdullah/HTML-to-PDF-Microservice-API</span></td>
+  <td>Mustache + Puppeteer</td>
+  <td>REST 上传 HTML + 数据；<b>base64 字体内联</b>解决中文</td>
+  <td>内联字体即解决</td>
+  <td>是</td>
+  <td><span class="stars">★★★★☆</span><br>架构参考佳</td>
+</tr>
+<tr>
+  <td><b>pdfme</b><br><span style="color:var(--sub)">pdfme/pdfme（MIT，TS）</span></td>
+  <td>@pdfme/generator（pdf-lib 系，纯 JS）</td>
+  <td><b>JSON Schema + 可视化拖拽设计器</b></td>
+  <td>内置字体/插件</td>
+  <td><b>否</b>（生成时）</td>
+  <td><span class="stars">★★★★★</span><br>非技术自服务首选</td>
+</tr>
+<tr>
+  <td><b>pdfmake</b></td>
+  <td>声明式 JSON 文档模型</td>
+  <td>代码定义文档结构（表格强）</td>
+  <td>需预载字体</td>
+  <td>否</td>
+  <td><span class="stars">★★★☆☆</span></td>
+</tr>
+<tr>
+  <td><b>PDFKit / jsPDF</b></td>
+  <td>程序化逐元素绘制</td>
+  <td>纯代码坐标定位</td>
+  <td>需手动配字体</td>
+  <td>否</td>
+  <td><span class="stars">★★☆☆☆</span><br>套甲方版式太累</td>
+</tr>
+<tr>
+  <td><b>docx → PDF（LibreOffice headless）</b></td>
+  <td>文档转换</td>
+  <td>Word 模板书签/域填充</td>
+  <td>取决于 docx</td>
+  <td>否（需 LibreOffice）</td>
+  <td><span class="stars">★★★☆☆</span><br>若甲方给 .docx</td>
+</tr>
+</tbody>
+</table>
+
+<h2>二、关键发现（直接决定怎么设计）</h2>
+
+<div class="okbox">
+<b>① 模板必须独立于代码。</b> 所有成熟仓库都把"模板"作为可编辑资源（HTML 字符串 / JSON Schema / Word），运行时注入数据。→ 本案应新增一张「结案报告模板」表存 DB，在智能推送管理页里可编辑 + 实时预览，与现有 <code>platforms.body_template</code> 思路一脉相承。
+</div>
+
+<div class="okbox">
+<b>② 非技术自服务靠"可视化设计器"。</b> <code>pdfme</code> 的 Designer 是 Google Slides 式拖拽，甲方人员可直接摆字段、红头标题、印章图片，存为 JSON。这最契合 P0–P2 的"让不懂技术的人简单操作"主线。
+</div>
+
+<div class="okbox">
+<b>③ 1:1 还原靠"HTML 复刻"。</b> 甲方给的是扫描件 / Word 红头公文时，最忠实还原的方式是实施同学用 HTML/CSS 1:1 复刻，再 Playwright 打印成 PDF（<b>矢量、文字可选、支持页眉页脚页码、水印印章</b>）。GitHub 上此类仓库最多、模式最成熟。
+</div>
+
+<div class="note">
+<b>④ 中文是头号坑（必须前置处理）。</b> 无头 Chromium 在 Linux 服务器缺 CJK 字体 → 方块/空白。通用解法：<code>apt install fonts-noto-cjk</code>（或 wqy）；CSS 显式 <code>font-family</code>；必要时 <code>@font-face</code> base64 内联（its-abdullah 仓库即此法）。<b>第一步务必确认服务器 <code>fc-list :lang=zh</code> 有输出。</b>
+</div>
+
+<div class="okbox">
+<b>⑤ 本项目已具备 Playwright + Chromium。</b> DJI 桥接已在用 Playwright。PDF 打印只需 <code>chromium.launch({headless:true})</code> + <code>page.pdf()</code>，<b>无需 Xvfb</b>（打印不依赖显示），零新增重依赖。
+</div>
+
+<div class="note">
+<b>⑥ 性能与并发。</b> 打印是秒级、吃内存。结案报告属<b>低频触发</b>（闭环时生成），非高并发，单实例足够；可加简单队列/限流以防批量结案。
+</div>
+
+<h2>三、推荐架构</h2>
+
+<div class="flow">
+  <span class="node">结案触发<br>(status→closed / 手动结案)</span>
+  <span class="arrow">→</span>
+  <span class="node">数据聚合<br>history+events+平台+处置人/结果/证据图</span>
+  <span class="arrow">→</span>
+  <span class="node">模板渲染<br>HTML/Handlebars 或 pdfme JSON</span>
+  <span class="arrow">→</span>
+  <span class="node">PDF 存档<br>/data/reports/{id}.pdf</span>
+  <span class="arrow">→</span>
+  <span class="node">管理页"导出结案报告"下载</span>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">模板层</h3>
+<p>新增表 <code>smart_push_report_templates(id, name, engine, content, created_at)</code>。管理页提供两种编辑模式：</p>
+<ul>
+  <li><b>模式 A「HTML 套版」（默认，给开发/实施）</b>：CodeMirror 编辑 HTML+Handlebars，右侧实时预览。最保真。</li>
+  <li><b>模式 B「可视化设计」（给甲方/非技术）</b>：内嵌 pdfme Designer，拖拽生成 JSON Schema，存回 <code>content</code>。</li>
+</ul>
+<h3>数据层</h3>
+<p><code>closureReportData(historyId)</code> 组装变量：事件类型/时间/经纬度/推送平台/预案、处置结论 <code>disposal_result</code>、处置人 <code>disposal_operator</code>、结案时间 <code>closed_at</code>、关联预警/证据图（经 iot-image 代理）。</p>
+<h3>渲染层</h3>
+<ul>
+  <li><code>engine=html</code> → Playwright <code>page.setContent(compiledHtml)</code> → <code>page.pdf({format:'A4', printBackground:true, headerTemplate, footerTemplate(页码), margin})</code></li>
+  <li><code>engine=pdfme</code> → <code>@pdfme/generator</code> 的 <code>generate({template, inputs})</code>（Node 直出，无浏览器）</li>
+</ul>
+<h3>存档层</h3>
+<p>PDF 写 <code>/opt/jsc/backend/data/reports/{historyId}.pdf</code>；history 表加 <code>report_path</code> / <code>report_generated_at</code>；管理页加"导出结案报告"按钮；（可选）把 PDF 回传城运中心，闭环第③环。</p>
+</div>
+
+<h2>四、两种模板模式怎么选</h2>
+<table>
+<thead><tr><th>场景</th><th>选哪个</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>甲方给电子/扫描公文样本，追求 1:1 还原</td><td><b>HTML 套版（Playwright）</b></td><td>像素级复刻红头/印章/表格，矢量文字可选</td></tr>
+<tr><td>甲方想自己改版式、无开发资源</td><td><b>pdfme 可视化设计</b></td><td>拖拽即所得，JSON 存库，Node 直出</td></tr>
+<tr><td>MVP 快速见效</td><td><b>先做 HTML 套版</b></td><td>复用现有 Chromium，落地最快、最保真；pdfme 作增强</td></tr>
+</tbody>
+</table>
+
+<h2>五、建议实施路线</h2>
+<div class="step"><span class="n">0</span><div><b>服务器就绪验证</b>：<code>fc-list :lang=zh</code> 查 CJK 字体；确认 Playwright Chromium 可用；缺字体则 <code>apt install fonts-noto-cjk</code> 并 <code>fc-cache -fv</code>。</div></div>
+<div class="step"><span class="n">1</span><div><b>POC 验证</b>：写一份样例"结案报告"HTML 模板 + 一个 Node 渲染脚本（Playwright），产出 1 份样例 PDF 交甲方确认版式。</div></div>
+<div class="step"><span class="n">2</span><div><b>数据聚合</b>：实现 <code>closureReportData(historyId)</code>，把 history/events/平台/处置信息/证据图组装为变量。</div></div>
+<div class="step"><span class="n">3</span><div><b>模板表 + 管理页编辑器</b>（先 HTML 模式）：建表、列表/编辑/预览。</div></div>
+<div class="step"><span class="n">4</span><div><b>渲染服务 + 存档 + 下载</b>：结案自动生成、写盘、history 记录路径、前端导出按钮。</div></div>
+<div class="step"><span class="n">5</span><div><b>增强</b>：pdfme 可视化设计器；自动触发；PDF 回传城运中心（闭环第③环）。</div></div>
+
+<h2>六、风险 & 前置</h2>
+<ul>
+  <li><span class="tag t-bad">必做</span> CJK 字体：服务器不装中文字体，PDF 必成方块。</li>
+  <li><span class="tag t-ok">低风险</span> Chromium 路径/权限：DJI 桥接已在用，基本无虞。</li>
+  <li><span class="tag t-warn">注意</span> 复杂表格/跨页：HTML 用 <code>@media print</code>、<code>break-inside:avoid</code> 防止分页截断。</li>
+  <li><span class="tag t-warn">注意</span> 印章/红头：以图片 schema 或 CSS 绝对定位叠加实现。</li>
+</ul>
+
+<footer>调研来源：GitHub（html_to_pdf / puppeteer-pdf-generator / HTML-to-PDF-Microservice-API / pdfme）+ pdfbolt 库对比 + 中文 Headless Chrome 字体实践。本报告为技术选型建议，落地前需与甲方确认模板样本。</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoTCloud 视频分析记录中断 · 调查与解决方案</title>
+<style>
+  :root{
+    --bg:#0f1419; --card:#1a2230; --card2:#222c3d; --line:#2e3a4f;
+    --txt:#e6edf3; --mut:#9fb0c3; --acc:#3ea6ff; --ok:#3fb950; --warn:#f0a93b; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0b0f14,#0f1419 320px);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.65}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 22px 80px}
+  header.hero{padding:30px 28px;border-radius:16px;background:radial-gradient(900px 300px at 0% 0%,#16314a,transparent),var(--card);
+    border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .hero h1{margin:0 0 6px;font-size:25px;letter-spacing:.5px}
+  .hero .sub{color:var(--mut);font-size:14px}
+  .badge{display:inline-block;margin-top:14px;padding:5px 12px;border-radius:999px;font-size:12.5px;
+    background:rgba(248,81,73,.14);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .badge.ok{background:rgba(63,185,80,.14);color:var(--ok);border-color:rgba(63,185,80,.4)}
+  h2{margin:38px 0 14px;font-size:19px;border-left:4px solid var(--acc);padding-left:12px}
+  h3{margin:22px 0 8px;font-size:15.5px;color:#cfe3ff}
+  p{color:#d6e0ea;font-size:14.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;background:var(--card2)}
+  td.mono{font-family:"SF Mono",Consolas,monospace;color:#bcd3ff}
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600}
+  .pill.bad{background:rgba(248,81,73,.16);color:var(--bad)}
+  .pill.ok{background:rgba(63,185,80,.16);color:var(--ok)}
+  .pill.mut{background:rgba(159,176,195,.16);color:var(--mut)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+  .hyp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .hyp .rank{font-size:12px;color:var(--mut)}
+  .hyp h4{margin:4px 0 6px;font-size:14.5px}
+  .hyp .prob{font-size:13px;color:var(--mut)}
+  .bar{height:10px;border-radius:6px;background:linear-gradient(90deg,#3ea6ff,#3fb950)}
+  .evi{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#0b0f14;border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;color:#a9c7e6;white-space:pre-wrap;overflow:auto}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:8px 0}
+  ol.steps li{counter-increment:s;position:relative;padding:10px 12px 10px 46px;margin:8px 0;background:var(--card2);
+    border:1px solid var(--line);border-radius:10px;font-size:14px}
+  ol.steps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:24px;height:24px;border-radius:50%;
+    background:var(--acc);color:#06121f;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .note{font-size:13px;color:var(--mut);border-left:3px solid var(--warn);padding:6px 12px;background:rgba(240,169,59,.07);border-radius:0 8px 8px 0;margin:10px 0}
+  .code{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#0b0f14;border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;color:#bfe0c9;overflow:auto;white-space:pre}
+  footer{margin-top:46px;color:var(--mut);font-size:12.5px;border-top:1px solid var(--line);padding-top:16px}
+  .tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:5px;background:var(--card2);color:var(--mut);margin-right:6px}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
+  .kv .k{flex:0 0 120px;color:var(--mut);font-size:13px}
+  .kv .v{font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>IoTCloud 视频分析记录中断 · 调查与解决方案</h1>
+    <div class="sub">对象：物联网视频分析平台 172.16.8.11（对外 111.10.220.226:6881） · 通道 <span class="mono">56331706881318000004</span>（九龙沙场）</div>
+    <div class="sub">调查时间：2026-07-09 · 方法：仅只读探测 IoTCloud 接口，未修改任何物联网服务器代码</div>
+    <span class="badge">根因定性：IoTCloud AI 分析服务全局中断（2026-06-08 14:50:02）</span>
+  </header>
+
+  <!-- 1. 现象 -->
+  <h2>一、现象描述</h2>
+  <div class="card">
+    <p>用户在 IoTCloud 后台查看通道 <b>九龙沙场</b>（<span class="mono">channelSipId=56331706881318000004</span>，
+       <span class="mono">deviceSipId=50010100001310000001</span>）的分析记录，发现：</p>
+    <ul>
+      <li>最新一条记录时间为 <b>2026-06-08 14:50:02</b>；</li>
+      <li>此后至今（2026-07-09，约 <b>31 天</b>）<b>持续无任何新分析记录</b>；</li>
+      <li>该通道记录总数固定为 <b>30 条</b>，时间跨度仅 2026-06-05 → 2026-06-08。</li>
+    </ul>
+    <div class="note">用户提供的访问地址 <span class="mono">/video/analysisRecord?...</span> 经实测返回 <b>404</b>——该路径并非真实数据 API。
+      真实接口为 <span class="mono">/prod-api/sip/analyse/record/list</span>。地址本身不是记录缺失的原因。</div>
+  </div>
+
+  <!-- 2. 调查证据 -->
+  <h2>二、调查证据（实测）</h2>
+
+  <h3>2.1 所有 9 个通道的最新记录时间完全一致</h3>
+  <div class="card">
+    <p>对 IoTCloud 全部 9 路 NVR 通道逐一查询 <span class="mono">/sip/analyse/record/list</span>，结果如下：</p>
+    <table>
+      <thead><tr><th>通道名称</th><th>记录总数</th><th>最新记录时间</th><th>判定</th></tr></thead>
+      <tbody>
+        <tr><td>红溪沟作业区</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>苏商码头</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>桐子园码头</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>九龙沙场</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>龙泗路</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>GB_Chn_009</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>厂区主道(彼迪)</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>大门干道（万源玻璃）</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+        <tr><td>通道8</td><td class="mono">30</td><td class="mono">2026-06-08 14:50:02</td><td><span class="pill bad">中断</span></td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>关键信号</b>：9 路通道在<b>同一秒</b>（14:50:02）同时停止。若为单路摄像头掉线或偶然检测空白，停止时间应各不相同；
+      完全一致 = 一次<b>中央级事件</b>导致分析引擎对所有通道停摆。</div>
+    <div style="margin-top:10px"><div style="font-size:12px;color:var(--mut);margin-bottom:6px">各通道记录数分布（均为 30，呈“齐刷刷截断”形态）</div>
+      <div class="grid3">
+        <div><div class="bar" style="width:100%"></div><div style="font-size:11px;color:var(--mut);margin-top:3px">全部 9 路 = 30 条</div></div>
+        <div><div class="bar" style="width:100%"></div><div style="font-size:11px;color:var(--mut);margin-top:3px">截止 06-08 14:50:02</div></div>
+        <div><div class="bar" style="width:0%"></div><div style="font-size:11px;color:var(--mut);margin-top:3px">06-08 之后 = 0 条</div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>2.2 单条记录样本（说明记录性质）</h3>
+  <div class="card">
+    <div class="evi">{
+  "recordId": 83387,
+  "deviceSipId": "50010100001310000001",
+  "channelSipId": "56331706881318000004",
+  "createTime": "2026-06-08 14:50:02",
+  "analyseInfo": "[{\"unsoilcover\":0.54}]",
+  "ruleId": 163,
+  "picUrl": "http://111.10.220.226:5001/images/detect/2026/06/08/2026-06-08T14:30:20.jpg",
+  "deviceName": "NVR",
+  "channelName": "九龙沙场",
+  "confirm": 0
+}</div>
+    <p>记录为<b>周期性 AI 快照</b>（约每小时一条，带 <span class="mono">ruleId=163</span> 与固定算法 <span class="mono">unsoilcover</span>），
+      并非“有事件才产生”。这类定时任务一旦中央调度停止，所有通道会<b>同时</b>停更——与 2.1 的现象吻合。</p>
+  </div>
+
+  <h3>2.3 排除项（确认非 JSC 侧 / 非过滤导致）</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">JSC 拉取逻辑无日期过滤 ✅</h4>
+      <p style="font-size:13.5px">JSC 后端 <span class="mono">iot-fetcher.js</span> 每轮仅请求
+        <span class="mono">pageNum=1&pageSize=20</span> 并按 <span class="mono">recordId</span> 去重，<b>没有任何 beginTime/endTime 限制</b>。
+        只要 IoTCloud 有新记录，首屏（最新 20 条）必然包含，会自动流入 JSC。因此“看不到新记录”是<b>源端没有</b>，不是被我们漏拉。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">IoTCloud 的 beginTime 参数无效 ⚠️</h4>
+      <p style="font-size:13.5px">实测以 <span class="mono">beginTime=2026-06-09/06-20/07-01</span> 查询，<b>均返回 total=30 且是同一批旧数据</b>。
+        说明该列表接口的日期过滤参数<b>未生效</b>（字段 beginTime/endTime 恒为 null）。这本身是一个接口缺陷，但不影响结论：
+        按 createTime 降序的首页最新记录就是 2026-06-08 14:50:02，全量仅 30 条。</p>
+    </div>
+  </div>
+
+  <!-- 3. 根因分析 -->
+  <h2>三、根因分析</h2>
+  <p>中断发生在 <b>2026-06-08 14:50:02</b>，且 9 路通道同步、记录为定时快照——指向<b>中央 AI 分析服务在这一刻停止写库</b>。
+    结合“距今约 31 天（≈1 个月）”的时间特征，按可能性排序如下：</p>
+
+  <div class="grid3">
+    <div class="hyp">
+      <div class="rank">可能性 ★★★★★（最高）</div>
+      <h4>AI 分析 License / 授权到期</h4>
+      <div class="prob">厂商按“路数×时长”授权，授权在 2026-06-08 前后到期，分析模块停止出图与写库。与“整月空窗”高度吻合。</div>
+    </div>
+    <div class="hyp">
+      <div class="rank">可能性 ★★★★☆</div>
+      <h4>AI 分析服务 / 定时任务被停止或崩溃</h4>
+      <div class="prob">中心调度进程（如 analyse-scheduler）在 14:50 宕掉或被人停用，所有通道快照随之中断。</div>
+    </div>
+    <div class="hyp">
+      <div class="rank">可能性 ★★★☆☆</div>
+      <h4>分析规则 ruleId=163 被禁用 / 删除</h4>
+      <div class="prob">该全局规则被关闭后，绑定它的全部通道不再产生记录。属中央配置变更。</div>
+    </div>
+    <div class="hyp">
+      <div class="rank">可能性 ★★★☆☆</div>
+      <h4>存储 / 写盘异常</h4>
+      <div class="prob">检测图落盘目录 <span class="mono">images/detect</span>（111.10.220.226:5001）或数据库写满/只读，导致分析任务无法落库。</div>
+    </div>
+    <div class="hyp">
+      <div class="rank">可能性 ★★☆☆☆</div>
+      <h4>NVR / 视频源整体断流</h4>
+      <div class="prob">若 9 路同属一台 NVR，NVR 掉线也会导致无视频可分析。但“全部通道同秒停”更偏中央而非单 NVR。</div>
+    </div>
+    <div class="hyp">
+      <div class="rank">可能性 ★☆☆☆☆（已排除）</div>
+      <h4>JSC 侧拉取 bug / 前端显示问题</h4>
+      <div class="prob">已排除：JSC 无日期过滤；IoTCloud 源端本身无新数据；前端 apiFetch bug 此前已修复且当前接口返回 9 通道正常。</div>
+    </div>
+  </div>
+
+  <!-- 4. 解决方案 -->
+  <h2>四、解决方案</h2>
+  <p>因无法改动物联网服务器代码，解决分两层：<b>A. IoTCloud 运维侧恢复（治本，必须做）</b>；<b>B. JSC 侧增强（治标/防复发，可选做）</b>。</p>
+
+  <h3>A. IoTCloud 侧排查与恢复（运维动作，非代码）</h3>
+  <ol class="steps">
+    <li><b>确认 AI 分析模块状态</b>：登录 IoTCloud 管理后台 → 算法/AI 分析 → 查看分析服务与“定时分析任务”是否处于<b>运行中</b>。若已停止，重新启用并观察是否恢复 hourly 快照。</li>
+    <li><b>核查 License / 授权有效期</b>：重点看授权到期日是否落在 <b>2026-06-08 前后</b>。若是，联系厂商<b>续费/重置授权</b>即可恢复（最高概率根因）。</li>
+    <li><b>检查分析规则 ruleId=163</b>：确认该全局规则未被禁用/删除，且其调度计划覆盖到当前日期。</li>
+    <li><b>检查存储与写盘</b>：查看 <span class="mono">images/detect</span> 目录与数据库磁盘使用率，确认未写满/只读；必要时清理或扩容。</li>
+    <li><b>检查 NVR 与视频源</b>：确认 9 路通道所属 NVR 在线、视频流正常（可在 IoTCloud 实时预览验证）。</li>
+    <li><b>查看服务日志</b>：检索 IoTCloud 在 2026-06-08 14:50 前后的应用/调度日志，定位停止瞬间的报错（授权失效 / 任务异常 / OOM 等）。</li>
+    <li><b>重启分析服务</b>：完成上述确认后，重启 AI 分析相关服务进程；约 1 小时内应开始出现新记录。</li>
+  </ol>
+
+  <h3>B. JSC 侧增强（防止“无人察觉”式中断，可选实现）</h3>
+  <div class="card">
+    <p>JSC 目前只是被动拉取，IoTCloud 一旦断供，驾驶舱会<b>静默无新告警</b>，难以第一时间发现。建议在 JSC 增加<b>数据新鲜度监控</b>：</p>
+    <div class="kv">
+      <div class="k">监控逻辑</div><div class="v">每轮拉取后，记录各通道最新 <span class="mono">createTime</span>；若距当前 &gt; 阈值（建议 24h，AI 快照为 hourly）则在后台/大屏标记“分析数据中断”。</div>
+    </div>
+    <div class="kv">
+      <div class="k">前端呈现</div><div class="v">在“AI分析存档”列表与地图摄像头信息窗显示“最近分析：YYYY-MM-DD HH:mm”，陈旧即变灰/告警色。</div>
+    </div>
+    <div class="kv">
+      <div class="k">恢复自动衔接</div><div class="v">JSC 拉取逻辑<b>无需改动</b>：IoTCloud 恢复后，新记录出现在首页，按 recordId 去重自动入库。</div>
+    </div>
+    <p style="font-size:13px;color:var(--mut)">以下为可选的后端监控代码片段（示例，未部署）：</p>
+    <div class="code">// iot-fetcher.js 伪代码：每次 fetchOnce 后更新新鲜度
+const FRESHNESS_MS = 24 * 3600 * 1000
+for (const ch of channels) {
+  const latest = _store.latestWarningTime(ch.channelSipId) // 取该通道最新 createTime
+  const stale = !latest || (Date.now() - new Date(latest).getTime()) > FRESHNESS_MS
+  _channelStale[ch.channelSipId] = stale
+}
+// 暴露给后台：GET /api/iot-analysis/freshness -> [{channel, latest, stale}]</div>
+  </div>
+
+  <!-- 5. 恢复验证 -->
+  <h2>五、恢复后验证步骤</h2>
+  <ol class="steps">
+    <li>在 IoTCloud 后台确认该通道出现 <b>2026-06-08 之后</b>的新分析记录（或直接调 <span class="mono">/sip/analyse/record/list</span> 看最新时间是否后移）。</li>
+    <li>等待 JSC 下一轮拉取（≤30s），在 JSC 后台“AI分析存档 / 通道接入”确认新记录流入、地图摄像头出现对应告警。</li>
+    <li>观察 JSC 日志 <span class="mono">journalctl -u jsc-backend -f | grep "[IoT]"</span> 出现“拉取完成 … 新增N条”。</li>
+  </ol>
+
+  <h2>六、结论</h2>
+  <div class="card">
+    <p style="margin:0">分析记录缺失的<b>根因在 IoTCloud 侧</b>——其 AI 分析服务在 <b>2026-06-08 14:50:02</b> 全局停摆（9 路通道同秒中断、记录为定时快照），
+      JSC 拉取链路无过滤、无故障，属被动受影响。<b>最高概率原因为 AI 分析 License 到期或分析服务/定时任务被停止</b>。
+      恢复需 IoTCloud 运维侧续期/重启服务（A 项），并建议补充 JSC 侧新鲜度监控（B 项）以便今后及时发现。</p>
+  </div>
+
+  <footer>
+    <span class="tag">调查方式：只读探测</span>
+    <span class="tag">未修改 IoTCloud 代码</span>
+    <span class="tag">数据来源：/prod-api/sip/analyse/record/list 实测</span>
+    <br>生成时间：2026-07-09 · 万州生态环境局驾驶舱（JSC）· IoT 对接排查专项
+  </footer>
+
+</div>
+</body>
+</html>

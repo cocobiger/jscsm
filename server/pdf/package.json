@@ -1,0 +1,10 @@
+{
+  "name": "jsc-pdf-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated HTML->PDF renderer (playwright-core + cached Chromium). Layout-agnostic: takes an HTML file, emits a PDF.",
+  "main": "render.js",
+  "dependencies": {
+    "playwright-core": "^1.61.1"
+  }
+}
