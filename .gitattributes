@@ -1,0 +1,17 @@
+# 强制文本文件以 LF 存储/检出，保证脚本与配置跨平台一致（配置即代码）
+* text=auto eol=lf
+
+# 二进制/产物不归一化
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.rar binary
+*.db binary
