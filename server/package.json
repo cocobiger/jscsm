@@ -4,7 +4,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch-path=./index.js --watch-path=./crawler.js --watch-path=./warning-engine.js index.js"
+    "dev": "node --watch-path=./index.js --watch-path=./crawler.js --watch-path=./warning-engine.js index.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.18.2",
