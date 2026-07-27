@@ -98,7 +98,7 @@ export function CenterPanel({ activeTab, onTabChange, selectedAlert }: Props) {
 
         {/* 无人机溯源 - 外部快捷入口 */}
         <a
-          href="http://111.10.220.226:81/dajiang"
+          href="http://111.10.220.226:81/qitijsc/"
           target="_blank"
           rel="noopener noreferrer"
           style={{
