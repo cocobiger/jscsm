@@ -29,3 +29,24 @@ jobs:
         with:
           node-version: 22
       - run: node --test server/test/smoke.test.cjs
+
+  # 类型检查（观察期非阻断）：先量出历史类型错误数，再排清理 sprint 转严格门禁。
+  # 用 || true 保持 job 绿，错误数以 GitHub notice 形式展示在 Actions 摘要，完整错误见日志。
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - name: tsc --noEmit (observation, non-blocking)
+        run: |
+          pnpm typecheck > tc.log 2>&1 || true
+          COUNT=$(grep -c 'error TS' tc.log || true)
+          echo "::notice title=Typecheck::Found ${COUNT} TypeScript error(s) — non-blocking observation phase"
+          echo "TypeScript errors: ${COUNT}"
