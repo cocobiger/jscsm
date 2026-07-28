@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, authFetch } from '../../lib/apiFetch'
 import BlockEditor from './BlockEditor'
-import { Block, BlockType, WORKREPORT_VARS, newBlock } from './reportBlocks'
+import { Block, BlockType, WORKREPORT_VARS, newBlock, shouldOpenBlockEditor } from './reportBlocks'
 import { EvidenceGrid, type EvidenceItem, type EvidenceType } from '../EvidenceGrid'
 
 const CYAN = '#00aaff'
@@ -2041,7 +2041,7 @@ function ReportTemplatesTab() {
           <tbody>
             {templates.length === 0 && <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#3a5a70' }}>暂无模板</td></tr>}
             {templates.map(t => {
-              const isWorkBlock = t.kind === 'workreport' && !!t.blocks_json
+              const isWorkBlock = shouldOpenBlockEditor(t.kind, t.blocks_json)
               return (
                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(0,40,80,0.1)' }}>
                   <td style={{ padding: '8px 12px', color: '#c8e6ff' }}>{t.name}</td>

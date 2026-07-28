@@ -7,6 +7,7 @@ import {
   blocksToHtml,
   fillTemplateClient,
   WR_SAMPLE_DATA,
+  shouldOpenBlockEditor,
 } from './reportBlocks'
 
 describe('reportBlocks 元数据', () => {
@@ -76,5 +77,26 @@ describe('fillTemplateClient 变量替换', () => {
     const html = blocksToHtml([newBlock('byTypeTable')])
     const out = fillTemplateClient(html, WR_SAMPLE_DATA)
     expect(out).toContain('事件类型')
+  })
+})
+
+describe('shouldOpenBlockEditor 模板编辑分支（closure 防回归）', () => {
+  it('closure 预设（无 blocks_json）走文本域，不触发 BlockEditor（防回归）', () => {
+    expect(shouldOpenBlockEditor('closure', null)).toBe(false)
+    expect(shouldOpenBlockEditor('closure', '')).toBe(false)
+    expect(shouldOpenBlockEditor('closure', '[]')).toBe(false)
+  })
+
+  it('workreport 带非空 blocks_json 才进区块编辑器', () => {
+    expect(shouldOpenBlockEditor('workreport', '[{"type":"title","text":"x","visible":true}]')).toBe(true)
+    expect(shouldOpenBlockEditor('workreport', null)).toBe(false)
+    expect(shouldOpenBlockEditor('workreport', '')).toBe(false)
+    expect(shouldOpenBlockEditor('workreport', '   ')).toBe(false)
+  })
+
+  it('未知/缺省 kind 一律文本域', () => {
+    expect(shouldOpenBlockEditor(undefined, '[]')).toBe(false)
+    expect(shouldOpenBlockEditor('', '[]')).toBe(false)
+    expect(shouldOpenBlockEditor('other', '[]')).toBe(false)
   })
 })

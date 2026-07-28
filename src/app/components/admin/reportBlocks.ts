@@ -180,3 +180,11 @@ export function fillTemplateClient(html: string, data: Record<string, unknown>):
     return escapeHtml(String(v))
   })
 }
+
+// ── 模板编辑分支判定：是否进「区块编辑器」而非 HTML 文本域 ──
+// 仅「工作报表」类且确实带非空 blocks_json 的模板，点「编辑」才开 BlockEditor；
+// 其余（含 kind='closure'、无 blocks_json 的预设/旧模板）一律走 HTML 文本域，
+// 避免误触发区块编辑器导致预设模板被破坏。
+export function shouldOpenBlockEditor(kind?: string | null, blocksJson?: string | null): boolean {
+  return kind === 'workreport' && typeof blocksJson === 'string' && blocksJson.trim().length > 0
+}
