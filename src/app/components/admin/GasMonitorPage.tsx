@@ -273,19 +273,19 @@ export function GasMonitorPage() {
                   const cross = rules.crossThresholds || {}
                   const growth = rules.growthRange || {}
                   // 不预警区间文案：SO2 用严格小于，其余用 ≤
-                  const safeText = (code) => {
+                  const safeText = (code: string) => {
                     if (sm[code] == null) return '—'
                     return code === 'SO2' ? `<${sm[code]}` : `≤${sm[code]}`
                   }
                   // 5小时增长文案
-                  const growthText = (code) => {
+                  const growthText = (code: string) => {
                     const g = growth[code]
                     if (!g) return '无'
                     if (g.max === Infinity || g.max == null) return `>${g.min} 且5h增长≥40%`
                     return `${g.min}<数据≤${g.max} 且5h增长≥40%`
                   }
                   // 跨阈值文案（按梯度从低到高显示）
-                  const crossText = (code) => {
+                  const crossText = (code: string) => {
                     const arr = cross[code]
                     if (!arr || !arr.length) return '无'
                     return '跨 ' + [...arr].sort((a, b) => a - b).join('/')

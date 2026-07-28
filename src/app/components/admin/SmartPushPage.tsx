@@ -430,7 +430,7 @@ interface Platform {
 interface Rule {
   id: string; name: string; event_type: string; plan_id: string; plan_name?: string
   location_match: string; time_window_hours: number; trigger_count: number
-  enabled: boolean; created_at: string
+  enabled: boolean; created_at: string; platform_name?: string
 }
 interface PushHistory {
   id: string; rule_id: string; plan_id: string; event_type: string
@@ -1123,7 +1123,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
   const [token, setToken] = useState('')
   const [formMode, setFormMode] = useState<'wizard' | 'advanced'>(platform ? 'advanced' : 'wizard')
   const [bodyFormat, setBodyFormat] = useState<'json' | 'form'>('json')
-  const [authMode, setAuthMode] = useState<'none' | 'bearer' | 'appkey'>(platform?.auth_mode || 'none')
+  const [authMode, setAuthMode] = useState<'none' | 'bearer' | 'appkey'>((platform?.auth_mode as 'none' | 'bearer' | 'appkey') || 'none')
   const [authKeyName, setAuthKeyName] = useState(platform?.auth_key_name || 'X-App-Token')
   const [mappings, setMappings] = useState<FieldMapping[]>(() => parseTemplateToMappings(form.body_template))
   // 订阅事件类型：'ALL' 或若干 EVENT_TYPES

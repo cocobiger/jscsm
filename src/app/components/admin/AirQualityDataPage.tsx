@@ -240,7 +240,7 @@ export function AirQualityDataPage() {
           <div style={{ color: '#3a5a70', fontSize: 11, marginBottom: 10, lineHeight: 1.7 }}>
             将「气体采集预警」模块已采集的周家坝/百安坝数据同步到此页（自动去重）
           </div>
-          <button onClick={handleSync} style={{ width: '100%', ...btn(GREEN) }}>⟳ 立即同步</button>
+          <button onClick={() => { void handleSync() }} style={{ width: '100%', ...btn(GREEN) }}>⟳ 立即同步</button>
           {syncMsg && (
             <div style={{ marginTop: 8, padding: '5px 8px', background: `${GREEN}12`, border: `1px solid ${GREEN}30`, borderRadius: 3, fontSize: 11, color: GREEN }}>
               {syncMsg}

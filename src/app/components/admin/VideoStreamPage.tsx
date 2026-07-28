@@ -65,7 +65,7 @@ function Input({ label, value, onChange, placeholder, mono, type = 'text', hint 
 }
 
 function Select<T extends string>({ label, value, options, labels, onChange }: {
-  label: string; value: T; options: readonly T[]; labels?: Record<string, string>; onChange: (v: T) => void
+  label: string; value: T; options: readonly T[]; labels?: Record<string, string>; onChange: (v: T) => void; hint?: string
 }) {
   return (
     <div style={{ marginBottom: 12 }}>
@@ -626,9 +626,7 @@ export function VideoStreamPage() {
                   placeholder={
                     form.protocol === 'hls'
                       ? '支持 rtsp://（自动转HLS）或 http://.../xxx.m3u8'
-                      : form.protocol === 'flv'
-                        ? 'http://.../xxx.flv 或 rtsp://（自动转FLV）'
-                        : 'rtsp://192.168.1.x:554/stream/...'
+                      : 'rtsp://192.168.1.x:554/stream/...'
                   } mono
                   hint={
                     form.protocol === 'hls'

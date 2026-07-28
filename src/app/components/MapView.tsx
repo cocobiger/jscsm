@@ -240,7 +240,7 @@ export function MapView({ activeTab, selectedAlert }: Props) {
     const str = (v: unknown, d = '-') => (v == null ? d : String(v))
 
     // 按配置 key 取图标（不存在则用 fallback 默认图标+颜色）
-    const icon = (key: string, name: string, fb: { icon: string; color: string }, opts?: { pulse?: boolean; size?: number }) => {
+    const icon = (key: string, name: string, fb: { icon: string; color: string }, opts?: { pulse?: boolean; size?: number; alert?: boolean }) => {
       const c = iconCfg[key] || fb
       return renderMarkerIcon(c.icon || fb.icon, c.color || fb.color, name, opts)
     }

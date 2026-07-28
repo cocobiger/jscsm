@@ -319,7 +319,7 @@ export function SmsWarningPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={saveTemplate} disabled={busy === 'template'} style={btn(PURPLE)}>{tEdit ? '保存修改' : '添加模板'}</button>
                 <button onClick={doPreview} style={btn(CYAN, true)}>预览</button>
-                {tEdit && <button onClick={() => { setTEdit(null); setTForm({ name: '', content: '', triggerType: 'air' }); setPreview('') }} style={btn('#5a8aaa', true)}>取消</button>}
+                {tEdit && <button onClick={() => { setTEdit(null); setTForm(f => ({ ...f, name: '', content: '', triggerType: 'air' })); setPreview('') }} style={btn('#5a8aaa', true)}>取消</button>}
               </div>
             </div>
             <div style={{ flex: 1 }}>

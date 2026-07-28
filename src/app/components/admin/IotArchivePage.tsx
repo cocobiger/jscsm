@@ -75,7 +75,7 @@ export function IotArchivePage({ user }: Props) {
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10
   const [jump, setJump] = useState('')
-  const [tab, setTab] = useState<'archive' | 'channels'>('archive')
+  const [tab, setTab] = useState<'archive' | 'channels' | 'rules'>('archive')
   const isAdmin = roleAtLeast(user.role, 'admin')
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 3000) }
@@ -204,7 +204,7 @@ export function IotArchivePage({ user }: Props) {
       {/* 子标签：存档记录 / 通道接入（仅 admin） */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexShrink: 0 }}>
         {([['archive', '存档记录'], ...(isAdmin ? [['channels', '通道接入'], ['rules', '事件研判逻辑']] : [])] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} style={{
+          <button key={key} onClick={() => setTab(key as 'archive' | 'channels' | 'rules')} style={{
             padding: '6px 18px', fontSize: 13, borderRadius: 3,
             border: `1px solid ${tab === key ? 'rgba(0,170,255,0.35)' : 'rgba(0,120,200,0.2)'}`,
             background: tab === key ? 'rgba(0,170,255,0.1)' : 'transparent',
@@ -382,7 +382,7 @@ function PushRulePanel({ user }: { user: CurrentUser }) {
   const isAdmin = roleAtLeast(user.role, 'admin')
   const [rules, setRules] = useState<PushRule[]>([])
   const [channels, setChannels] = useState<Array<{ channelSipId: string; channelName: string }>>([])
-  const [aiTypes, setAiTypes] = useState<string[]>(DEFAULT_AI_TYPES)
+  const [aiTypes, setAiTypes] = useState<string[]>([...DEFAULT_AI_TYPES])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
   const [editing, setEditing] = useState<string | null>(null)   // 正在编辑的研判 id；null = 新建

@@ -88,7 +88,7 @@ function Input({ label, value, onChange, placeholder, mono, type = 'text', hint 
 }
 
 function Select<T extends string>({ label, value, options, labels, onChange }: {
-  label: string; value: T; options: readonly T[]; labels?: Record<string, string>; onChange: (v: T) => void
+  label: string; value: T; options: readonly T[]; labels?: Record<string, string>; onChange: (v: T) => void; hint?: string
 }) {
   return (
     <div style={{ marginBottom: 12 }}>

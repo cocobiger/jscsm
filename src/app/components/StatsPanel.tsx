@@ -111,7 +111,7 @@ function TrendChart({ data }: { data: { weekday: string; count: number; date?: s
 
       {/* Dots + hover */}
       {points.map((p, i) => (
-        <g key={p.day}>
+        <g key={p.weekday}>
           <circle
             cx={p.x} cy={p.y} r={hovered === i ? 4 : 2.5}
             fill={hovered === i ? '#fff' : CYAN}

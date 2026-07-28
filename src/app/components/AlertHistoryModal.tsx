@@ -40,6 +40,7 @@ interface WarnRecord {
 
 // 统一的展示行结构
 interface Row {
+  kind: 'row'
   id: string; fullTime: string; sortKey: string
   level: 1 | 2 | 3 | 4; type: string; location: string
   value: string; standard: string; isPlate: boolean
@@ -101,6 +102,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
 
   // 后端预警 → Row
   const backendRows: Row[] = records.map(w => ({
+    kind: 'row',
     id: w.id,
     fullTime: fmtFull(w.createdAt, w.monitorTime),
     sortKey: w.createdAt || w.monitorTime || '',
@@ -121,6 +123,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   const memRows: Row[] = alerts
     .filter(a => !backendIdSet.has(a.id) && !a.id.startsWith('warn-'))
     .map(a => ({
+      kind: 'row',
       id: a.id,
       fullTime: a.fullTime || a.time,
       sortKey: a.fullTime || a.time,

@@ -63,7 +63,7 @@ function SinglePlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerRef = useRef<ReturnType<typeof mpegts.createPlayer> | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
-  const hlsRef = useRef<Hls | null>(null)
+  const hlsRef = useRef<InstanceType<typeof Hls> | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapshotRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapshotDoneRef = useRef(false)
@@ -135,7 +135,7 @@ function SinglePlayer({
       )
       playerRef.current = p
       p.attachMediaElement(el)
-      p.load(); p.play().catch(() => {})
+      p.load(); p.play()?.catch(() => {})
       p.on(mpegts.Events.ERROR, (_: unknown, ed: { type?: string; details?: string } | undefined) => {
         setStatus('error')
         setErrMsg(`${ed?.type ?? '流错误'}：${ed?.details ?? '无法连接，请检查地址与网络'}`)

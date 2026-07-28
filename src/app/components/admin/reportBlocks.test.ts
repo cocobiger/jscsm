@@ -41,8 +41,10 @@ describe('blocksToHtml 序列化', () => {
   it('隐藏区块被过滤', () => {
     const blocks = [newBlock('title'), { ...newBlock('footer'), visible: false }]
     const html = blocksToHtml(blocks)
-    expect(html).toContain('wr-title')
-    expect(html).not.toContain('wr-footer')
+    // 渲染体里应含可见区块，且不含被隐藏区块的 DOM 节点；
+    // 注意 <style> 会始终输出全部 class 定义，故需按渲染节点 class="wr-*" 断言，而非裸字符串。
+    expect(html).toContain('class="wr-title"')
+    expect(html).not.toContain('class="wr-footer"')
   })
 
   it('输出完整 HTML 骨架含 style', () => {

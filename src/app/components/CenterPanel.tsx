@@ -19,7 +19,7 @@ const TABS: { id: MapTab; label: string }[] = [
   { id: 'water', label: '水环境驾驶舱' },
 ]
 
-export function CenterPanel({ activeTab, onTabChange, selectedAlert }: Props) {
+export function CenterPanel({ activeTab, onTabChange, selectedAlert, onLocate }: Props) {
   const { mapPoints, videoStreams, externalAlerts } = useDashboard()
   const [showArchive, setShowArchive] = useState(false)
 
