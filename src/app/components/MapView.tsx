@@ -416,16 +416,19 @@ export function MapView({ activeTab, selectedAlert }: Props) {
         </div>
       )}
 
-      {/* Legend — 右下角图例 */}
+      {/* Legend — 右下角图例（玻璃拟态） */}
       {mapReady && (
         <div style={{
           position: 'absolute', right: 10, bottom: 10, zIndex: 200,
-          background: 'rgba(5,14,32,0.9)',
-          border: '1px solid rgba(0,150,220,0.2)',
-          borderRadius: 4, padding: '6px 10px',
+          background: 'linear-gradient(160deg, rgba(10,26,56,0.62), rgba(5,13,30,0.5))',
+          backdropFilter: 'blur(12px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(12px) saturate(1.3)',
+          border: '1px solid rgba(0,180,255,0.26)',
+          borderRadius: 6, padding: '6px 10px',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.38), inset 0 0 16px -10px rgba(0,180,255,0.3)',
           pointerEvents: 'none',
         }}>
-          <div style={{ color: '#3a5a70', fontSize: 10, marginBottom: 4 }}>图 例</div>
+          <div style={{ color: '#8fc6ea', fontSize: 10, marginBottom: 4, letterSpacing: '0.15em' }}>图 例</div>
           {legendItems.map(item => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, boxShadow: `0 0 5px ${item.color}`, flexShrink: 0 }} />
@@ -435,16 +438,19 @@ export function MapView({ activeTab, selectedAlert }: Props) {
         </div>
       )}
 
-      {/* Active tab badge */}
+      {/* Active tab badge（玻璃拟态） */}
       {activeTab !== 'default' && mapReady && (
         <div style={{
           position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0,35,85,0.92)',
-          border: '1px solid rgba(0,170,255,0.45)',
-          borderRadius: 3, padding: '3px 16px',
-          color: '#00ccff', fontSize: 11, fontWeight: 600,
+          background: 'linear-gradient(160deg, rgba(0,45,100,0.72), rgba(0,25,60,0.6))',
+          backdropFilter: 'blur(12px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(12px) saturate(1.3)',
+          border: '1px solid rgba(0,190,255,0.5)',
+          borderRadius: 4, padding: '4px 18px',
+          color: '#2fd4ff', fontSize: 11, fontWeight: 600, letterSpacing: '0.1em',
           zIndex: 200, pointerEvents: 'none',
-          boxShadow: '0 0 12px rgba(0,170,255,0.2)',
+          boxShadow: '0 0 16px rgba(0,170,255,0.28), inset 0 0 12px -6px rgba(0,190,255,0.5)',
+          textShadow: '0 0 8px rgba(0,190,255,0.6)',
         }}>
           {activeTab === 'air' ? '⚡ 气环境专项视图' : '💧 水环境专项视图'}
         </div>
@@ -472,15 +478,17 @@ export function MapView({ activeTab, selectedAlert }: Props) {
             ?
           </div>
 
-          {/* 帮助面板 */}
+          {/* 帮助面板（玻璃拟态） */}
           {showHelp && (
             <div style={{
               position: 'absolute', top: 32, right: 0,
               width: 240,
-              background: 'rgba(4,14,38,0.97)',
+              background: 'linear-gradient(165deg, rgba(10,26,56,0.88), rgba(5,13,30,0.82))',
+              backdropFilter: 'blur(14px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(14px) saturate(1.3)',
               border: '1px solid rgba(0,180,255,0.35)',
-              borderRadius: 5, padding: '10px 12px',
-              boxShadow: '0 8px 28px rgba(0,0,0,0.7)',
+              borderRadius: 6, padding: '10px 12px',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.7), inset 0 0 20px -12px rgba(0,180,255,0.4)',
             }}>
               <div style={{ color: '#00ccff', fontSize: 12, fontWeight: 600, marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid rgba(0,150,220,0.2)' }}>
                 摄像头点位 · 鼠标交互

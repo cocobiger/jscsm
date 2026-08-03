@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { AirQualityModal } from './AirQualityModal'
 import { AnimatedNumber } from './AnimatedNumber'
+import { PanelFrame } from './PanelFrame'
 import { useDashboard } from '../context/DashboardContext'
+import { CK, alpha } from '../lib/cockpitTheme'
 
-const CYAN = '#00aaff'
-const GREEN = '#00e676'
-const AMBER = '#ffd740'
-const ORANGE = '#ff7043'
-const RED = '#ff4444'
+const CYAN = CK.cyanSoft
+const GREEN = CK.green
+const AMBER = CK.amber
+const ORANGE = CK.orange
+const RED = CK.red
 
 interface DeviceCategory {
   label: string
@@ -116,48 +118,9 @@ interface PanelSectionProps {
   children: React.ReactNode
 }
 
-function PanelSection({ title, color, flexGrow = 1, headerExtra, children }: PanelSectionProps) {
-  return (
-    <div
-      className="flex flex-col"
-      style={{
-        borderLeft: `3px solid ${color}`,
-        boxShadow: `0 0 16px -8px ${color}, inset -4px 0 10px -8px ${color}`,
-        background: `linear-gradient(90deg, ${color}15 0%, ${color}04 30%, transparent 70%)`,
-        borderTop: '1px solid rgba(0,150,220,0.08)',
-        overflow: 'hidden',
-        height: `${flexGrow === 4 ? 40 : 30}%`,
-        flexShrink: 0,
-        transition: 'box-shadow 0.5s',
-      }}
-    >
-      <div
-        className="flex items-center justify-between px-3 shrink-0"
-        style={{
-          height: 36,
-          borderBottom: '1px solid rgba(0,150,220,0.1)',
-          background: `linear-gradient(180deg, ${color}0D, transparent)`,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{
-            width: 4, height: 4, borderRadius: '50%',
-            background: color, boxShadow: `0 0 6px ${color}`,
-          }} />
-          <span style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600, letterSpacing: '0.06em' }}>
-            {title}
-          </span>
-        </div>
-        {headerExtra}
-      </div>
-      <div
-        className="flex-1 overflow-y-auto px-3 py-1.5"
-        style={{ scrollbarWidth: 'none', minHeight: 0 }}
-      >
-        {children}
-      </div>
-    </div>
-  )
+/** 兼容层：旧 PanelSection 调用签名 → 新 PanelFrame（DataV 风格四角描边面板） */
+function PanelSection(props: PanelSectionProps) {
+  return <PanelFrame {...props} scan />
 }
 
 const STATIONS = Object.keys(STATION_BASE) as (keyof typeof STATION_BASE)[]
@@ -290,89 +253,114 @@ export function LeftPanel() {
       <div style={{ flex: 1, minHeight: 0, height: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Atmospheric section */}
       <PanelSection title="大气环境质量" color={CYAN} flexGrow={4} headerExtra={stationToggle}>
-        {/* AQI row */}
-        <div className="flex items-center justify-between mb-2" style={{ marginTop: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
+        {/* AQI 大字报卡 */}
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            marginTop: 4, marginBottom: 8,
+            padding: '7px 12px',
+            background: `linear-gradient(135deg, ${alpha(aqiInfo.color, 0.16)}, rgba(6,14,32,0.35) 68%)`,
+            border: `1px solid ${alpha(aqiInfo.color, 0.42)}`,
+            borderRadius: 4,
+            boxShadow: `inset 0 0 22px -10px ${alpha(aqiInfo.color, 0.55)}, 0 0 14px -8px ${alpha(aqiInfo.color, 0.4)}`,
+            transition: 'all 0.3s',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: CK.textSub, fontSize: 11 }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={CK.textDim} strokeWidth="2">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+              AQI · {activeStation}监测站
+            </div>
+            <AnimatedNumber
+              value={station.aqi}
               style={{
-                padding: '3px 12px',
-                background: `${aqiInfo.color}22`,
-                border: `1px solid ${aqiInfo.color}55`,
-                borderRadius: 3,
                 color: aqiInfo.color,
-                fontSize: 13,
+                fontSize: 38,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 700,
+                lineHeight: 1.15,
+                textShadow: `0 0 18px ${alpha(aqiInfo.color, 0.7)}`,
+                transition: 'color 0.3s',
+              }}
+            />
+          </div>
+          <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 14px',
+                background: alpha(aqiInfo.color, 0.16),
+                border: `1px solid ${alpha(aqiInfo.color, 0.55)}`,
+                borderRadius: 3,
+                color: aqiInfo.color,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textShadow: `0 0 8px ${alpha(aqiInfo.color, 0.6)}`,
                 transition: 'all 0.3s',
               }}
             >
-              AQI <AnimatedNumber value={station.aqi} style={{ color: 'inherit', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }} />
-            </div>
-            <span style={{ color: aqiInfo.color, fontSize: 13, transition: 'color 0.3s' }}>
               {aqiInfo.label}
             </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: GREEN, boxShadow: `0 0 5px ${GREEN}`,
-              animation: 'live-pulse 2s ease-in-out infinite',
-            }} />
-            <span style={{ color: '#3a5a70', fontSize: 11 }}>实时</span>
-          </div>
-        </div>
-
-        {/* Station location tag */}
-        <div style={{
-          marginBottom: 6,
-          padding: '3px 8px',
-          background: 'rgba(0,100,180,0.12)',
-          borderRadius: 3,
-          border: '1px solid rgba(0,150,220,0.15)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-        }}>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#5a8aaa" strokeWidth="2">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-            <circle cx="12" cy="9" r="2.5" />
-          </svg>
-          <span style={{ color: '#5a8aaa', fontSize: 11 }}>{activeStation}监测站</span>
-        </div>
-
-        {/* Metric rows */}
-        {station.metrics.map((m, i) => {
-          const st = deriveStatus(m.value, m.limit)
-          return (
-            <div
-              key={m.key}
-              className="flex items-center justify-between py-1.5"
-              style={{ borderBottom: '1px solid rgba(0,80,150,0.12)' }}
-            >
-              <div className="flex items-center gap-2">
-                <div style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: statusColor(st),
-                  boxShadow: `0 0 5px ${statusColor(st)}`,
-                }} />
-                <span style={{ color: '#7ab8e0', fontSize: 13, width: 44 }}>{m.label}</span>
-              </div>
-              <Sparkline data={sl[i]} />
-              <div style={{ textAlign: 'right', minWidth: 72, flexShrink: 0 }}>
-                <span style={{
-                  color: statusColor(st),
-                  fontSize: 14,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontWeight: 600,
-                  transition: 'color 0.3s',
-                }}>
-                  {m.value}
-                </span>
-                <span style={{ color: '#3a5a70', fontSize: 11, marginLeft: 3 }}>{m.unit}</span>
-              </div>
+            <div className="flex items-center justify-end gap-1.5" style={{ marginTop: 5 }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: GREEN, boxShadow: `0 0 5px ${GREEN}`,
+                animation: 'live-pulse 2s ease-in-out infinite',
+              }} />
+              <span style={{ color: CK.textFaint, fontSize: 11 }}>实时</span>
             </div>
-          )
-        })}
+          </div>
+        </div>
+
+        {/* 6 指标网格卡（2×3） */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {station.metrics.map((m, i) => {
+            const st = deriveStatus(m.value, m.limit)
+            return (
+              <div
+                key={m.key}
+                style={{
+                  background: 'rgba(8,20,44,0.5)',
+                  border: `1px solid ${alpha(statusColor(st), 0.22)}`,
+                  borderRadius: 4,
+                  padding: '5px 8px 4px',
+                  boxShadow: `inset 0 0 12px -8px ${alpha(statusColor(st), 0.4)}`,
+                  transition: 'border-color 0.3s',
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: statusColor(st),
+                      boxShadow: `0 0 5px ${statusColor(st)}`,
+                    }} />
+                    <span style={{ color: CK.textSub, fontSize: 12 }}>{m.label}</span>
+                  </div>
+                  <span style={{ color: CK.textFaint, fontSize: 10 }}>{m.unit}</span>
+                </div>
+                <div className="flex items-end justify-between" style={{ marginTop: 1 }}>
+                  <span style={{
+                    color: statusColor(st),
+                    fontSize: 18,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    textShadow: `0 0 10px ${alpha(statusColor(st), 0.45)}`,
+                    transition: 'color 0.3s',
+                  }}>
+                    {m.value}
+                  </span>
+                  <Sparkline data={sl[i]} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </PanelSection>
 
       {/* Water section */}

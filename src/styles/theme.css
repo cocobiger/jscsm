@@ -39,6 +39,26 @@
   --sidebar-accent-foreground: #c8e6ff;
   --sidebar-border: rgba(0, 150, 220, 0.15);
   --sidebar-ring: rgba(0, 170, 255, 0.5);
+
+  /* ===== 驾驶舱 P0 视觉基线调色板（与 src/app/lib/cockpitTheme.ts 保持一致） ===== */
+  --cockpit-cyan: #00d4ff;
+  --cockpit-cyan-soft: #00aaff;
+  --cockpit-blue: #2979ff;
+  --cockpit-amber: #ffd740;
+  --cockpit-green: #00e676;
+  --cockpit-orange: #ff7043;
+  --cockpit-red: #ff4444;
+  --cockpit-purple: #ab47bc;
+  --cockpit-teal: #00bcd4;
+  --cockpit-text-main: #c8e6ff;
+  --cockpit-text-sub: #7ab8e0;
+  --cockpit-text-dim: #5a8aaa;
+  --cockpit-text-faint: #3a5a70;
+  --cockpit-panel-bg: rgba(7, 18, 42, 0.72);
+  --cockpit-card-bg: rgba(10, 26, 56, 0.55);
+  --cockpit-glass-bg: rgba(8, 20, 45, 0.55);
+  --cockpit-border: rgba(0, 180, 255, 0.22);
+  --cockpit-border-soft: rgba(0, 150, 220, 0.12);
 }
 
 .dark {

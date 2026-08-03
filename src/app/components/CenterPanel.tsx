@@ -226,20 +226,28 @@ function DataBadge({ label, value, color }: { label: string; value: string; colo
 function OverlayCard({ title, items }: { title: string; items: { label: string; value: string; color: string }[] }) {
   return (
     <div style={{
-      background: 'rgba(4,12,30,0.72)',
-      backdropFilter: 'blur(8px)',
-      WebkitBackdropFilter: 'blur(8px)',
-      border: '1px solid rgba(0,150,220,0.22)',
-      borderRadius: 4,
-      padding: '6px 10px',
-      minWidth: 140,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.35), 0 0 14px rgba(0,150,220,0.06)',
+      position: 'relative',
+      background: 'linear-gradient(160deg, rgba(10,26,56,0.62), rgba(5,13,30,0.48))',
+      backdropFilter: 'blur(14px) saturate(1.35)',
+      WebkitBackdropFilter: 'blur(14px) saturate(1.35)',
+      border: '1px solid rgba(0,180,255,0.28)',
+      borderRadius: 6,
+      padding: '7px 11px',
+      minWidth: 148,
+      boxShadow: '0 6px 24px rgba(0,0,0,0.4), inset 0 0 18px -10px rgba(0,180,255,0.35)',
+      overflow: 'hidden',
     }}>
-      <div style={{ color: '#5a8aaa', fontSize: 10, marginBottom: 3 }}>{title}</div>
+      {/* 顶部高光线（玻璃拟态边缘反光） */}
+      <div style={{
+        position: 'absolute', top: 0, left: 8, right: 8, height: 1,
+        background: 'linear-gradient(90deg, transparent, rgba(120,220,255,0.55), transparent)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{ color: '#8fc6ea', fontSize: 10, marginBottom: 3, letterSpacing: '0.08em', textShadow: '0 0 6px rgba(0,180,255,0.35)' }}>{title}</div>
       {items.map(item => (
         <div key={item.label} className="flex items-center justify-between gap-4">
           <span style={{ color: '#7ab8e0', fontSize: 11 }}>{item.label}</span>
-          <span style={{ color: item.color, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{item.value}</span>
+          <span style={{ color: item.color, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, textShadow: `0 0 6px ${item.color}66` }}>{item.value}</span>
         </div>
       ))}
     </div>
