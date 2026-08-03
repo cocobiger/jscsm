@@ -115,6 +115,7 @@ interface PanelSectionProps {
   color: string
   flexGrow?: number
   heightPct?: number
+  fit?: 'pct' | 'content' | 'fill'
   headerExtra?: React.ReactNode
   children: React.ReactNode
 }
@@ -252,8 +253,8 @@ export function LeftPanel() {
     >
       {/* Panels wrapper — takes ALL remaining space; weather block is excluded */}
       <div style={{ flex: 1, minHeight: 0, height: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Atmospheric section */}
-      <PanelSection title="大气环境质量" color={CYAN} heightPct={37} headerExtra={stationToggle}>
+      {/* Atmospheric section — 自适应内容高度 */}
+      <PanelSection title="大气环境质量" color={CYAN} fit="content" headerExtra={stationToggle}>
         {/* AQI 大字报卡 */}
         <div
           style={{
@@ -364,8 +365,8 @@ export function LeftPanel() {
         </div>
       </PanelSection>
 
-      {/* P1 站点空气质量排名（真实数据：两站 AQI 降序 + 首要污染物） */}
-      <PanelSection title="站点空气质量排名" color={AMBER} heightPct={19}>
+      {/* P1 站点空气质量排名（真实数据：两站 AQI 降序 + 首要污染物）— 自适应内容高度 */}
+      <PanelSection title="站点空气质量排名" color={AMBER} fit="content">
         {(() => {
           const ranked = STATIONS
             .map(name => {
@@ -439,8 +440,8 @@ export function LeftPanel() {
         })()}
       </PanelSection>
 
-      {/* Water section */}
-      <PanelSection title="水质监测数据" color="#00bcd4" heightPct={22}>
+      {/* Water section — 自适应内容高度（5 项指标全部展示） */}
+      <PanelSection title="水质监测数据" color="#00bcd4" fit="content">
         <div className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12, color: '#5a8aaa' }}>
           <span>长江入库断面</span>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: `0 0 4px ${GREEN}` }} />
@@ -463,8 +464,8 @@ export function LeftPanel() {
         ))}
       </PanelSection>
 
-      {/* Device section — 真实数据 */}
-      <PanelSection title="设备在线状态" color={GREEN} heightPct={22}>
+      {/* Device section — 真实数据；fill 占满剩余空间，保证完整显示 */}
+      <PanelSection title="设备在线状态" color={GREEN} fit="fill">
         {deviceStatus ? (
           <>
             <div className="flex items-center justify-between mb-2">

@@ -9,6 +9,13 @@ interface PanelFrameProps {
   flexGrow?: number
   /** 显式高度百分比，优先于 flexGrow（多段不等高布局用，如 37/19/22/22） */
   heightPct?: number
+  /**
+   * 高度模式：
+   * - 'pct'（默认）：按 heightPct/flexGrow 百分比定高
+   * - 'content'：自适应内容高度（内容多少占多少，不撑不占）
+   * - 'fill'：占满父容器剩余空间（flex:1），适合放在最后一段
+   */
+  fit?: 'pct' | 'content' | 'fill'
   /** 顶部是否跑扫描光带 */
   scan?: boolean
   headerExtra?: React.ReactNode
@@ -21,15 +28,20 @@ const CORNER = 14 // 四角描边臂长
  * DataV 风格装饰面板：四角描边 + 菱形发光角标标题 + 可选扫描线 + 渐变底。
  * 纯 SVG/CSS 实现，零三方依赖，用于替换旧 PanelSection 的左侧光带。
  */
-export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, headerExtra, scan = false, children }: PanelFrameProps) {
+export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fit = 'pct', headerExtra, scan = false, children }: PanelFrameProps) {
   const pct = heightPct ?? (flexGrow === 4 ? 40 : 30)
+  const sizeStyle: React.CSSProperties =
+    fit === 'content'
+      ? { flexShrink: 0 }
+      : fit === 'fill'
+        ? { flex: 1, minHeight: 0 }
+        : { height: `${pct}%`, flexShrink: 0 }
   return (
     <section
       className="flex flex-col"
       style={{
         position: 'relative',
-        height: `${pct}%`,
-        flexShrink: 0,
+        ...sizeStyle,
         overflow: 'hidden',
         background: `linear-gradient(165deg, ${alpha(color, 0.09)} 0%, rgba(6,14,32,0.52) 42%, rgba(4,10,24,0.35) 100%)`,
         border: `1px solid ${alpha(color, 0.20)}`,
