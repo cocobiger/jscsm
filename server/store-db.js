@@ -168,6 +168,16 @@ function init(dataDir, logger) {
   // 键值表：存 icon_config 这类单对象配置
   db.exec('CREATE TABLE IF NOT EXISTS kv_config ( k TEXT PRIMARY KEY, v_json TEXT );')
 
+  // ── 政务模块数据（P2 驾驶舱：管理后台 Excel 导入，每模块一行 JSON payload）──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS gov_modules (
+      module       TEXT PRIMARY KEY,   -- forecast / pyramid / documents / assessment
+      payload_json TEXT NOT NULL,
+      updated_at   TEXT,
+      updated_by   TEXT
+    );
+  `)
+
   // ── 用户与会话（登录鉴权）──
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

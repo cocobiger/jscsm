@@ -1707,6 +1707,40 @@ app.delete('/api/enterprises/:id', (req, res) => {
   }
 })
 
+// ── 政务模块数据（P2 驾驶舱：Excel 导入）──────────────────────
+// GET：登录用户可读（驾驶舱拉取）；PUT：管理员写入（管理后台导入页）
+const GOV_MODULES = new Set(['forecast', 'pyramid', 'documents', 'assessment'])
+app.get('/api/gov/:module', (req, res) => {
+  if (!GOV_MODULES.has(req.params.module)) return res.status(404).json({ error: '未知政务模块' })
+  try {
+    const db = store.getDb()
+    const row = db.prepare('SELECT payload_json, updated_at, updated_by FROM gov_modules WHERE module = ?').get(req.params.module)
+    if (!row) return res.json({ module: req.params.module, payload: null, updated_at: null, updated_by: null })
+    res.json({ module: req.params.module, payload: JSON.parse(row.payload_json), updated_at: row.updated_at, updated_by: row.updated_by })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+app.put('/api/gov/:module', (req, res) => {
+  if (!GOV_MODULES.has(req.params.module)) return res.status(404).json({ error: '未知政务模块' })
+  const { payload } = req.body || {}
+  if (payload === undefined || payload === null) return res.status(400).json({ error: '缺少 payload' })
+  try {
+    const db = store.getDb()
+    db.prepare(
+      `INSERT INTO gov_modules (module, payload_json, updated_at, updated_by)
+       VALUES (?, ?, datetime('now','localtime'), ?)
+       ON CONFLICT(module) DO UPDATE SET
+         payload_json = excluded.payload_json,
+         updated_at   = excluded.updated_at,
+         updated_by   = excluded.updated_by`
+    ).run(req.params.module, JSON.stringify(payload), req.user?.username || '')
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // ── 告警类型占比聚合（供驾驶舱饼图）──────────────────────
 // 合并污染事件(event_type) + 气体采集预警(warnings)，返回各类数量
 app.get('/api/alert-type-stats', (req, res) => {

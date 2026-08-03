@@ -15,6 +15,7 @@ import { SmartPushPage } from './SmartPushPage'
 import { WorkReportPage } from './WorkReportPage'
 import { IotArchivePage } from './IotArchivePage'
 import { MapPointManage } from './MapPointManage'
+import { GovDataPage } from './GovDataPage'
 import { useDashboard } from '../../context/DashboardContext'
 import { changePassword, ROLE_LABELS, roleAtLeast, type CurrentUser } from '../../lib/auth'
 
@@ -23,7 +24,7 @@ const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const RED = '#ff4444'
 
-type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'icons' | 'mappoints' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport'
+type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'icons' | 'mappoints' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata'
 
 // minRole：访问该页所需最低角色（viewer=任意登录可看）
 const NAV: { key: Page; label: string; icon: string; desc: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
@@ -34,6 +35,7 @@ const NAV: { key: Page; label: string; icon: string; desc: string; minRole: 'vie
   { key: 'alert',      label: '告警接入',   icon: '⚡', desc: 'JSON 格式映射与测试', minRole: 'admin' },
   { key: 'smartpush',  label: '智治推送',   icon: '🏛', desc: '城运中心处置预案对接', minRole: 'admin' },
   { key: 'workreport', label: '智治工作报表', icon: '📑', desc: '推送处置工作统计报表', minRole: 'viewer' },
+  { key: 'govdata',    label: '政务数据导入', icon: '🏛', desc: '预报/治理任务/制度/考核 Excel 导入', minRole: 'admin' },
   { key: 'airquality', label: '市局监测站数据', icon: '🌫', desc: '市局整点数据管理与推送', minRole: 'viewer' },
   { key: 'gas',        label: '气体采集预警', icon: '☣', desc: '数据源采集与污染物预警', minRole: 'viewer' },
   { key: 'iotarchive', label: 'AI分析存档',  icon: '🤖', desc: 'IoT视频分析记录按通道归档', minRole: 'viewer' },
@@ -235,6 +237,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           {page === 'enterprise' && <EnterprisePage />}
           {page === 'smartpush'  && <SmartPushPage />}
           {page === 'workreport' && <WorkReportPage />}
+          {page === 'govdata'    && <GovDataPage />}
           {page === 'icons'      && <IconConfigPage />}
           {page === 'mappoints'  && <MapPointManage />}
           {page === 'users'      && <UsersPage currentUserId={user.id} />}
