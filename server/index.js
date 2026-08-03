@@ -1077,6 +1077,30 @@ app.get('/api/alert-trend', (req, res) => {
   }
 })
 
+// ── 重点点位告警排名（驾驶舱 P1）──────────────────────────────
+// 按 IoT 视频分析告警的 channelName 聚合告警量 TOP N，供「重点点位告警排名」榜单
+app.get('/api/alert-location-rank', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 5, 50)
+  const days = Math.min(Number(req.query.days) || 30, 365)
+  try {
+    const db = store.getDb()
+    // created_at 为 UTC ISO 串（与 warningTrend 的 +8h 处理一致，比较用 UTC 'now'）
+    const rows = db.prepare(
+      `SELECT json_extract(data_json, '$.channelName') AS location, COUNT(*) AS alert_count
+       FROM warnings
+       WHERE warning_type = 'iot-video-analysis'
+         AND created_at > datetime('now', '-' || ? || ' days')
+         AND json_extract(data_json, '$.channelName') IS NOT NULL
+       GROUP BY location
+       ORDER BY alert_count DESC
+       LIMIT ?`
+    ).all(days, limit)
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // 更新预警处理状态（标记处理/撤销处理）
 app.patch('/api/warnings/:id', (req, res) => {
   const { status, handledBy } = req.body || {}

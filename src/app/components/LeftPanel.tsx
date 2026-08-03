@@ -114,6 +114,7 @@ interface PanelSectionProps {
   title: string
   color: string
   flexGrow?: number
+  heightPct?: number
   headerExtra?: React.ReactNode
   children: React.ReactNode
 }
@@ -252,7 +253,7 @@ export function LeftPanel() {
       {/* Panels wrapper — takes ALL remaining space; weather block is excluded */}
       <div style={{ flex: 1, minHeight: 0, height: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Atmospheric section */}
-      <PanelSection title="大气环境质量" color={CYAN} flexGrow={4} headerExtra={stationToggle}>
+      <PanelSection title="大气环境质量" color={CYAN} heightPct={37} headerExtra={stationToggle}>
         {/* AQI 大字报卡 */}
         <div
           style={{
@@ -363,8 +364,83 @@ export function LeftPanel() {
         </div>
       </PanelSection>
 
+      {/* P1 站点空气质量排名（真实数据：两站 AQI 降序 + 首要污染物） */}
+      <PanelSection title="站点空气质量排名" color={AMBER} heightPct={19}>
+        {(() => {
+          const ranked = STATIONS
+            .map(name => {
+              const d = liveData[name]
+              // 首要污染物 = 占标率最高的指标
+              let primary = d.metrics[0]
+              let maxRatio = -1
+              for (const m of d.metrics) {
+                const r = m.value / m.limit
+                if (r > maxRatio) { maxRatio = r; primary = m }
+              }
+              return { name, aqi: d.aqi, info: aqiLevel(d.aqi), primary, ratio: maxRatio }
+            })
+            .sort((a, b) => b.aqi - a.aqi)
+          const maxAqi = ranked[0]?.aqi || 1
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 3 }}>
+              {ranked.map((s, i) => (
+                <div
+                  key={s.name}
+                  onClick={() => setActiveStation(s.name)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '4px 7px',
+                    background: s.name === activeStation ? 'rgba(0,170,255,0.10)' : 'rgba(8,20,44,0.45)',
+                    border: `1px solid ${s.name === activeStation ? 'rgba(0,170,255,0.35)' : 'rgba(0,150,220,0.12)'}`,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <span style={{
+                    width: 16, height: 16, borderRadius: 2, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: i === 0 ? 'rgba(255,112,67,0.9)' : 'rgba(0,80,150,0.5)',
+                    color: i === 0 ? '#fff' : CK.textSub,
+                    fontSize: 10, fontWeight: 700,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    boxShadow: i === 0 ? '0 0 8px rgba(255,112,67,0.5)' : 'none',
+                  }}>
+                    {i + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="flex items-center justify-between">
+                      <span style={{ color: CK.textMain, fontSize: 12 }}>{s.name}</span>
+                      <span style={{
+                        color: s.info.color, fontSize: 13, fontWeight: 700,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        textShadow: `0 0 8px ${alpha(s.info.color, 0.5)}`,
+                      }}>
+                        {s.aqi} <span style={{ fontSize: 10, fontWeight: 400 }}>{s.info.label}</span>
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: 'rgba(0,60,120,0.35)', borderRadius: 2, marginTop: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${Math.max(6, (s.aqi / maxAqi) * 100)}%`, height: '100%',
+                        background: `linear-gradient(90deg, ${alpha(s.info.color, 0.55)}, ${s.info.color})`,
+                        borderRadius: 2,
+                        boxShadow: `0 0 6px ${alpha(s.info.color, 0.5)}`,
+                        transition: 'width 0.5s',
+                      }} />
+                    </div>
+                    <div style={{ color: CK.textFaint, fontSize: 10, marginTop: 2 }}>
+                      首要污染物 {s.primary.label} · 占标率 {Math.round(s.ratio * 100)}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+      </PanelSection>
+
       {/* Water section */}
-      <PanelSection title="水质监测数据" color="#00bcd4" flexGrow={3}>
+      <PanelSection title="水质监测数据" color="#00bcd4" heightPct={22}>
         <div className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12, color: '#5a8aaa' }}>
           <span>长江入库断面</span>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: `0 0 4px ${GREEN}` }} />
@@ -388,7 +464,7 @@ export function LeftPanel() {
       </PanelSection>
 
       {/* Device section — 真实数据 */}
-      <PanelSection title="设备在线状态" color={GREEN} flexGrow={3}>
+      <PanelSection title="设备在线状态" color={GREEN} heightPct={22}>
         {deviceStatus ? (
           <>
             <div className="flex items-center justify-between mb-2">

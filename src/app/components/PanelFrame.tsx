@@ -7,6 +7,8 @@ interface PanelFrameProps {
   color?: string
   /** 高度占比（沿用旧 PanelSection 语义：4→40%，其余→30%），left panel 三段布局专用 */
   flexGrow?: number
+  /** 显式高度百分比，优先于 flexGrow（多段不等高布局用，如 37/19/22/22） */
+  heightPct?: number
   /** 顶部是否跑扫描光带 */
   scan?: boolean
   headerExtra?: React.ReactNode
@@ -19,13 +21,14 @@ const CORNER = 14 // 四角描边臂长
  * DataV 风格装饰面板：四角描边 + 菱形发光角标标题 + 可选扫描线 + 渐变底。
  * 纯 SVG/CSS 实现，零三方依赖，用于替换旧 PanelSection 的左侧光带。
  */
-export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, headerExtra, scan = false, children }: PanelFrameProps) {
+export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, headerExtra, scan = false, children }: PanelFrameProps) {
+  const pct = heightPct ?? (flexGrow === 4 ? 40 : 30)
   return (
     <section
       className="flex flex-col"
       style={{
         position: 'relative',
-        height: `${flexGrow === 4 ? 40 : 30}%`,
+        height: `${pct}%`,
         flexShrink: 0,
         overflow: 'hidden',
         background: `linear-gradient(165deg, ${alpha(color, 0.09)} 0%, rgba(6,14,32,0.52) 42%, rgba(4,10,24,0.35) 100%)`,

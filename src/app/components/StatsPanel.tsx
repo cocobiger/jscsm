@@ -21,14 +21,6 @@ const ALERT_TYPE_COLORS: Record<string, string> = {
 }
 const ALERT_TYPE_ORDER = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '堆头未覆盖', '气体采集预警']
 
-const pollutionRank = [
-  { name: '万州化工厂', val: 0.42, unit: 'mg/m³' },
-  { name: '三峡港口', val: 0.38, unit: 'mg/m³' },
-  { name: '龙头化工', val: 0.31, unit: 'mg/m³' },
-  { name: '新港堆场', val: 0.28, unit: 'mg/m³' },
-  { name: '万达实业', val: 0.22, unit: 'mg/m³' },
-]
-
 const CHART_TOOLTIP_STYLE = {
   background: 'rgba(4,14,35,0.95)',
   border: '1px solid rgba(0,150,220,0.25)',
@@ -153,6 +145,10 @@ export function StatsPanel() {
   // 智治推送排行 → 事件推送排行（实时数据）
   const [pushRank, setPushRank] = useState<{ plan_name: string; push_count: number; success_count: number; fail_count: number }[]>([])
   const [pushRankLoading, setPushRankLoading] = useState(true)
+  // P1 重点点位告警排名（实时数据：IoT 告警按 channelName 聚合）
+  const [rankTab, setRankTab] = useState<'push' | 'location'>('push')
+  const [locationRank, setLocationRank] = useState<{ location: string; alert_count: number }[]>([])
+  const [locationRankLoading, setLocationRankLoading] = useState(true)
   // 近7天告警趋势 → 真实数据（后端按上海本地日期聚合）
   const [trendData, setTrendData] = useState<{ date: string; weekday: string; count: number }[]>([])
   const [trendLoading, setTrendLoading] = useState(true)
@@ -201,15 +197,27 @@ export function StatsPanel() {
         setTrendLoading(false)
       }
     }
+    const loadLocationRank = async () => {
+      try {
+        const data = await apiFetch<{ location: string; alert_count: number }[]>('/api/alert-location-rank?limit=5&days=30')
+        setLocationRank(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        console.warn('加载点位告警排名失败:', e)
+      } finally {
+        setLocationRankLoading(false)
+      }
+    }
     loadEventRank()
     loadAlertTypes()
     loadPushRank()
     loadTrend()
+    loadLocationRank()
     const timer = setInterval(loadEventRank, 60000)
     const timer2 = setInterval(loadAlertTypes, 10000)
     const timer3 = setInterval(loadPushRank, 10000) // 每10秒刷新推送排行
     const timer4 = setInterval(loadTrend, 60000) // 每分钟刷新趋势
-    return () => { clearInterval(timer); clearInterval(timer2); clearInterval(timer3); clearInterval(timer4) }
+    const timer5 = setInterval(loadLocationRank, 60000) // 每分钟刷新点位排名
+    return () => { clearInterval(timer); clearInterval(timer2); clearInterval(timer3); clearInterval(timer4); clearInterval(timer5) }
   }, [])
 
   return (
@@ -303,46 +311,110 @@ export function StatsPanel() {
         )}
       </div>
 
-      {/* 事件推送排行 — 实时数据：按预案名称聚合推送次数 */}
+      {/* 排行榜 — tab 切换：事件推送排行 / 重点点位告警排名（均为实时数据） */}
       <div>
-        <SectionTitle title="事件推送排行" color={ORANGE} />
-        {pushRankLoading ? (
-          <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>加载推送数据…</div>
-        ) : pushRank.length === 0 ? (
-          <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>暂无推送记录</div>
-        ) : (
-          <div className="flex flex-col gap-1" style={{ paddingLeft: 4 }}>
-            {pushRank.map((item, i) => {
-              const maxCount = pushRank[0]?.push_count || 1
-              const pct = (item.push_count / maxCount) * 100
-              const barColor = i === 0 ? '#ff4444' : i === 1 ? ORANGE : `${ORANGE}99`
-              return (
-                <div key={i} className="flex items-center gap-2">
-                  <span style={{
-                    width: 14, color: '#3a5a70', fontSize: 11,
-                    fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
-                  }}>
-                    {i + 1}
-                  </span>
-                  <span style={{ color: '#5a8aaa', fontSize: 12, width: 78, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.plan_name || '未命名预案'}
-                  </span>
-                  <div style={{ flex: 1, height: 7, background: 'rgba(0,60,120,0.3)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${pct}%`, height: '100%',
-                      background: barColor, borderRadius: 3, opacity: 0.85,
-                    }} />
+        <div className="flex items-center gap-2 mb-1" style={{ paddingLeft: 6 }}>
+          <div style={{ width: 3, height: 10, background: ORANGE, borderRadius: 1 }} />
+          {([['push', '事件推送排行'], ['location', '点位告警排名']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setRankTab(key)}
+              style={{
+                padding: '1px 8px',
+                fontSize: 11,
+                fontWeight: rankTab === key ? 700 : 400,
+                color: rankTab === key ? '#ffb74d' : '#5a8aaa',
+                background: rankTab === key ? 'rgba(255,112,67,0.12)' : 'transparent',
+                border: `1px solid ${rankTab === key ? 'rgba(255,112,67,0.4)' : 'transparent'}`,
+                borderRadius: 3,
+                cursor: 'pointer',
+                transition: 'all 0.18s',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {rankTab === 'push' ? (
+          pushRankLoading ? (
+            <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>加载推送数据…</div>
+          ) : pushRank.length === 0 ? (
+            <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>暂无推送记录</div>
+          ) : (
+            <div className="flex flex-col gap-1" style={{ paddingLeft: 4 }}>
+              {pushRank.map((item, i) => {
+                const maxCount = pushRank[0]?.push_count || 1
+                const pct = (item.push_count / maxCount) * 100
+                const barColor = i === 0 ? '#ff4444' : i === 1 ? ORANGE : `${ORANGE}99`
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span style={{
+                      width: 14, color: '#3a5a70', fontSize: 11,
+                      fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
+                    }}>
+                      {i + 1}
+                    </span>
+                    <span style={{ color: '#5a8aaa', fontSize: 12, width: 78, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.plan_name || '未命名预案'}
+                    </span>
+                    <div style={{ flex: 1, height: 7, background: 'rgba(0,60,120,0.3)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${pct}%`, height: '100%',
+                        background: barColor, borderRadius: 3, opacity: 0.85,
+                      }} />
+                    </div>
+                    <span style={{
+                      color: ORANGE, fontSize: 12, width: 24, textAlign: 'right',
+                      fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
+                    }}>
+                      {item.push_count}
+                    </span>
                   </div>
-                  <span style={{
-                    color: ORANGE, fontSize: 12, width: 24, textAlign: 'right',
-                    fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
-                  }}>
-                    {item.push_count}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )
+        ) : (
+          locationRankLoading ? (
+            <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>加载点位数据…</div>
+          ) : locationRank.length === 0 ? (
+            <div style={{ color: '#3a5a70', fontSize: 11, padding: '8px 0' }}>近30天无点位告警</div>
+          ) : (
+            <div className="flex flex-col gap-1" style={{ paddingLeft: 4 }}>
+              {locationRank.map((item, i) => {
+                const maxCount = locationRank[0]?.alert_count || 1
+                const pct = (item.alert_count / maxCount) * 100
+                const barColor = i === 0 ? '#ff4444' : i === 1 ? ORANGE : `${ORANGE}99`
+                return (
+                  <div key={item.location} className="flex items-center gap-2">
+                    <span style={{
+                      width: 14, color: i === 0 ? '#ff6666' : '#3a5a70', fontSize: 11,
+                      fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
+                      fontWeight: i === 0 ? 700 : 400,
+                    }}>
+                      {i + 1}
+                    </span>
+                    <span style={{ color: '#5a8aaa', fontSize: 12, width: 78, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.location}
+                    </span>
+                    <div style={{ flex: 1, height: 7, background: 'rgba(0,60,120,0.3)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${pct}%`, height: '100%',
+                        background: barColor, borderRadius: 3, opacity: 0.85,
+                      }} />
+                    </div>
+                    <span style={{
+                      color: ORANGE, fontSize: 12, width: 30, textAlign: 'right',
+                      fontFamily: "'JetBrains Mono', monospace", flexShrink: 0,
+                    }}>
+                      {item.alert_count}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )
         )}
       </div>
 

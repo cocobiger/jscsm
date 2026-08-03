@@ -14,6 +14,8 @@ declare global {
 }
 
 export type MapTab = 'default' | 'air' | 'water'
+/** P1 场景聚焦：与 MapTab 正交，在任意驾驶舱视图之上再做一层点位过滤 */
+export type MapScene = 'none' | 'dust' | 'straw'
 
 // 高德地图 Key：优先读环境变量（.env 的 VITE_AMAP_KEY / VITE_AMAP_SECURITY），
 // 未配置时回退到内置默认值，保证开箱即用。生产部署建议用 .env 配置自己的 Key。
@@ -29,6 +31,8 @@ const AMAP_SECURITY = (import.meta.env.VITE_AMAP_SECURITY as string) || '08e88a8
 interface Props {
   activeTab: MapTab
   selectedAlert: AlertItem | null
+  /** P1 场景聚焦（可选，默认 'none' 不过滤） */
+  scene?: MapScene
 }
 
 const MARKER_CSS = `
@@ -52,7 +56,7 @@ const MARKER_CSS = `
   }
 `
 
-export function MapView({ activeTab, selectedAlert }: Props) {
+export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
   const { videoStreams, mapPoints, externalAlerts, iotAlertingStreamIds, iotChannelStatus } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
@@ -245,9 +249,12 @@ export function MapView({ activeTab, selectedAlert }: Props) {
       return renderMarkerIcon(c.icon || fb.icon, c.color || fb.color, name, opts)
     }
 
+    // P1 场景聚焦：dust/straw 场景下隐藏常规站点，只保留场景相关点位
+    const showGeneral = scene === 'none'
+
     // Air quality stations (from backend map points)
     // 气环境驾驶舱+全域态势显示；水环境驾驶舱隐藏
-    if (activeTab !== 'water') {
+    if (showGeneral && activeTab !== 'water') {
       mapPoints.filter(p => p.type === 'air').forEach(s => addM(s.lon, s.lat, icon('air', s.name, { icon: 'gauge', color: '#1a7fff' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
       title: s.name,
       lines: [`AQI&nbsp;&nbsp;: ${num(s.aqi)}`, `PM2.5: ${num(s.pm25)} μg/m³`, `PM10 : ${num(s.pm10)} μg/m³`, `NO₂&nbsp;: ${num(s.no2)} μg/m³`, `SO₂&nbsp;: ${num(s.so2)} μg/m³`],
@@ -255,7 +262,7 @@ export function MapView({ activeTab, selectedAlert }: Props) {
     } // end activeTab !== 'water' (air stations hidden in water cockpit)
 
     // 市监测站 🏠（来自后端数据源配置的经纬度）— 点击实时拉取最近采集数据；气环境+全域显示
-    if (activeTab !== 'water') {
+    if (showGeneral && activeTab !== 'water') {
       stations.forEach(st => addMAsync(st.lon, st.lat, icon('station', st.stationName || st.name, { icon: 'home', color: '#ffb300' }, { alert: matchAlert(st.lat, st.lon, st.stationName || st.name) }), st.stationName || st.name, async () => {
       const resp = await authFetch(`/api/collected/as-aq?stations=${encodeURIComponent(st.stationName)}`)
       const arr = await resp.json()
@@ -280,7 +287,7 @@ export function MapView({ activeTab, selectedAlert }: Props) {
     } // end activeTab !== 'water' (stations hidden in water cockpit)
 
     // Water quality stations — 水环境驾驶舱+全域态势显示；气环境驾驶舱隐藏
-    if (activeTab !== 'air') {
+    if (showGeneral && activeTab !== 'air') {
       mapPoints.filter(p => p.type === 'water').forEach(s => addM(s.lon, s.lat, icon('water', s.name, { icon: 'water', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
       title: s.name,
       lines: [`pH&nbsp;&nbsp;&nbsp;&nbsp;: ${num(s.ph)}`, `溶解氧: ${num(s.do_)} mg/L`, `氨氮&nbsp;: ${num(s.nh3)} mg/L`, `总磷&nbsp;: ${num(s.tp)} mg/L`],
@@ -289,8 +296,11 @@ export function MapView({ activeTab, selectedAlert }: Props) {
 
     // Pollution cameras — from videoStreams（按分组取图标，无分组配置回退 camera 默认）
     // 驾驶舱视图过滤：气环境驾驶舱只显示 category=气环境；水环境驾驶舱只显示 category=水环境；全域态势显示全部
+    // P1 场景过滤：扬尘管控只显示港口堆场/道路监控；秸秆焚烧不显示摄像头
     const tabCameraFilter = (s: VideoStream) => {
       if (typeof s.lat !== 'number' || typeof s.lon !== 'number') return false
+      if (scene === 'dust') return s.group === '港口堆场' || s.group === '道路监控'
+      if (scene === 'straw') return false
       if (activeTab === 'air') return s.category === '气环境'
       if (activeTab === 'water') return s.category === '水环境'
       return true
@@ -351,14 +361,20 @@ export function MapView({ activeTab, selectedAlert }: Props) {
       } catch (_) {}
     }
 
-    // Alert markers
-    mapPoints.filter(p => p.type === 'alert').forEach(s => addM(s.lon, s.lat, icon('alert', str(s.alertType, '告警'), { icon: 'alert', color: '#ff4444' }, { pulse: true }), {
+    // Alert markers（P1 场景过滤：扬尘场景只留扬尘/堆头类，秸秆场景只留秸秆燃烧类）
+    const alertSceneFilter = (s: any) => {
+      const t = str(s.alertType, '')
+      if (scene === 'dust') return t.includes('扬尘') || t.includes('堆头') || t.includes('裸土')
+      if (scene === 'straw') return t.includes('秸秆')
+      return true
+    }
+    mapPoints.filter(p => p.type === 'alert').filter(alertSceneFilter).forEach(s => addM(s.lon, s.lat, icon('alert', str(s.alertType, '告警'), { icon: 'alert', color: '#ff4444' }, { pulse: true }), {
       title: s.name,
       lines: [`告警类型: ${str(s.alertType)}`, `告警等级: ${['', '注意', '轻度', '中度', '重度'][num(s.level, 1)]}`, '处置状态: 待处置'],
     }))
 
     // Air tab extras — UAV airports
-    if (activeTab === 'air') {
+    if (showGeneral && activeTab === 'air') {
       mapPoints.filter(p => p.type === 'uav').forEach(s => addM(s.lon, s.lat, icon('uav', s.name, { icon: 'plane', color: '#ab47bc' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
         title: s.name,
         lines: ['设备类型: 无人机机场', '快检功能: 已接入', '当前状态: 运行中'],
@@ -366,13 +382,13 @@ export function MapView({ activeTab, selectedAlert }: Props) {
     }
 
     // Water tab extras — basin monitoring
-    if (activeTab === 'water') {
+    if (showGeneral && activeTab === 'water') {
       mapPoints.filter(p => p.type === 'watermon').forEach(s => addM(s.lon, s.lat, icon('watermon', s.name, { icon: 'wave', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
         title: s.name,
         lines: ['设备类型: 流域监测站', '当前状态: 在线', '实时监测: 运行中'],
       }))
     }
-  }, [mapReady, activeTab, videoStreams, mapPoints, stations, iconCfg, externalAlerts])
+  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts])
 
   // Pan to selected alert
   useEffect(() => {
@@ -438,10 +454,10 @@ export function MapView({ activeTab, selectedAlert }: Props) {
         </div>
       )}
 
-      {/* Active tab badge（玻璃拟态） */}
+      {/* Active tab badge（玻璃拟态）——下移让位顶部统计条 */}
       {activeTab !== 'default' && mapReady && (
         <div style={{
-          position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', top: 62, left: '50%', transform: 'translateX(-50%)',
           background: 'linear-gradient(160deg, rgba(0,45,100,0.72), rgba(0,25,60,0.6))',
           backdropFilter: 'blur(12px) saturate(1.3)',
           WebkitBackdropFilter: 'blur(12px) saturate(1.3)',
