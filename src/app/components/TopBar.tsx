@@ -83,7 +83,7 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
             whiteSpace: 'nowrap',
           }}
         >
-          万州区生态环境局智能AI大数据控制台
+          万州区生态环境局AI环境防控物联网系统
         </h1>
         {/* 装饰线 + 跑马灯公告 */}
         <div className="flex items-center gap-2" style={{ marginTop: 3 }}>

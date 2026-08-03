@@ -111,7 +111,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           <span style={{ color: '#c8e6ff', fontSize: 16, fontWeight: 700, letterSpacing: '0.06em' }}>
             数据接入管理后台
           </span>
-          <span style={{ color: '#3a5a70', fontSize: 12 }}>万州区生态环境局智能AI大数据控制台</span>
+          <span style={{ color: '#3a5a70', fontSize: 12 }}>万州区生态环境局AI环境防控物联网系统</span>
         </div>
 
         {/* Status strip */}
