@@ -4,6 +4,7 @@ server/node_modules/
 
 # 构建产物
 dist/
+dist.old-*/
 build/
 
 # 环境变量（含密钥，不提交）
@@ -24,6 +25,7 @@ backups/
 *.tmp
 *.tmp.*
 tmp_*
+_tmp_*
 __pycache__/
 *.pyc
 nul

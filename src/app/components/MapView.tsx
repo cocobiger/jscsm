@@ -5,28 +5,12 @@ import { useDashboard } from '../context/DashboardContext'
 import type { VideoStream } from '../context/DashboardContext'
 import { renderMarkerIcon } from '../lib/mapIcons'
 import { VideoPlayerModal } from './VideoPlayerModal'
-
-declare global {
-  interface Window {
-    AMap: any
-    _AMapSecurityConfig: { securityJsCode: string }
-  }
-}
+import { initMap } from '../lib/mapAdapter'
+import type { MapHandle } from '../lib/mapAdapter'
 
 export type MapTab = 'default' | 'air' | 'water'
 /** P1 场景聚焦：与 MapTab 正交，在任意驾驶舱视图之上再做一层点位过滤 */
 export type MapScene = 'none' | 'dust' | 'straw'
-
-// 高德地图 Key：优先读环境变量（.env 的 VITE_AMAP_KEY / VITE_AMAP_SECURITY），
-// 未配置时回退到内置默认值，保证开箱即用。生产部署建议用 .env 配置自己的 Key。
-const AMAP_KEY = (import.meta.env.VITE_AMAP_KEY as string) || '72b6dd5eb838c3b4fd1f9c466f48a5e2'
-const AMAP_SECURITY = (import.meta.env.VITE_AMAP_SECURITY as string) || '08e88a8e76d867ec63378b39419c89f4'
-
-
-
-
-
-
 
 interface Props {
   activeTab: MapTab
@@ -36,9 +20,6 @@ interface Props {
 }
 
 const MARKER_CSS = `
-  .amap-info-outer, .amap-info-content { padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; }
-  .amap-info-close { display: none !important; }
-  .amap-copyright, .amap-logo { opacity: 0.5 !important; filter: brightness(0.4) !important; }
   @keyframes amap-alert-pulse {
     0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
     100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
@@ -59,9 +40,7 @@ const MARKER_CSS = `
 export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
   const { videoStreams, mapPoints, externalAlerts, iotAlertingStreamIds, iotChannelStatus } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const infoWindowRef = useRef<any>(null)
+  const mapRef = useRef<MapHandle | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const [stations, setStations] = useState<Array<{ id: string; name: string; stationName: string; lon: number; lat: number }>>([])
@@ -101,73 +80,40 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
     }
   }, [])
 
-  // Load AMap script
+  // 初始化地图：经适配层加载引擎 SDK → 创建实例（引擎可切换，见 src/app/lib/mapAdapter）
   useEffect(() => {
-    if (window.AMap) {
-      setMapReady(true)
-      setLoading(false)
-      return
-    }
-
-    // Check if script already injected
-    if (document.querySelector('script[src*="webapi.amap.com"]')) {
-      const poll = setInterval(() => {
-        if (window.AMap) {
-          setMapReady(true)
-          setLoading(false)
-          clearInterval(poll)
-        }
-      }, 150)
-      return () => clearInterval(poll)
-    }
-
-    window._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY }
-
-    const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&plugin=AMap.Scale,AMap.ToolBar`
-    script.onload = () => {
-      setMapReady(true)
-      setLoading(false)
-    }
-    script.onerror = () => setLoading(false)
-    document.head.appendChild(script)
-  }, [])
-
-  // Initialize map
-  useEffect(() => {
-    if (!mapReady || !containerRef.current || mapRef.current) return
-
-    const AMap = window.AMap
-    const map = new AMap.Map(containerRef.current, {
+    if (mapRef.current || !containerRef.current) return
+    let cancelled = false
+    initMap(containerRef.current, 'amap', {
       center: [108.4076, 30.8077],
       zoom: 12,
-      mapStyle: 'amap://styles/darkblue',
-      viewMode: '2D',
-      resizeEnable: true,
-      doubleClickZoom: false,  // 关闭双击地图缩放，避免双击视频图标推流时误触缩放
+      doubleClickZoom: false, // 关闭双击地图缩放，避免双击视频图标推流时误触缩放
     })
-
-    try {
-      map.addControl(new AMap.Scale({ position: 'LB' }))
-    } catch (_) {}
-
-    infoWindowRef.current = new AMap.InfoWindow({ isCustom: true, autoMove: false, offset: new AMap.Pixel(0, -10) })
-    mapRef.current = map
-
-    // 任何地图交互（点击空白/拖拽/缩放）都关闭信息窗，避免"锁死"需双击解锁
-    const closeInfo = () => infoWindowRef.current?.close()
-    map.on('click', closeInfo)
-    map.on('dragstart', closeInfo)
-    map.on('movestart', closeInfo)
-    map.on('zoomstart', closeInfo)
+      .then(handle => {
+        if (cancelled) {
+          handle.destroy()
+          return
+        }
+        mapRef.current = handle
+        // 任何地图交互（点击空白/拖拽/缩放）都关闭信息窗，避免"锁死"需双击解锁
+        const closeInfo = () => handle.closeInfoWindow()
+        handle.on('click', closeInfo)
+        handle.on('dragstart', closeInfo)
+        handle.on('movestart', closeInfo)
+        handle.on('zoomstart', closeInfo)
+        setMapReady(true)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         mapRef.current.destroy()
         mapRef.current = null
       }
     }
-  }, [mapReady])
+  }, [])
 
   // 告警联动：判断某地图点位是否命中当前实时告警（坐标优先 + 名称兜底）
   // 命中则返回 true，对应图标将染红并持续脉冲闪烁。
@@ -192,51 +138,40 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    const AMap = window.AMap
 
-    // Remove old markers
-    if (markersRef.current.length > 0) {
-      map.remove(markersRef.current)
-      markersRef.current = []
-    }
+    // 清空旧标记（适配层统一管理）
+    map.clearMarkers()
 
     const addM = (lon: number, lat: number, html: string, info: { title: string; lines: string[] }) => {
-      const m = new AMap.Marker({
-        position: [lon, lat],
-        content: html,
-        anchor: 'center',
-        zIndex: 10,
+      map.addMarker({
+        lon, lat, html,
+        events: {
+          mouseover: (e) => {
+            e.stopPropagation()
+            map.openInfoWindow(infoHTML(info.title, info.lines), lon, lat)
+          },
+          mouseout: () => map.closeInfoWindow(),
+        },
       })
-      m.on('mouseover', (e: any) => {
-        e.originEvent?.stopPropagation()
-        infoWindowRef.current.setContent(infoHTML(info.title, info.lines))
-        infoWindowRef.current.open(map, [lon, lat])
-      })
-      m.on('mouseout', () => {
-        infoWindowRef.current?.close()
-      })
-      map.add(m)
-      markersRef.current.push(m)
     }
 
     // 标注：悬停时异步拉取信息（用于监测站🏠，悬停实时取最新采集数据）
     const addMAsync = (lon: number, lat: number, html: string, title: string, fetchLines: () => Promise<string[]>) => {
-      const m = new AMap.Marker({ position: [lon, lat], content: html, anchor: 'center', zIndex: 11 })
-      m.on('mouseover', async (e: any) => {
-        e.originEvent?.stopPropagation()
-        // 先显示加载中
-        infoWindowRef.current.setContent(infoHTML(title, ['加载最新采集数据…']))
-        infoWindowRef.current.open(map, [lon, lat])
-        let lines: string[]
-        try { lines = await fetchLines() } catch { lines = ['数据加载失败'] }
-        // 若窗口仍打开在此处则更新（用户没移到别处）
-        infoWindowRef.current.setContent(infoHTML(title, lines))
+      map.addMarker({
+        lon, lat, html, zIndex: 11,
+        events: {
+          mouseover: async (e) => {
+            e.stopPropagation()
+            // 先显示加载中
+            map.openInfoWindow(infoHTML(title, ['加载最新采集数据…']), lon, lat)
+            let lines: string[]
+            try { lines = await fetchLines() } catch { lines = ['数据加载失败'] }
+            // 若窗口仍打开在此处则更新（用户没移到别处）
+            map.openInfoWindow(infoHTML(title, lines), lon, lat)
+          },
+          mouseout: () => map.closeInfoWindow(),
+        },
       })
-      m.on('mouseout', () => {
-        infoWindowRef.current?.close()
-      })
-      map.add(m)
-      markersRef.current.push(m)
     }
 
     // Helper to read extra numeric/string fields safely
@@ -252,18 +187,22 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
     // P1 场景聚焦：dust/straw 场景下隐藏常规站点，只保留场景相关点位
     const showGeneral = scene === 'none'
 
+    // 统计本次绘制标记数，用于首次视野自适应（与旧逻辑等价）
+    let markerCount = 0
+    const track = () => { markerCount++ }
+
     // Air quality stations (from backend map points)
     // 气环境驾驶舱+全域态势显示；水环境驾驶舱隐藏
     if (showGeneral && activeTab !== 'water') {
-      mapPoints.filter(p => p.type === 'air').forEach(s => addM(s.lon, s.lat, icon('air', s.name, { icon: 'gauge', color: '#1a7fff' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
+      mapPoints.filter(p => p.type === 'air').forEach(s => { track(); addM(s.lon, s.lat, icon('air', s.name, { icon: 'gauge', color: '#1a7fff' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
       title: s.name,
       lines: [`AQI&nbsp;&nbsp;: ${num(s.aqi)}`, `PM2.5: ${num(s.pm25)} μg/m³`, `PM10 : ${num(s.pm10)} μg/m³`, `NO₂&nbsp;: ${num(s.no2)} μg/m³`, `SO₂&nbsp;: ${num(s.so2)} μg/m³`],
-    }))
+    }) })
     } // end activeTab !== 'water' (air stations hidden in water cockpit)
 
     // 市监测站 🏠（来自后端数据源配置的经纬度）— 点击实时拉取最近采集数据；气环境+全域显示
     if (showGeneral && activeTab !== 'water') {
-      stations.forEach(st => addMAsync(st.lon, st.lat, icon('station', st.stationName || st.name, { icon: 'home', color: '#ffb300' }, { alert: matchAlert(st.lat, st.lon, st.stationName || st.name) }), st.stationName || st.name, async () => {
+      stations.forEach(st => { track(); addMAsync(st.lon, st.lat, icon('station', st.stationName || st.name, { icon: 'home', color: '#ffb300' }, { alert: matchAlert(st.lat, st.lon, st.stationName || st.name) }), st.stationName || st.name, async () => {
       const resp = await authFetch(`/api/collected/as-aq?stations=${encodeURIComponent(st.stationName)}`)
       const arr = await resp.json()
       if (!Array.isArray(arr) || !arr.length) return ['暂无采集数据', '（请确认数据源已启用并已采集）']
@@ -283,15 +222,15 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
         `O₃&nbsp;&nbsp;&nbsp;: ${num(latest.o3)} μg/m³`,
         `CO&nbsp;&nbsp;&nbsp;: ${num(latest.co)} mg/m³`,
       ]
-    }))
+    }) })
     } // end activeTab !== 'water' (stations hidden in water cockpit)
 
     // Water quality stations — 水环境驾驶舱+全域态势显示；气环境驾驶舱隐藏
     if (showGeneral && activeTab !== 'air') {
-      mapPoints.filter(p => p.type === 'water').forEach(s => addM(s.lon, s.lat, icon('water', s.name, { icon: 'water', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
+      mapPoints.filter(p => p.type === 'water').forEach(s => { track(); addM(s.lon, s.lat, icon('water', s.name, { icon: 'water', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
       title: s.name,
       lines: [`pH&nbsp;&nbsp;&nbsp;&nbsp;: ${num(s.ph)}`, `溶解氧: ${num(s.do_)} mg/L`, `氨氮&nbsp;: ${num(s.nh3)} mg/L`, `总磷&nbsp;: ${num(s.tp)} mg/L`],
-    }))
+    }) })
     } // end activeTab !== 'air' (water stations hidden in air cockpit)
 
     // Pollution cameras — from videoStreams（按分组取图标，无分组配置回退 camera 默认）
@@ -308,6 +247,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
     videoStreams
       .filter(tabCameraFilter)
       .forEach(s => {
+        track()
         const groupCfg = iconCfg[s.group] || iconCfg['camera'] || { icon: 'camera', color: '#00b84a' }
         // 摄像头图标告警：来自 IoT 视频分析通道的实时触发（地理坐标对应），
         // 仅当关联通道在 TTL 内推送过分析事件时才红闪，超时自动熄灭。
@@ -316,8 +256,6 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
         // 道路监控显示名称标签，便于在地图上快速识别具体路口
         const showLabel = s.group === '道路监控' ? s.name : ''
         const html = renderMarkerIcon(groupCfg.icon, s.offline ? '#5a6b7a' : groupCfg.color, showLabel, { size: 22, alert: isAlertCam })
-        // 摄像头图标：悬停查看信息，双击直接推流播放
-        const m = new AMap.Marker({ position: [s.lon as number, s.lat as number], content: html, anchor: 'center', zIndex: 10 })
         const info = {
           title: s.name,
           lines: [
@@ -331,32 +269,35 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
             '双击图标直接播放视频',
           ],
         }
-        m.on('mouseover', (e: any) => {
-          e.originEvent?.stopPropagation()
-          infoWindowRef.current.setContent(infoHTML(info.title, info.lines))
-          infoWindowRef.current.open(map, [s.lon as number, s.lat as number])
+        // 摄像头图标：悬停查看信息，双击直接推流播放
+        map.addMarker({
+          lon: s.lon as number,
+          lat: s.lat as number,
+          html,
+          events: {
+            mouseover: (e) => {
+              e.stopPropagation()
+              map.openInfoWindow(infoHTML(info.title, info.lines), s.lon as number, s.lat as number)
+            },
+            mouseout: () => map.closeInfoWindow(),
+            // 阻止 click 事件冒泡到地图，避免双击时地图意外位移
+            click: (e) => { e.stopPropagation() },
+            dblclick: (e) => {
+              e.stopPropagation()
+              map.closeInfoWindow()
+              // 保存当前地图位置，关闭弹窗后恢复
+              const c = map.getCenter()
+              savedMapPosRef.current = { center: [c.lng, c.lat], zoom: map.getZoom() }
+              setPlayStream(s)
+            },
+          },
         })
-        m.on('mouseout', () => {
-          infoWindowRef.current?.close()
-        })
-        // 阻止 click 事件冒泡到地图，避免双击时地图意外位移
-        m.on('click', (e: any) => { e.originEvent?.stopPropagation() })
-        m.on('dblclick', (e: any) => {
-          e.originEvent?.stopPropagation()
-          infoWindowRef.current?.close()
-          // 保存当前地图位置，关闭弹窗后恢复
-          const c = map.getCenter()
-          savedMapPosRef.current = { center: [c.lng, c.lat], zoom: map.getZoom() }
-          setPlayStream(s)
-        })
-        map.add(m)
-        markersRef.current.push(m)
       })
 
     // 首次有标注后自动调整视野，确保所有点位可见（40px 边距）
-    if (markersRef.current.length > 0 && !hasFittedRef.current) {
+    if (markerCount > 0 && !hasFittedRef.current) {
       try {
-        map.setFitView(null, false, [40, 40, 40, 40])
+        map.fitView([40, 40, 40, 40])
         hasFittedRef.current = true
       } catch (_) {}
     }
@@ -368,32 +309,32 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
       if (scene === 'straw') return t.includes('秸秆')
       return true
     }
-    mapPoints.filter(p => p.type === 'alert').filter(alertSceneFilter).forEach(s => addM(s.lon, s.lat, icon('alert', str(s.alertType, '告警'), { icon: 'alert', color: '#ff4444' }, { pulse: true }), {
+    mapPoints.filter(p => p.type === 'alert').filter(alertSceneFilter).forEach(s => { track(); addM(s.lon, s.lat, icon('alert', str(s.alertType, '告警'), { icon: 'alert', color: '#ff4444' }, { pulse: true }), {
       title: s.name,
       lines: [`告警类型: ${str(s.alertType)}`, `告警等级: ${['', '注意', '轻度', '中度', '重度'][num(s.level, 1)]}`, '处置状态: 待处置'],
-    }))
+    }) })
 
     // Air tab extras — UAV airports
     if (showGeneral && activeTab === 'air') {
-      mapPoints.filter(p => p.type === 'uav').forEach(s => addM(s.lon, s.lat, icon('uav', s.name, { icon: 'plane', color: '#ab47bc' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
+      mapPoints.filter(p => p.type === 'uav').forEach(s => { track(); addM(s.lon, s.lat, icon('uav', s.name, { icon: 'plane', color: '#ab47bc' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
         title: s.name,
         lines: ['设备类型: 无人机机场', '快检功能: 已接入', '当前状态: 运行中'],
-      }))
+      }) })
     }
 
     // Water tab extras — basin monitoring
     if (showGeneral && activeTab === 'water') {
-      mapPoints.filter(p => p.type === 'watermon').forEach(s => addM(s.lon, s.lat, icon('watermon', s.name, { icon: 'wave', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
+      mapPoints.filter(p => p.type === 'watermon').forEach(s => { track(); addM(s.lon, s.lat, icon('watermon', s.name, { icon: 'wave', color: '#00e5ff' }, { pulse: true, alert: matchAlert(s.lat, s.lon, s.name) }), {
         title: s.name,
         lines: ['设备类型: 流域监测站', '当前状态: 在线', '实时监测: 运行中'],
-      }))
+      }) })
     }
   }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts])
 
   // Pan to selected alert
   useEffect(() => {
     if (!mapRef.current || !selectedAlert) return
-    mapRef.current.panTo([selectedAlert.lon, selectedAlert.lat])
+    mapRef.current.panTo(selectedAlert.lon, selectedAlert.lat)
     mapRef.current.setZoom(14, true)
   }, [selectedAlert])
 
@@ -427,7 +368,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
             animation: 'amap-marker-spin 0.9s linear infinite',
           }} />
           <span style={{ color: '#5a8aaa', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
-            高德地图加载中…
+            地图加载中…
           </span>
         </div>
       )}
