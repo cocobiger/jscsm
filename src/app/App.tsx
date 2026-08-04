@@ -45,6 +45,9 @@ function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => voi
           flex: 1,
           display: 'grid',
           gridTemplateColumns: gridCols,
+          // 关键：行高必须钉死为容器高度。默认 grid-auto-rows: auto 会被 cell 内容撑高
+          // （LeftPanel 四段 grow 总高超 996 时行被撑到 1481px，底部段溢出可视区被裁）
+          gridTemplateRows: 'minmax(0, 1fr)',
           minHeight: 0,
           overflow: 'hidden',
         }}

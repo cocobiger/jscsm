@@ -14,7 +14,7 @@ interface PanelFrameProps {
    * - 'pct'（默认）：按 heightPct/flexGrow 百分比定高
    * - 'content'：自适应内容高度（内容多少占多少，不撑不占）
    * - 'fill'：占满父容器剩余空间（flex:1），适合放在最后一段
-   * - 'grow'：内容高度保底（basis auto），剩余空间按 grow 权重分配——多段占满整栏用
+   * - 'grow'：严格按 grow 权重分配容器高度（basis 0%），内容在段内拉伸/滚动适配——多段占满整栏用
    */
   fit?: 'pct' | 'content' | 'fill' | 'grow'
   /** fit='grow' 时的 flex-grow 权重（默认 1） */
@@ -39,7 +39,8 @@ export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fi
       : fit === 'fill'
         ? { flex: 1, minHeight: 0 }
         : fit === 'grow'
-          ? { flex: `${grow} 1 auto`, minHeight: 0 }
+          // basis 0%：严格按 grow 权重分配容器高度，与内容解耦（防止「内容撑高→分配更多」的正反馈循环把末段挤出可视区）
+          ? { flex: `${grow} 1 0%`, minHeight: 0 }
           : { height: `${pct}%`, flexShrink: 0 }
   return (
     <section
