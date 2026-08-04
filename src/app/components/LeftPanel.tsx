@@ -115,7 +115,8 @@ interface PanelSectionProps {
   color: string
   flexGrow?: number
   heightPct?: number
-  fit?: 'pct' | 'content' | 'fill'
+  fit?: 'pct' | 'content' | 'fill' | 'grow'
+  grow?: number
   headerExtra?: React.ReactNode
   children: React.ReactNode
 }
@@ -253,8 +254,9 @@ export function LeftPanel() {
     >
       {/* Panels wrapper — takes ALL remaining space; weather block is excluded */}
       <div style={{ flex: 1, minHeight: 0, height: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Atmospheric section — 自适应内容高度 */}
-      <PanelSection title="大气环境质量" color={CYAN} fit="content" headerExtra={stationToggle}>
+      {/* Atmospheric section — grow 占满分配（内容保底，余量拉伸网格行高） */}
+      <PanelSection title="大气环境质量" color={CYAN} fit="grow" grow={4} headerExtra={stationToggle}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* AQI 大字报卡 */}
         <div
           style={{
@@ -318,8 +320,8 @@ export function LeftPanel() {
           </div>
         </div>
 
-        {/* 6 指标网格卡（2×3） */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {/* 6 指标网格卡（2×3，gridAutoRows 1fr 随空间拉伸行高） */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridAutoRows: '1fr', gap: 6, flex: 1, minHeight: 0 }}>
           {station.metrics.map((m, i) => {
             const st = deriveStatus(m.value, m.limit)
             return (
@@ -332,6 +334,7 @@ export function LeftPanel() {
                   padding: '5px 8px 4px',
                   boxShadow: `inset 0 0 12px -8px ${alpha(statusColor(st), 0.4)}`,
                   transition: 'border-color 0.3s',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
                 }}
               >
                 <div className="flex items-center justify-between">
@@ -363,10 +366,11 @@ export function LeftPanel() {
             )
           })}
         </div>
+        </div>
       </PanelSection>
 
-      {/* P1 站点空气质量排名（真实数据：两站 AQI 降序 + 首要污染物）— 自适应内容高度 */}
-      <PanelSection title="站点空气质量排名" color={AMBER} fit="content">
+      {/* P1 站点空气质量排名（真实数据：两站 AQI 降序 + 首要污染物）— grow 占满分配 */}
+      <PanelSection title="站点空气质量排名" color={AMBER} fit="grow" grow={2}>
         {(() => {
           const ranked = STATIONS
             .map(name => {
@@ -383,7 +387,7 @@ export function LeftPanel() {
             .sort((a, b) => b.aqi - a.aqi)
           const maxAqi = ranked[0]?.aqi || 1
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 3 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 3, height: '100%' }}>
               {ranked.map((s, i) => (
                 <div
                   key={s.name}
@@ -391,6 +395,8 @@ export function LeftPanel() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 7,
                     padding: '4px 7px',
+                    flex: 1,
+                    minHeight: 0,
                     background: s.name === activeStation ? 'rgba(0,170,255,0.10)' : 'rgba(8,20,44,0.45)',
                     border: `1px solid ${s.name === activeStation ? 'rgba(0,170,255,0.35)' : 'rgba(0,150,220,0.12)'}`,
                     borderRadius: 4,
@@ -440,15 +446,17 @@ export function LeftPanel() {
         })()}
       </PanelSection>
 
-      {/* Water section — 自适应内容高度（5 项指标全部展示） */}
-      <PanelSection title="水质监测数据" color="#00bcd4" fit="content">
-        <div className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12, color: '#5a8aaa' }}>
+      {/* Water section — grow 占满分配（5 项指标行随空间均分拉高） */}
+      <PanelSection title="水质监测数据" color="#00bcd4" fit="grow" grow={2.5}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12, color: '#5a8aaa', flexShrink: 0 }}>
           <span>长江入库断面</span>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: `0 0 4px ${GREEN}` }} />
           <span style={{ color: GREEN }}>Ⅱ类水质</span>
         </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {WATER_METRICS.map(m => (
-          <div key={m.key} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid rgba(0,80,150,0.12)' }}>
+          <div key={m.key} className="flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,80,150,0.12)', flex: 1, minHeight: 0 }}>
             <div className="flex items-center gap-2">
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor(m.status), boxShadow: `0 0 5px ${statusColor(m.status)}` }} />
               <span style={{ color: '#7ab8e0', fontSize: 13 }}>{m.label}</span>
@@ -462,13 +470,15 @@ export function LeftPanel() {
             </div>
           </div>
         ))}
+        </div>
+        </div>
       </PanelSection>
 
-      {/* Device section — 真实数据；fill 占满剩余空间，保证完整显示 */}
-      <PanelSection title="设备在线状态" color={GREEN} fit="fill">
+      {/* Device section — 真实数据；grow 占满分配（分类行随空间均分拉高） */}
+      <PanelSection title="设备在线状态" color={GREEN} fit="grow" grow={2.5}>
         {deviceStatus ? (
-          <>
-            <div className="flex items-center justify-between mb-2">
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div className="flex items-center justify-between mb-2" style={{ flexShrink: 0 }}>
               <div>
                 <span style={{ color: '#c8e6ff', fontSize: 22, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
                   <AnimatedNumber value={deviceStatus.total.online} style={{ color: 'inherit', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }} />
@@ -480,11 +490,12 @@ export function LeftPanel() {
                 <div style={{ color: '#5a8aaa', fontSize: 11 }}>在线率</div>
               </div>
             </div>
-            <div style={{ height: 5, background: 'rgba(0,80,150,0.3)', borderRadius: 3, marginBottom: 10, overflow: 'hidden' }}>
+            <div style={{ height: 5, background: 'rgba(0,80,150,0.3)', borderRadius: 3, marginBottom: 10, overflow: 'hidden', flexShrink: 0 }}>
               <div style={{ width: `${deviceStatus.total.rate}%`, height: '100%', background: `linear-gradient(90deg, ${GREEN}, #00bcd4)`, borderRadius: 3 }} />
             </div>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {deviceStatus.categories.map(d => (
-              <div key={d.label} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid rgba(0,80,150,0.12)' }}>
+              <div key={d.label} className="flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,80,150,0.12)', flex: 1, minHeight: 0 }}>
                 <div className="flex items-center gap-2">
                   <div style={{
                     width: 8, height: 8, borderRadius: '50%',
@@ -499,7 +510,8 @@ export function LeftPanel() {
                 </span>
               </div>
             ))}
-          </>
+            </div>
+          </div>
         ) : (
           <div style={{ color: '#3a5a70', fontSize: 12, textAlign: 'center', padding: 20 }}>加载中...</div>
         )}

@@ -14,8 +14,11 @@ interface PanelFrameProps {
    * - 'pct'（默认）：按 heightPct/flexGrow 百分比定高
    * - 'content'：自适应内容高度（内容多少占多少，不撑不占）
    * - 'fill'：占满父容器剩余空间（flex:1），适合放在最后一段
+   * - 'grow'：内容高度保底（basis auto），剩余空间按 grow 权重分配——多段占满整栏用
    */
-  fit?: 'pct' | 'content' | 'fill'
+  fit?: 'pct' | 'content' | 'fill' | 'grow'
+  /** fit='grow' 时的 flex-grow 权重（默认 1） */
+  grow?: number
   /** 顶部是否跑扫描光带 */
   scan?: boolean
   headerExtra?: React.ReactNode
@@ -28,14 +31,16 @@ const CORNER = 14 // 四角描边臂长
  * DataV 风格装饰面板：四角描边 + 菱形发光角标标题 + 可选扫描线 + 渐变底。
  * 纯 SVG/CSS 实现，零三方依赖，用于替换旧 PanelSection 的左侧光带。
  */
-export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fit = 'pct', headerExtra, scan = false, children }: PanelFrameProps) {
+export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fit = 'pct', grow = 1, headerExtra, scan = false, children }: PanelFrameProps) {
   const pct = heightPct ?? (flexGrow === 4 ? 40 : 30)
   const sizeStyle: React.CSSProperties =
     fit === 'content'
       ? { flexShrink: 0 }
       : fit === 'fill'
         ? { flex: 1, minHeight: 0 }
-        : { height: `${pct}%`, flexShrink: 0 }
+        : fit === 'grow'
+          ? { flex: `${grow} 1 auto`, minHeight: 0 }
+          : { height: `${pct}%`, flexShrink: 0 }
   return (
     <section
       className="flex flex-col"
@@ -108,7 +113,7 @@ export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fi
         {headerExtra}
       </div>
 
-      {/* 内容区：content 模式用自然流（section 高度=标题+内容，零 flex 分配黑盒）；pct/fill 模式 flex-1 填满 */}
+      {/* 内容区：content 模式用自然流（section 高度=标题+内容，零 flex 分配黑盒）；pct/fill/grow 模式 flex-1 填满（grow 时子内容可用 height:100% 链拉伸） */}
       <div
         className={fit === 'content' ? 'overflow-y-auto px-3 py-1.5' : 'flex-1 overflow-y-auto px-3 py-1.5'}
         style={{ scrollbarWidth: 'none', minHeight: 0, position: 'relative', zIndex: 2 }}
