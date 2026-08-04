@@ -108,8 +108,9 @@ export function PanelFrame({ title, color = CK.cyan, flexGrow = 1, heightPct, fi
         {headerExtra}
       </div>
 
+      {/* 内容区：content 模式用自然流（section 高度=标题+内容，零 flex 分配黑盒）；pct/fill 模式 flex-1 填满 */}
       <div
-        className="flex-1 overflow-y-auto px-3 py-1.5"
+        className={fit === 'content' ? 'overflow-y-auto px-3 py-1.5' : 'flex-1 overflow-y-auto px-3 py-1.5'}
         style={{ scrollbarWidth: 'none', minHeight: 0, position: 'relative', zIndex: 2 }}
       >
         {children}
