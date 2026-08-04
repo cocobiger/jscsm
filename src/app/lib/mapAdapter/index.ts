@@ -5,10 +5,11 @@
  * 这一层，业务代码只依赖 MapHandle 接口，引擎可切换、可回退。
  *
  * 引擎注册：
- *   - 'amap'   高德 JS API 2.0（在线，现状默认）
- *   - 'leaflet' 计划中（Leaflet + 天地图瓦片，离线目标，见 outputs/电子地图离线部署方案-天地图.md）
+ *   - 'amap'   高德 JS API 2.0（在线，保留作为回退）
+ *   - 'leaflet' Leaflet + 天地图瓦片（离线目标，当前默认，见 outputs/电子地图离线部署方案-天地图.md）
  */
 import { loadAmapScript, createAmapMap } from './amap'
+import { createLeafletMap } from './leaflet'
 
 export type MapEngine = 'amap' | 'leaflet'
 
@@ -73,8 +74,8 @@ export async function initMap(el: HTMLElement, engine: MapEngine, options: MapVi
     return createAmapMap(el, options)
   }
   if (engine === 'leaflet') {
-    // 阶段 2 接入：Leaflet + 天地图瓦片（完全离线目标）
-    throw new Error('map engine "leaflet" not implemented yet (planned for phase 2)')
+    // Leaflet + 天地图瓦片：纯本地库（bundle 内），瓦片走自托管/代理，生产无外网可用
+    return createLeafletMap(el, options)
   }
   throw new Error(`unknown map engine: ${String(engine)}`)
 }

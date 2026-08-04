@@ -1,1 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+/*
+ * 字体定义（2026-08-05 改造：移除 Google Fonts 外链，生产内网无外网）
+ *
+ * 原: @import Google Fonts (JetBrains Mono + Noto Sans SC) —— 内网浏览器会无限挂起 DCL
+ * 现: 系统字体栈优先保留与原效果一致的中文/数字外观
+ *   - 中文: 苹方/雅黑/思源黑体回退（政务大屏常见系统字体）
+ *   - 数字: 系统等宽字体（macOS/Windows 自带）
+ *
+ * 组件内已有 inline 字体回退（如 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif），
+ * 本文件补充 CSS 变量便于后续按需使用，不改变现有声明。
+ */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Noto Sans SC', 'WenQuanYi Micro Hei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Cascadia Code', 'Consolas', 'Menlo', 'Monaco', 'Courier New', monospace;
+}

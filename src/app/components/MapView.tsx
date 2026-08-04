@@ -80,11 +80,12 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
     }
   }, [])
 
-  // 初始化地图：经适配层加载引擎 SDK → 创建实例（引擎可切换，见 src/app/lib/mapAdapter）
+  // 初始化地图：经适配层加载引擎 → 创建实例（默认 Leaflet+天地图瓦片；VITE_MAP_ENGINE=amap 可回退高德）
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return
     let cancelled = false
-    initMap(containerRef.current, 'amap', {
+    const engine = (import.meta.env.VITE_MAP_ENGINE as 'amap' | 'leaflet') || 'leaflet'
+    initMap(containerRef.current, engine, {
       center: [108.4076, 30.8077],
       zoom: 12,
       doubleClickZoom: false, // 关闭双击地图缩放，避免双击视频图标推流时误触缩放

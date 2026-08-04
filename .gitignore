@@ -26,6 +26,7 @@ backups/
 *.tmp.*
 tmp_*
 _tmp_*
+_shot_*
 __pycache__/
 *.pyc
 nul
@@ -64,3 +65,4 @@ server/*.bak[0-9]
 
 # 杂项截图
 *.workbuddyclipboard*
+infra/tianditu-downloader/tianditu/
