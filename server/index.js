@@ -1051,6 +1051,47 @@ app.get('/api/collected/as-aq', (req, res) => {
   res.json(data)
 })
 
+// P2b 地图时间轴：按日期返回各站逐小时污染数据（collected 真实小时数据，monitor_time 粒度=小时）
+app.get('/api/hourly-pollution', (req, res) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : null
+  if (!date) return res.status(400).json({ error: 'date=YYYY-MM-DD required' })
+  try {
+    const db = store.getDb()
+    const rows = db.prepare(
+      `SELECT point_name, monitor_time, aqi, pollutants_json, lat, lon, valid
+       FROM collected
+       WHERE substr(monitor_time, 1, 10) = ? AND valid = 1
+       ORDER BY monitor_time ASC`
+    ).all(date)
+    const getP = (pollutants, code) => {
+      const p = (pollutants || []).find(p => p.code === code)
+      return p ? Number(p.value) : 0
+    }
+    const stationMap = new Map()
+    for (const r of rows) {
+      const name = String(r.point_name || '').replace(/^万州区\s*/, '').trim() || r.point_name || '未知站点'
+      if (!stationMap.has(name)) stationMap.set(name, { name, lat: r.lat, lon: r.lon, series: [] })
+      const st = stationMap.get(name)
+      const hour = parseInt((r.monitor_time || '').split(' ')[1]?.split(':')[0] || '0')
+      let pollutants = []
+      try { pollutants = JSON.parse(r.pollutants_json || '[]') } catch {}
+      st.series.push({
+        hour,
+        aqi: Number(r.aqi) || 0,
+        pm25: getP(pollutants, 'PM25'),
+        pm10: getP(pollutants, 'PM10'),
+        so2: getP(pollutants, 'SO2'),
+        no2: getP(pollutants, 'NO2'),
+        o3: getP(pollutants, 'O3'),
+        co: getP(pollutants, 'CO'),
+      })
+    }
+    res.json({ date, stations: [...stationMap.values()] })
+  } catch (e) {
+    res.status(500).json({ error: (e && e.message) || String(e) })
+  }
+})
+
 app.get('/api/warnings', (req, res) => {
   const { type, exclude_type, limit, aggregate, lightweight } = req.query
   if (aggregate === '1' || aggregate === 'true') {

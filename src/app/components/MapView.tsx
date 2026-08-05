@@ -7,6 +7,8 @@ import { renderMarkerIcon } from '../lib/mapIcons'
 import { VideoPlayerModal } from './VideoPlayerModal'
 import { initMap } from '../lib/mapAdapter'
 import type { MapHandle } from '../lib/mapAdapter'
+import type { TimelineSelection, HourlyPoint } from './TimeAxisPanel'
+import { aqiColor } from '../lib/airQuality'
 
 export type MapTab = 'default' | 'air' | 'water'
 /** P1 场景聚焦：与 MapTab 正交，在任意驾驶舱视图之上再做一层点位过滤 */
@@ -17,6 +19,8 @@ interface Props {
   selectedAlert: AlertItem | null
   /** P1 场景聚焦（可选，默认 'none' 不过滤） */
   scene?: MapScene
+  /** P2b 地图时间轴：非 null 时站点标记按该小时历史数据着色/展示 */
+  timeline?: TimelineSelection | null
 }
 
 const MARKER_CSS = `
@@ -37,7 +41,7 @@ const MARKER_CSS = `
   }
 `
 
-export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
+export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = null }: Props) {
   const { videoStreams, mapPoints, externalAlerts, iotAlertingStreamIds, iotChannelStatus } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapHandle | null>(null)
@@ -192,19 +196,48 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
     let markerCount = 0
     const track = () => { markerCount++ }
 
+    // P2b 时间轴：取站点名对应历史小时数据（匹配周家坝/百安坝等短名）
+    const tlPoint = (name: string): HourlyPoint | null => {
+      if (!timeline) return null
+      const st = timeline.data.stations.find(s => name.includes(s.name) || s.name.includes(name))
+      return st ? st.series.find(p => p.hour === timeline.hour) || null : null
+    }
+    const tlTimeLabel = timeline ? `${timeline.date} ${String(timeline.hour).padStart(2, '0')}:00` : ''
+
     // Air quality stations (from backend map points)
     // 气环境驾驶舱+全域态势显示；水环境驾驶舱隐藏
     if (showGeneral && activeTab !== 'water') {
-      mapPoints.filter(p => p.type === 'air').forEach(s => { track(); addM(s.lon, s.lat, icon('air', s.name, { icon: 'gauge', color: '#1a7fff' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
+      mapPoints.filter(p => p.type === 'air').forEach(s => { track(); const tl = tlPoint(s.name); if (tl) {
+        // 时间轴回放：AQI 着色 + 历史数值
+        addM(s.lon, s.lat, renderMarkerIcon('gauge', aqiColor(tl.aqi), s.name, { alert: matchAlert(s.lat, s.lon, s.name) }), {
+        title: `${s.name} · 回放`,
+        lines: [`时间: ${tlTimeLabel}`, `AQI&nbsp;&nbsp;: ${tl.aqi}`, `PM2.5: ${tl.pm25} μg/m³`, `PM10 : ${tl.pm10} μg/m³`, `NO₂&nbsp;: ${tl.no2} μg/m³`, `SO₂&nbsp;: ${tl.so2} μg/m³`],
+      }) } else {
+      addM(s.lon, s.lat, icon('air', s.name, { icon: 'gauge', color: '#1a7fff' }, { alert: matchAlert(s.lat, s.lon, s.name) }), {
       title: s.name,
       lines: [`AQI&nbsp;&nbsp;: ${num(s.aqi)}`, `PM2.5: ${num(s.pm25)} μg/m³`, `PM10 : ${num(s.pm10)} μg/m³`, `NO₂&nbsp;: ${num(s.no2)} μg/m³`, `SO₂&nbsp;: ${num(s.so2)} μg/m³`],
-    }) })
+    }) } })
     } // end activeTab !== 'water' (air stations hidden in water cockpit)
 
     // 市监测站 🏠（来自后端数据源配置的经纬度）— 点击实时拉取最近采集数据；气环境+全域显示
     if (showGeneral && activeTab !== 'water') {
-      stations.forEach(st => { track(); addMAsync(st.lon, st.lat, icon('station', st.stationName || st.name, { icon: 'home', color: '#ffb300' }, { alert: matchAlert(st.lat, st.lon, st.stationName || st.name) }), st.stationName || st.name, async () => {
-      const resp = await authFetch(`/api/collected/as-aq?stations=${encodeURIComponent(st.stationName)}`)
+      stations.forEach(st => { track(); const stName = st.stationName || st.name; const tl = tlPoint(stName); if (tl) {
+        // 时间轴回放：同步历史数据，无需异步拉取
+        addM(st.lon, st.lat, renderMarkerIcon('home', aqiColor(tl.aqi), stName, { alert: matchAlert(st.lat, st.lon, stName) }), {
+        title: `${stName} · 回放`,
+        lines: [
+          `时间: ${tlTimeLabel}`,
+          `AQI&nbsp;&nbsp;: ${tl.aqi}`,
+          `PM2.5: ${tl.pm25} μg/m³`,
+          `PM10&nbsp;: ${tl.pm10} μg/m³`,
+          `SO₂&nbsp;&nbsp;: ${tl.so2} μg/m³`,
+          `NO₂&nbsp;&nbsp;: ${tl.no2} μg/m³`,
+          `O₃&nbsp;&nbsp;&nbsp;: ${tl.o3} μg/m³`,
+          `CO&nbsp;&nbsp;&nbsp;: ${tl.co} mg/m³`,
+        ],
+      }) } else {
+      addMAsync(st.lon, st.lat, icon('station', stName, { icon: 'home', color: '#ffb300' }, { alert: matchAlert(st.lat, st.lon, stName) }), stName, async () => {
+      const resp = await authFetch(`/api/collected/as-aq?stations=${encodeURIComponent(stName)}`)
       const arr = await resp.json()
       if (!Array.isArray(arr) || !arr.length) return ['暂无采集数据', '（请确认数据源已启用并已采集）']
       // 取最新一条（按 date+hour 排序）
@@ -223,7 +256,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
         `O₃&nbsp;&nbsp;&nbsp;: ${num(latest.o3)} μg/m³`,
         `CO&nbsp;&nbsp;&nbsp;: ${num(latest.co)} mg/m³`,
       ]
-    }) })
+    }) } })
     } // end activeTab !== 'water' (stations hidden in water cockpit)
 
     // Water quality stations — 水环境驾驶舱+全域态势显示；气环境驾驶舱隐藏
@@ -330,7 +363,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
         lines: ['设备类型: 流域监测站', '当前状态: 在线', '实时监测: 运行中'],
       }) })
     }
-  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts])
+  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts, timeline])
 
   // Pan to selected alert
   useEffect(() => {
@@ -351,7 +384,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none' }: Props) {
   ]
 
   return (
-    <div className="relative w-full h-full" style={{ background: '#040d1e' }}>
+    <div className="relative w-full h-full" style={{ background: '#040d1e', isolation: 'isolate' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Loading */}

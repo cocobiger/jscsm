@@ -1,5 +1,7 @@
 import type { MapTab, MapScene } from './MapView'
 import { MapView } from './MapView'
+import { TimeAxisPanel } from './TimeAxisPanel'
+import type { TimelineSelection } from './TimeAxisPanel'
 import type { AlertItem } from './AlertPanel'
 import { useDashboard } from '../context/DashboardContext'
 import { useState, useEffect } from 'react'
@@ -25,6 +27,8 @@ export function CenterPanel({ activeTab, onTabChange, selectedAlert, onLocate }:
   const [showArchive, setShowArchive] = useState(false)
   // P1 场景聚焦（底部场景标签）：全域 / 扬尘管控 / 秸秆焚烧
   const [scene, setScene] = useState<MapScene>('none')
+  // P2b 地图时间轴：非 null 时 MapView 按该小时历史数据渲染（回放模式）
+  const [timeline, setTimeline] = useState<TimelineSelection | null>(null)
 
   // ── 实时数据：监测站数量（来自后端数据源配置） ──
   const [stationCount, setStationCount] = useState(0)
@@ -185,7 +189,10 @@ export function CenterPanel({ activeTab, onTabChange, selectedAlert, onLocate }:
 
       {/* Map area */}
       <div className="flex-1 relative min-h-0">
-        <MapView activeTab={activeTab} selectedAlert={selectedAlert} scene={scene} />
+        <MapView activeTab={activeTab} selectedAlert={selectedAlert} scene={scene} timeline={timeline} />
+
+        {/* P2b 地图时间轴（底部场景条上方，00-23 时逐小时污染回放） */}
+        <TimeAxisPanel onTimelineChange={setTimeline} />
 
         {/* P1 底部场景标签条（对齐参考图底部场景切换） */}
         {(() => {
