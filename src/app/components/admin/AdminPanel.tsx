@@ -16,6 +16,7 @@ import { WorkReportPage } from './WorkReportPage'
 import { IotArchivePage } from './IotArchivePage'
 import { MapPointManage } from './MapPointManage'
 import { GovDataPage } from './GovDataPage'
+import { MapCoordPage } from './MapCoordPage'
 import { useDashboard } from '../../context/DashboardContext'
 import { changePassword, ROLE_LABELS, roleAtLeast, type CurrentUser } from '../../lib/auth'
 
@@ -24,7 +25,7 @@ const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const RED = '#ff4444'
 
-type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'icons' | 'mappoints' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata'
+type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'icons' | 'mappoints' | 'coord' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata'
 
 // minRole：访问该页所需最低角色（viewer=任意登录可看）
 const NAV: { key: Page; label: string; icon: string; desc: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
@@ -44,6 +45,7 @@ const NAV: { key: Page; label: string; icon: string; desc: string; minRole: 'vie
   { key: 'enterprise', label: '重点企业管理', icon: '🏭', desc: '企业名单与污染事件', minRole: 'operator' },
   { key: 'icons',      label: '地图图标配置', icon: '🗺', desc: '点位与群组图标自定义', minRole: 'admin' },
   { key: 'mappoints',  label: '地图点位管理', icon: '📍', desc: '地图标注点增删改', minRole: 'operator' },
+  { key: 'coord',      label: '地图坐标系',   icon: '🧭', desc: '点位坐标系 GCJ-02/WGS-84 切换', minRole: 'admin' },
   { key: 'users',      label: '用户管理',   icon: '👤', desc: '账号、角色与权限', minRole: 'admin' },
 ]
 
@@ -240,6 +242,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           {page === 'govdata'    && <GovDataPage />}
           {page === 'icons'      && <IconConfigPage />}
           {page === 'mappoints'  && <MapPointManage />}
+          {page === 'coord'      && <MapCoordPage />}
           {page === 'users'      && <UsersPage currentUserId={user.id} />}
         </div>
       </div>

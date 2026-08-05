@@ -16,6 +16,7 @@ const djiBridge = require('./dji-bridge')
 const sms = require('./sms-mas')
 const store = require('./store-db')  // 采集数据 SQLite 存储层（长期入库，替代 collected.json 的 5000 条上限）
 const reportRenderer = require('./report-renderer')  // 第③环 PDF 结案报告编排器
+const coord = require('./coord')  // WGS-84 <-> GCJ-02 坐标转换（天地图底图为 WGS-84，历史点位为 GCJ-02）
 
 const app = express()
 const PORT = 7170
@@ -261,9 +262,28 @@ const saveStreams = (a) => store.collReplaceAll('streams', a)
 const loadPoints = () => store.collList('map_points')
 const savePoints = (a) => store.collReplaceAll('map_points', a)
 
+// ── 点位坐标系（底图=天地图 WGS-84；点位源坐标系可切换 gcj02/wgs84）──
+// 历史点位（监测站/摄像头/告警）为高德时代录入的 GCJ-02 加密坐标，直接显示在
+// WGS-84 底图上会整体偏移数百米。默认按 GCJ-02 源转换；可在管理后台「地图坐标系」切回 wgs84。
+function coordSystem() {
+  return store.kvGet('map_coord_system', 'gcj02')
+}
+// 将点位列表按源坐标系转换为 WGS-84（仅输出层转换，不改写 DB，可随时切换回退）
+function applyCoord(list) {
+  const sys = coordSystem()
+  if (sys === 'wgs84') return list
+  return list.map(it => {
+    if (typeof it.lat === 'number' && typeof it.lon === 'number') {
+      const { lat, lon } = coord.gcj2wgs(it.lat, it.lon)
+      return { ...it, lat, lon }
+    }
+    return it
+  })
+}
+
 // ── Stream CRUD ──────────────────────────────────────────────
 app.get('/api/streams', (req, res) => {
-  res.json(loadStreams())
+  res.json(applyCoord(loadStreams()))
 })
 
 // 视频流实时探测状态（须在 /api/streams/:id 之前定义，避免被 :id 捕获）
@@ -334,7 +354,7 @@ app.delete('/api/streams/:id', (req, res) => {
 // ── Map point CRUD ───────────────────────────────────────────
 app.get('/api/map-points', (req, res) => {
   const { type } = req.query
-  const points = loadPoints()
+  const points = applyCoord(loadPoints())
   res.json(type ? points.filter(p => p.type === type) : points)
 })
 
@@ -363,6 +383,18 @@ app.delete('/api/map-points/:id', (req, res) => {
   if (next.length === points.length) return res.status(404).json({ error: '未找到' })
   savePoints(next)
   res.json({ ok: true })
+})
+
+// ── 地图坐标系设置（管理后台可切换，影响 map-points/streams/stations 输出）──
+app.get('/api/map-coord-system', (req, res) => {
+  res.json({ system: store.kvGet('map_coord_system', 'gcj02') })
+})
+app.put('/api/map-coord-system', (req, res) => {
+  const { system } = req.body || {}
+  if (system !== 'gcj02' && system !== 'wgs84') return res.status(400).json({ error: 'system 仅支持 gcj02（火星坐标/高德）或 wgs84（天地图/GPS）' })
+  store.kvSet('map_coord_system', system)
+  log.info(`[Coord] 地图点位坐标系切换为 ${system}`)
+  res.json({ ok: true, system })
 })
 
 // ── RTSP forwarding ──────────────────────────────────────────
@@ -890,14 +922,14 @@ app.patch('/api/datasources/:id', (req, res) => {
 // ── 监测站点位（供地图标注）──────────────────────────────────
 // 返回配置了经纬度的数据源，前端地图用🏠标注，点击拉取最新采集数据
 app.get('/api/stations', (req, res) => {
-  const stations = loadDS()
+  const stations = applyCoord(loadDS()
     .filter(d => typeof d.lon === 'number' && typeof d.lat === 'number')
     .map(d => {
       // 从 request_body 的 stationname 提取站点短名（如 周家坝）
       const m = /stationname=([^&]+)/.exec(d.request_body || '')
       const stationName = m ? decodeURIComponent(m[1]) : d.source_name
       return { id: d.id, name: d.source_name, stationName, lon: d.lon, lat: d.lat, enabled: d.enabled }
-    })
+    }))
   res.json(stations)
 })
 
