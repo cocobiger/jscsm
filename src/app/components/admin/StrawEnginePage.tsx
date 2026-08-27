@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
+import { Brain, Camera, Image as ImageIcon } from 'lucide-react'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -66,7 +67,9 @@ export function StrawEnginePage() {
           background: data?.engine?.model_version === 'v2' ? 'rgba(74,222,128,0.15)' : 'rgba(255,170,60,0.15)',
           border: `1px solid ${data?.engine?.model_version === 'v2' ? '#4ade80' : '#ffb74d'}60`,
           color: data?.engine?.model_version === 'v2' ? '#4ade80' : '#ffb74d',
-        }}>🧠 模型 {data?.engine?.model_version || '…'}</span>
+        }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <Brain size={12} strokeWidth={1.75} />模型 {data?.engine?.model_version || '…'}
+        </span></span>
         <button onClick={load} style={{
           marginLeft: 'auto', padding: '4px 14px', fontSize: 12, borderRadius: 3, cursor: 'pointer',
           border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,80,180,0.12)', color: '#7ab8e0',
@@ -302,14 +305,18 @@ export function StrawReviewBoard() {
 
             {picked.picUrl && (
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4 }}>📷 证据截图</div>
+                <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Camera size={12} strokeWidth={1.75} />证据截图
+                </div>
                 <img src={picked.picUrl} alt="evidence"
                   style={{ width: '100%', borderRadius: 6, border: '1px solid rgba(0,150,220,0.2)' }} />
               </div>
             )}
             {picked.wechatPush?.cardUrl && (
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4 }}>🃏 告警卡片（微信推送图）</div>
+                <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <ImageIcon size={12} strokeWidth={1.75} />告警卡片（微信推送图）
+                </div>
                 <img src={picked.wechatPush.cardUrl} alt="card"
                   style={{ width: '100%', borderRadius: 6, border: '1px solid rgba(0,150,220,0.2)' }} />
               </div>

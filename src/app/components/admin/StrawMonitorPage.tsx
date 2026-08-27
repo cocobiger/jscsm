@@ -4,6 +4,8 @@ import { RunPipeline, LiveDetection } from './StrawLivePage'
 import { StreamPanel } from './StreamPanel'
 import { SikongPanel } from './SikongPanel'
 import { authFetch } from '../../lib/apiFetch'
+import type { LucideIcon } from 'lucide-react'
+import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye } from 'lucide-react'
 
 // ── 秸秆焚烧监控 · 独立功能点（无人机视角）──
 // 数据边界：source='straw-engine' 的自研推理告警，与 AI分析存档（IoTCloud）完全隔离
@@ -50,22 +52,23 @@ export function StrawMonitorPage() {
       </div>
 
       {/* Tab 切换 */}
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {([
-          ['engine', '🧠 引擎健康 / 告警工作台'],
-          ['pipeline', '🗺 运行链路全景'],
-          ['live', '📡 实时检测过程'],
-          ['streams', '📹 视频流面板'],
-          ['sikong', '🛰 司空设备'],
-          ['responsibility', '🏛 责任映射 / 微信群推送'],
-          ['style', '📋 推送样式'],
-        ] as const).map(([key, label]) => (
+          ['engine', '引擎健康 / 告警工作台', Brain],
+          ['pipeline', '运行链路全景', Workflow],
+          ['live', '实时检测过程', Radar],
+          ['streams', '视频流面板', Video],
+          ['sikong', '司空设备', Satellite],
+          ['responsibility', '责任映射 / 微信群推送', Landmark],
+          ['style', '推送样式', ClipboardList],
+        ] as const).map(([key, label, Icon]) => (
           <button key={key} onClick={() => setTab(key)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '6px 18px', fontSize: 13, borderRadius: 4, cursor: 'pointer', fontWeight: 600,
             border: `1px solid ${tab === key ? ORANGE : 'rgba(255,112,67,0.25)'}`,
             background: tab === key ? 'rgba(255,112,67,0.15)' : 'transparent',
             color: tab === key ? ORANGE : '#5a8aaa',
-          }}>{label}</button>
+          }}>{Icon && <Icon size={14} strokeWidth={1.75} />}{label}</button>
         ))}
       </div>
 
@@ -327,7 +330,11 @@ function PushStyleEditor() {
         <button onClick={save} disabled={busy} style={{
           padding: '6px 18px', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', borderRadius: 4,
           border: 'none', color: '#fff', background: busy ? '#3a5a70' : 'linear-gradient(90deg, #0e8f4a, #1fb96a)',
-        }}>{busy ? '保存中…' : '💾 保存样式'}</button>
+        }}>{busy ? '保存中…' : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Save size={13} strokeWidth={1.75} />保存样式
+          </span>
+        )}</button>
         <button onClick={reset} style={{
           padding: '6px 12px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
           border: '1px solid rgba(255,170,60,0.4)', background: 'rgba(255,170,60,0.1)', color: AMBER,
@@ -344,7 +351,9 @@ function PushStyleEditor() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
         {/* 卡片主题色 */}
         <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700 }}>🎨 卡片主题色</div>
+          <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Palette size={14} strokeWidth={1.75} />卡片主题色
+          </div>
           {([
             ['accent', '主色（强调/标题条）'], ['bg', '背景色'],
             ['panel', '面板色'], ['border', '边框色'],
@@ -369,7 +378,9 @@ function PushStyleEditor() {
 
         {/* 字段配置 */}
         <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700 }}>📋 卡片显示字段（勾选 + 排序）</div>
+          <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ListChecks size={14} strokeWidth={1.75} />卡片显示字段（勾选 + 排序）
+          </div>
           {FIELD_OPTIONS.map((f, i) => {
             const enabled = (style.fields || []).includes(f.key)
             return (
@@ -397,13 +408,17 @@ function PushStyleEditor() {
 
       {/* 落款 */}
       <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700 }}>📝 卡片落款文案</div>
+        <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <PenLine size={14} strokeWidth={1.75} />卡片落款文案
+        </div>
         <input value={style.footer || ''} onChange={e => set('footer', e.target.value)} placeholder="如：请及时处置并反馈" style={inputStyle} />
       </div>
 
       {/* 预览 */}
       <div style={{ ...card }}>
-        <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, marginBottom: 10 }}>👁 样式预览</div>
+        <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Eye size={14} strokeWidth={1.75} />样式预览
+        </div>
         <div style={{ borderRadius: 6, overflow: 'hidden', maxWidth: 480, border: `1px solid ${style.border || '#2a4a70'}` }}>
           {/* 标题条 */}
           <div style={{ background: style.panel, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>

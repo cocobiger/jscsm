@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
+import { Satellite, Zap, FolderArchive } from 'lucide-react'
 
 // ── 司空2 设备面板（数据贯通可视化：机场 OSD 状态 + 司空事件 + 媒体归档）──
 
@@ -104,16 +105,17 @@ export function SikongPanel() {
       {/* 子 Tab */}
       <div style={{ display: 'flex', gap: 6 }}>
         {([
-          ['docks', `🛰 机场状态 (${docks.length})`],
-          ['events', `⚡ 司空事件 (${events.length})`],
-          ['media', `🗂 媒体归档 (${Object.values(mediaByKind).reduce((a, b) => a + b, 0)})`],
-        ] as const).map(([key, label]) => (
+          ['docks', `机场状态 (${docks.length})`, Satellite],
+          ['events', `司空事件 (${events.length})`, Zap],
+          ['media', `媒体归档 (${Object.values(mediaByKind).reduce((a, b) => a + b, 0)})`, FolderArchive],
+        ] as const).map(([key, label, Icon]) => (
           <button key={key} onClick={() => setSubTab(key)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '4px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
             border: `1px solid ${subTab === key ? PURPLE : 'rgba(171,71,188,0.25)'}`,
             background: subTab === key ? 'rgba(171,71,188,0.15)' : 'transparent',
             color: subTab === key ? PURPLE : '#5a8aaa',
-          }}>{label}</button>
+          }}>{Icon && <Icon size={13} strokeWidth={1.75} />}{label}</button>
         ))}
       </div>
 

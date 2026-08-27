@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { authFetch, getToken } from '../../lib/apiFetch'
+import { Video, Eye } from 'lucide-react'
 
 // ── 司空视频流面板：只展示司空 OpenAPI 通道的视频流（机场/无人机 → 司空 ZLM → 我方 ZLM mirror）──
 
@@ -96,7 +97,9 @@ export function StreamPanel() {
                 {online ? (
                   <img src={snapSrc(s)} alt="" style={{ width: '100%', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.opacity = '0')} />
                 ) : (
-                  <span style={{ fontSize: 12, color: DIM, padding: 24 }}>{s.sikongLive ? '司空直播中 · mirror 建立中' : '📹 待机 / 未开播'}</span>
+                  <span style={{ fontSize: 12, color: DIM, padding: 24, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {s.sikongLive ? '司空直播中 · mirror 建立中' : (<><Video size={14} strokeWidth={1.75} />待机 / 未开播</>)}
+                  </span>
                 )}
                 {/* 状态角标 */}
                 <span style={{ position: 'absolute', top: 6, left: 6, fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: online ? 'rgba(74,222,128,0.2)' : s.sikongLive ? 'rgba(255,183,77,0.18)' : 'rgba(90,138,170,0.15)', color: online ? GREEN : s.sikongLive ? AMBER : DIM, ...mono }}>
@@ -116,7 +119,7 @@ export function StreamPanel() {
                   {s.sikongSn}
                 </div>
                 <div style={{ display: 'flex', gap: 10, fontSize: 11, color: '#9ab4d0', marginTop: 6, flexWrap: 'wrap' }}>
-                  {online && <span>👁 <b style={{ color: CYAN, ...mono }}>{s.readers}</b> 观看</span>}
+                  {online && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Eye size={12} strokeWidth={1.75} /><b style={{ color: CYAN, ...mono }}>{s.readers}</b> 观看</span>}
                   {s.osd?.droneCapacityPercent != null && <span>🔋 <b style={{ ...mono }}>{s.osd.droneCapacityPercent}%</b></span>}
                   {s.osd?.windspeed != null && <span>💨 {s.osd.windspeed}m/s</span>}
                   {s.lat != null && s.lon != null && <span>📍 {Number(s.lat).toFixed(4)}, {Number(s.lon).toFixed(4)}</span>}
