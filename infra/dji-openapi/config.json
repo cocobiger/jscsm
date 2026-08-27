@@ -38,6 +38,7 @@
   "streamAliases": {
     "sqb4699": "8UUXN8N00A0LS7"
   },
+  "minioDataRoot": "/video/xka/docker_volumes/minio/data/test",
   "strawEngine": {
     "configPath": "/opt/jsc/straw-engine/config/config.json",
     "service": "straw-engine"

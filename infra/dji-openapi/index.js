@@ -23,6 +23,10 @@ const zlmWatch = require(path.join(__dirname, 'lib', 'zlm-watcher.js'))(config, 
   strawSync,
   onEvent: (ev) => pushEvent(ev),
 })
+const mediaWatch = require(path.join(__dirname, 'lib', 'media-watcher.js'))(config, {
+  onEvent: (ev) => pushEvent(ev),
+  archivePhotos: true,
+})
 
 const state = {
   startedAt: new Date().toISOString(),
@@ -148,6 +152,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, ...zlmWatch.status() })
     }
 
+    // 司空媒体归档（MinIO 挂载目录扫描：任务照片/视频/录制/OSD 记录）
+    if (req.method === 'GET' && url.pathname === '/api/media') {
+      const kind = url.searchParams.get('kind') || null
+      const limit = Math.min(Number(url.searchParams.get('limit')) || 200, 500)
+      return send(res, 200, { ok: true, ...mediaWatch.status(), items: mediaWatch.list(limit, kind) })
+    }
+
     /**
      * 告警定位解析（jsc-backend /api/straw-alert 调用）
      * streamId → 关联司空机场（alias/精确/包含匹配）→ OSD 精确定位(target-locator) → 机场坐标 fallback
@@ -197,11 +208,12 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-// 启动：设备同步 + OSD 实时遥测 + 司空 ZLM 流监视
+// 启动：设备同步 + OSD 实时遥测 + 司空 ZLM 流监视 + 媒体归档
 syncDevices()
 setInterval(syncDevices, 60000)
 wsOsd.start()
 zlmWatch.start()
+mediaWatch.start()
 
 server.listen(PORT, () => {
   console.log(`[dji-openapi] 接入服务已启动 :${PORT}`)
