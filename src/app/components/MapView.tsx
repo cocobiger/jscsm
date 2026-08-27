@@ -14,6 +14,18 @@ export type MapTab = 'default' | 'air' | 'water'
 /** P1 场景聚焦：与 MapTab 正交，在任意驾驶舱视图之上再做一层点位过滤 */
 export type MapScene = 'none' | 'dust' | 'straw'
 
+/** 司空2 机场（dji-openapi 聚合：设备 + OSD 实时遥测） */
+interface SikongDock {
+  id: string
+  deviceSn: string
+  deviceName: string
+  latitude: number
+  longitude: number
+  height?: number | null
+  drone?: { droneSn?: string; droneName?: string } | null
+  osd?: Record<string, unknown> | null
+}
+
 interface Props {
   activeTab: MapTab
   selectedAlert: AlertItem | null
@@ -49,6 +61,8 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
   const [mapReady, setMapReady] = useState(false)
   const [stations, setStations] = useState<Array<{ id: string; name: string; stationName: string; lon: number; lat: number }>>([])
   const [iconCfg, setIconCfg] = useState<Record<string, { icon: string; color: string }>>({})
+  // 司空2 机场（实时 OSD 遥测：电量/风速/温度/GPS数；来自 dji-openapi 数据贯通）
+  const [sikongDocks, setSikongDocks] = useState<SikongDock[]>([])
   // 双击视频图标直接推流播放
   const [playStream, setPlayStream] = useState<VideoStream | null>(null)
   // 记录打开视频弹窗前的地图位置（关闭弹窗后恢复）
@@ -74,6 +88,14 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
     return () => clearInterval(t)
   }, [])
 
+  // 加载司空2 机场（15s 轮询，OSD 实时遥测）
+  useEffect(() => {
+    const load = () => authFetch('/api/sikong/devices').then(r => r.json()).then(d => Array.isArray(d?.items) && setSikongDocks(d.items)).catch(() => {})
+    load()
+    const t = setInterval(load, 15000)
+    return () => clearInterval(t)
+  }, [])
+
   // Inject marker CSS once
   useEffect(() => {
     if (!document.getElementById('amap-custom-styles')) {
@@ -92,7 +114,8 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
     initMap(containerRef.current, engine, {
       center: [108.4076, 30.8077],
       zoom: 12,
-      doubleClickZoom: false, // 关闭双击地图缩放，避免双击视频图标推流时误触缩放
+      // 双击缩放：视频图标 dblclick 已 stopPropagation，不会误触；空白区双击可缩放（走查建议 #4）
+      doubleClickZoom: true,
     })
       .then(handle => {
         if (cancelled) {
@@ -363,7 +386,34 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
         lines: ['设备类型: 流域监测站', '当前状态: 在线', '实时监测: 运行中'],
       }) })
     }
-  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts, timeline])
+
+    // 司空2 机场（实时 OSD 遥测标注层：基础设施层，始终显示，不受场景/tab 隐藏——机场是秸秆/环境监测的数据源）
+    sikongDocks.forEach(dk => {
+      if (typeof dk.latitude !== 'number' || typeof dk.longitude !== 'number') return
+      track()
+      const o = dk.osd || null
+      const osdLines: string[] = o ? [
+        `无人机状态: ${o.droneInDock === 1 ? '机场内待命' : '飞行中'}`,
+        `无人机电量: ${str(o.droneCapacityPercent, '—')}%`,
+        `风速&nbsp;&nbsp;&nbsp;&nbsp;: ${str(o.windspeed, '—')} m/s`,
+        `温度&nbsp;&nbsp;&nbsp;&nbsp;: ${str(o.temperature, '—')} ℃`,
+        `环境温度&nbsp;&nbsp;: ${str(o.envTemperature, '—')} ℃`,
+        `湿度&nbsp;&nbsp;&nbsp;&nbsp;: ${str(o.humidity, '—')}%`,
+        `GPS卫星&nbsp;&nbsp;: ${str(o.gpsNumber, '—')} 颗`,
+        `供电电压&nbsp;&nbsp;: ${str(o.electricSupplyVoltage, '—')} V`,
+      ] : ['遥测&nbsp;&nbsp;&nbsp;&nbsp;: 暂无（等待 OSD 推送）']
+      addM(dk.longitude, dk.latitude, icon('uav', dk.deviceName, { icon: 'plane', color: '#ab47bc' }, { pulse: true }), {
+        title: `${dk.deviceName} · 司空机场`,
+        lines: [
+          `机场 SN&nbsp;&nbsp;: ${dk.deviceSn}`,
+          `无人机&nbsp;&nbsp;&nbsp;&nbsp;: ${dk.drone?.droneName || '—'}`,
+          `无人机 SN : ${dk.drone?.droneSn || '—'}`,
+          ...osdLines,
+          `坐标&nbsp;&nbsp;&nbsp;&nbsp;: ${dk.latitude.toFixed(4)}, ${dk.longitude.toFixed(4)}`,
+        ],
+      })
+    })
+  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts, timeline, sikongDocks])
 
   // Pan to selected alert
   useEffect(() => {
@@ -381,6 +431,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
     ...(iotAlertingStreamIds.length > 0 ? [{ color: '#ff3b3b', label: 'AI分析触发·红闪' }] : []),
     ...(activeTab === 'air' ? [{ color: '#ab47bc', label: '无人机机场' }] : []),
     ...(activeTab === 'water' ? [{ color: '#00e5ff', label: '流域监测' }] : []),
+    ...(sikongDocks.length > 0 ? [{ color: '#ab47bc', label: `司空机场·实时遥测(${sikongDocks.length})` }] : []),
   ]
 
   return (

@@ -27,9 +27,16 @@ const state = {
   isolation: config.isolation,
   webhook: webhook.status(),
   wsOsd: wsOsd.status(),
+  events: [],
 }
 
 const PORT = config.port || 17810
+
+/** 事件 ring（最近 200 条，供 /api/events） */
+function pushEvent(ev) {
+  state.events.push(ev)
+  if (state.events.length > 200) state.events.shift()
+}
 
 function send(res, code, data) {
   res.statusCode = code
@@ -61,6 +68,27 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'POST' || req.method === 'GET') && url.pathname === '/webhook/sync') {
       const raw = req.method === 'GET' ? url.searchParams.toString() : await readBody(req)
       const result = webhook.handle(req.headers, raw)
+      // 事件联动：LIVE_STATUS_CHANGE → 记录并尝试提取设备/状态（自动建流骨架，真实事件体到校准字段）
+      try {
+        const cls = result.classified || {}
+        let body = null
+        try { body = JSON.parse(String(raw)) } catch (e) {}
+        const d = body && (body.data || body)
+        const sn = d?.droneSn || d?.deviceSn || d?.dockSn || d?.sn || ''
+        pushEvent({
+          ts: new Date().toISOString(),
+          type: cls.eventType || null,
+          classified: cls.type || 'unknown',
+          deviceSn: sn,
+          detail: cls.detail || '',
+          signatureOk: !!(result.signature && result.signature.ok),
+        })
+        if (cls.type === 'live') {
+          console.log(`[webhook] 直播状态变更 sn=${sn} detail=${cls.detail}`)
+        } else if (cls.type === 'task' || cls.type === 'media') {
+          console.log(`[webhook] ${cls.eventType} sn=${sn} detail=${cls.detail}`)
+        }
+      } catch (e) { console.warn('[webhook] 事件联动处理失败:', e.message) }
       // 始终返回 200 确认，避免司空重试风暴；处理结果记录在日志/存储
       return send(res, 200, { code: 0, message: 'ok', detail: result.classified })
     }
@@ -87,6 +115,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/streams') {
       return send(res, 200, { ok: true, streams: live.list() })
+    }
+
+    // 司空事件记录（webhook 收到的事件，最近 200 条）
+    if (req.method === 'GET' && url.pathname === '/api/events') {
+      return send(res, 200, { ok: true, count: state.events.length, events: state.events.slice(-100).reverse() })
     }
     if (req.method === 'POST' && url.pathname === '/api/streams') {
       const { streamId, pushUrl } = JSON.parse(await readBody(req) || '{}')

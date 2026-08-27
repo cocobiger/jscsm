@@ -44,8 +44,10 @@ module.exports = (config, telemetry) => {
     ws.onmessage = (ev) => {
       framesReceived++
       lastMessageAt = Date.now()
+      const text = String(ev.data)
+      if (!text.startsWith('{')) return // 非 JSON（pong 等控制响应）跳过
       try {
-        const msg = JSON.parse(String(ev.data))
+        const msg = JSON.parse(text)
         // 握手确认帧：{message:"Connected...", deviceTypes:[...]}
         if (msg.message && msg.deviceTypes) {
           console.log(`[ws-osd] 握手成功: ${msg.message}`)

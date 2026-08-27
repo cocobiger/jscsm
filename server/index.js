@@ -60,7 +60,7 @@ function djiStreamId(cfg) {
 
 // ── 角色权限矩阵 ──────────────────────────────────────────────
 // 公开（无需登录）：登录接口 + 短信平台机器回调（靠 IP 白名单保障）
-const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback'])
+const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check'])
 // 任意登录用户（含访客）可用的写操作：视频播放、登出、改自己密码
 const ANY_USER_WRITES = new Set([
   '/api/auth/logout', '/api/auth/me', '/api/auth/change-password',
@@ -87,7 +87,9 @@ app.use('/api', (req, res, next) => {
   // 注意：app.use('/api',...) 内 req.path 已被剥掉 /api 前缀，
   // 故用 baseUrl+path 还原完整路径再做白名单/角色匹配。
   const fullPath = req.baseUrl + req.path
-  if (PUBLIC_PATHS.has(fullPath)) return next()
+  // 精确匹配 OR 前缀匹配（白名单加 /api/monitor/、/api/review/、/api/evidence/）
+  const PREFIX_PATHS = ['/api/monitor/', '/api/review/', '/api/evidence/']
+  if (PUBLIC_PATHS.has(fullPath) || PREFIX_PATHS.some(p => fullPath.startsWith(p))) return next()
   const token = auth.extractToken(req)
   const session = auth.verify(token)
   if (!session) return res.status(401).json({ ok: false, code: 'UNAUTHORIZED', error: '未登录或会话已过期，请重新登录' })
@@ -444,10 +446,10 @@ app.post('/api/stream/start', async (req, res) => {
       // 落到下面 ffmpeg 降级
     }
   }
-  // 降级：ffmpeg 推到本地 rtmp（需自备 rtmp 服务，仅兜底）
+  // 降级：ffmpeg 推到本地 rtmp（需自备 rtmp 服务，仅兜底）——端口用我方裸部署 ZLM 的 1936
   if (activeForwards.has(id)) return res.json({ ok: true, engine: 'ffmpeg', flvUrl: `http://localhost:${activeForwards.get(id).httpPort}/live/${id}.flv` })
   const httpPort = nextPort++
-  const proc = spawn('ffmpeg', ['-rtsp_transport', 'tcp', '-i', url, '-c', 'copy', '-f', 'flv', `rtmp://localhost:1935/live/${id}`], { stdio: 'ignore' })
+  const proc = spawn('ffmpeg', ['-rtsp_transport', 'tcp', '-i', url, '-c', 'copy', '-f', 'flv', `rtmp://localhost:1936/live/${id}`], { stdio: 'ignore' })
   proc.on('error', e => log.error(`ffmpeg 转发失败 [${id}]: ${e.message}`))
   proc.on('close', () => activeForwards.delete(id))
   activeForwards.set(id, { proc, httpPort })
@@ -1200,11 +1202,25 @@ app.get('/api/collect-logs', (req, res) => {
 // 预警规则元数据（供前端展示阈值表）
 app.get('/api/warning-rules', (req, res) => {
   res.json({
-    safeMax: warningEngine.SAFE_MAX,
-    crossThresholds: warningEngine.CROSS_THRESHOLDS,
-    growthRange: warningEngine.GROWTH_RANGE,
+    safeMax: warningEngine.getConfig().safeMax,
+    crossThresholds: warningEngine.getConfig().crossThresholds,
+    growthRange: warningEngine.getConfig().growthRange,
+    growthRatio: warningEngine.getConfig().growthRatio,
     labels: warningEngine.LABELS,
   })
+})
+
+// 保存预警规则配置（存 kv_config 'warning_rules'，立即生效于后续判定）
+app.put('/api/warning-rules', (req, res) => {
+  const body = req.body || {}
+  if (typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: '配置格式应为对象' })
+  if (body.growthRatio != null && (!Number.isFinite(Number(body.growthRatio)) || Number(body.growthRatio) <= 0)) {
+    return res.status(400).json({ error: '增长比例必须为正数' })
+  }
+  if (!warningEngine.setConfig(body)) return res.status(400).json({ error: '配置无效' })
+  store.kvSet('warning_rules', warningEngine.getConfig())
+  log.info(`预警规则已更新: growthRatio=${warningEngine.getConfig().growthRatio}`)
+  res.json({ ok: true, config: warningEngine.getConfig() })
 })
 
 // ── 地图图标配置 ─────────────────────────────────────────────
@@ -1578,6 +1594,384 @@ app.get('/api/sms/reports', (req, res) => {
 // ── Health ───────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', streams: loadStreams().length, mapPoints: loadPoints().length, datasources: loadDS().length, warnings: store.warningCount(), activeForwards: activeForwards.size, uptime: process.uptime() })
+})
+
+// ── 秸秆燃烧推理引擎告警入库（内网，straw-engine 推理服务调用）──
+app.post('/api/straw-alert', (req, res) => {
+  const { streamId, aiType, confidence, bbox, imageUrl, sensor, label, firstSeenAt, lat, lon, taskId, waypointId, nearbyPersons, personBoxes } = req.body || {}
+  if (!streamId) return res.status(400).json({ error: 'streamId 必填' })
+  const conf = Number(confidence) || 0
+  // AI 类型统一为系统中文类型名（与 ai_types 主数据一致，前端/推送规则可识别）
+  const aiTypeName = aiType === 'straw_fire' || aiType === 'straw' || !aiType ? '秸秆燃烧' : aiType
+  const warning = {
+    id: `straw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+    warning_type: 'iot-video-analysis',
+    warningType: 'iot-video-analysis',
+    source: 'straw-engine',
+    streamId,
+    taskId: taskId || null,
+    waypointId: waypointId || null,
+    aiType: aiTypeName,
+    aiConfidence: conf,
+    type: `AI视频分析 · ${aiTypeName}`,
+    value: `置信度 ${Math.round(conf * 100)}%`,
+    standard: '阈值 ≥40%',
+    level: conf >= 0.7 ? 3 : conf >= 0.5 ? 2 : 1,
+    location: `${label ? label + ' · ' : ''}${streamId}`,
+    picUrl: imageUrl || '',
+    time: firstSeenAt ? String(firstSeenAt).slice(11, 19) : '',
+    lat: typeof lat === 'number' ? lat : 30.8077,
+    lon: typeof lon === 'number' ? lon : 108.4076,
+    label: label || '',
+    bbox: bbox || null,
+    nearbyPersons: typeof nearbyPersons === 'number' ? nearbyPersons : null,
+    personBoxes: Array.isArray(personBoxes) ? personBoxes : [],
+    evidence: { bbox: bbox || null, sensor: sensor || 'visible', frames: 3 },
+  }
+  store.insertWarning(warning)
+  // 异步责任反查 + 卡片渲染 + 微信群推送（不阻塞告警入库返回）
+  setImmediate(() => { strawWorkflow(warning).catch(e => console.error('[straw-workflow]', e.message)) })
+  res.json({ ok: true, warningId: warning.id })
+})
+
+// ── 秸秆证据图静态服务（读 straw-engine/evidence 目录）──
+const STRAW_EVIDENCE_ROOT = process.env.STRAW_EVIDENCE_ROOT || '/opt/jsc/straw-engine/evidence'
+app.get('/api/evidence/*', (req, res) => {
+  try {
+    const rel = req.params[0] || ''
+    const fp = path.normalize(path.join(STRAW_EVIDENCE_ROOT, rel))
+    if (!fp.startsWith(path.normalize(STRAW_EVIDENCE_ROOT))) return res.status(403).send('Forbidden')
+    res.sendFile(fp)
+  } catch (e) {
+    res.status(404).send('Not Found')
+  }
+})
+
+// ── 秸秆燃烧告警人工复核（真警/误报/漏报补标，进样本库回流）──
+app.post('/api/straw-review/:id', (req, res) => {
+  const { verdict, reason, reviewer } = req.body || {}
+  if (!['true', 'false', 'miss'].includes(verdict)) {
+    return res.status(400).json({ error: 'verdict 仅支持 true / false / miss' })
+  }
+  const updated = store.updateWarningReview(req.params.id, verdict, reason || '', reviewer || (req.user && req.user.username) || '')
+  if (!updated) return res.status(404).json({ error: '告警不存在' })
+  res.json({ ok: true, warning: updated })
+})
+
+// ── 秸秆复核样本查询（边工作边训练数据管道）──
+app.get('/api/straw-samples', (req, res) => {
+  res.json(store.listStrawSamples({ verdict: req.query.verdict || undefined, limit: Number(req.query.limit) || 200 }))
+})
+
+// ── 秸秆告警后处理工作流：责任反查 → 卡片渲染 → 微信群推送 ──
+async function strawWorkflow(warning) {
+  const lat = Number(warning.lat)
+  const lon = Number(warning.lon)
+  const town = (isFinite(lat) && isFinite(lon)) ? reverseGeocode.reverseGeocode(lon, lat) : null
+  const resp = town ? store.findResponsibility(town.name, '') : null
+  const pushInfo = { town: town ? town.name : null, unit: resp ? resp.unit : null, pushed: false, reason: '' }
+  // 处置分流：事发地附近是否有人
+  const personN = Number(warning.nearbyPersons) || 0
+  const personTip = personN > 0
+    ? `> 👤 事发地附近有人（${personN}人）→ 无人机抵近喊话，督促处置`
+    : `> 👤 事发地附近无人 → 推送证据，请街道办处置`
+  if (!resp || !resp.webhook) {
+    pushInfo.reason = resp ? '未配置微信群' : '责任单位未配置'
+  } else {
+    try {
+      // 1. 渲染卡片（straw-engine PIL）
+      let cardUrl = ''
+      try {
+        const base = process.env.STRAW_ENGINE_URL || 'http://127.0.0.1:7200'
+        const cr = await fetch(base + '/api/render-card', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: warning.picUrl || '',
+            meta: { town, responsibility: resp, confidence: warning.aiConfidence, label: warning.label, lat, lon, nearbyPersons: personN },
+            style: store.kvGet('straw_push_style', null) || {},
+          }),
+          signal: AbortSignal.timeout(15000),
+        }).then(r => r.json()).catch(() => null)
+        cardUrl = cr && cr.ok ? cr.cardUrl : ''
+      } catch (e) { console.error('[straw-workflow] 卡片渲染失败:', e.message) }
+      // 2. 推送企业微信群（markdown，可靠；news 带卡片图增强）
+      const style = store.kvGet('straw_push_style', null) || {}
+      const link = `https://map.qq.com/?pt=${lat},${lon}`
+      const titleTpl = (style.msgTitle || '🚨 秸秆焚烧告警 · {town}').replace('{town}', town.name || '').replace('{label}', warning.label || '')
+      const content = [
+        `**${titleTpl}**`,
+        `> 行政区划：万州区 · ${town.name}`,
+        `> 责任单位：${resp.unit || '-'}`,
+        `> 责任人：${(resp.person || '') + (resp.phone ? '（' + resp.phone + '）' : '')}`,
+        `> 置信度：${((warning.aiConfidence || 0) * 100).toFixed(1)}% · ${warning.label || ''}`,
+        personTip,
+        `> 坐标：${lat}, ${lon}`,
+        `>[点击查看地图](${link})`,
+      ].join('\n')
+      const body = cardUrl
+        ? { msgtype: 'news', news: { articles: [{ title: titleTpl, description: `责任单位：${resp.unit} · 置信度 ${((warning.aiConfidence || 0) * 100).toFixed(1)}%${personN > 0 ? ` · 附近有人(${personN})` : ''}`, picurl: `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81${cardUrl}`, url: link }] } }
+        : { msgtype: 'markdown', markdown: { content } }
+      const wr = await fetch(resp.webhook, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+      }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
+      pushInfo.pushed = wr.errcode === 0
+      pushInfo.reason = wr.errcode === 0 ? '推送成功' : `推送失败(${wr.errmsg || wr.errcode})`
+      pushInfo.cardUrl = cardUrl
+      pushInfo.webhook = resp.webhook.replace(/key=.*$/, 'key=***')
+    } catch (e) {
+      pushInfo.reason = '推送异常: ' + e.message
+    }
+  }
+  // 回写推送状态到告警
+  try {
+    const w = store.getWarning(warning.id)
+    if (w) {
+      w.wechatPush = pushInfo
+      const dbw = { ...w }
+      const { DatabaseSync } = require('node:sqlite')
+      const dbs = new DatabaseSync('/opt/jsc/backend/data/jsc.db')
+      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(dbw), w.id)
+    }
+  } catch (e) { console.error('[straw-workflow] 回写失败:', e.message) }
+  console.log('[straw-workflow]', warning.id, JSON.stringify(pushInfo))
+}
+
+// ── 秸秆推理引擎聚合状态（驾驶舱「引擎健康」页数据源）──
+app.get('/api/straw-engine/status', async (req, res) => {
+  try {
+    const base = process.env.STRAW_ENGINE_URL || 'http://127.0.0.1:7200'
+    const timeout = 6 * 1000
+    const [healthR, metricsR] = await Promise.all([
+      fetch(base + '/health', { signal: AbortSignal.timeout(timeout) }).then(r => r.json()).catch(() => null),
+      fetch(base + '/metrics', { signal: AbortSignal.timeout(timeout) }).then(r => r.json()).catch(() => null),
+    ])
+    const sampleStats = (() => {
+      const all = store.listStrawSamples({ limit: 10000 })
+      const c = { true: 0, false: 0, miss: 0 }
+      for (const s of all) c[s.verdict] = (c[s.verdict] || 0) + 1
+      return c
+    })()
+    res.json({ engine: healthR, metrics: metricsR, sampleStats })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── 秸秆推理实时快照（驾驶舱「实时检测」视图：帧+框+确认进度）──
+app.get('/api/straw-engine/snapshot', async (req, res) => {
+  try {
+    const base = process.env.STRAW_ENGINE_URL || 'http://127.0.0.1:7200'
+    const r = await fetch(base + '/debug/snapshot', { signal: AbortSignal.timeout(6 * 1000) })
+    if (!r.ok) return res.status(r.status).json({ error: 'straw-engine snapshot ' + r.status })
+    res.json(await r.json())
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── 视频流实时面板聚合（驾驶舱「视频流」视图数据源）──
+// 聚合：驾驶舱流配置 + ZLM 活跃流(getMediaList) + 可达性(stream-monitor) + dji-bridge 抓屏会话
+app.get('/api/streams/live', async (req, res) => {
+  try {
+    const [cfgStreams, mediaList, healthMap, djiStatus] = await Promise.all([
+      Promise.resolve(loadStreams()),
+      zlm.getMediaList().catch(() => []),
+      Promise.resolve(streamMonitor.getStatusMap()),
+      Promise.resolve(djiBridge.getStatus()),
+    ])
+    const onlineIds = new Set(mediaList.map(m => m.stream))
+    const djiMap = Object.fromEntries((djiStatus.sessions || []).map(s => [s.streamId, s]))
+    res.json({
+      ts: Date.now(),
+      dji_sessions: (djiStatus.sessions || []).length,
+      streams: cfgStreams.map(s => {
+        const id = s.id
+        const dji = djiMap[id]
+        const url = s.url || ''
+        const source = dji ? 'dji-bridge' : url.startsWith('rtmp://') ? 'rtmp直推' : (s.protocol || 'rtsp')
+        return {
+          id, name: s.name || id, group: s.group || '',
+          location: s.location || '', lat: s.lat, lon: s.lon,
+          url, protocol: s.protocol || '', offline: !!s.offline,
+          source,
+          zlm_online: onlineIds.has(id),
+          readers: mediaList.find(m => m.stream === id)?.readerCount || 0,
+          reachable: healthMap[id]?.reachable ?? null,
+          latencyMs: healthMap[id]?.latencyMs ?? null,
+          lastCheckedAt: healthMap[id]?.lastCheckedAt ?? null,
+          dji: dji || null,
+          play: zlm.playUrls ? zlm.playUrls('jsc', id) : null,
+          snapUrl: `/api/streams/live/snap?id=${encodeURIComponent(id)}`,
+        }
+      }),
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// 流快照代理（ZLM getSnap 二进制 → 前端 img，不暴露 secret）
+app.get('/api/streams/live/snap', async (req, res) => {
+  try {
+    const id = String(req.query.id || '')
+    if (!id) return res.status(400).json({ error: '缺 id' })
+    const zc = zlm.getConfig()
+    const snapUrl = `http://${zc.zlmHost}:${zc.zlmPort}/index/api/getSnap?secret=${encodeURIComponent(zc.zlmSecret)}&app=jsc&stream=${encodeURIComponent(id)}&timeout_sec=1&type=snap`
+    const r = await fetch(snapUrl, { signal: AbortSignal.timeout(4000) })
+    if (!r.ok) return res.status(404).end()
+    const buf = await r.arrayBuffer()
+    res.set('Content-Type', 'image/jpeg')
+    res.set('Cache-Control', 'no-store')
+    res.send(Buffer.from(buf))
+  } catch (e) { res.status(204).end() }
+})
+
+// ── 行政反查（内置 PIP：坐标→乡镇/街道，离线，不耗腾讯 API）──
+const reverseGeocode = require('./reverse-geocode')
+app.get('/api/straw/reverse-geocode', (req, res) => {
+  const lng = Number(req.query.lng)
+  const lat = Number(req.query.lat)
+  if (!isFinite(lng) || !isFinite(lat)) return res.status(400).json({ error: '需要 lng/lat 参数' })
+  const hit = reverseGeocode.reverseGeocode(lng, lat)
+  res.json({ ok: true, town: hit })
+})
+
+// ── 责任映射表管理（导入/列表）──
+app.get('/api/straw/area-responsibility', (req, res) => {
+  res.json(store.listAreaResponsibilities())
+})
+
+// ── 秸秆微信群推送样式配置（主题色/标题模板/字段/落款）──
+const DEFAULT_PUSH_STYLE = {
+  accent: '#37c8ff',
+  bg: '#101e33',
+  panel: '#16283f',
+  border: '#2a4a70',
+  titleTemplate: '{emoji} {label}告警 · {town}',
+  fields: ['district', 'unit', 'person', 'confidence', 'coord', 'map'],
+  footer: '【万州区生态环境局】请及时处置并反馈',
+}
+app.get('/api/straw/push-style', (req, res) => {
+  res.json(store.kvGet('straw_push_style', DEFAULT_PUSH_STYLE))
+})
+app.post('/api/straw/push-style', (req, res) => {
+  try {
+    const body = req.body || {}
+    // 合并默认值，保证字段完整
+    const style = { ...DEFAULT_PUSH_STYLE, ...body }
+    if (!Array.isArray(style.fields)) style.fields = DEFAULT_PUSH_STYLE.fields
+    store.kvSet('straw_push_style', style)
+    res.json({ ok: true, saved: style })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── 行政边界管理（P1：导入/导出/回滚；P2：单镇地图编辑）──
+// GeoJSON 校验：格式 + 乡镇名必填 + 外环顶点数 ≥3 + 不自交
+function validateGeoJsonFeature(f) {
+  if (!f || !f.properties || !f.properties.name) return { ok: false, msg: 'feature 缺少 properties.name' }
+  if (!f.geometry || f.geometry.type !== 'Polygon') return { ok: false, msg: `${f.properties.name}: geometry 必须为 Polygon` }
+  const ring = (f.geometry.coordinates || [])[0]
+  if (!Array.isArray(ring) || ring.length < 3) return { ok: false, msg: `${f.properties.name}: 外环顶点数不足` }
+  return { ok: true }
+}
+
+app.get('/api/straw/boundary', (req, res) => {
+  res.json({ rows: store.listBoundaries(), count: store.listBoundaries().length })
+})
+app.post('/api/straw/boundary/import', (req, res) => {
+  try {
+    const { geojson, note } = req.body || {}
+    if (!geojson) return res.status(400).json({ error: '缺少 geojson' })
+    const parsed = typeof geojson === 'string' ? JSON.parse(geojson) : geojson
+    if (!parsed.features || !Array.isArray(parsed.features)) return res.status(400).json({ error: 'GeoJSON 缺少 features 数组' })
+    // 校验
+    const errors = []
+    const rows = []
+    for (const f of parsed.features) {
+      const v = validateGeoJsonFeature(f)
+      if (!v.ok) { errors.push(v.msg); continue }
+      rows.push({
+        town: f.properties.name,
+        division_code: f.properties.division_code || '',
+        ring: f.geometry.coordinates[0],
+        source: 'imported',
+      })
+    }
+    if (errors.length) return res.status(400).json({ error: '校验失败: ' + errors.join('; ') })
+    const prevCount = store.listBoundaries().length
+    const n = store.replaceBoundaries(rows, note || '后台导入')
+    // 热刷新内存索引（无需重启）
+    reverseGeocode.setIndexFromRows(store.listBoundaries())
+    res.json({ ok: true, imported: n, prevCount, nowCount: n })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+app.get('/api/straw/boundary/export', (req, res) => {
+  const rows = store.listBoundaries()
+  res.setHeader('Content-Type', 'application/json')
+  res.json({
+    type: 'FeatureCollection',
+    features: rows.map(r => ({
+      type: 'Feature',
+      properties: { name: r.town, division_code: r.division_code },
+      geometry: { type: 'Polygon', coordinates: [JSON.parse(r.ring)] },
+    })),
+  })
+})
+app.get('/api/straw/boundary/snapshots', (req, res) => {
+  res.json(store.listBoundarySnapshots())
+})
+app.post('/api/straw/boundary/restore/:id', (req, res) => {
+  try {
+    const n = store.restoreBoundarySnapshot(req.params.id)
+    reverseGeocode.setIndexFromRows(store.listBoundaries())
+    res.json({ ok: true, restored: n })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+app.put('/api/straw/boundary/:town', (req, res) => {
+  try {
+    const { ring } = req.body || {}
+    store.updateBoundaryTown(decodeURIComponent(req.params.town), ring)
+    reverseGeocode.setIndexFromRows(store.listBoundaries())
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+app.delete('/api/straw/area-responsibility/:id', (req, res) => {
+  try {
+    const ok = store.deleteAreaResponsibility(req.params.id)
+    res.json({ ok, deleted: ok })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+app.post('/api/straw/area-responsibility/import', (req, res) => {
+  const { rows } = req.body || {}
+  try {
+    const n = store.importAreaResponsibilities(rows)
+    res.json({ ok: true, imported: n })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── 完整责任匹配链路：坐标 → PIP 乡镇 → 责任映射 → 责任单位/群 ──
+app.get('/api/straw/responsibility', (req, res) => {
+  const lng = Number(req.query.lng)
+  const lat = Number(req.query.lat)
+  if (!isFinite(lng) || !isFinite(lat)) return res.status(400).json({ error: '需要 lng/lat 参数' })
+  const town = reverseGeocode.reverseGeocode(lng, lat)
+  if (!town) return res.json({ ok: true, town: null, responsibility: null, note: '未覆盖区域' })
+  const resp = store.findResponsibility(town.name, req.query.community || '')
+  res.json({ ok: true, town, responsibility: resp })
 })
 
 // ── IoTCloud AI 视频分析接入 ───────────────────────────────
@@ -2123,6 +2517,25 @@ app.get('/api/smart-push/stats', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// 今日推送统计（顶栏跑马灯用，走查建议 #16：替换硬编码假 KPI）
+// 返回：今日推送件数、已结案件数、处置率（%）
+app.get('/api/smart-push/today-stats', (req, res) => {
+  try {
+    const todayStart = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+    const row = store.getDb().prepare(`
+      SELECT
+        COUNT(*) AS pushed,
+        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) AS closed
+      FROM smart_push_history
+      WHERE substr(created_at, 1, 10) = ?
+    `).get(todayStart)
+    const pushed = row?.pushed || 0
+    const closed = row?.closed || 0
+    const rate = pushed > 0 ? Math.round(closed / pushed * 100) : 0
+    res.json({ pushed, closed, rate, date: todayStart })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── 推送引擎核心 ──────────────────────────────────────────
 // 变量替换：将 body_template 中的 {xxx} 替换为实际值
 function fillTemplate(template, vars) {
@@ -2595,18 +3008,27 @@ app.post('/api/smart-push/work-report/preview', async (req, res) => {
   } catch (e) { res.status(e.code || 500).json({ ok: false, error: e.message }) }
 })
 
+// ── 天气：10 分钟缓存（外部 Open-Meteo 较慢，避免每次首屏等待）──
+let _weatherCache = { data: null, expire: 0 }
 app.get('/api/weather', async (req, res) => {
   // 默认重庆市万州区；可通过 ?lat=xx&lon=xx 覆盖
   const lat = parseFloat(req.query.lat) || 30.8050
   const lon = parseFloat(req.query.lon) || 108.3893
+  const now = Date.now()
+  if (_weatherCache.data && now < _weatherCache.expire) {
+    return res.json(_weatherCache.data)
+  }
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=Asia%2FShanghai`
     const r = await fetch(url, { headers: { 'Accept': 'application/json' } })
     if (!r.ok) throw new Error(`Open-Meteo 响应 ${r.status}`)
     const data = await r.json()
+    _weatherCache = { data, expire: Date.now() + 10 * 60 * 1000 }
     res.json(data)
   } catch (e) {
     log.error(`获取天气失败: ${e.message}`)
+    // 缓存过期时兜底：返回上次数据（降级而非报错）
+    if (_weatherCache.data) return res.json(_weatherCache.data)
     res.status(502).json({ error: '获取天气数据失败', detail: e.message })
   }
 })
@@ -2689,9 +3111,100 @@ app.post('/client/handle_event_other', chengyunGuard, (req, res) => {
   res.json({ code: 200, message: '请求已成功', data: { updated } })
 })
 
+// ================= 服务器监控模块 =================
+const serverMonitor = require('./monitor.js')
+app.get('/api/monitor/status', (req, res) => {
+  try {
+    const st = serverMonitor.getState()
+    const alerts = serverMonitor.loadAlerts()
+    res.json({ ok: true, state: st, alerts: (alerts || []).slice(-20) })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+app.post('/api/monitor/test-email', async (req, res) => {
+  try {
+    const { sendMail } = require('./monitor.js')
+    const ok = await sendMail('【驾驶舱监控】测试邮件', '这是一封测试邮件，证明服务器监控邮件通道正常。')
+    res.json({ ok: true, sent: !!ok })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
+// ================= ZLM 推流鉴权 hook（on_publish） =================
+// ZLM 每次推流请求会回调此端点，校验推流 URL 携带的 secret 参数
+const ZLM_PUBLISH_SECRET = process.env.ZLM_PUBLISH_SECRET || 'sikong2026'
+app.post('/api/zlm/publish-check', (req, res) => {
+  const body = req.body || {}
+  const url = body.url || ''
+  const params = body.params || {}
+  const secret = params.secret || (url.match(/[?&]secret=([^&]+)/) || [])[1] || ''
+  if (secret === ZLM_PUBLISH_SECRET) {
+    res.json({ code: 0, msg: 'ok' })
+  } else {
+    log.warn(`[zlm] 推流被拒绝: url=${url.slice(0, 80)}`)
+    res.json({ code: -1, msg: 'unauthorized push stream' })
+  }
+})
+
 app.listen(PORT, () => {
   log.info(`JSC Media Server 已启动 http://localhost:${PORT}`)
+  try { serverMonitor.startMonitor() } catch (e) { log.error('监控模块启动失败: ' + e.message) }
+  // AI 复检模块（人工复检 → 数据回流 → 算法迭代）
+  try {
+    const review = require('./review.js')
+    review.initReviewDb(store.getDb())
+    review.registerReviewRoutes(app)
+    log.info('AI 复检模块已启动（/api/review/*）')
+  } catch (e) { log.error('复检模块启动失败: ' + e.message) }
+  // 算法调参模块（自研推理参数优化：注册表驱动 / 搜索 / 应用回滚）
+  try {
+    const tune = require('./tune.js')
+    tune.registerTuneRoutes(app)
+    log.info('算法调参模块已启动（/api/tune/*）')
+  } catch (e) { log.error('算法调参模块启动失败: ' + e.message) }
+  // 司空2 设备/遥测聚合代理（驾驶舱地图标注层：机场点位 + OSD 实时状态）
+  try {
+    const sikong = require('./sikong.js')
+    sikong.registerSikongRoutes(app)
+    log.info('司空2 对接模块已启动（/api/sikong/*）')
+  } catch (e) { log.error('司空2 对接模块启动失败: ' + e.message) }
   log.info(`数据库: ${path.join(DATA_DIR, 'jsc.db')}（视频流/点位/数据源/采集/预警等已全部入库）`)
+  // 行政边界初始化：表空则从 geojson seed，然后注入内存索引（支持后台热更新/回滚）
+  try {
+    let boundaryRows = store.listBoundaries()
+    if (!boundaryRows.length) {
+      const fsB = require('fs')
+      const fpB = process.env.WANZHOU_TOWNS_GEOJSON ||
+        path.join(__dirname, 'data', 'wanzhou_towns.geojson')
+      const rawB = JSON.parse(fsB.readFileSync(fpB, 'utf8'))
+      const seedRows = rawB.features.map(f => ({
+        town: f.properties.name || '',
+        division_code: f.properties.division_code || '',
+        ring: (f.geometry.coordinates || [[]])[0] || [],
+      })).filter(r => r.town)
+      store.replaceBoundaries(seedRows, '初始 seed（wanzhou_towns.geojson）')
+      boundaryRows = store.listBoundaries()
+      log.info(`行政边界: 已从 geojson seed ${boundaryRows.length} 个乡镇/街道`)
+    }
+    reverseGeocode.setIndexFromRows(boundaryRows)
+    log.info(`行政边界: 已加载 ${boundaryRows.length} 个乡镇/街道（支持后台热更新）`)
+  } catch (e) {
+    log.error(`行政边界初始化失败: ${e.message}`)
+  }
+  // 启动时加载已保存的预警规则配置（无则用内置默认阈值）
+  try {
+    const savedRules = store.kvGet('warning_rules', null)
+    if (savedRules && typeof savedRules === 'object') {
+      warningEngine.setConfig(savedRules)
+      log.info(`已加载预警规则配置: growthRatio=${warningEngine.getConfig().growthRatio}, 阈值来自后台配置`)
+    } else {
+      log.info('预警规则使用内置默认阈值（未配置）')
+    }
+  } catch (e) {
+    log.error(`加载预警规则配置失败: ${e.message}`)
+  }
   // 启动视频流在线状态探测（每 60 秒）
   // 关键：传入 updateStreamStatus（按 id 精准更新），探测器不再整表覆盖，根治并发竞态
   streamMonitor.start({
