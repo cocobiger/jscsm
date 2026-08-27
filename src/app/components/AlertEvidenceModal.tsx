@@ -11,6 +11,7 @@ interface MemberWarning {
   aiConfidence: number
   channelName: string
   aiType: string
+  status?: string     // pending / handled
 }
 
 interface Props {
@@ -38,6 +39,8 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
   const [members, setMembers] = useState<MemberWarning[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [handling, setHandling] = useState(false)
+  const [handleMsg, setHandleMsg] = useState('')
   // 真实总数（用于「前 X / 共 Y」与省略提示；取 memberIds 长度，与后端命中数一致）
   const totalMembers = alert.memberIds?.length || 0
 
@@ -68,6 +71,36 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
   }, [alert.memberIds])
 
   useEffect(() => { load() }, [load])
+
+  // ── 处置：有效转处置 / 误报（带归因）──
+  const handleGroup = async (kind: 'valid' | 'false') => {
+    if (!alert.memberIds || alert.memberIds.length === 0) return
+    setHandling(true)
+    setHandleMsg('')
+    try {
+      const reason = kind === 'false' ? (window.prompt('误报归因（可选）：晨雾 / 白云 / 烟囱 / 扬尘 / 反光 / 乡村土路 / 其他', '晨雾') || '误报') : '有效告警·转处置'
+      const res = await authFetch('/api/warnings/handle-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: alert.memberIds, handledBy: '值守人员' }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) { setHandleMsg('处置失败：' + (data.error || res.status)); return }
+      setHandleMsg(kind === 'valid' ? `✓ 已标记处置（${data.handled || 0} 条，归因：${reason}）` : `✓ 已标记误报（${data.handled || 0} 条，归因：${reason}）`)
+      // 刷新成员状态
+      await load()
+      // 通知父组件刷新（若提供回调）
+      window.dispatchEvent(new CustomEvent('alerts:reload'))
+    } catch (e: any) {
+      setHandleMsg('处置失败：' + (e?.message || e))
+    } finally {
+      setHandling(false)
+    }
+  }
+
+  // 组内已处置计数
+  const handledCount = members.filter(m => m.status === 'handled').length
+  const allHandled = totalMembers > 0 && handledCount >= totalMembers
 
   const level = alert.level || alert.maxLevel || 1
   const levelColor = LEVEL_COLORS[level] || '#64b6f6'
@@ -151,9 +184,52 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
           />
         </div>
 
+        {/* 处置操作区 */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid rgba(0,150,220,0.2)',
+          background: 'rgba(0,40,90,0.35)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ color: '#7ab8e0', fontSize: 12, fontWeight: 700 }}>处置操作</span>
+            {allHandled ? (
+              <span style={{ color: '#4ade80', fontSize: 13, fontWeight: 700 }}>✓ 已处置（{handledCount}/{totalMembers}）</span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={handling}
+                  onClick={() => handleGroup('valid')}
+                  style={{
+                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: handling ? 'wait' : 'pointer',
+                    border: 'none', borderRadius: 4, color: '#fff',
+                    background: handling ? '#3a5a70' : 'linear-gradient(90deg, #0e8f4a, #1fb96a)',
+                    boxShadow: '0 2px 8px rgba(31,185,106,0.3)',
+                  }}
+                >✅ 有效 · 转处置</button>
+                <button
+                  type="button"
+                  disabled={handling}
+                  onClick={() => handleGroup('false')}
+                  style={{
+                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: handling ? 'wait' : 'pointer',
+                    border: '1px solid rgba(255,170,60,0.4)', borderRadius: 4,
+                    background: 'rgba(255,170,60,0.12)', color: '#ffb74d',
+                  }}
+                >❌ 误报 · 标记</button>
+              </>
+            )}
+            {handleMsg && <span style={{ color: handleMsg.startsWith('✓') ? '#4ade80' : '#ff7043', fontSize: 12 }}>{handleMsg}</span>}
+          </div>
+          {handledCount > 0 && !allHandled && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#5a8aaa' }}>
+              已处置 {handledCount}/{totalMembers} 条（剩余待处理）
+            </div>
+          )}
+        </div>
+
         {/* 底部说明 */}
         <div style={{ padding: '8px 20px', borderTop: '1px solid rgba(0,80,150,0.15)', color: '#3a5a70', fontSize: 11 }}>
-          以上为「{alert.ruleName || '推送规则'}」在 {alert.windowHours || 24}h 内命中的全部原始记录，作为本次聚合告警的研判依据。
+          以上为「{alert.ruleName || '推送规则'}」在 {alert.windowHours || 24}h 内命中的全部原始记录，作为本次聚合告警的研判依据。处置操作在驾驶舱内完成，无需跳转外部系统。
         </div>
       </div>
     </div>
