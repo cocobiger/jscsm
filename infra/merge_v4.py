@@ -46,13 +46,53 @@ def label_for(img, label_root_candidates):
             return f
     return None
 
-def read_boxes(lf):
+def img_size(p):
+    """纯 python 读 JPEG/PNG 宽高（无第三方依赖）"""
+    import struct
+    with open(p, 'rb') as f:
+        head = f.read(32)
+        if head[:8] == b'\x89PNG\r\n\x1a\n':
+            w, h = struct.unpack('>II', head[16:24])
+            return w, h
+        if head[:2] == b'\xff\xd8':  # JPEG：扫 SOF 段
+            f.seek(2)
+            while True:
+                b = f.read(1)
+                if not b:
+                    break
+                if b != b'\xff':
+                    continue
+                marker = f.read(1)
+                if marker in (b'\xc0', b'\xc1', b'\xc2'):
+                    f.read(3)
+                    h = int.from_bytes(f.read(2), 'big')
+                    w = int.from_bytes(f.read(2), 'big')
+                    return w, h
+                else:
+                    seg = int.from_bytes(f.read(2), 'big')
+                    f.seek(seg - 2, 1)
+    return None
+
+def read_boxes(lf, img_path=None):
+    """读 YOLO 标注；检测绝对像素坐标（>1.5）并自动归一化"""
     boxes = []
     if lf and os.path.exists(lf):
+        wh = None
         for line in open(lf):
             p = line.split()
             if len(p) >= 5 and p[0].lstrip('-').isdigit():
-                boxes.append((int(p[0]), ' '.join(p[1:])))
+                vals = [float(x) for x in p[1:5]]
+                if any(v > 1.5 for v in vals):
+                    if img_path and wh is None:
+                        wh = img_size(img_path)
+                    if wh:
+                        w, h = wh
+                        vals = [vals[0] / w, vals[1] / h, vals[2] / w, vals[3] / h]
+                        if any(v > 1.0 or v < 0 for v in vals):
+                            continue  # 归一化后仍越界 → 丢弃
+                    else:
+                        continue  # 读不到尺寸 → 丢弃
+                boxes.append((int(p[0]), ' '.join(f'{v:.6f}' for v in vals)))
     return boxes
 
 def scan_dataset(name, img_root, label_roots):
@@ -60,7 +100,7 @@ def scan_dataset(name, img_root, label_roots):
     items, bad = [], 0
     for img in imgs_of(img_root):
         lf = label_for(img, label_roots)
-        boxes = read_boxes(lf)
+        boxes = read_boxes(lf, img)
         for cid, _ in boxes:
             if cid not in CLASSES:
                 bad += 1
@@ -156,7 +196,9 @@ def main():
         print('\nDRY-RUN 完成，未写文件。确认无误后加 --apply 生成数据集。')
         return
 
-    # ── 实际生成 ──
+    # ── 实际生成（先清空旧输出，防残留）──
+    if os.path.exists(OUT):
+        shutil.rmtree(OUT)
     for sub in ('images/train', 'images/valid', 'labels/train', 'labels/valid'):
         os.makedirs(f'{OUT}/{sub}', exist_ok=True)
 
