@@ -46,7 +46,7 @@ module.exports = (config, opts) => {
     const targetStream = `sikong_${stream}`
     const api = `${zlm.http}/index/api/addStreamProxy?secret=${zlm.secret}` +
       `&vhost=__defaultVhost__&app=${encodeURIComponent(zlm.app || 'jsc')}&stream=${encodeURIComponent(targetStream)}` +
-      `&url=${encodeURIComponent(srcUrl)}&retry_count=0`
+      `&url=${encodeURIComponent(srcUrl)}&retry_count=0&enable_hls=0&enable_mp4=0`
     const j = await jget(api)
     return { ok: j.code === 0, targetStream, srcUrl: srcUrl.replace(sk.secret, '***'), result: j }
   }
