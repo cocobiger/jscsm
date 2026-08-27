@@ -79,6 +79,34 @@ function registerSikongRoutes(app) {
       res.status(502).json({ ok: false, error: e.message })
     }
   })
+
+  // 司空事件（直播/媒体/任务事件时间线）
+  app.get('/api/sikong/events', async (req, res) => {
+    try {
+      res.json(await jget(`${SK_BASE}/api/events`))
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // 司空媒体归档（任务照片/视频/录制/OSD 记录）
+  app.get('/api/sikong/media', async (req, res) => {
+    try {
+      const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+      res.json(await jget(`${SK_BASE}/api/media${qs}`))
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // 司空 ZLM 直播流监视状态
+  app.get('/api/sikong/zlm-watch', async (req, res) => {
+    try {
+      res.json(await jget(`${SK_BASE}/api/zlm-watch`))
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
 }
 
 module.exports = { registerSikongRoutes, fetchMergedDevices, fetchAlertTarget }
