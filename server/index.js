@@ -1804,9 +1804,13 @@ app.get('/api/streams/live', async (req, res) => {
         const dji = djiMap[id]
         const url = s.url || ''
         const source = dji ? 'dji-bridge' : url.startsWith('rtmp://') ? 'rtmp直推' : (s.protocol || 'rtsp')
+        const latN = s.lat === '' || s.lat == null ? null : Number(s.lat)
+        const lonN = s.lon === '' || s.lon == null ? null : Number(s.lon)
         return {
           id, name: s.name || id, group: s.group || '',
-          location: s.location || '', lat: s.lat, lon: s.lon,
+          location: s.location || '',
+          lat: Number.isFinite(latN) ? latN : null,
+          lon: Number.isFinite(lonN) ? lonN : null,
           url, protocol: s.protocol || '', offline: !!s.offline,
           source,
           zlm_online: onlineIds.has(id),
