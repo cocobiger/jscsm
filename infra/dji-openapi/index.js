@@ -18,6 +18,11 @@ const telemetry = require(path.join(__dirname, 'lib', 'telemetry.js'))()
 const strawSync = require(path.join(__dirname, 'lib', 'straw-sync.js'))(config)
 const webhook = require(path.join(__dirname, 'lib', 'webhook-handler.js'))(config)
 const wsOsd = require(path.join(__dirname, 'lib', 'ws-osd-client.js'))(config, telemetry)
+const zlmWatch = require(path.join(__dirname, 'lib', 'zlm-watcher.js'))(config, {
+  intervalMs: 15000,
+  strawSync,
+  onEvent: (ev) => pushEvent(ev),
+})
 
 const state = {
   startedAt: new Date().toISOString(),
@@ -59,6 +64,22 @@ async function syncDevices() {
   } else {
     console.warn('[dji-openapi] 设备同步失败:', r.error)
   }
+}
+
+/** streamId → 机场 SN 关联（alias 映射 → 精确匹配 → 包含匹配） */
+function resolveDockSn(streamId) {
+  const aliases = config.streamAliases || {}
+  if (aliases[streamId]) return aliases[streamId]
+  const s = String(streamId || '')
+  if (!s) return null
+  for (const d of state.devices) {
+    if (d.deviceSn === s || (d.drone && d.drone.droneSn === s)) return d.deviceSn
+  }
+  for (const d of state.devices) {
+    const sns = [d.deviceSn, d.drone && d.drone.droneSn].filter(Boolean)
+    if (sns.some((sn) => s.includes(sn) || sn.includes(s))) return d.deviceSn
+  }
+  return null
 }
 
 const server = http.createServer(async (req, res) => {
@@ -121,6 +142,32 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/events') {
       return send(res, 200, { ok: true, count: state.events.length, events: state.events.slice(-100).reverse() })
     }
+
+    // 司空 ZLM 直播流监视状态
+    if (req.method === 'GET' && url.pathname === '/api/zlm-watch') {
+      return send(res, 200, { ok: true, ...zlmWatch.status() })
+    }
+
+    /**
+     * 告警定位解析（jsc-backend /api/straw-alert 调用）
+     * streamId → 关联司空机场（alias/精确/包含匹配）→ OSD 精确定位(target-locator) → 机场坐标 fallback
+     * 返回 source: osd(精确) | dock(机场坐标) | 未关联
+     */
+    if (req.method === 'GET' && url.pathname === '/api/target') {
+      const streamId = url.searchParams.get('streamId') || ''
+      const sn = resolveDockSn(streamId)
+      if (!sn) return send(res, 200, { ok: false, error: 'streamId 未关联到司空机场', streamId, aliases: Object.keys(config.streamAliases || {}) })
+      const dock = state.devices.find((d) => d.deviceSn === sn)
+      const droneSn = dock && dock.drone ? dock.drone.droneSn : null
+      const t = telemetry.latestTarget(sn) || (droneSn ? telemetry.latestTarget(droneSn) : null)
+      if (t && t.target) {
+        return send(res, 200, { ok: true, source: 'osd', streamId, deviceSn: sn, droneSn, target: t.target, ts: t.ts })
+      }
+      if (dock && typeof Number(dock.latitude) === 'number' && typeof Number(dock.longitude) === 'number') {
+        return send(res, 200, { ok: true, source: 'dock', streamId, deviceSn: sn, droneSn, target: { lat: Number(dock.latitude), lon: Number(dock.longitude) }, ts: state.devicesSyncedAt })
+      }
+      return send(res, 200, { ok: false, error: '无定位数据', streamId, deviceSn: sn })
+    }
     if (req.method === 'POST' && url.pathname === '/api/streams') {
       const { streamId, pushUrl } = JSON.parse(await readBody(req) || '{}')
       if (!streamId || !pushUrl) return send(res, 400, { ok: false, error: '需 streamId + pushUrl' })
@@ -150,10 +197,11 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-// 启动：设备同步 + OSD 实时遥测
+// 启动：设备同步 + OSD 实时遥测 + 司空 ZLM 流监视
 syncDevices()
 setInterval(syncDevices, 60000)
 wsOsd.start()
+zlmWatch.start()
 
 server.listen(PORT, () => {
   console.log(`[dji-openapi] 接入服务已启动 :${PORT}`)

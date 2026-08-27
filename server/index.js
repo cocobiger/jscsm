@@ -1597,12 +1597,23 @@ app.get('/api/health', (req, res) => {
 })
 
 // ── 秸秆燃烧推理引擎告警入库（内网，straw-engine 推理服务调用）──
-app.post('/api/straw-alert', (req, res) => {
+app.post('/api/straw-alert', async (req, res) => {
   const { streamId, aiType, confidence, bbox, imageUrl, sensor, label, firstSeenAt, lat, lon, taskId, waypointId, nearbyPersons, personBoxes } = req.body || {}
   if (!streamId) return res.status(400).json({ error: 'streamId 必填' })
   const conf = Number(confidence) || 0
   // AI 类型统一为系统中文类型名（与 ai_types 主数据一致，前端/推送规则可识别）
   const aiTypeName = aiType === 'straw_fire' || aiType === 'straw' || !aiType ? '秸秆燃烧' : aiType
+  // 告警精确定位（司空 OSD 联动）：engine 自带坐标 → dji-openapi 目标定位（OSD GPS+云台+测距 → 机场坐标）→ 兜底万州中心
+  let alertLat = typeof lat === 'number' ? lat : null
+  let alertLon = typeof lon === 'number' ? lon : null
+  let geoSource = alertLat != null ? 'engine' : null
+  if (alertLat == null) {
+    try {
+      const t = await require('./sikong.js').fetchAlertTarget(streamId)
+      if (t) { alertLat = t.lat; alertLon = t.lon; geoSource = t.source } // osd / dock
+    } catch (e) { /* 司空链路不可达时降级 */ }
+  }
+  if (alertLat == null) { alertLat = 30.8077; alertLon = 108.4076; geoSource = 'default' }
   const warning = {
     id: `straw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     createdAt: new Date().toISOString(),
@@ -1622,8 +1633,9 @@ app.post('/api/straw-alert', (req, res) => {
     location: `${label ? label + ' · ' : ''}${streamId}`,
     picUrl: imageUrl || '',
     time: firstSeenAt ? String(firstSeenAt).slice(11, 19) : '',
-    lat: typeof lat === 'number' ? lat : 30.8077,
-    lon: typeof lon === 'number' ? lon : 108.4076,
+    lat: alertLat,
+    lon: alertLon,
+    geoSource, // 定位来源: engine / osd(司空精确定位) / dock(机场坐标) / default(兜底)
     label: label || '',
     bbox: bbox || null,
     nearbyPersons: typeof nearbyPersons === 'number' ? nearbyPersons : null,

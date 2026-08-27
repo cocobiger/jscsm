@@ -23,7 +23,20 @@
     "rtmp": "rtmp://127.0.0.1:1936",
     "http": "http://127.0.0.1:6080",
     "secret": "REPLACE_WITH_ZLM_SECRET",
-    "pushKey": "sikong2026"
+    "pushKey": "sikong2026",
+    "app": "jsc"
+  },
+  "sikongZlm": {
+    "http": "http://172.28.0.90:9080",
+    "rtmp": "rtmp://172.28.0.90:1935",
+    "secret": "REPLACE_WITH_SIKONG_ZLM_SECRET",
+    "tokenSecret": "REPLACE_WITH_SIKONG_ZLM_TOKEN_SECRET",
+    "tokenParam": "token",
+    "tokenExpire": 3600,
+    "liveApp": "live"
+  },
+  "streamAliases": {
+    "sqb4699": "8UUXN8N00A0LS7"
   },
   "strawEngine": {
     "configPath": "/opt/jsc/straw-engine/config/config.json",

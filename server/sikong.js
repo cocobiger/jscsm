@@ -36,6 +36,17 @@ async function fetchMergedDevices() {
   return { ok: true, syncedAt: dev?.syncedAt || null, count: items.length, items }
 }
 
+/** 告警定位解析（dji-openapi /api/target）：OSD 精确定位 → 机场坐标 → null */
+async function fetchAlertTarget(streamId, timeoutMs = 2500) {
+  try {
+    const j = await jget(`${SK_BASE}/api/target?streamId=${encodeURIComponent(streamId)}`, timeoutMs)
+    if (j && j.ok && j.target && typeof j.target.lat === 'number' && typeof j.target.lon === 'number') {
+      return { lat: j.target.lat, lon: j.target.lon, source: j.source, deviceSn: j.deviceSn || null, droneSn: j.droneSn || null }
+    }
+  } catch (e) { /* 司空链路不可达时静默降级 */ }
+  return null
+}
+
 function registerSikongRoutes(app) {
   app.get('/api/sikong/devices', async (req, res) => {
     try {
@@ -70,4 +81,4 @@ function registerSikongRoutes(app) {
   })
 }
 
-module.exports = { registerSikongRoutes, fetchMergedDevices }
+module.exports = { registerSikongRoutes, fetchMergedDevices, fetchAlertTarget }
