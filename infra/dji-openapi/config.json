@@ -1,0 +1,37 @@
+{
+  "port": 17810,
+  "dataDir": "/opt/jsc/dji-openapi/data",
+  "openapi": {
+    "baseUrl": "http://172.28.0.108:48089",
+    "loginUser": {
+      "id": 1435364026458112,
+      "userType": 1,
+      "tenantId": 1435364026368000,
+      "deptId": null,
+      "info": {},
+      "scopes": [],
+      "expiresTime": null,
+      "context": {}
+    },
+    "token": "REPLACE_WITH_OPENAPI_USER_TOKEN",
+    "wsUrl": "ws://172.28.0.108:48089/apisocket/osd",
+    "appId": "REPLACE_WITH_APP_KEY",
+    "signatureSecret": "REPLACE_WITH_WEBHOOK_SECRET",
+    "encryptionSecret": "REPLACE_WITH_AES_KEY"
+  },
+  "zlm": {
+    "rtmp": "rtmp://127.0.0.1:1936",
+    "http": "http://127.0.0.1:6080",
+    "secret": "REPLACE_WITH_ZLM_SECRET",
+    "pushKey": "sikong2026"
+  },
+  "strawEngine": {
+    "configPath": "/opt/jsc/straw-engine/config/config.json",
+    "service": "straw-engine"
+  },
+  "isolation": {
+    "forbiddenPorts": [1883, 5443, 8083, 8084, 9000, 15743, 1935, 9080, 10443],
+    "forbiddenNetworks": ["kongan_docker_net"],
+    "note": "隔离红线：不碰司空 EMQX/端口/容器网络/目录（/video/xka），端口 17810 独立，systemd 非 docker"
+  }
+}
