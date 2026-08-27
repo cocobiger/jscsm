@@ -19,10 +19,10 @@ let cfg = {
   domain: '',               // 服务器域名（填了则播放地址优先用域名）
   zlmSecret: '',            // 流媒体密钥
   scheme: 'http',           // 播放协议 http/https
-  zlmPort: 8080,            // Http端口（也是 API 端口）
-  httpsPort: 443,           // Https端口
-  rtspPort: 554,            // Rtsp端口
-  rtmpPort: 1935,           // Rtmp端口
+  zlmPort: 6080,            // Http端口（也是 API 端口）——我方裸部署 ZLM 端口，与司空 8080 系错开
+  httpsPort: 4443,          // Https端口
+  rtspPort: 5540,           // Rtsp端口
+  rtmpPort: 1936,           // Rtmp端口
   hookUrl: '',              // Hook 回调地址（ZLM 服务端事件回调）
   recordPort: 0,            // 录像管理端口（0=不启用）
   rtpMode: 'single',        // 收流模式 single/multi
@@ -181,4 +181,18 @@ function playUrls(app, streamId) {
   }
 }
 
-module.exports = { init, getConfig, setConfig, addStreamProxy, delStreamProxy, getMediaList, isStreamOnline, playUrls, call }
+/** getSnap 二进制截图（内部用 cfg.zlmSecret，返回 Buffer 或 null） */
+async function snapJpeg(streamId, app = 'jsc', timeoutMs = 6000) {
+  if (!cfg.zlmSecret) return null
+  const playUrl = `rtmp://127.0.0.1:${cfg.rtmpPort || 1936}/${app}/${streamId}`
+  const qs = new URLSearchParams({ secret: cfg.zlmSecret, url: playUrl, timeout_sec: '5', expire_sec: '5' }).toString()
+  try {
+    const resp = await fetch(`${base()}/getSnap?${qs}`, { signal: AbortSignal.timeout(timeoutMs) })
+    if (!resp.ok) return null
+    const buf = Buffer.from(await resp.arrayBuffer())
+    if (buf.length < 500 || buf[0] === 0x7b) return null // JSON 错误响应
+    return buf
+  } catch { return null }
+}
+
+module.exports = { init, getConfig, setConfig, addStreamProxy, delStreamProxy, getMediaList, isStreamOnline, playUrls, call, snapJpeg }

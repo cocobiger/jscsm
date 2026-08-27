@@ -107,6 +107,53 @@ function registerSikongRoutes(app) {
       res.status(502).json({ ok: false, error: e.message })
     }
   })
+
+  // 司空视频流面板数据源：5 机场/无人机 + 司空直播状态 + 我方 ZLM mirror 状态/播放地址
+  app.get('/api/sikong/live-streams', async (req, res) => {
+    try {
+      const zlm = require('./zlm.js')
+      const [dev, watch, mediaList] = await Promise.all([
+        fetchMergedDevices(),
+        jget(`${SK_BASE}/api/zlm-watch`).catch(() => ({ watching: [] })),
+        zlm.getMediaList().catch(() => []),
+      ])
+      const watching = new Set(((watch && watch.watching) || []).map(w => w.stream))
+      // 我方 ZLM 上的 mirror 流（app=jsc, stream=sikong_<SN>）
+      const mirrorMap = new Map()
+      for (const m of mediaList) {
+        if (typeof m.stream === 'string' && m.stream.startsWith('sikong_')) {
+          mirrorMap.set(m.stream.slice(7), m) // key = 司空 SN
+        }
+      }
+      const items = []
+      for (const d of dev.items || []) {
+        const droneSn = d.drone && d.drone.droneSn ? d.drone.droneSn : null
+        for (const [sn, role] of [[d.deviceSn, 'dock'], [droneSn, 'drone']]) {
+          if (!sn) continue
+          const mirror = mirrorMap.get(sn)
+          const mirrorStream = `sikong_${sn}`
+          const online = !!mirror
+          items.push({
+            id: mirrorStream,
+            sikongSn: sn,
+            role, // dock=机场 drone=无人机
+            deviceName: d.deviceName,
+            droneSn,
+            lat: d.latitude, lon: d.longitude,
+            sikongLive: watching.has(sn),          // 司空 ZLM 上正在直播
+            zlm_online: online,                     // 我方 ZLM mirror 在线
+            readers: mirror ? (mirror.readerCount || 0) : 0,
+            osd: role === 'dock' ? (d.osd || null) : null,
+            play: online && zlm.playUrls ? zlm.playUrls('jsc', mirrorStream) : null,
+            snapUrl: `/api/streams/live/snap?id=${encodeURIComponent(mirrorStream)}`,
+          })
+        }
+      }
+      res.json({ ok: true, count: items.length, sikongLiveCount: items.filter(i => i.sikongLive).length, mirrorOnlineCount: items.filter(i => i.zlm_online).length, items })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
 }
 
 module.exports = { registerSikongRoutes, fetchMergedDevices, fetchAlertTarget }

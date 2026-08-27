@@ -1832,14 +1832,11 @@ app.get('/api/streams/live/snap', async (req, res) => {
   try {
     const id = String(req.query.id || '')
     if (!id) return res.status(400).json({ error: '缺 id' })
-    const zc = zlm.getConfig()
-    const snapUrl = `http://${zc.zlmHost}:${zc.zlmPort}/index/api/getSnap?secret=${encodeURIComponent(zc.zlmSecret)}&app=jsc&stream=${encodeURIComponent(id)}&timeout_sec=1&type=snap`
-    const r = await fetch(snapUrl, { signal: AbortSignal.timeout(4000) })
-    if (!r.ok) return res.status(404).end()
-    const buf = await r.arrayBuffer()
+    const buf = await zlm.snapJpeg(id, 'jsc')
+    if (!buf) return res.status(204).end()
     res.set('Content-Type', 'image/jpeg')
     res.set('Cache-Control', 'no-store')
-    res.send(Buffer.from(buf))
+    res.send(buf)
   } catch (e) { res.status(204).end() }
 })
 

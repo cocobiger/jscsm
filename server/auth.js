@@ -75,11 +75,14 @@ function login(username, password) {
 
 function logout(token) { if (token) store.deleteSession(token) }
 
-// 从请求取 token（Authorization: Bearer 或 X-Auth-Token）
+// 从请求取 token（Authorization: Bearer / X-Auth-Token / ?token= 供 <img> 直链使用）
 function extractToken(req) {
   const auth = req.headers['authorization'] || ''
   if (auth.startsWith('Bearer ')) return auth.slice(7).trim()
-  return (req.headers['x-auth-token'] || '').trim()
+  const hdr = (req.headers['x-auth-token'] || '').trim()
+  if (hdr) return hdr
+  const q = req.query && typeof req.query.token === 'string' ? req.query.token.trim() : ''
+  return q
 }
 
 // 校验 token，返回会话（含 role）或 null
