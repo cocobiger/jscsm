@@ -222,6 +222,7 @@ export function IotArchivePage({ user }: Props) {
         <div>
           <div style={{ color: '#c8e6ff', fontSize: 16, fontWeight: 600 }}>AI分析存档</div>
           <div style={{ color: '#3a5a70', fontSize: 12, marginTop: 3 }}>IoTCloud 视频分析记录 · 按通道分类归档 · 与驾驶舱摄像头地理坐标触发对应</div>
+          <div style={{ color: '#2e5a80', fontSize: 11, marginTop: 3 }}>本页为外部 IoTCloud 通道分析记录；自研算法推理记录见「AI 检测复检」「算法调参」</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={load} style={btn(CYAN)}>刷新</button>

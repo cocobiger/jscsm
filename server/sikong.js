@@ -99,6 +99,19 @@ function registerSikongRoutes(app) {
     }
   })
 
+  // 司空媒体在线播放：签发短期签名 URL（经 dji-openapi 签名，浏览器 <video> 直接播放）
+  // 该端点位于 /api 全局鉴权之下（PUBLIC_PATHS 外），只有登录用户能取到可播 URL
+  app.get('/api/sikong/media-sign', async (req, res) => {
+    try {
+      const p = String(req.query.path || '')
+      if (!p) return res.status(400).json({ ok: false, error: 'missing path' })
+      const j = await jget(`${SK_BASE}/api/media/sign?path=${encodeURIComponent(p)}`)
+      res.json(j)
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
   // 司空 ZLM 直播流监视状态
   app.get('/api/sikong/zlm-watch', async (req, res) => {
     try {

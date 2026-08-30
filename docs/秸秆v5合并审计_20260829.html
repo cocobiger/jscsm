@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆 v5 数据集合并审计报告（方案B 第1批）</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --ink: #1f2329; --sub: #57606a;
+    --line: #e4e7eb; --blue: #1f6feb; --blue-bg: #eaf1fe;
+    --amber: #b25e09; --amber-bg: #fff3e0; --green: #1a7f37; --green-bg: #e6f6ec;
+    --red: #cf222e; --red-bg: #fdeef0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--ink); font-family:"Microsoft YaHei","PingFang SC","Helvetica Neue",Arial,sans-serif; line-height:1.7; padding:32px 16px; }
+  .wrap { max-width:980px; margin:0 auto; }
+  .doc-title { text-align:center; padding:8px 0 4px; }
+  .doc-title h1 { font-size:26px; font-weight:700; letter-spacing:1px; }
+  .doc-title .meta { color:var(--sub); font-size:13px; margin-top:8px; }
+  .doc-title .meta span { margin:0 10px; }
+  h2 { font-size:19px; margin:36px 0 14px; padding-left:10px; border-left:4px solid var(--blue); line-height:1.4; }
+  h3 { font-size:15px; margin:20px 0 10px; color:var(--ink); }
+  p { margin:8px 0; color:var(--ink); font-size:14px; }
+  .sub { color:var(--sub); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:14px 0; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13.5px; background:var(--card); }
+  th { background:#f0f2f5; color:var(--ink); font-weight:600; text-align:left; padding:8px 10px; border:1px solid var(--line); white-space:nowrap; }
+  td { padding:8px 10px; border:1px solid var(--line); vertical-align:top; }
+  tr:nth-child(even) td { background:#fafbfc; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-right:4px; }
+  .t-ok { background:var(--green-bg); color:var(--green); }
+  .t-warn { background:var(--amber-bg); color:var(--amber); }
+  .t-bad { background:var(--red-bg); color:var(--red); }
+  .t-info { background:var(--blue-bg); color:var(--blue); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:14px 0; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; text-align:center; }
+  .kpi .num { font-size:26px; font-weight:700; color:var(--blue); }
+  .kpi .lbl { font-size:12.5px; color:var(--sub); margin-top:2px; }
+  .kpi.warn .num { color:var(--amber); }
+  .kpi.bad .num { color:var(--red); }
+  .kpi.good .num { color:var(--green); }
+  .callout { border-radius:8px; padding:12px 16px; margin:12px 0; font-size:13.5px; }
+  .callout.ok { background:var(--green-bg); border:1px solid #b7e3c4; }
+  .callout.warn { background:var(--amber-bg); border:1px solid #f2d3a5; }
+  .callout.bad { background:var(--red-bg); border:1px solid #f3c0c6; }
+  .callout.info { background:var(--blue-bg); border:1px solid #c5d9f8; }
+  .callout b { font-weight:700; }
+  .step { display:flex; gap:10px; margin:8px 0; font-size:14px; }
+  .step .no { flex:0 0 24px; height:24px; border-radius:50%; background:var(--blue); color:#fff; text-align:center; font-size:13px; line-height:24px; font-weight:700; }
+  .code { background:#f0f2f5; border:1px solid var(--line); border-radius:6px; padding:10px 14px; font-family:Consolas,Monaco,monospace; font-size:12.5px; overflow-x:auto; margin:8px 0; }
+  .footer { text-align:center; color:var(--sub); font-size:12px; margin-top:40px; padding-top:16px; border-top:1px solid var(--line); }
+  ul,ol { margin:8px 0 8px 22px; font-size:14px; }
+  li { margin:4px 0; }
+  .mono { font-family:Consolas,Monaco,monospace; font-size:12.5px; background:#f0f2f5; padding:0 4px; border-radius:3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="doc-title">
+  <h1>秸秆 v5 数据集合并审计报告</h1>
+  <div class="meta"><span>方案B 第1批 · 合并审计</span><span>2026-08-29</span><span>服务器 111.10.220.226</span></div>
+</div>
+
+<!-- ========== 一、结论速览 ========== -->
+<h2>一、审计结论速览</h2>
+<div class="kpi-grid">
+  <div class="kpi good"><div class="num">0 成本</div><div class="lbl">类别对齐（smoke 均为 0）</div></div>
+  <div class="kpi"><div class="num">125 张</div><div class="lbl">v5_wechat 与 m4 同源重复</div></div>
+  <div class="kpi bad"><div class="num">17 帧</div><div class="lbl">v5 val 泄漏进 m4 train</div></div>
+  <div class="kpi warn"><div class="num">70 组</div><div class="lbl">m4 train↔valid 负样本交叉</div></div>
+  <div class="kpi"><div class="num">≈7024</div><div class="lbl">合并后 train 预计图数</div></div>
+  <div class="kpi"><div class="num">≈1072</div><div class="lbl">合并后 val 预计图数</div></div>
+</div>
+
+<div class="callout ok"><b>总体结论：</b>合并可行且成本低。类别编号天然一致（0=smoke/1=fire/2=house），v5 单类标签零重编号；但存在<b>三类重复必须处理</b>（wechat 同源 125 张、m4 内部硬拷贝 71 组、train↔valid 交叉 70 组），以及 <b>v5 val 正样本泄漏 7 帧</b>（内容已在 m4 train），合并时需按本文第四/五节策略去重、重建 val，否则指标虚高不诚实。</div>
+
+<!-- ========== 二、数据集全貌 ========== -->
+<h2>二、数据集全貌与结构差异</h2>
+<table>
+  <tr><th>数据集</th><th>类别</th><th>目录结构</th><th>规模</th><th>定位</th></tr>
+  <tr><td><b>merged_v4</b>（m6 生产训练线）</td><td>3 类：0=smoke 1=fire 2=house</td><td>标准 YOLO：images/train + images/valid</td><td>train 6390 图 / 17010 框<br>valid 1042 图 / 3605 框</td><td>生产主引擎 RT-DETR@960 训练数据</td></tr>
+  <tr><td><b>v5_train_v4</b>（v5 训练线）</td><td>1 类：0=smoke</td><td>splits/train.txt + val.txt（绝对路径清单）</td><td>train 798 帧 / val 117 帧</td><td>v3→v4 迭代训练数据</td></tr>
+  <tr><td>v5_syn（合成）</td><td>1 类 smoke</td><td>images/ + labels/</td><td>800 图（train 引用 400）</td><td>烟贴片合成数据增强</td></tr>
+  <tr><td>v5_wechat（微信）</td><td>1 类 smoke</td><td>images/ + labels/</td><td>143 图（正样本 22）</td><td>真实烟雾照片（用户复核）</td></tr>
+  <tr><td>v5_candidates（候选帧）</td><td>1 类 smoke</td><td>record/ 80 时段 × 5 帧</td><td>400 帧（train 用 286 / val 用 100）</td><td>监控录像抽帧候选池，v2_ai 真烟 26 帧在池内</td></tr>
+  <tr><td>dji_photo（司空2）</td><td>1 类 smoke</td><td>v5_photos/dji_photo/</td><td>5 张（4 张已标注）</td><td>DJI 白天真烟（v4 训练目标形态）</td></tr>
+</table>
+
+<!-- ========== 三、类别对齐 ========== -->
+<h2>三、类别对齐审计</h2>
+<div class="card">
+<table>
+  <tr><th>数据线</th><th>类别编号</th><th>对齐结果</th></tr>
+  <tr><td>merged_v4</td><td class="mono">0=smoke · 1=fire · 2=house</td><td rowspan="2" style="text-align:center;"><span class="tag t-ok">零成本</span>v5 标签 class 0 直接映射合并后 class 0，无需重编号</td></tr>
+  <tr><td>v5 线</td><td class="mono">0=smoke</td></tr>
+</table>
+<p class="sub">对比风险点：m6 训练线曾存在 <span class="mono">merged_v4_2cls</span>（0=smoke/1=fire 两类别版本），合并时勿误用，一律以 3 类 merged_v4 为准。</p>
+</div>
+
+<!-- ========== 四、查重与泄漏 ========== -->
+<h2>四、查重与泄漏（全量 md5 逐字节比对）</h2>
+
+<h3>发现 1：v5_wechat 与 merged_v4 高度同源 <span class="tag t-bad">125 / 143 张</span></h3>
+<div class="card">
+<p>v5_wechat 的 <b>125 张</b>（87%）与 merged_v4 中的「微信图片_*.jpg」<b>逐字节相同</b>（png/jpg 格式差异但内容像素一致）。v5_syn、v5_candidates、DJI 照片与 merged_v4 <b>零重复</b>。</p>
+<p class="sub">根因：两个训练线独立收集了同一批 8 月微信真烟照片（merged_v4 转 jpg 保存，v5 存 png）。</p>
+</div>
+
+<h3>发现 2：v5 val 泄漏 17 帧——含 7 帧真烟正样本 <span class="tag t-bad">必须处理</span></h3>
+<div class="card">
+<p>v5 验证集 117 帧中 <b>17 帧</b>内容已存在于 <b>merged_v4 的 train 侧</b>：</p>
+<table>
+  <tr><th>泄漏帧类别</th><th>数量</th><th>说明</th></tr>
+  <tr><td>真烟正样本（带 smoke 框）</td><td><b>7 帧</b></td><td>框数 1~12 个不等；内容在 m4 train 已有（部分 m4 侧还标了 house）</td></tr>
+  <tr><td>无烟负样本</td><td>10 帧</td><td>内容在 m4 train 已有</td></tr>
+</table>
+<div class="callout bad"><b>影响：</b>若合并后沿用 v5 val，这 7 帧正样本模型训练时已见过 → 检出率虚高、回归结论失真。<b>合并后的 val 必须重建</b>（第五节方案）。</div>
+</div>
+
+<h3>发现 3：merged_v4 内部重复 <span class="tag t-warn">负样本交叉，正样本干净</span></h3>
+<div class="card">
+<table>
+  <tr><th>重复类型</th><th>数量</th><th>性质</th></tr>
+  <tr><td>同目录硬拷贝（原图 + rvN_ 变体）</td><td>71 组</td><td>字节级相同（非增强变体），train 内部冗余</td></tr>
+  <tr><td>train ↔ valid 交叉重复</td><td><b>70 组</b></td><td><b>全部为无烟负样本</b>；valid 中带 smoke 框的正样本 51 图/73 框 <b>零泄漏</b> ✓</td></tr>
+</table>
+<p class="sub">说明：m6 训练时 valid 里塞了 70 张与 train 相同的负样本（负样本池共用），导致 m6 的 val 误报率口径偏乐观——本次合并按新口径重建，不继承此问题。</p>
+</div>
+
+<!-- ========== 五、标签质量 ========== -->
+<h2>五、标签质量审计</h2>
+<table>
+  <tr><th>数据集</th><th>问题</th><th>数量</th><th>处理建议</th></tr>
+  <tr><td>m4 train</td><td>零宽框（w=0.0 / h=0.0）</td><td>7 条（AoF06155 / WEB04243 / WEB06900 等）</td><td><b>剔除</b>（标注导出 bug，训练会除零/误导）</td></tr>
+  <tr><td>m4 train</td><td>极小框（w 或 h &lt; 0.005）</td><td>240 条（含上述 7 条零宽衍生）</td><td>其余 233 条<b>保留</b>（远山小烟点正是检测目标）</td></tr>
+  <tr><td>m4 valid</td><td>极小框 / 零宽框</td><td>tiny 32 + 零宽 3</td><td>零宽剔除，tiny 保留（fire 小火焰）</td></tr>
+</table>
+<div class="callout warn"><b>同源图标注冲突（125 张）：</b>v5 复核标注 vs m4 原始标注不一致——69 张双空、15 张 v5 有烟/m4 空、37 张双方有框、4 张 v5 空/m4 有框。典型例：同一张微信图 v5 标 smoke 5 框，m4 标 smoke 5 + <b>house 61 框</b>（m4 把画面房屋全标）。<b>合并策略：smoke 以 v5 复核为准（丢弃 m4 smoke 框防双份），fire/house 沿用 m4</b>。</div>
+
+<!-- ========== 六、合并方案 ========== -->
+<h2>六、合并方案设计（v5_train_merge）</h2>
+<div class="card">
+<h3>train 组成（预计 ≈7024 图）</h3>
+<table>
+  <tr><th>来源</th><th>图数</th><th>处理</th></tr>
+  <tr><td>merged_v4 train</td><td>6319（6390 − 71 硬拷贝去重）</td><td>md5 去重保留一份；剔除 7 条零宽框</td></tr>
+  <tr><td>v5_syn</td><td>400</td><td>全进 train（与 m4 零重复）</td></tr>
+  <tr><td>v5_candidates（含 v2_ai 真烟 26 帧）</td><td>286</td><td>v2_ai 26 帧带框进 train；其余负样本</td></tr>
+  <tr><td>DJI 真烟照片</td><td>4</td><td>已标注，全进 train（不进 val）</td></tr>
+  <tr><td>v5_wechat 非重复部分</td><td>≈15</td><td>仅保留与 m4 无重复的帧</td></tr>
+  <tr><td>同源 125 张标注合成</td><td>—</td><td>用 m4 图片文件，标注 = v5 smoke 框（如有）∪ m4 fire/house 框</td></tr>
+</table>
+<h3>val 组成（重建，零泄漏 ≈1072 图）</h3>
+<table>
+  <tr><th>来源</th><th>图数</th><th>处理</th></tr>
+  <tr><td>merged_v4 valid</td><td>972（1042 − 70 交叉重复）</td><td>含 smoke 51 图/73 框 + fire 2431 + house 1101，与 m6 同口径可比</td></tr>
+  <tr><td>v5 val candidates 负样本</td><td>100</td><td>与 m4 零重复，保留</td></tr>
+  <tr><td>v5 val wechat</td><td>17 → 0</td><td><b>全部剔除</b>（7 正 + 10 负均泄漏）</td></tr>
+</table>
+<div class="callout info"><b>双口径设计：</b>yaml 的 val 用 m4 valid 972（训练早停 + 与 m6 对比用）；v3/v4 的「30 帧真烟回归集」<b>不入 val 文件</b>，沿用 regress_v5_v4.py 单独跑（保 v3/v4 纵向可比）。</div>
+</div>
+
+<!-- ========== 七、训练建议 ========== -->
+<h2>七、训练建议</h2>
+<table>
+  <tr><th>项</th><th>建议</th><th>依据</th></tr>
+  <tr><td>imgsz</td><td><b>960</b>（与 m6 生产推理一致）</td><td>7024 图 @1280 cache=ram ≈ 139GB 超内存红线；@960 ≈ 78GB 安全</td></tr>
+  <tr><td>batch / cache</td><td>8 / ram</td><td>GPU 显存 ~10-12G，与生产并行无冲突</td></tr>
+  <tr><td>时长</td><td>≈ 3~5 小时（100 epoch，patience=20 早停）</td><td>v4 为 915 图 37s/epoch；7024 图 ≈ 4-5 min/epoch</td></tr>
+  <tr><td>类别不平衡</td><td>fire 12920 : smoke ~4200 : house 446</td><td>house 仍是弱类（与 m6 现状持平即可，不追求超越）；smoke 较 v4 提升 ~1.2 倍（新增 syn/v2_ai/DJI）</td></tr>
+  <tr><td>起点</td><td>从 m6 best.pt 续训</td><td>保留 fire/house 既有能力，注入 smoke 新形态</td></tr>
+  <tr><td>验证</td><td>双口径（m4 valid 972 + 30 帧真烟回归）</td><td>训练早停看 m4 valid；回归看 DJI/老帧漏检改善</td></tr>
+</table>
+
+<!-- ========== 八、风险与回滚 ========== -->
+<h2>八、风险与回滚</h2>
+<div class="card">
+<div class="step"><div class="no">1</div><div>合并脚本不动任何源数据集（只读 m4 / v5_syn / v5_wechat / v5_candidates / v5_photos），输出全新 <span class="mono">v5_train_merge/</span> 目录；失败即删目录重跑，零副作用。</div></div>
+<div class="step"><div class="no">2</div><div>训练产物独立 <span class="mono">runs/detect/v5_smoke_3cls/</span>，与 m6 / v3 / v4 完全隔离；GPU 显存 ~12G 与 straw-engine（4G）并行无冲突。</div></div>
+<div class="step"><div class="no">3</div><div>生产替换前保留 m6 best.onnx 一键回退（现役模型不动，先灰度评估再替换）。</div></div>
+<div class="step"><div class="no">4</div><div>空间增量 ≈ 1.5~2G（合并集）+ 1~2G（训练产物），对 6.4T 余量无压力；<b>禁止 cache=True 磁盘缓存</b>（会涨到 70G+）。</div></div>
+</div>
+
+<div class="footer">审计依据：全量 md5 比对 7432+1809 张 · 标签扫描 17010+3605 框 · 交叉核对 4 个维度 | 审计脚本 audit_merge_v5.py / audit2-4_merge.py 存档于 /video/llm_infer/ 与 infra/vlm/</div>
+</div>
+</body>
+</html>

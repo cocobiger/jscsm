@@ -22,6 +22,18 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  build: {
+    rollupOptions: {
+      output: {
+        // P1-1 性能优化：大库独立 chunk → 并行下载 + 长缓存复用（nginx assets 已 immutable）
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-map': ['leaflet'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     allowedHosts: true,

@@ -135,16 +135,44 @@ module.exports = (config, opts = {}) => {
     }
   }
 
+  /**
+   * 对象日期键（YYYYMMDD）：
+   *  1) path 内 8 位段（record：__defaultVhost__/.../20260828/）——正则限定斜杠包裹，避免 tenantId 等长数字串误匹配
+   *  2) path 内斜杠段（photo/video/osd/fly：dock_media/2026/8/27/）——拆拼 8 位
+   *  3) 回退 mtime 上海时区
+   */
+  function dateOf(m) {
+    const p = m.path || ''
+    const m8 = /\/(\d{8})\//.exec(p)
+    if (m8) return m8[1]
+    const ms = /\/(\d{4})\/(\d{1,2})\/(\d{1,2})\//.exec(p)
+    if (ms) return ms[1] + String(ms[2]).padStart(2, '0') + String(ms[3]).padStart(2, '0')
+    try {
+      return new Date(m.mtime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }).replace(/-/g, '')
+    } catch { return '' }
+  }
+
   return {
     start() { timer = setInterval(tick, 60000); tick() },
     stop() { if (timer) clearInterval(timer) },
-    list(limit = 200, kind = null) {
+    list(limit = 200, kind = null, offset = 0, opts = {}) {
       const arr = []
+      const dates = {}
       for (const { mtimeMs, ...m } of seen.values()) {
         if (kind && m.kind !== kind) continue
+        const dk = dateOf(m)
+        if (opts.date && dk !== opts.date) continue
+        if (opts.q) {
+          const q = String(opts.q).toLowerCase()
+          const hay = ((m.name || '') + ' ' + (m.path || '')).toLowerCase()
+          if (!hay.includes(q)) continue
+        }
+        if (dk) dates[dk] = (dates[dk] || 0) + 1
         arr.push(m)
       }
-      return arr.slice(-limit).reverse()
+      arr.reverse() // 最新的在前（按扫描序，近似 mtime 倒序）
+      const total = arr.length
+      return { items: arr.slice(offset, offset + limit), total, dates }
     },
     status() {
       const byKind = {}

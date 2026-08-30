@@ -32,6 +32,12 @@ export interface AlertItem {
   latestTime?: string
   memberIds?: string[]
   previewPicUrl?: string  // 聚合告警的预览图（后端 lightweight 输出，取组内首条 picUrl）
+  status?: string        // 聚合告警组处理状态 pending / partial / handled（后端输出）
+}
+
+// 秸秆燃烧告警识别（AI 类型主数据为中文"秸秆燃烧"）
+function isStrawAlert(alert: AlertItem): boolean {
+  return (alert.aiType || alert.aggregateAiType || alert.type || '').includes('秸秆燃烧')
 }
 
 // Alert types that show plate + violation instead of value + limit
@@ -57,6 +63,16 @@ function displayAlertTime(alert: AlertItem): string {
   return parts[0] === todayKey ? `今日 ${parts[1]}` : full
 }
 
+/** 是否今日告警（用于"实时/历史"分区） */
+function isTodayAlert(alert: AlertItem): boolean {
+  const full = alert.fullTime || alert.time
+  const parts = full.split(' ')
+  if (parts.length !== 2) return true  // 纯时间兜底 → 视为今日
+  const now = new Date()
+  const todayKey = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return parts[0] === todayKey
+}
+
 const INITIAL_ALERTS: AlertItem[] = []
 
 const LEVEL_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
@@ -78,6 +94,13 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   const [evidenceAlert, setEvidenceAlert] = useState<AlertItem | null>(null)
   const { externalAlerts, clearExternalAlerts } = useDashboard()
 
+  // 处置后刷新（AlertEvidenceModal 处置成功派发 alerts:reload）
+  useEffect(() => {
+    const onReload = () => window.location.reload()
+    window.addEventListener('alerts:reload', onReload)
+    return () => window.removeEventListener('alerts:reload', onReload)
+  }, [])
+
   // Merge externally pushed alerts (from admin / MQTT / 采集预警) into the list
   useEffect(() => {
     if (externalAlerts.length === 0) return
@@ -97,25 +120,25 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
     }
   }, [externalAlerts])
 
-  return (
-    <div className="flex flex-col h-full">
-      <PanelHeader color="#ff4444" title="实时告警" count={alerts.length} onMore={() => setShowModal(true)} />
-      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        {alerts.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#3a5a70', gap: 8, padding: 20 }}>
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2a4a60" strokeWidth="1.5">
-              <path d="M12 2a7 7 0 0 0-7 7c0 3.5-1.5 5-2 6h18c-.5-1-2-2.5-2-6a7 7 0 0 0-7-7z" />
-              <path d="M9 20a3 3 0 0 0 6 0" />
-            </svg>
-            <span style={{ fontSize: 13 }}>暂无告警</span>
-            <span style={{ fontSize: 11, color: '#2a4a60' }}>监测数据超标时将实时推送</span>
-          </div>
-        )}
-        {alerts.map(alert => {
+  // 实时/历史分区（走查建议 #3）：今日 → 实时；跨天 → 历史（灰化置底）
+  const todayAlerts = alerts.filter(isTodayAlert)
+  const historyAlerts = alerts.filter(a => !isTodayAlert(a))
+  // 排序：秸秆燃烧优先 + 未处置优先（走查建议：秸秆主屏显式 + 状态色差）
+  const sortAlerts = (list: AlertItem[]) => {
+    const weight = (a: AlertItem) =>
+      (isStrawAlert(a) ? 0 : 2) + (a.status === 'handled' ? 1 : a.status === 'partial' ? 0.5 : 0)
+    return [...list].sort((a, b) => weight(a) - weight(b))
+  }
+  const sortedToday = sortAlerts(todayAlerts)
+
+  const renderAlertCard = (alert: AlertItem, historyDim = false) => {
           const style = LEVEL_COLORS[alert.level]
           const isSelected = selectedAlertId === alert.id
           const isFlashing = flashId === alert.id
           const iotVideo = isIotVideo(alert)
+          const isStraw = isStrawAlert(alert)
+          const isHandled = alert.status === 'handled'
+          const isPartial = alert.status === 'partial'
 
           return (
             <div
@@ -124,12 +147,14 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
               style={{
                 margin: '4px 10px',
                 padding: '6px 10px',
-                background: isSelected ? 'rgba(0,170,255,0.15)' : style.bg,
-                border: `1px solid ${isSelected ? 'rgba(0,170,255,0.5)' : style.border}`,
+                background: isSelected ? 'rgba(0,170,255,0.15)' : (isHandled ? 'rgba(80,100,120,0.12)' : isPartial ? 'rgba(0,140,255,0.08)' : style.bg),
+                border: `1px solid ${isSelected ? 'rgba(0,170,255,0.5)' : isStraw ? 'rgba(255,60,60,0.55)' : isHandled ? 'rgba(120,140,160,0.3)' : isPartial ? 'rgba(0,140,255,0.4)' : style.border}`,
+                borderLeft: isStraw ? `3px solid #ff4444` : undefined,
                 borderRadius: 3,
                 cursor: 'pointer',
                 animation: isFlashing ? 'alert-flash 0.5s ease 3' : 'none',
                 transition: 'background 0.2s',
+                ...(historyDim || isHandled ? { opacity: 0.6, filter: 'saturate(0.5)' } : {}),
               }}
             >
               {alert.isAggregate ? (
@@ -161,6 +186,9 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         聚合
                       </span>
+                      {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
+                      {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
+                      {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
                       <span style={{ color: '#5a8aaa', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
                         {displayAlertTime(alert)}
                       </span>
@@ -208,6 +236,9 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         AI视频
                       </span>
+                      {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
+                      {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
+                      {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
                       <span style={{ color: '#5a8aaa', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
                         {displayAlertTime(alert)}
                       </span>
@@ -249,6 +280,9 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                     >
                       {style.label}
                     </span>
+                    {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
+                    {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
+                    {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
                     <span style={{ color: '#5a8aaa', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
                       {displayAlertTime(alert)}
                     </span>
@@ -306,7 +340,42 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
               )}
             </div>
           )
-        })}
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} />
+      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        {alerts.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#3a5a70', gap: 8, padding: 20 }}>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2a4a60" strokeWidth="1.5">
+              <path d="M12 2a7 7 0 0 0-7 7c0 3.5-1.5 5-2 6h18c-.5-1-2-2.5-2-6a7 7 0 0 0-7-7z" />
+              <path d="M9 20a3 3 0 0 0 6 0" />
+            </svg>
+            <span style={{ fontSize: 13 }}>暂无告警</span>
+            <span style={{ fontSize: 11, color: '#2a4a60' }}>监测数据超标时将实时推送</span>
+          </div>
+        )}
+
+        {/* ── 实时告警（今日） ── */}
+        {todayAlerts.length > 0 && (
+          <div style={{ padding: '6px 12px 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff4444', boxShadow: '0 0 6px #ff4444' }} />
+            <span style={{ color: '#ff9b9b', fontSize: 10, letterSpacing: '0.1em', fontWeight: 600 }}>实时告警（今日）</span>
+            <span style={{ color: '#3a5a70', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>{todayAlerts.length}</span>
+          </div>
+        )}
+        {sortedToday.map(alert => renderAlertCard(alert, false))}
+
+        {/* ── 历史告警（跨天，灰化置底） ── */}
+        {historyAlerts.length > 0 && (
+          <div style={{ padding: '10px 12px 2px', display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px dashed rgba(0,100,170,0.2)', marginTop: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#5a6b7a' }} />
+            <span style={{ color: '#5a6b7a', fontSize: 10, letterSpacing: '0.1em', fontWeight: 600 }}>历史告警（跨天）</span>
+            <span style={{ color: '#3a5a70', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>{historyAlerts.length}</span>
+          </div>
+        )}
+        {historyAlerts.map(alert => renderAlertCard(alert, true))}
       </div>
       <style>{`
         @keyframes alert-flash {

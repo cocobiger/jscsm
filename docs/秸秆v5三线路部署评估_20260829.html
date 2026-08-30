@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆烟雾检测 v5 训练线 · 三条部署线路评估报告</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#ffffff; --text:#2b2f36; --muted:#6b7280;
+    --line:#e5e7eb; --blue:#1a5fbf; --blue-bg:#eef4fc;
+    --amber:#b45309; --amber-bg:#fdf3e3;
+    --green:#15803d; --green-bg:#ecf7ee;
+    --red:#b91c1c; --red-bg:#fdeeee;
+    --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"Songti SC","SimSun","Noto Serif CJK SC",serif;
+    font-size:15px; line-height:1.75; padding:32px 16px;
+  }
+  .page{max-width:960px;margin:0 auto;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:28px 32px;margin-bottom:20px;}
+  /* 标题区 */
+  .doc-head{text-align:center;padding:8px 0 20px;border-bottom:2px solid var(--blue);margin-bottom:24px;}
+  .doc-head h1{font-size:24px;color:var(--text);font-weight:700;letter-spacing:.5px;}
+  .doc-head .sub{font-size:14px;color:var(--muted);margin-top:8px;}
+  .doc-head .meta{font-size:13px;color:var(--muted);margin-top:6px;}
+  /* 正文标题 */
+  h2{font-size:19px;color:var(--blue);margin:28px 0 14px;padding-left:12px;border-left:4px solid var(--blue);line-height:1.4;}
+  h3{font-size:16px;color:var(--text);margin:18px 0 10px;}
+  p{margin:8px 0;text-align:justify;}
+  ul,ol{margin:8px 0 8px 26px;}
+  li{margin:5px 0;}
+  strong{color:var(--text);font-weight:700;}
+  .hl-blue{color:var(--blue);font-weight:700;}
+  .hl-amber{color:var(--amber);font-weight:700;}
+  .hl-green{color:var(--green);font-weight:700;}
+  .hl-red{color:var(--red);font-weight:700;}
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top;}
+  th{background:var(--blue-bg);color:var(--blue);font-weight:700;white-space:nowrap;}
+  tr:nth-child(even) td{background:#fafbfc;}
+  /* 提示框 */
+  .note{border-radius:8px;padding:12px 16px;margin:12px 0;font-size:14px;}
+  .note-blue{background:var(--blue-bg);border-left:4px solid var(--blue);}
+  .note-amber{background:var(--amber-bg);border-left:4px solid var(--amber);}
+  .note-green{background:var(--green-bg);border-left:4px solid var(--green);}
+  .note-red{background:var(--red-bg);border-left:4px solid var(--red);}
+  .tag{display:inline-block;padding:1px 10px;border-radius:10px;font-size:12px;font-weight:700;margin-right:6px;}
+  .tag-a{background:var(--amber-bg);color:var(--amber);}
+  .tag-b{background:var(--blue-bg);color:var(--blue);}
+  .tag-c{background:var(--green-bg);color:var(--green);}
+  .code{font-family:Consolas,Menlo,monospace;font-size:13px;background:#f3f4f6;border:1px solid var(--line);border-radius:4px;padding:1px 6px;}
+  .verdict{border:2px solid var(--blue);background:var(--blue-bg);border-radius:10px;padding:16px 20px;margin:14px 0;}
+  .verdict h3{margin:0 0 8px;color:var(--blue);}
+  /* 步骤 */
+  .step{display:flex;margin:10px 0;gap:12px;}
+  .step-no{flex:0 0 30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;text-align:center;line-height:30px;font-size:14px;font-family:Consolas,monospace;}
+  .step-body{flex:1;}
+  .step-body b{display:block;margin-bottom:2px;}
+  .footnote{text-align:center;color:var(--muted);font-size:12px;margin-top:28px;padding-top:12px;border-top:1px solid var(--line);}
+  @media print{.card{box-shadow:none;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= 文档头 ================= -->
+  <div class="card doc-head" style="text-align:center;border-bottom:2px solid var(--blue);">
+    <h1>秸秆烟雾检测 v5 训练线 · 三条部署线路评估报告</h1>
+    <div class="sub">v4 训练完成后的部署形态决策评审稿</div>
+    <div class="meta">编制：技术评估 ｜ 日期：2026-08-29 ｜ 依据：v4 训练回归实测 + 生产引擎与训练数据盘点</div>
+  </div>
+
+  <!-- ================= 一、背景 ================= -->
+  <div class="card">
+    <h2>一、背景</h2>
+    <p>v5 训练线的目标，是提升真实烟雾（特别是远山零星小烟、桥下烟柱等司空 2 无人机新形态）的检出召回。此前 v3 模型对这些新形态<b>完全漏检</b>（回归实测 30 帧仅检出 1 帧）。为验证"扩真实烟帧数"路线，已部署 v3 标注工作台并完成 v4 训练，本轮需决定 v4 成果以何种形态进入生产。</p>
+    <ul>
+      <li><b>v4 训练</b>：单类 smoke，从 v3 best 续训，84/100 epochs 早停（patience=20），最终 val mAP50=<span class="hl-green">0.252</span>（较训练中期 0.124 翻倍）；权重 best.pt 40.6MB。</li>
+      <li><b>回归验证</b>：DJI 4 张白天真烟帧，v3 全漏 → v4 全部检中（conf=0.10 口径）；生产口径 conf=0.25 下 v3 0/30 → v4 3/30（3 张 DJI 高置信检出）。</li>
+      <li><b>已知短板</b>：v2 老帧（远山零星小烟点）在 conf=0.25 下 v4 仍 0 检出——极小目标检测瓶颈仍在。</li>
+      <li><b>部署发现</b>：生产主引擎 straw-engine 为 3 类（smoke/fire/house）RT-DETR@960，而 v4 是单类 smoke，<b>不能直接整体替换</b>（会丢失 fire/house 检测）。</li>
+    </ul>
+    <div class="note note-amber"><b>决策背景提示</b>：v4 成果无法"即插即用"，必须选择一种部署形态，本报告对三条线路做诚实评估。</div>
+  </div>
+
+  <!-- ================= 二、事实核查 ================= -->
+  <div class="card">
+    <h2>二、事实核查（评估前的前提更正）</h2>
+    <p>评估过程中对两项关键前提做了服务器实测核查，<b>结果直接改变了方案 B 的成本结构</b>：</p>
+    <table>
+      <tr><th style="width:30%;">核查项</th><th>实测结果</th><th style="width:24%;">影响</th></tr>
+      <tr><td>m6 3 类训练数据是否完整</td><td><span class="code">/video/shujuji/datasets/merged_v4/</span> 存在：train <b>6390 张</b>，fire=<span class="hl-amber">12920 框</span> / smoke=<span class="hl-amber">3644 框</span> / house=<span class="hl-amber">446 框</span></td><td class="hl-green">方案 B 无需从零标注 fire/house，成本大幅下降</td></tr>
+      <tr><td>v4 ONNX 部署链路</td><td>已导出 best.onnx（80.9MB @1280），输出 <span class="code">[1,5,33600]</span> YOLO 布局与 engine 解析兼容；GPU 推理 <b>30.4ms</b>（CPU 508ms 的 1/17）</td><td>方案 A 技术可行性已验证</td></tr>
+      <tr><td>真实烟补帧速度</td><td>回流 21 个对象无新增；司空作业当前<b>不在线</b>，截图采集器空转；当前仍 32 帧</td><td class="hl-red">方案 C 的补帧周期不确定（可能以周/月计）</td></tr>
+    </table>
+  </div>
+
+  <!-- ================= 三、三线路对比 ================= -->
+  <div class="card">
+    <h2>三、三条线路对比评估</h2>
+
+    <h3><span class="tag tag-a">方案 A</span>独立 smoke 预检通道（v4 并行补检）</h3>
+    <p>straw-engine 加载第二个模型 v4（低阈值），与 m6 的 fire/house 共存，并行补检小烟/远山烟。</p>
+    <table>
+      <tr><th style="width:18%;">评估维度</th><th>分析</th></tr>
+      <tr><td class="hl-green">优点</td><td>① v4 已验证 DJI 新形态 4/4 检出（m6/v3 全漏），司空作业在线时有补充价值 ② 不动 m6，fire/house 告警零风险 ③ 部署快（约半天），ONNX/GPU 链路已验证 ④ 可灰度对照</td></tr>
+      <tr><td class="hl-red">缺点</td><td>① <b>未解决核心痛点</b>：v2 老帧（远山小烟，召回低的根源）在 conf=0.25 下 v4 依然 0 检出——A 是"场景覆盖"，不是"能力提升" ② 司空作业恰不在线，部署后大概率长期无验证信号 ③ 低阈值（0.10~0.25）有天空大框误报前科（m7 实测），需确认器把关 ④ 双引擎告警去重/合并/统计口径，长期运维复杂度 ⑤ 数据未变，能力天花板未变</td></tr>
+    </table>
+    <p class="hl-amber"><b>一句话评价</b>：伪即时价值——只补"司空作业在线"这一场景，而该场景当前不存在。</p>
+
+    <h3><span class="tag tag-b">方案 B</span>3 类 v5 训练后整体替换（修正版）</h3>
+    <p>将 merged_v4（3 类大样本）与 v5 新形态真烟帧合并，训练 3 类 v5，替换 m6 主引擎。</p>
+    <table>
+      <tr><th style="width:18%;">评估维度</th><th>分析</th></tr>
+      <tr><td class="hl-green">优点</td><td>① <b>成本骤降</b>：merged_v4 已有 3 类 6390 张（fire 12920 / smoke 3644 / house 446），无需从零标 fire/house ② 单引擎最简架构，完全兼容现有引擎 ③ <b>数据红利最大</b>：大样本保住 fire/house + 注入 DJI 新形态真烟，双赢 ④ 可量化对比：v5_3cls vs m6 同评估集比 mAP/召回，诚实验证提升</td></tr>
+      <tr><td class="hl-red">缺点</td><td>① 比 A 慢：合数据 + 训练（1~2h）+ 验证 + 灰度，全程约 1~2 天 ② 合并有风险：类别 id 对齐、wechat/syn 与 merged_v4 是否重复需审计、标签质量参差 ③ house 仅 446 框仍是最弱类（与 m6 现状持平，不算回归） ④ 同样不解决"司空不在线"，但 B 目标本就是长期提升，不依赖即时验证</td></tr>
+    </table>
+    <p class="hl-blue"><b>一句话评价</b>：最接近"根治"的路线——数据红利 + 架构最优，且成本已被事实修正为可接受。</p>
+
+    <h3><span class="tag tag-c">方案 C</span>暂不部署，补帧到 100+ 再训 v5</h3>
+    <p>v4 仅作评估基线归档，资源全投数据扩充，待真实烟帧凑齐 100+ 后直接训 v5。</p>
+    <table>
+      <tr><th style="width:18%;">评估维度</th><th>分析</th></tr>
+      <tr><td class="hl-green">优点</td><td>① 最诚实：承认数据不足是根因，资源全投数据 ② 零运维/架构风险 ③ v4 教训（真实烟帧有效、小目标仍难）直接喂 v5</td></tr>
+      <tr><td class="hl-red">缺点</td><td>① <b>补帧速度完全不确定</b>：回流 21 对象无新增、司空作业不在线 → 100+ 帧可能以周/月计，期间召回痛点无任何改善 ② 弃用 v4 已投入（一晚工作台 + 标注 + 训练） ③ "数据永远可以更多"无时间盒 = 完美主义陷阱 ④ 单类 v5 最终仍缺 fire/house，100+ 帧后还得回头合并 merged_v4——<b>绕远路</b></td></tr>
+    </table>
+    <p class="hl-green"><b>一句话评价</b>：最纯粹但最慢，且终点绕不开方案 B 的合并工作。</p>
+  </div>
+
+  <!-- ================= 四、横向对比表 ================= -->
+  <div class="card">
+    <h2>四、横向对比总表</h2>
+    <table>
+      <tr>
+        <th style="width:16%;">维度</th>
+        <th style="width:28%;">A 独立预检通道</th>
+        <th style="width:28%;">B 3 类 v5 整体替换</th>
+        <th style="width:28%;">C 补帧 100+ 再训</th>
+      </tr>
+      <tr><td>核心痛点解决</td><td class="hl-red">否（远山小烟仍 0 检出）</td><td class="hl-green">是（数据 + 架构双改善）</td><td class="hl-amber">远期是（周期不确定）</td></tr>
+      <tr><td>即时价值</td><td>低（司空不在线，无验证场景）</td><td class="hl-green">可量化对比验证</td><td>无（纯等待）</td></tr>
+      <tr><td>数据依赖</td><td>不依赖新数据</td><td class="hl-green">merged_v4 现成可合并</td><td class="hl-red">依赖司空作业产出（不确定）</td></tr>
+      <tr><td>实施成本</td><td>约半天（引擎小改）</td><td>约 1~2 天（含灰度）</td><td>无法估计（取决于补帧）</td></tr>
+      <tr><td>架构复杂度</td><td class="hl-red">双引擎去重/统计，长期负担</td><td class="hl-green">单引擎最简</td><td>无变化</td></tr>
+      <tr><td>风险</td><td>误报需确认器把关</td><td>合并审计风险（可控制）</td><td>最小</td></tr>
+      <tr><td>长期天花板</td><td>数据未变，无提升</td><td class="hl-green">最高（大样本 + 新形态）</td><td>取决于数据量</td></tr>
+      <tr><td>时间盒</td><td class="hl-green">确定（半天）</td><td class="hl-green">确定（1~2 天）</td><td class="hl-red">无（完美主义陷阱）</td></tr>
+    </table>
+    <div class="note note-blue"><b>共同瓶颈</b>：三条线都受制于同一件事——司空作业在线 + 任务媒体产生，是突破"远山小烟漏检"的唯一数据资源。A 部署它、B 依赖它、C 等待它，但它当前不在线。</div>
+  </div>
+
+  <!-- ================= 五、推荐与落地步骤 ================= -->
+  <div class="card">
+    <h2>五、推荐结论：B 为主 + C 补帧后台并行</h2>
+    <div class="verdict">
+      <h3>推荐：方案 B（3 类 v5 整体替换）为主，方案 C 的补帧作为持续后台任务</h3>
+      <p style="margin-bottom:0;">理由：① A 的致命伤是 v4 对生产痛点无效且无验证场景，不推荐为主；② C 的致命伤是没有时间盒 + 终点绕回 B 的合并，纯等是浪费；③ B 的第一步"数据集合并审计"（类别对齐/查重/样本量）<b>不依赖司空作业，现在就能做</b>——这是唯一可立即推进且有确定价值的动作。</p>
+    </div>
+    <h3>落地步骤（按批次推进）</h3>
+    <div class="step"><div class="step-no">1</div><div class="step-body"><b>第 1 批 · 合并审计（约 0.5 天）</b>合并 merged_v4 与 v5 数据集：类别 id 映射（m6 3 类 vs v5 单类）、图片级查重（wechat/syn 与 merged_v4 是否重叠）、标签质量抽查、样本量统计 → 产出合并后 data.yaml 与审计报告</div></div>
+    <div class="step"><div class="step-no">2</div><div class="step-body"><b>第 2 批 · 训练与对比（约 2 小时）</b>训练 3 类 v5（从 m6 best 续训，imgsz=960 与生产对齐）；同评估集上 v5_3cls vs m6 比 mAP50/召回，重点看 fire/house 不回归 + smoke 新形态提升</div></div>
+    <div class="step"><div class="step-no">3</div><div class="step-body"><b>第 3 批 · 灰度与替换（约 0.5 天）</b>导出 ONNX → FUHE 审查页挂 v5_3cls 灰度观察 → 达标后替换 config.json 顶层 model → 保留 m6 best.onnx 一键回退</div></div>
+    <div class="step"><div class="step-no">4</div><div class="step-body"><b>持续 · 补帧后台任务</b>直播截图采集 + MinIO 回流两个常驻进程继续跑，司空作业产生的任何新帧自动进入工作台，为后续 v6 迭代累积</div></div>
+  </div>
+
+  <!-- ================= 六、风险与回滚 ================= -->
+  <div class="card">
+    <h2>六、冲突排查与风险回滚</h2>
+    <table>
+      <tr><th style="width:22%;">风险点</th><th>说明与对策</th></tr>
+      <tr><td>类别 id 对齐</td><td>m6 3 类（smoke/fire/house）与 v5 单类（smoke）需建立映射；合并时统一 smoke 的 class id，避免标签错乱。审计报告逐类核验。</td></tr>
+      <tr><td>数据重叠</td><td>wechat/syn 合成烟数据与 merged_v4 可能图片级重复，训练前按文件名/哈希查重，重复样本去重防止过拟合。</td></tr>
+      <tr><td>house 弱类</td><td>仅 446 框，是三类中最弱类。预期与 m6 现状持平（不构成回归），后续可单独补标。</td></tr>
+      <tr><td>训练后不达标</td><td>若 v5_3cls 在评估集上 smoke 召回不升或 fire/house 明显回落，则回到 C 路线继续补帧，不强行替换。</td></tr>
+      <tr><td>回滚方案</td><td>替换仅改 config.json 顶层 model 指向 + 权重文件；m6 best.onnx 原样保留，一行配置即可回退，零数据风险。灰度期间双模型并行，可逐路对比告警。</td></tr>
+    </table>
+  </div>
+
+  <!-- ================= 七、决策项 ================= -->
+  <div class="card">
+    <h2>七、请评审人拍板</h2>
+    <p>基于本报告事实，建议选择：<b class="hl-blue">方案 B 为主 + 方案 C 补帧后台并行</b>，并立即推进第 1 批"合并审计"（唯一不依赖司空作业、有确定价值的动作）。</p>
+    <ul>
+      <li><b>选项一</b>：认可推荐 → 我直接开工第 1 批合并审计，产出审计报告后再进第 2 批训练；</li>
+      <li><b>选项二</b>：有异议 → 指出需要调整的线路或前提，我补充核查后修订本报告；</li>
+      <li><b>选项三</b>：仅存档 → 本报告归档，维持现状（v3/v4 均不部署），继续等补帧。</li>
+    </ul>
+  </div>
+
+  <div class="footnote">编制：技术评估 ｜ 2026-08-29 ｜ 依据 v4 回归实测（regress_v5_v4）与服务器数据盘点（merged_v4 / config.json / FUHE）</div>
+</div>
+</body>
+</html>

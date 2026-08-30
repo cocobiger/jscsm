@@ -71,14 +71,40 @@ function Input({ label, value, onChange, placeholder, type = 'text', mono }: {
 
 type Tab = 'sources' | 'warnings' | 'rules' | 'logs'
 
+// 预警规则编辑表单行
+interface RuleRow {
+  code: string
+  label: string
+  safeMax: string        // 不预警上限
+  growthMin: string      // 5h增长区间下限（空=无）
+  growthMax: string      // 5h增长区间上限（空=无上限）
+  cross: string          // 跨阈值，逗号分隔（从低到高）
+}
+
+const RULE_ROW_DEFS: { code: string; label: string; hasGrowth: boolean; hasCross: boolean }[] = [
+  { code: 'PM25', label: 'PM2.5', hasGrowth: true, hasCross: true },
+  { code: 'PM10', label: 'PM10', hasGrowth: true, hasCross: true },
+  { code: 'SO2', label: 'SO₂', hasGrowth: false, hasCross: false },
+  { code: 'NO2', label: 'NO₂', hasGrowth: true, hasCross: false },
+  { code: 'O3', label: 'O₃', hasGrowth: false, hasCross: true },
+  { code: 'CO', label: 'CO', hasGrowth: false, hasCross: false },
+]
+
 export function GasMonitorPage() {
   const [tab, setTab] = useState<Tab>('sources')
   const [sources, setSources] = useState<DataSource[]>([])
   const [warnings, setWarnings] = useState<Warning[]>([])
   const [logs, setLogs] = useState<CollectLog[]>([])
-  const [rules, setRules] = useState<any>(null)
+  const [ruleRows, setRuleRows] = useState<RuleRow[]>([])
+  const [growthRatio, setGrowthRatio] = useState('0.4')
   const [form, setForm] = useState<Omit<DataSource, 'id'>>(EMPTY_DS)
   const [editId, setEditId] = useState<string | null>(null)
+  // 预警记录分页（每页 100 条）
+  const WARN_PAGE_SIZE = 100
+  const [warnPage, setWarnPage] = useState(1)
+  const warnTotalPages = Math.max(1, Math.ceil(warnings.length / WARN_PAGE_SIZE))
+  const safeWarnPage = Math.min(warnPage, warnTotalPages)
+  const pagedWarnings = warnings.slice((safeWarnPage - 1) * WARN_PAGE_SIZE, safeWarnPage * WARN_PAGE_SIZE)
   const [showForm, setShowForm] = useState(false)
   const [busy, setBusy] = useState('')
   const [toast, setToast] = useState('')
@@ -95,10 +121,98 @@ export function GasMonitorPage() {
     apiFetchRaw('/api/collect-logs?limit=100').then(r => r.json()).then(setLogs).catch(() => {})
   }, [])
 
+  const loadRules = useCallback(() => {
+    apiFetchRaw('/api/warning-rules').then(r => r.json()).then((data) => {
+      const sm = data.safeMax || {}
+      const cross = data.crossThresholds || {}
+      const growth = data.growthRange || {}
+      setGrowthRatio(data.growthRatio != null ? String(data.growthRatio) : '0.4')
+      setRuleRows(RULE_ROW_DEFS.map(d => {
+        const g = growth[d.code]
+        return {
+          code: d.code,
+          label: d.label,
+          safeMax: sm[d.code] != null ? String(sm[d.code]) : '',
+          growthMin: g && g.min != null ? String(g.min) : '',
+          growthMax: g && g.max != null && Number.isFinite(Number(g.max)) ? String(g.max) : '',
+          cross: (cross[d.code] || []).slice().sort((a: number, b: number) => a - b).join(','),
+        }
+      }))
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
-    loadSources(); loadWarnings(); loadLogs()
-    apiFetchRaw('/api/warning-rules').then(r => r.json()).then(setRules).catch(() => {})
-  }, [loadSources, loadWarnings, loadLogs])
+    loadSources(); loadWarnings(); loadLogs(); loadRules()
+  }, [loadSources, loadWarnings, loadLogs, loadRules])
+
+  const saveRules = async () => {
+    const num = (s: string, fallback: number | null = null) => {
+      const n = Number(s.trim())
+      return s.trim() === '' ? fallback : (isNaN(n) ? null : n)
+    }
+    const safeMax: Record<string, number> = {}
+    const crossThresholds: Record<string, number[]> = {}
+    const growthRange: Record<string, { min: number; max: number }> = {}
+    let valid = true
+    const ratio = Number(growthRatio)
+    if (!growthRatio.trim() || isNaN(ratio) || ratio <= 0) {
+      flash('增长比例必须为正数'); valid = false
+    }
+    for (const r of ruleRows) {
+      const sm = num(r.safeMax)
+      if (r.safeMax.trim() === '' || sm === null || (sm != null && sm < 0)) {
+        flash(`${r.label} 不预警上限无效`); valid = false; break
+      }
+      safeMax[r.code] = sm as number
+      // 跨阈值（从低到高输入，逗号分隔）
+      if (r.cross.trim()) {
+        const arr = r.cross.split(/[,，\s]+/).filter(Boolean).map(Number)
+        if (arr.some(isNaN) || arr.length === 0) {
+          flash(`${r.label} 跨阈值格式无效（用逗号分隔数字）`); valid = false; break
+        }
+        crossThresholds[r.code] = arr
+      }
+      // 增长区间（可留空 = 不启用该污染物的增长预警）
+      if (r.growthMin.trim() || r.growthMax.trim()) {
+        const min = num(r.growthMin)
+        const max = num(r.growthMax, null)
+        if (min === null || (r.growthMax.trim() !== '' && max === null) || (min != null && min < 0)) {
+          flash(`${r.label} 5小时增长区间无效`); valid = false; break
+        }
+        growthRange[r.code] = { min: min as number, max: (max == null || r.growthMax.trim() === '') ? Infinity : max }
+      }
+    }
+    if (!valid) return
+    const body: Record<string, any> = { safeMax, growthRatio: ratio }
+    if (Object.keys(crossThresholds).length) body.crossThresholds = crossThresholds
+    if (Object.keys(growthRange).length) body.growthRange = growthRange
+    try {
+      const resp = await apiFetchRaw('/api/warning-rules', { method: 'PUT', body: JSON.stringify(body) })
+      if (!resp.ok) {
+        let msg = `HTTP ${resp.status}`
+        try { const j = await resp.json(); if (j && j.error) msg = j.error } catch {}
+        flash(`保存失败：${msg}`)
+        return
+      }
+      flash('预警规则已保存并生效')
+      loadRules()
+    } catch (e) {
+      flash('保存失败：无法连接后端服务')
+    }
+  }
+
+  const resetRules = () => {
+    apiFetchRaw('/api/warning-rules', {
+      method: 'PUT',
+      body: JSON.stringify({
+        safeMax: { PM25: 35, PM10: 50, SO2: 20, NO2: 30, O3: 160, CO: 1 },
+        crossThresholds: { PM25: [75, 115, 150], PM10: [150, 250, 350], O3: [160] },
+        growthRange: { PM25: { min: 35, max: 60 }, PM10: { min: 50, max: 120 }, NO2: { min: 30, max: Infinity } },
+        growthRatio: 0.4,
+      }),
+    }).then(r => r.json()).then(() => { flash('已恢复默认阈值'); loadRules() }).catch(() => flash('重置失败'))
+  }
+
 
   const handleSave = async () => {
     if (!form.source_name) { flash('请填写数据源名称'); return }
@@ -228,7 +342,8 @@ export function GasMonitorPage() {
 
         {/* ── 预警记录 ── */}
         {tab === 'warnings' && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
                 {['监测时间', '点位', '污染物', '监测值', '预警类型', '判定依据'].map(h => (
@@ -237,7 +352,7 @@ export function GasMonitorPage() {
               </tr>
             </thead>
             <tbody>
-              {warnings.map((w, i) => (
+              {pagedWarnings.map((w, i) => (
                 <tr key={w.id} style={{ borderBottom: '1px solid rgba(0,50,100,0.15)', background: i % 2 ? 'rgba(0,20,50,0.2)' : 'transparent' }}>
                   <td style={{ padding: '8px 10px', color: '#7ab8e0', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{w.monitorTime}</td>
                   <td style={{ padding: '8px 10px', color: '#c8e6ff' }}>{w.pointName}</td>
@@ -249,69 +364,83 @@ export function GasMonitorPage() {
                   <td style={{ padding: '8px 10px', color: '#5a8aaa', fontSize: 11 }}>{w.reason}</td>
                 </tr>
               ))}
-              {warnings.length === 0 && <tr><td colSpan={6} style={{ padding: '30px 0', textAlign: 'center', color: '#3a5a70' }}>暂无预警记录</td></tr>}
+              {pagedWarnings.length === 0 && <tr><td colSpan={6} style={{ padding: '30px 0', textAlign: 'center', color: '#3a5a70' }}>暂无预警记录</td></tr>}
             </tbody>
           </table>
+          {warnings.length > WARN_PAGE_SIZE && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <button onClick={() => setWarnPage(p => Math.max(1, p - 1))} disabled={safeWarnPage <= 1} style={btnStyle(CYAN)}>‹ 上一页</button>
+              <span style={{ color: '#7ab8e0', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>第 {safeWarnPage} / {warnTotalPages} 页</span>
+              <button onClick={() => setWarnPage(p => Math.min(warnTotalPages, p + 1))} disabled={safeWarnPage >= warnTotalPages} style={btnStyle(CYAN)}>下一页 ›</button>
+              <span style={{ color: '#3a5a70', fontSize: 11, marginLeft: 'auto' }}>每页 {WARN_PAGE_SIZE} 条</span>
+            </div>
+          )}
+          </>
         )}
 
-        {/* ── 预警规则 ── */}
-        {tab === 'rules' && rules && (
+        {/* ── 预警规则（可编辑） ── */}
+        {tab === 'rules' && (
           <div>
-            <h3 style={{ color: '#c8e6ff', fontSize: 15, fontWeight: 600, marginBottom: 12 }}>污染物预警规则阈值表</h3>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ color: '#c8e6ff', fontSize: 15, fontWeight: 600, flex: 1 }}>污染物预警规则阈值（后台可配置，保存即生效）</h3>
+              <button onClick={resetRules} style={btnStyle('#8899aa')} title="恢复为内置默认阈值">恢复默认</button>
+              <button onClick={saveRules} style={{ ...btnStyle(GREEN), marginLeft: 6, fontWeight: 600 }}>保存并生效</button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <label style={{ color: '#5a8aaa', fontSize: 12 }}>5小时增长比例 ≥</label>
+              <input type="number" step="0.05" min="0.01" value={growthRatio}
+                onChange={e => setGrowthRatio(e.target.value)}
+                style={{ width: 90, padding: '5px 8px', background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff', fontSize: 13, outline: 'none' }} />
+              <span style={{ color: '#5a8aaa', fontSize: 12 }}>（如 0.4 = 40%）</span>
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
-                  {['污染物', '不预警区间', '5小时增长预警', '跨阈值预警', '固定值预警'].map(h => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#5a8aaa', fontWeight: 600 }}>{h}</th>
+                  {['污染物', '不预警上限', '5小时增长区间 (min~max)', '跨阈值 (逗号分隔，从低到高)', '固定值预警'].map(h => (
+                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#5a8aaa', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
+                </tr>
+                <tr>
+                  <td style={{ padding: '2px 10px', color: '#3a5a70', fontSize: 10 }}>单位：PM2.5/PM10/SO₂/NO₂/O₃ 为 μg/m³，CO 为 mg/m³</td>
+                  <td colSpan={4} />
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  // 从后端 /api/warning-rules 返回的数据动态生成阈值表，保证与 warning-engine.js 一致
-                  const sm = rules.safeMax || {}
-                  const cross = rules.crossThresholds || {}
-                  const growth = rules.growthRange || {}
-                  // 不预警区间文案：SO2 用严格小于，其余用 ≤
-                  const safeText = (code: string) => {
-                    if (sm[code] == null) return '—'
-                    return code === 'SO2' ? `<${sm[code]}` : `≤${sm[code]}`
-                  }
-                  // 5小时增长文案
-                  const growthText = (code: string) => {
-                    const g = growth[code]
-                    if (!g) return '无'
-                    if (g.max === Infinity || g.max == null) return `>${g.min} 且5h增长≥40%`
-                    return `${g.min}<数据≤${g.max} 且5h增长≥40%`
-                  }
-                  // 跨阈值文案（按梯度从低到高显示）
-                  const crossText = (code: string) => {
-                    const arr = cross[code]
-                    if (!arr || !arr.length) return '无'
-                    return '跨 ' + [...arr].sort((a, b) => a - b).join('/')
-                  }
-                  const rows = [
-                    { code: 'PM25', label: 'PM2.5' },
-                    { code: 'PM10', label: 'PM10' },
-                    { code: 'SO2', label: 'SO₂' },
-                    { code: 'NO2', label: 'NO₂' },
-                    { code: 'O3', label: 'O₃' },
-                    { code: 'CO', label: 'CO' },
-                  ]
-                  return rows.map((r, i) => (
+                {ruleRows.map((r, i) => {
+                  const def = RULE_ROW_DEFS.find(d => d.code === r.code)!
+                  const setRow = (patch: Partial<RuleRow>) => setRuleRows(rows => rows.map(x => x.code === r.code ? { ...x, ...patch } : x))
+                  return (
                     <tr key={r.code} style={{ borderBottom: '1px solid rgba(0,50,100,0.15)', background: i % 2 ? 'rgba(0,20,50,0.2)' : 'transparent' }}>
-                      <td style={{ padding: '8px 10px', color: '#c8e6ff', fontWeight: 600 }}>{r.label}</td>
-                      <td style={{ padding: '8px 10px', color: GREEN }}>{safeText(r.code)}</td>
-                      <td style={{ padding: '8px 10px', color: AMBER }}>{growthText(r.code)}</td>
-                      <td style={{ padding: '8px 10px', color: RED }}>{crossText(r.code)}</td>
-                      <td style={{ padding: '8px 10px', color: ORANGE }}>{r.code === 'CO' ? `>${sm.CO ?? 1}` : '无'}</td>
+                      <td style={{ padding: '8px 10px', color: '#c8e6ff', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.label} <span style={{ color: '#3a5a70', fontSize: 10 }}>({r.code})</span></td>
+                      <td style={{ padding: '6px 10px' }}>
+                        <input type="number" min="0" value={r.safeMax} onChange={e => setRow({ safeMax: e.target.value })}
+                          style={inputStyle} placeholder={r.code === 'SO2' ? '严格小于' : '≤'} />
+                      </td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {def.hasGrowth ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <input type="number" min="0" value={r.growthMin} onChange={e => setRow({ growthMin: e.target.value })} style={{ ...inputStyle, width: 70 }} placeholder="min" />
+                            ~
+                            <input type="number" min="0" value={r.growthMax} onChange={e => setRow({ growthMax: e.target.value })} style={{ ...inputStyle, width: 70 }} placeholder="空=∞" />
+                          </span>
+                        ) : <span style={{ color: '#3a5a70' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {def.hasCross ? (
+                          <input value={r.cross} onChange={e => setRow({ cross: e.target.value })}
+                            style={{ ...inputStyle, width: 180 }} placeholder="如 75,115,150" />
+                        ) : <span style={{ color: '#3a5a70' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '6px 10px', color: ORANGE, whiteSpace: 'nowrap' }}>
+                        {r.code === 'CO' ? `> ${r.safeMax || '—'}` : '无'}
+                      </td>
                     </tr>
-                  ))
-                })()}
+                  )
+                })}
               </tbody>
             </table>
             <div style={{ marginTop: 12, color: '#3a5a70', fontSize: 11, lineHeight: 1.8 }}>
-              说明：5小时增长预警以「当前 + 前4小时」窗口内最低值为基准，增长≥40% 触发；跨阈值预警要求前一小时在阈值下、当前跨到阈值上。
+              说明：5小时增长预警以「当前 + 前4小时」窗口内最低值为基准，增长 ≥ 上方的增长比例即触发；跨阈值预警要求前一小时 ≤ 阈值、当前 &gt; 阈值（填写多个阈值时从低到高，用逗号分隔）。SO₂ 为严格小于上限不预警；CO 超过上限即固定值预警。保存后立即生效于后续采集数据的判定。
             </div>
           </div>
         )}
@@ -415,4 +544,10 @@ function btnStyle(color: string): React.CSSProperties {
     padding: '3px 8px', fontSize: 11, borderRadius: 2, marginRight: 4,
     border: `1px solid ${color}44`, background: `${color}12`, color, cursor: 'pointer',
   }
+}
+
+const inputStyle: React.CSSProperties = {
+  width: 64, padding: '5px 8px', background: 'rgba(0,20,60,0.6)',
+  border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff',
+  fontSize: 12, outline: 'none', fontFamily: "'JetBrains Mono',monospace",
 }

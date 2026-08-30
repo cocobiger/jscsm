@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
+import { authFetch } from '../lib/apiFetch'
 
 export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [time, setTime] = useState(new Date())
+  const [pushStats, setPushStats] = useState<{ pushed: number; closed: number; rate: number } | null>(null)
+  const [strawCount, setStrawCount] = useState(0)
   const [weather, setWeather] = useState<{ text: string; temp: string; iconType: string; windSpeed: string; windDir: string }>({
     text: '晴',
     temp: '--',
@@ -42,6 +45,41 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
     fetchWeather()
     const weatherTimer = setInterval(fetchWeather, 10 * 60 * 1000) // 10 分钟刷新
     return () => clearInterval(weatherTimer)
+  }, [])
+
+  // 今日推送统计（走查建议 #16：跑马灯 KPI 用真实数据，不再硬编码）
+  useEffect(() => {
+    const loadPush = async () => {
+      try {
+        const res = await authFetch('/api/smart-push/today-stats')
+        if (!res.ok) return
+        const data = await res.json()
+        if (data && typeof data.pushed === 'number') setPushStats(data)
+      } catch (e) {
+        // 静默失败：保持默认占位，不阻塞顶栏
+      }
+    }
+    loadPush()
+    const pushTimer = setInterval(loadPush, 60 * 1000) // 1 分钟刷新
+    return () => clearInterval(pushTimer)
+  }, [])
+
+  // 未处置秸秆告警数（走查建议 P0-2：主屏显式秸秆告警）
+  useEffect(() => {
+    const loadStraw = async () => {
+      try {
+        const res = await authFetch('/api/warnings?limit=100&aggregate=1&lightweight=1')
+        if (!res.ok) return
+        const data = await res.json()
+        const arr = Array.isArray(data) ? data : (data.list || data.data || [])
+        const n = arr.filter((w: any) => (w.aiType || '').includes('秸秆燃烧') && w.status !== 'handled').length
+        setStrawCount(n)
+      } catch (e) { /* 静默 */ }
+    }
+    loadStraw()
+    const t = setInterval(loadStraw, 30 * 1000)
+    window.addEventListener('alerts:reload', loadStraw)
+    return () => { clearInterval(t); window.removeEventListener('alerts:reload', loadStraw) }
   }, [])
 
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -150,13 +188,13 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
             color: '#7ab8e0', fontSize: 11, lineHeight: '17px',
             paddingLeft: 10,
           }}>
-            <span style={{ marginRight: 36 }}>今日推送 8 件</span>
-            <span style={{ marginRight: 36 }}>已结案 6 件</span>
-            <span style={{ marginRight: 36 }}>处置率 75%</span>
+            <span style={{ marginRight: 36 }}>今日推送 {pushStats ? pushStats.pushed : '—'} 件</span>
+            <span style={{ marginRight: 36 }}>已结案 {pushStats ? pushStats.closed : '—'} 件</span>
+            <span style={{ marginRight: 36 }}>处置率 {pushStats ? pushStats.rate : '—'}%</span>
             <span style={{ marginRight: 36 }}>系统运行正常 · 万州区生态环境局</span>
-            <span style={{ marginRight: 36 }}>今日推送 8 件</span>
-            <span style={{ marginRight: 36 }}>已结案 6 件</span>
-            <span style={{ marginRight: 36 }}>处置率 75%</span>
+            <span style={{ marginRight: 36 }}>今日推送 {pushStats ? pushStats.pushed : '—'} 件</span>
+            <span style={{ marginRight: 36 }}>已结案 {pushStats ? pushStats.closed : '—'} 件</span>
+            <span style={{ marginRight: 36 }}>处置率 {pushStats ? pushStats.rate : '—'}%</span>
             <span style={{ marginRight: 36 }}>系统运行正常 · 万州区生态环境局</span>
           </div>
         </div>
@@ -164,6 +202,14 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
 
       {/* Right: 模式标签（参考图「大气环境管理/渝小蓝/PC端」位） + 系统状态 */}
       <div className="flex items-center gap-4" style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, lineHeight: 1 }}>🔥</span>
+          <span style={{
+            fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace",
+            color: strawCount > 0 ? '#ff6b6b' : '#5a8aaa',
+            textShadow: strawCount > 0 ? '0 0 8px rgba(255,80,80,0.6)' : 'none',
+          }}>秸秆 {strawCount}</span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div
             style={{
@@ -183,11 +229,13 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
           }}
         >
           <span
+            title="AI环境防控：整合视频监控、大气/水质监测、地图态势与 AI 告警的统一监管驾驶舱"
             style={{
               padding: '5px 14px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
               color: '#04122a',
               background: 'linear-gradient(180deg, #37c8ff, #00a8e8)',
               letterSpacing: '0.06em',
+              cursor: 'help',
             }}
           >
             AI环境防控

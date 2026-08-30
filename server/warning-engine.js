@@ -18,17 +18,17 @@
  *   CO    ≤1 不预警；>1 → fixed
  */
 
-const GROWTH_RATIO = 0.4 // 40%
+const GROWTH_RATIO_DEFAULT = 0.4 // 40%
 
 // 跨阈值梯度（从高到低），命中"前值≤阈值 且 当前>阈值"即触发
-const CROSS_THRESHOLDS = {
+const CROSS_THRESHOLDS_DEFAULT = {
   PM25: [150, 115, 75],
   PM10: [350, 250, 150],
   O3: [160],
 }
 
 // 不预警上限
-const SAFE_MAX = {
+const SAFE_MAX_DEFAULT = {
   PM25: 35,
   PM10: 50,
   SO2: 20, // <20 不预警（严格小于）
@@ -38,10 +38,44 @@ const SAFE_MAX = {
 }
 
 // 5 小时增长预警的取值区间（左开右闭）
-const GROWTH_RANGE = {
+const GROWTH_RANGE_DEFAULT = {
   PM25: { min: 35, max: 60 },
   PM10: { min: 50, max: 120 },
   NO2: { min: 30, max: Infinity },
+}
+
+// ── 运行时配置（默认=硬编码阈值；可通过 setConfig 覆盖，实现后台可配置）──
+let config = {
+  growthRatio: GROWTH_RATIO_DEFAULT,
+  crossThresholds: JSON.parse(JSON.stringify(CROSS_THRESHOLDS_DEFAULT)),
+  safeMax: { ...SAFE_MAX_DEFAULT },
+  growthRange: JSON.parse(JSON.stringify(GROWTH_RANGE_DEFAULT)),
+}
+function getConfig() { return config }
+function setConfig(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false
+  // 合并语义：只更新传入的键，未传入的保留现值（默认=硬编码阈值）
+  if (typeof cfg.growthRatio === 'number' && cfg.growthRatio > 0) config.growthRatio = cfg.growthRatio
+  if (cfg.crossThresholds && typeof cfg.crossThresholds === 'object') {
+    for (const [k, arr] of Object.entries(cfg.crossThresholds)) {
+      if (Array.isArray(arr)) config.crossThresholds[k] = arr.map(Number).filter(n => !isNaN(n)).sort((a, b) => b - a)
+    }
+  }
+  if (cfg.safeMax && typeof cfg.safeMax === 'object') {
+    for (const [k, v] of Object.entries(cfg.safeMax)) {
+      const n = Number(v)
+      if (!isNaN(n) && n >= 0) config.safeMax[k] = n
+    }
+  }
+  if (cfg.growthRange && typeof cfg.growthRange === 'object') {
+    for (const [k, g] of Object.entries(cfg.growthRange)) {
+      if (!g || typeof g !== 'object') continue
+      const min = Number(g.min), max = Number(g.max)
+      if (isNaN(min) || min < 0) continue
+      config.growthRange[k] = { min, max: (g.max == null || isNaN(max)) ? Infinity : max }
+    }
+  }
+  return true
 }
 
 const LABELS = {
@@ -74,10 +108,12 @@ function evaluate(code, value, prevHour = null, prev4Hours = []) {
   const v = Number(value)
   if (isNaN(v)) return { type: 'none', label: LABELS.none, reason: '无效数值' }
 
+  const { crossThresholds, safeMax, growthRange, growthRatio } = config
+
   // ── 跨阈值预警（优先级最高，阶跃事件）──
-  if (CROSS_THRESHOLDS[c] && prevHour != null && !isNaN(Number(prevHour))) {
+  if (crossThresholds[c] && prevHour != null && !isNaN(Number(prevHour))) {
     const pv = Number(prevHour)
-    for (const th of CROSS_THRESHOLDS[c]) {
+    for (const th of crossThresholds[c]) {
       if (pv <= th && v > th) {
         return { type: 'cross', label: LABELS.cross, reason: `${c} 由 ${pv} 跨越阈值 ${th} 升至 ${v}` }
       }
@@ -86,19 +122,19 @@ function evaluate(code, value, prevHour = null, prev4Hours = []) {
 
   // ── CO 固定值预警 ──
   if (c === 'CO') {
-    if (v > SAFE_MAX.CO) return { type: 'fixed', label: LABELS.fixed, reason: `CO=${v} 超过固定阈值 ${SAFE_MAX.CO}` }
+    if (v > safeMax.CO) return { type: 'fixed', label: LABELS.fixed, reason: `CO=${v} 超过固定阈值 ${safeMax.CO}` }
     return { type: 'none', label: LABELS.none, reason: `CO=${v} 在安全区间` }
   }
 
   // ── 5 小时增长预警 ──
-  if (GROWTH_RANGE[c]) {
-    const { min, max } = GROWTH_RANGE[c]
+  if (growthRange[c]) {
+    const { min, max } = growthRange[c]
     if (v > min && v <= max) {
       const lowest = min5h(v, prev4Hours)
       if (lowest > 0) {
         const growth = (v - lowest) / lowest
-        if (growth >= GROWTH_RATIO) {
-          return { type: 'growth5h', label: LABELS.growth5h, reason: `${c}=${v}，5小时最低值 ${lowest}，增长 ${(growth * 100).toFixed(1)}% ≥ 40%` }
+        if (growth >= growthRatio) {
+          return { type: 'growth5h', label: LABELS.growth5h, reason: `${c}=${v}，5小时最低值 ${lowest}，增长 ${(growth * 100).toFixed(1)}% ≥ ${(growthRatio * 100).toFixed(0)}%` }
         }
       }
     }
@@ -106,10 +142,10 @@ function evaluate(code, value, prevHour = null, prev4Hours = []) {
 
   // ── 不预警判定 ──
   if (c === 'SO2') {
-    if (v < SAFE_MAX.SO2) return { type: 'none', label: LABELS.none, reason: `SO₂=${v} < 20` }
+    if (v < safeMax.SO2) return { type: 'none', label: LABELS.none, reason: `SO₂=${v} < ${safeMax.SO2}` }
     return { type: 'none', label: LABELS.none, reason: `SO₂=${v}（无预警规则）` }
   }
-  if (SAFE_MAX[c] != null && v <= SAFE_MAX[c]) {
+  if (safeMax[c] != null && v <= safeMax[c]) {
     return { type: 'none', label: LABELS.none, reason: `${c}=${v} 在安全区间` }
   }
 
@@ -148,4 +184,11 @@ function evaluateRecord(record, history = {}) {
   return results
 }
 
-module.exports = { evaluate, evaluateRecord, LABELS, CROSS_THRESHOLDS, SAFE_MAX, GROWTH_RANGE }
+module.exports = {
+  evaluate, evaluateRecord, LABELS,
+  getConfig, setConfig,
+  // 兼容旧引用：默认常量（只读展示用）
+  CROSS_THRESHOLDS: CROSS_THRESHOLDS_DEFAULT,
+  SAFE_MAX: SAFE_MAX_DEFAULT,
+  GROWTH_RANGE: GROWTH_RANGE_DEFAULT,
+}

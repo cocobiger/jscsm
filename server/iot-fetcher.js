@@ -392,31 +392,95 @@ function _cacheSet(url, buf, contentType) {
   _imageCache.set(url, { buf, contentType, expire: Date.now() + IMAGE_CACHE_TTL })
 }
 
-async function proxyImage(req, res) {
-  const picUrl = req.query.url
-  if (!picUrl) return res.status(400).send('Missing url param')
-
-  // 安全检查：允许 IoTCloud 图片域名（限定路径前缀）+ 城运视频平台图片域名（路径放宽）
-  // 城运平台图片域名通过 CHENGYUN_IMG_HOSTS 配置（默认含文档示例 10.120.49.14）
+// ── 图片 URL 白名单校验（IoTCloud 限定路径前缀 + 城运平台域名放宽）──
+function validatePicUrl(picUrl) {
   const IOT_CLOUD_HOSTS = ['111.10.220.226', '172.16.8.11']
   const CHENGYUN_IMG_HOSTS = (process.env.CHENGYUN_IMG_HOSTS || '10.120.49.14').split(',').map(s => s.trim()).filter(Boolean)
   const ALLOWED_HOSTS = Array.from(new Set([...IOT_CLOUD_HOSTS, ...CHENGYUN_IMG_HOSTS]))
   try {
     const u = new URL(picUrl)
-    if (!ALLOWED_HOSTS.includes(u.hostname)) return res.status(403).send('Forbidden')
-    // IoTCloud 域名强制路径前缀；城运域名放宽（平台图片路径格式未定）
+    if (!ALLOWED_HOSTS.includes(u.hostname)) return { status: 403, msg: 'Forbidden' }
     if (IOT_CLOUD_HOSTS.includes(u.hostname)) {
       const pathOk = u.pathname.includes('/images/') || u.pathname.includes('/profile/snap/')
-      if (!pathOk) return res.status(403).send('Forbidden')
+      if (!pathOk) return { status: 403, msg: 'Forbidden' }
     }
+    return null
   } catch {
-    return res.status(400).send('Invalid URL')
+    return { status: 400, msg: 'Invalid URL' }
   }
+}
+
+// 拉取图片源站字节（公网 IP → 局域网 IP 改写，与 proxyImage 一致）
+function fetchImageBytes(picUrl) {
+  return new Promise((resolve, reject) => {
+    try {
+      const purl = new URL(picUrl)
+      const targetHost = purl.hostname === '111.10.220.226' ? '172.16.8.11' : purl.hostname
+      const req = http.get({
+        hostname: targetHost,
+        port: purl.port || 80,
+        path: purl.pathname + purl.search,
+        timeout: 15000,
+      }, (proxyRes) => {
+        if (proxyRes.statusCode !== 200) { proxyRes.resume(); return reject(new Error('源站 ' + proxyRes.statusCode)) }
+        const chunks = []
+        proxyRes.on('data', c => chunks.push(c))
+        proxyRes.on('end', () => resolve(Buffer.concat(chunks)))
+      })
+      req.on('error', reject)
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+    } catch (e) { reject(e) }
+  })
+}
+
+// ── 缩略图服务：sharp 缩放 + webp 压缩（缩略图不再加载原图，大幅降低流量）──
+let _sharp = null
+function loadSharp() {
+  if (_sharp !== null) return _sharp
+  try { _sharp = require('sharp') } catch { _sharp = false }
+  return _sharp
+}
+
+async function thumbImage(req, res) {
+  const picUrl = req.query.url
+  if (!picUrl) return res.status(400).send('Missing url param')
+  const w = Math.min(Math.max(parseInt(req.query.w) || 200, 50), 800)
+  const sharp = loadSharp()
+  if (!sharp) return proxyImage(req, res)   // 无 sharp 降级原图
+  const v = validatePicUrl(picUrl)
+  if (v) return res.status(v.status).send(v.msg)
+  const cacheKey = `thumb:${w}:${picUrl}`
+  const cached = _cacheGet(cacheKey)
+  if (cached) {
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    res.setHeader('Content-Type', 'image/webp')
+    res.setHeader('X-Cache', 'HIT')
+    return res.end(cached.buf)
+  }
+  try {
+    const buf = await fetchImageBytes(picUrl)
+    const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 70 }).toBuffer()
+    _cacheSet(cacheKey, out, 'image/webp')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    res.setHeader('Content-Type', 'image/webp')
+    res.setHeader('X-Cache', 'MISS')
+    res.setHeader('X-Thumb', `w${w}`)
+    res.end(out)
+  } catch (e) {
+    res.status(502).send('Thumb failed: ' + e.message)
+  }
+}
+
+async function proxyImage(req, res) {
+  const picUrl = req.query.url
+  if (!picUrl) return res.status(400).send('Missing url param')
+  const v = validatePicUrl(picUrl)
+  if (v) return res.status(v.status).send(v.msg)
 
   // 命中缓存：直接返回字节（带 X-Cache 头便于联调观察）
   const cached = _cacheGet(picUrl)
   if (cached) {
-    res.setHeader('Cache-Control', 'public, max-age=300')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
     res.setHeader('Content-Type', cached.contentType || 'image/jpeg')
     res.setHeader('X-Cache', 'HIT')
     return res.end(cached.buf)
@@ -437,7 +501,7 @@ async function proxyImage(req, res) {
         return res.status(proxyRes.statusCode || 502).send('Image source error')
       }
       const contentType = proxyRes.headers['content-type'] || 'image/jpeg'
-      res.setHeader('Cache-Control', 'public, max-age=300')
+      res.setHeader('Cache-Control', 'public, max-age=86400')
       res.setHeader('Content-Type', contentType)
       res.setHeader('X-Cache', 'MISS')
       // 边转发边收集字节，结束后再写入缓存
@@ -486,6 +550,7 @@ function registerRoutes(app) {
 
   // 图片代理
   app.get('/api/iot-image', proxyImage)
+  app.get('/api/thumb', thumbImage)
 
   // 按通道分类的 AI 历史分析存档
   app.get('/api/iot-analysis/archive', (req, res) => {

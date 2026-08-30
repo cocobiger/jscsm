@@ -64,6 +64,12 @@ export function SmsWarningPage() {
   const [blacklist, setBlacklist] = useState<BlacklistItem[]>([])
   const [toast, setToast] = useState('')
   const [busy, setBusy] = useState('')
+  // 发送历史分页（每页 100 条）
+  const HISTORY_PAGE_SIZE = 100
+  const [histPage, setHistPage] = useState(1)
+  const histTotalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE))
+  const safeHistPage = Math.min(histPage, histTotalPages)
+  const pagedHistory = history.slice((safeHistPage - 1) * HISTORY_PAGE_SIZE, safeHistPage * HISTORY_PAGE_SIZE)
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3500) }
   const hasKey = !!getApiKey()
@@ -418,7 +424,7 @@ export function SmsWarningPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr><th style={cellHead}>时间</th><th style={cellHead}>触发</th><th style={cellHead}>内容</th><th style={cellHead}>收信</th><th style={cellHead}>状态</th></tr></thead>
               <tbody>
-                {history.map(h => (
+                {pagedHistory.map(h => (
                   <tr key={h.id}>
                     <td style={{ ...cell, fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap' }}>{new Date(h.time).toLocaleString('zh-CN', { hour12: false })}</td>
                     <td style={cell}><span style={{ color: h.trigger === 'manual' ? CYAN : PURPLE }}>{TRIGGER_LABELS[h.trigger === 'auto-warning' ? 'air' : h.trigger] || h.trigger}</span></td>
@@ -430,9 +436,18 @@ export function SmsWarningPage() {
                     </td>
                   </tr>
                 ))}
-                {!history.length && <tr><td colSpan={5} style={{ ...cell, textAlign: 'center', color: '#3a5a70', padding: 30 }}>暂无发送记录</td></tr>}
+                {!pagedHistory.length && <tr><td colSpan={5} style={{ ...cell, textAlign: 'center', color: '#3a5a70', padding: 30 }}>暂无发送记录</td></tr>}
               </tbody>
             </table>
+            {/* 历史分页 */}
+            {history.length > HISTORY_PAGE_SIZE && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                <button onClick={() => setHistPage(p => Math.max(1, p - 1))} disabled={safeHistPage <= 1} style={btn(CYAN, 'sm')}>‹ 上一页</button>
+                <span style={{ color: '#7ab8e0', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>第 {safeHistPage} / {histTotalPages} 页</span>
+                <button onClick={() => setHistPage(p => Math.min(histTotalPages, p + 1))} disabled={safeHistPage >= histTotalPages} style={btn(CYAN, 'sm')}>下一页 ›</button>
+                <span style={{ color: '#3a5a70', fontSize: 11, marginLeft: 'auto' }}>每页 {HISTORY_PAGE_SIZE} 条</span>
+              </div>
+            )}
           </div>
         )}
       </div>

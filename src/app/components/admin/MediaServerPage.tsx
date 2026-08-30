@@ -26,7 +26,7 @@ interface ZlmConfig {
 
 const EMPTY: ZlmConfig = {
   name: 'media', zlmHost: '', domain: '', scheme: 'http',
-  zlmPort: 8080, httpsPort: 443, rtspPort: 554, rtmpPort: 1935,
+  zlmPort: 6080, httpsPort: 4443, rtspPort: 5540, rtmpPort: 1936,
   hookUrl: '', recordPort: 0, rtpMode: 'single', rtpPortRange: '', rtpPort: 0,
   autoConfig: true, configured: false,
 }
@@ -156,9 +156,9 @@ export function MediaServerPage() {
               </select>
             </Field>
             <TextField label="HookUrl" value={cfg.hookUrl} onChange={v => set({ hookUrl: v })} placeholder="177.7.0.13:8080" mono />
-            <TextField label="Http端口" required value={cfg.zlmPort} onChange={v => set({ zlmPort: Number(v) || 0 })} placeholder="6082" mono />
-            <TextField label="Https端口" required value={cfg.httpsPort} onChange={v => set({ httpsPort: Number(v) || 0 })} placeholder="8443" mono />
-            <TextField label="Rtsp端口" required value={cfg.rtspPort} onChange={v => set({ rtspPort: Number(v) || 0 })} placeholder="554" mono />
+            <TextField label="Http端口" required value={cfg.zlmPort} onChange={v => set({ zlmPort: Number(v) || 0 })} placeholder="6080" mono />
+            <TextField label="Https端口" required value={cfg.httpsPort} onChange={v => set({ httpsPort: Number(v) || 0 })} placeholder="4443" mono />
+            <TextField label="Rtsp端口" required value={cfg.rtspPort} onChange={v => set({ rtspPort: Number(v) || 0 })} placeholder="5540" mono />
           </div>
 
           {/* 右列 */}
@@ -184,7 +184,7 @@ export function MediaServerPage() {
             ) : (
               <TextField label="收流端口" value={cfg.rtpPort} onChange={v => set({ rtpPort: Number(v) || 0 })} placeholder="50000" mono />
             )}
-            <TextField label="Rtmp端口" required value={cfg.rtmpPort} onChange={v => set({ rtmpPort: Number(v) || 0 })} placeholder="1935" mono />
+            <TextField label="Rtmp端口" required value={cfg.rtmpPort} onChange={v => set({ rtmpPort: Number(v) || 0 })} placeholder="1936" mono />
             <TextField label="录像管理端口" value={cfg.recordPort} onChange={v => set({ recordPort: Number(v) || 0 })} placeholder="6081（0=不启用）" mono />
           </div>
         </div>

@@ -168,6 +168,57 @@ function init(dataDir, logger) {
   // 键值表：存 icon_config 这类单对象配置
   db.exec('CREATE TABLE IF NOT EXISTS kv_config ( k TEXT PRIMARY KEY, v_json TEXT );')
 
+  // ── 秸秆燃烧复核样本回流（边工作边训练的数据管道）──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS straw_samples (
+      id          TEXT PRIMARY KEY,
+      warning_id  TEXT,
+      stream_id   TEXT,
+      verdict     TEXT,              -- true(真警) / false(误报) / miss(漏报)
+      reason      TEXT,              -- 误报归因（烟囱/晨雾/扬尘/反光）
+      reviewer    TEXT,
+      created_at  TEXT,
+      data_json   TEXT
+    );
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_straw_samples_verdict ON straw_samples(verdict);')
+
+  // ── 秸秆责任映射表（行政区划→责任单位→微信群）──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS area_responsibility (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      district  TEXT DEFAULT '万州区',
+      town      TEXT NOT NULL,
+      community TEXT DEFAULT '',
+      unit      TEXT,
+      person    TEXT,
+      phone     TEXT,
+      webhook   TEXT,
+      remark    TEXT,
+      UNIQUE(town, community)
+    );
+  `)
+
+  // ── 行政边界表（乡镇 Polygon，来源：官方 geojson 导入 / 后台地图编辑）──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS area_boundary (
+      town          TEXT PRIMARY KEY,   -- 乡镇/街道名
+      division_code TEXT DEFAULT '',
+      ring          TEXT NOT NULL,      -- JSON [[lng,lat],...] 外环顶点
+      source        TEXT DEFAULT 'imported',  -- imported / manual
+      updated_at    TEXT
+    );
+  `)
+  // 边界版本快照（每次导入/批量变更前自动备份，支持回滚）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS boundary_snapshot (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      note          TEXT,
+      boundary_json TEXT NOT NULL,      -- [{town,division_code,ring}]
+      created_at    TEXT
+    );
+  `)
+
   // ── 政务模块数据（P2 驾驶舱：管理后台 Excel 导入，每模块一行 JSON payload）──
   db.exec(`
     CREATE TABLE IF NOT EXISTS gov_modules (
@@ -1376,6 +1427,155 @@ function updateWarningStatus(id, status, handledBy) {
   db.prepare('UPDATE warnings SET status = ?, data_json = ? WHERE id = ?').run(w.status, JSON.stringify(w), id)
   return w
 }
+// ── 秸秆燃烧告警人工复核（真警/误报/漏报补标）──
+function updateWarningReview(id, verdict, reason, reviewer) {
+  const w = getWarning(id)
+  if (!w) return null
+  w.review = verdict               // 'true' | 'false' | 'miss'
+  w.reviewReason = reason || ''
+  w.reviewedBy = reviewer || '值守人员'
+  w.reviewedAt = new Date().toISOString()
+  db.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(w), id)
+  // 样本回流（边工作边训练数据管道）
+  const sample = {
+    id: `sample-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    warning_id: id,
+    stream_id: w.streamId || '',
+    verdict,
+    reason: reason || '',
+    reviewer: reviewer || '值守人员',
+    created_at: new Date().toISOString(),
+    data_json: JSON.stringify(w),
+  }
+  db.prepare(
+    'INSERT OR REPLACE INTO straw_samples (id, warning_id, stream_id, verdict, reason, reviewer, created_at, data_json) VALUES (?,?,?,?,?,?,?,?)'
+  ).run(sample.id, sample.warning_id, sample.stream_id, sample.verdict, sample.reason, sample.reviewer, sample.created_at, sample.data_json)
+  return w
+}
+function listStrawSamples({ verdict, limit } = {}) {
+  let sql = 'SELECT id, warning_id, stream_id, verdict, reason, reviewer, created_at, data_json FROM straw_samples'
+  const args = []
+  const where = []
+  if (verdict) { where.push('verdict = ?'); args.push(verdict) }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ')
+  sql += ' ORDER BY rowid DESC'
+  if (limit) { sql += ' LIMIT ?'; args.push(Number(limit)) }
+  return db.prepare(sql).all(...args).map(r => {
+    const row = { ...r }
+    try { row.data = JSON.parse(r.data_json) } catch {}
+    delete row.data_json
+    return row
+  })
+}
+// ── 秸秆责任映射（行政区划→责任单位→微信群）──
+function importAreaResponsibilities(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return 0
+  const upsert = db.prepare(`
+    INSERT INTO area_responsibility (district, town, community, unit, person, phone, webhook, remark)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(town, community) DO UPDATE SET
+      unit=excluded.unit, person=excluded.person, phone=excluded.phone,
+      webhook=excluded.webhook, remark=excluded.remark
+  `)
+  db.exec('BEGIN')
+  try {
+    for (const r of rows) {
+      if (!r.town) continue
+      upsert.run(
+        r.district || '万州区', r.town, r.community || '',
+        r.unit || '', r.person || '', r.phone || '', r.webhook || '', r.remark || '',
+      )
+    }
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return rows.filter(r => r.town).length
+}
+function listAreaResponsibilities() {
+  const rows = db.prepare(
+    'SELECT id, district, town, community, unit, person, phone, webhook, remark FROM area_responsibility ORDER BY town, community'
+  ).all()
+  return rows
+}
+/** 删除一条责任映射（按 id） */
+function deleteAreaResponsibility(id) {
+  const r = db.prepare('DELETE FROM area_responsibility WHERE id = ?').run(id)
+  return r.changes > 0
+}
+
+// ── 行政边界（area_boundary）──
+/** ring 归一：兼容已 JSON 字符串化的 ring（防双重序列化） */
+function normRing(ring) {
+  if (typeof ring === 'string') {
+    try { return JSON.parse(ring) } catch { return [] }
+  }
+  return ring
+}
+/** 当前边界全量（town, division_code, ring, source, updated_at） */
+function listBoundaries() {
+  return db.prepare('SELECT town, division_code, ring, source, updated_at FROM area_boundary').all()
+}
+/** 全表替换边界（导入），导入前自动备份当前版本 → boundary_snapshot */
+function replaceBoundaries(rows, note = '导入') {
+  db.exec('BEGIN')
+  try {
+    // 快照当前版本
+    const cur = db.prepare('SELECT town, division_code, ring FROM area_boundary').all()
+    if (cur.length) {
+      db.prepare('INSERT INTO boundary_snapshot (note, boundary_json, created_at) VALUES (?,?,?)')
+        .run(`导入前备份(${cur.length} 镇)`, JSON.stringify(cur), new Date().toISOString())
+    }
+    // 清空 + 插入
+    db.prepare('DELETE FROM area_boundary').run()
+    const ins = db.prepare('INSERT OR REPLACE INTO area_boundary (town, division_code, ring, source, updated_at) VALUES (?,?,?,?,?)')
+    for (const r of rows) {
+      if (!r.town) continue
+      ins.run(r.town, r.division_code || '', JSON.stringify(normRing(r.ring)), r.source || 'imported', new Date().toISOString())
+    }
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return rows.length
+}
+/** 单乡镇更新边界（P2 地图编辑用） */
+function updateBoundaryTown(town, ring, source = 'manual') {
+  ring = normRing(ring)
+  if (!town || !Array.isArray(ring) || ring.length < 3) throw new Error('无效边界（顶点数 ≥3）')
+  const r = db.prepare('INSERT OR REPLACE INTO area_boundary (town, division_code, ring, source, updated_at) VALUES (?,?,?,?,?)')
+    .run(town, '', JSON.stringify(ring), source, new Date().toISOString())
+  return r.changes > 0
+}
+/** 边界版本快照列表 */
+function listBoundarySnapshots() {
+  return db.prepare('SELECT id, note, created_at, length(boundary_json) AS bytes FROM boundary_snapshot ORDER BY id DESC LIMIT 20').all()
+}
+/** 回滚到指定快照 */
+function restoreBoundarySnapshot(id) {
+  const s = db.prepare('SELECT boundary_json FROM boundary_snapshot WHERE id = ?').get(id)
+  if (!s) throw new Error('快照不存在')
+  const rows = JSON.parse(s.boundary_json)
+  replaceBoundaries(rows, '回滚到快照 #' + id)
+  return rows.length
+}
+/** 按乡镇/街道 + 社区/村查找责任单位（community 优先，无则用乡镇兜底） */
+function findResponsibility(town, community) {
+  if (!town) return null
+  if (community) {
+    const r = db.prepare(
+      'SELECT * FROM area_responsibility WHERE town = ? AND community = ?'
+    ).get(town, community)
+    if (r) return r
+  }
+  return db.prepare(
+    'SELECT * FROM area_responsibility WHERE town = ? AND community = ?'
+  ).get(town, '') || db.prepare(
+    'SELECT * FROM area_responsibility WHERE town = ?'
+  ).get(town) || null
+}
 // 批量标记全部未处理为已处理，返回处理条数
 function handleAllWarnings(handledBy) {
   const rows = db.prepare("SELECT id, data_json FROM warnings WHERE status != 'handled'").all()
@@ -1573,7 +1773,7 @@ function deletePushRule(id) {
 // lightweight=true 时聚合对象不返回 members（供实时轮询降低 payload），点详情时用 by-ids 按需拉取
 function queryWarningsAggregated({ limit, lightweight } = {}) {
   const rawRows = db.prepare(
-    "SELECT id, created_at, data_json FROM warnings WHERE status='pending' AND json_extract(data_json,'$.source') IN ('iotcloud','chengyun-platform')"
+    "SELECT id, created_at, data_json FROM warnings WHERE status='pending' AND json_extract(data_json,'$.source') IN ('iotcloud','chengyun-platform','straw-engine')"
   ).all()
   const rules = listPushRules().filter(r => r.enabled)
   if (rules.length === 0) {
@@ -1600,9 +1800,12 @@ function queryWarningsAggregated({ limit, lightweight } = {}) {
     const channelName = cid ? (getIotChannel(cid)?.channelName || cid) : '全部通道'
     const maxLevel = inWindow.reduce((m, it) => Math.max(m, Number(it.w.level) || 0), 0)
     const latestTime = inWindow.reduce((m, it) => it.created_at > m ? it.created_at : m, '')
+    // 组处理状态：全部 handled → handled；否则 pending（前端状态色差）
+    const allHandled = inWindow.length > 0 && inWindow.every(it => (it.w && it.w.status) === 'handled')
     const agg = {
       isAggregate: true, ruleId: rule.id, ruleName: rule.name, channelSipId: cid, aiType: ai, channelName,
       windowHours: rule.timeWindowHours, threshold: rule.threshold, count: inWindow.length, maxLevel, latestTime,
+      status: allHandled ? 'handled' : (inWindow.some(it => (it.w && it.w.status) === 'handled') ? 'partial' : 'pending'),
       memberIds: inWindow.map(it => it.id),
       // 轻量级轮询也附带一张预览图（取组内首条含 picUrl 的成员），让前端聚合卡片能显示真实图片
       previewPicUrl: (inWindow.find(it => it.w && it.w.picUrl)?.w.picUrl) || null,
@@ -1970,6 +2173,9 @@ module.exports = {
   query, queryRange, distinctPoints, counts, getDb, rowToRecord,
   // 预警
   insertWarning, queryWarnings, getWarning, updateWarningStatus, handleAllWarnings,
+  updateWarningReview, listStrawSamples,
+  importAreaResponsibilities, listAreaResponsibilities, deleteAreaResponsibility, findResponsibility,
+  listBoundaries, replaceBoundaries, updateBoundaryTown, listBoundarySnapshots, restoreBoundarySnapshot,
   upsertWarningFromChengyun, setWarningVideoUrl,
   // AI 类型主数据 + 推送规则
   listAiTypes, createAiType, deleteAiType,

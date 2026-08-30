@@ -122,6 +122,11 @@ export function AirQualityDataPage() {
   const [lastSimPushed, setLastSimPushed] = useState<string | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
+  // 分页（每页 100 条）
+  const PAGE_SIZE = 100
+  const [page, setPage] = useState(1)
+  useEffect(() => { setPage(1) }, [filterStation, filterDate])
+
   const filtered = useMemo(() => {
     return airQualityData.filter(r => {
       if (filterStation !== '全部' && r.station !== filterStation) return false
@@ -143,6 +148,14 @@ export function AirQualityDataPage() {
     }, null)
     return { total: airQualityData.length, todayCount: todayRecs.length, lastPush: last?.pushedAt ?? null }
   }, [airQualityData])
+
+  // 分页切片
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pagedData = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, safePage])
 
   const handlePush = () => {
     if (!form.station || !form.date) return
@@ -374,10 +387,10 @@ export function AirQualityDataPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (
+              {pagedData.length === 0 && (
                 <tr><td colSpan={13} style={{ padding: '40px 0', textAlign: 'center', color: '#3a5a70' }}>暂无匹配数据</td></tr>
               )}
-              {filtered.map((r, i) => {
+              {pagedData.map((r, i) => {
                 const aColor = aqiColor(r.aqi)
                 const isToday = r.date === todayStr()
                 return (
@@ -424,6 +437,41 @@ export function AirQualityDataPage() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination bar */}
+        <div style={{ padding: '8px 20px', borderTop: '1px solid rgba(0,80,150,0.2)', background: 'rgba(0,10,30,0.5)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            style={{ ...btn(CYAN, 'sm'), opacity: safePage <= 1 ? 0.4 : 1, cursor: safePage <= 1 ? 'default' : 'pointer' }}
+          >‹ 上一页</button>
+          <span style={{ color: '#7ab8e0', fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
+            第 {safePage} / {totalPages} 页
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            style={{ ...btn(CYAN, 'sm'), opacity: safePage >= totalPages ? 0.4 : 1, cursor: safePage >= totalPages ? 'default' : 'pointer' }}
+          >下一页 ›</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#3a5a70', fontSize: 11 }}>跳至</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={safePage}
+              onChange={e => {
+                const v = Number(e.target.value)
+                if (v >= 1 && v <= totalPages) setPage(v)
+              }}
+              style={{ ...inputStyle, width: 56, padding: '2px 6px', textAlign: 'center', fontFamily: "'JetBrains Mono', monospace" }}
+            />
+            <span style={{ color: '#3a5a70', fontSize: 11 }}>页</span>
+          </div>
+          <span style={{ marginLeft: 'auto', color: '#3a5a70', fontSize: 11 }}>
+            每页 {PAGE_SIZE} 条 · 共 <span style={{ color: CYAN, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> 条
+          </span>
         </div>
 
         {/* Footer info */}

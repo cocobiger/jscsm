@@ -66,3 +66,11 @@ server/*.bak[0-9]
 # 杂项截图
 *.workbuddyclipboard*
 infra/tianditu-downloader/tianditu/
+server/monitor.env
+
+# 临时诊断/演示产物（不提交）
+downloads/
+_audit_*.png
+_procs.txt
+_lockdiag.txt
+_dlstatus.txt

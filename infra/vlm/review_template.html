@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --line: #e3e6ea;
+    --text: #1f2329; --sub: #646a73;
+    --blue: #2b6de8; --blue-bg: #eaf1fe;
+    --green: #1f9e63; --green-bg: #e8f7f0;
+    --red: #d63031; --red-bg: #fdecec;
+    --amber: #b7791f; --amber-bg: #fdf3e0;
+    --gray-bg: #f0f1f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* 头部 */
+  header { margin-bottom: 16px; }
+  h1 { font-size: 20px; font-weight: 700; }
+  .sub { color: var(--sub); font-size: 13px; margin-top: 4px; }
+  .tip {
+    background: var(--blue-bg); border-left: 3px solid var(--blue);
+    padding: 10px 14px; border-radius: 6px; font-size: 13px;
+    color: #22407a; margin: 12px 0;
+  }
+
+  /* 统计条 */
+  .stats {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+    position: sticky; top: 8px; z-index: 20;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .stat { flex: 1; min-width: 90px; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 700; }
+  .stat .lab { font-size: 12px; color: var(--sub); }
+  .stat.total .num { color: var(--blue); }
+  .stat.smoke .num { color: var(--red); }
+  .stat.no .num { color: var(--green); }
+  .stat.unk .num { color: var(--amber); }
+  .bar { width: 100%; height: 5px; background: var(--gray-bg); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .bar > i { display: block; height: 100%; background: var(--blue); transition: width .3s; }
+
+  /* 帧卡片 */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; margin-bottom: 16px; overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .idx {
+    background: var(--blue); color: #fff; font-weight: 700;
+    border-radius: 5px; padding: 1px 8px; font-size: 13px;
+  }
+  .meta { color: var(--sub); }
+  .badge { border-radius: 4px; padding: 1px 7px; font-size: 12px; }
+  .badge.fire0 { background: var(--gray-bg); color: var(--sub); }
+  .badge.fire1 { background: var(--amber-bg); color: var(--amber); }
+  .badge.fire2 { background: var(--red-bg); color: var(--red); }
+  .badge.night { background: #1a1a1a; color: #ffd54f; border: 1px solid #ffd54f; }
+  .vlm { color: var(--sub); font-size: 12px; margin-left: auto; }
+  .card.night { border-color: #ffd54f; box-shadow: 0 0 0 1px #ffd54f inset; }
+  .card-body { padding: 12px 14px; }
+  .shot {
+    display: block; width: 100%; border-radius: 6px; cursor: zoom-in;
+    border: 1px solid var(--line); background: #000;
+  }
+  .judge { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 90px; padding: 8px 0; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--card);
+    font-size: 14px; cursor: pointer; color: var(--text);
+    transition: all .15s;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn.smoke.on { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn.no.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.unk.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .note {
+    width: 100%; margin-top: 8px; padding: 7px 10px;
+    border: 1px solid var(--line); border-radius: 6px; font-size: 13px;
+    outline: none; resize: vertical; min-height: 34px;
+  }
+  .note:focus { border-color: var(--blue); }
+
+  /* 底部工具条 */
+  .tools {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,.95); border-top: 1px solid var(--line);
+    padding: 10px 16px; display: flex; gap: 10px; justify-content: center;
+    z-index: 30; backdrop-filter: blur(6px);
+  }
+  .tools .btn2 {
+    padding: 9px 22px; border-radius: 6px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+  }
+  .btn2.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn2.warn { color: var(--red); }
+  .btn2:hover { opacity: .9; }
+
+  /* lightbox */
+  #lb {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    z-index: 100; align-items: center; justify-content: center; flex-direction: column;
+  }
+  #lb.show { display: flex; }
+  #lb img { max-width: 96vw; max-height: 84vh; border-radius: 4px; }
+  #lb .cap { color: #ccc; font-size: 13px; margin-top: 10px; }
+  #lb .close { position: absolute; top: 14px; right: 20px; color: #fff; font-size: 28px; cursor: pointer; }
+
+  @media (max-width: 480px) {
+    .judge .btn { min-width: 76px; font-size: 13px; }
+    h1 { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>{{TITLE}}</h1>
+    <div class="sub">VLM（Qwen2.5-VL-3B）在 400 帧探针帧中判出 <b style="color:var(--red)">41 帧有烟</b>，人工逐帧复核确认，作为真实航拍正样本入 M3 训练集。</div>
+    <div class="tip">
+      判断要点：目标场景为 <b>1km 左右远距离细微烟</b>——呈灰白/淡蓝色烟柱或烟团，边缘柔和、随时间缓慢飘散；
+      注意区分 <b>云影/雾气/炊烟/房屋白顶/夜间灯火</b>（这些不是秸秆烟）。
+      标 <span class="badge night">夜场</span> 的帧是夜间拍摄（亮度&lt;25），可信度低，建议标"不确定"或"无烟"——除非能明确看到烟形。拿不准的标"不确定"。已选结果自动保存，可随时刷新续改。
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat total"><div class="num" id="sTotal">0</div><div class="lab">总帧数</div></div>
+    <div class="stat done"><div class="num" id="sDone">0</div><div class="lab">已复核</div></div>
+    <div class="stat smoke"><div class="num" id="sSmoke">0</div><div class="lab">确认有烟</div></div>
+    <div class="stat no"><div class="num" id="sNo">0</div><div class="lab">改判无烟</div></div>
+    <div class="stat unk"><div class="num" id="sUnk">0</div><div class="lab">不确定</div></div>
+    <div class="bar"><i id="sBar" style="width:0%"></i></div>
+  </div>
+
+  <div id="cards"></div>
+
+  <div style="color:var(--sub);font-size:12px;text-align:center;margin-top:10px">
+    如需视频上下文：驾驶舱 → 司空设备 → 媒体归档 → 直播录制，按录制目录名搜索对应片段。
+  </div>
+</div>
+
+<div class="tools">
+  <button class="btn2" onclick="allSmoke()">全部标为有烟</button>
+  <button class="btn2" onclick="exportResult()">导出复核结果</button>
+  <button class="btn2 warn" onclick="resetAll()">重置</button>
+</div>
+
+<div id="lb" onclick="this.classList.remove('show')">
+  <img id="lbImg" src="" alt="">
+  <div class="cap" id="lbCap"></div>
+  <div class="close">×</div>
+</div>
+
+<script>
+const DATA = {{DATA_JSON}};
+const LS_KEY = 'v5review_v1';
+const frames = DATA.frames;
+
+// state: { "path": "smoke" | "no" | "unk", "note": "..." }
+let state = {};
+try { state = JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { state = {}; }
+
+function getDefault(path) { return state[path] && state[path].judge ? state[path] : { judge: 'smoke', note: '' }; }
+
+function renderCards() {
+  const box = document.getElementById('cards');
+  box.innerHTML = '';
+  frames.forEach(f => {
+    const st = getDefault(f.path);
+    const card = document.createElement('div');
+    card.className = 'card';
+    const fireCls = f.fire === 0 ? 'fire0' : (f.fire <= 5 ? 'fire1' : 'fire2');
+    const isNight = f.bright >= 0 && f.bright < 25;
+    card.className = 'card' + (isNight ? ' night' : '');
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="idx">#${String(f.idx).padStart(2,'0')}</span>
+        <span class="meta">录制 ${f.dir} · ${f.file}</span>
+        <span class="badge ${fireCls}">v3 fire 响应 ${f.fire} 次</span>
+        ${isNight ? `<span class="badge night">夜场(亮度 ${f.bright})</span>` : `<span class="badge fire0">亮度 ${f.bright}</span>`}
+        <span class="vlm">VLM: ${f.vlm}</span>
+      </div>
+      <div class="card-body">
+        <img class="shot" src="data:image/jpeg;base64,${f.b64}"
+             alt="${f.dir}/${f.file}" onclick="openLb('${f.dir}/${f.file}')">
+        <div class="judge">
+          <button class="btn smoke ${st.judge==='smoke'?'on':''}" onclick="setJudge('${f.path}','smoke')">有烟</button>
+          <button class="btn no ${st.judge==='no'?'on':''}" onclick="setJudge('${f.path}','no')">无烟</button>
+          <button class="btn unk ${st.judge==='unk'?'on':''}" onclick="setJudge('${f.path}','unk')">不确定</button>
+        </div>
+        <textarea class="note" placeholder="备注（可选，如：烟在画面右上角 / 疑似云影）"
+          onchange="setNote('${f.path}', this.value)">${st.note || ''}</textarea>
+      </div>`;
+    box.appendChild(card);
+  });
+  refreshStats();
+}
+
+function setJudge(path, judge) {
+  const st = state[path] || { judge: 'smoke', note: '' };
+  st.judge = judge;
+  state[path] = st;
+  save();
+  renderCards();
+}
+
+function setNote(path, note) {
+  const st = state[path] || { judge: 'smoke', note: '' };
+  st.note = note;
+  state[path] = st;
+  save();
+}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+function refreshStats() {
+  let done = 0, smoke = 0, no = 0, unk = 0;
+  frames.forEach(f => {
+    const st = state[f.path];
+    if (st) { done++; if (st.judge === 'smoke') smoke++; if (st.judge === 'no') no++; if (st.judge === 'unk') unk++; }
+  });
+  document.getElementById('sTotal').textContent = frames.length;
+  document.getElementById('sDone').textContent = done;
+  document.getElementById('sSmoke').textContent = smoke;
+  document.getElementById('sNo').textContent = no;
+  document.getElementById('sUnk').textContent = unk;
+  document.getElementById('sBar').style.width = (done / frames.length * 100) + '%';
+}
+
+function allSmoke() {
+  if (!confirm('将所有帧标为"有烟"？未复核的帧会一并标记。')) return;
+  frames.forEach(f => {
+    const st = state[f.path] || { judge: 'smoke', note: '' };
+    st.judge = 'smoke';
+    state[f.path] = st;
+  });
+  save(); renderCards();
+}
+
+function resetAll() {
+  if (!confirm('清空全部复核结果？')) return;
+  state = {}; localStorage.removeItem(LS_KEY); renderCards();
+}
+
+function exportResult() {
+  const out = frames.map(f => {
+    const st = state[f.path] || { judge: 'smoke', note: '' };
+    return { idx: f.idx, dir: f.dir, file: f.file, path: f.path, judge: st.judge, note: st.note || '', vlm: f.vlm, fire: f.fire };
+  });
+  const blob = new Blob([JSON.stringify({ frames: out, exportedAt: new Date().toISOString() }, null, 1)],
+    { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'v5_review_result.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  alert('已导出 v5_review_result.json（下载目录查看）。\n把文件发给我即可进入 M3 组集。');
+}
+
+function openLb(cap) {
+  // 从第一张匹配的图取数据
+  const f = frames.find(x => x.dir + '/' + x.file === cap);
+  if (!f) return;
+  document.getElementById('lbImg').src = 'data:image/jpeg;base64,' + f.b64;
+  document.getElementById('lbCap').textContent = cap + '（点击任意处关闭）';
+  document.getElementById('lb').classList.add('show');
+}
+
+renderCards();
+</script>
+</body>
+</html>

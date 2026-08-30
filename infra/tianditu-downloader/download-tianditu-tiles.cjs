@@ -14,12 +14,26 @@ const fs    = require('fs');
 const path  = require('path');
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const TMAP_KEY    = process.argv[2] || process.env.TMAP_KEY || '0b1c7dc07167064978ace71a3bd5914b';
+// 多 Key 轮换池：按用户给定顺序排列，每条额度用完（429 熔断）自动切换下一个，
+// 全部 Key 都触发限流才退出本轮。argv[2]/env 提供的 Key 优先进池（去重）。
+const KEY_POOL = [
+  '9d1db3cee7ef547b0b1f4a3edeacd333',
+  '28c06e40850a4aaca2ac1cc5210b3d78',
+  'f5dfa42b19f9a3869fa2e082c7b6370f',
+  'dcd638fbb164fda5a56808a34753d55c',
+];
+const KEYS = (() => {
+  const extra = process.argv[2] || process.env.TMAP_KEY;
+  const list = extra && !KEY_POOL.includes(extra) ? [extra] : [];
+  return list.concat(KEY_POOL);
+})();
+let keyIndex = 0;          // 当前使用第几个 Key
+let TMAP_KEY   = KEYS[0];
 const CENTER_LAT  = 30.807694;   // Wanzhou, Chongqing (WGS-84)
 const CENTER_LNG  = 108.396809;
 const ZOOM_MIN    = 10;
 const ZOOM_MAX    = 16;
-const RADIUS_KM   = 8; // 8km radius
+const RADIUS_KM   = 48; // 48km radius（2026-08-05 19:05 由 16km 扩大，覆盖万州全域及周边，进一步消除边缘空白）
 
 // 天地图图层
 // vec_w  = 矢量底图 (WGS-84), cva_w = 矢量标注 (WGS-84)
@@ -47,8 +61,14 @@ function radiusInTiles(z) {
   return Math.ceil(tilesPerKm * RADIUS_KM);
 }
 
-// ── Download single tile ────────────────────────────────────────────────────
-function downloadTile(layerId, z, x, y, url) {
+// ── Download single tile (一次尝试) ────────────────────────────────────────
+// 429 快速熔断：连续 RATE_LIMIT_TRIGGER 次 429 立即终止整轮下载（Key 级限流，
+// 继续重试只会空转浪费窗口；下次运行断点续传）
+let consecutive429 = 0;
+const RATE_LIMIT_TRIGGER = 3;
+let rateLimited = false; // 置 true 后所有后续瓦片立即放弃
+function downloadOnce(layerId, z, x, y, url) {
+  if (rateLimited) return Promise.resolve(false);
   return new Promise((resolve) => {
     const dir  = path.join(__dirname, 'tianditu', layerId, String(z), String(x));
     const file = path.join(dir, `${y}.png`);
@@ -62,15 +82,23 @@ function downloadTile(layerId, z, x, y, url) {
       timeout: 15000,
       headers: { 'User-Agent': 'GasTrace/1.0' },
     }, (res) => {
-      // 天地图 403 = Key 无效 or 超过额度
+      // 天地图 403 = Key 无效 or 超过额度（重试无意义，直接失败）
       if (res.statusCode !== 200) {
         res.resume();
         if (res.statusCode === 403) {
           console.error(`  [ERROR] TMAP Key invalid or quota exceeded (403)`);
         }
+        if (res.statusCode === 429) {
+          consecutive429++;
+          if (consecutive429 >= RATE_LIMIT_TRIGGER) {
+            rateLimited = true;
+            console.error(`  [RATE-LIMIT] ${RATE_LIMIT_TRIGGER}+ consecutive 429 on key ${TMAP_KEY.substring(0, 8)}… → switching/aborting`);
+          }
+        }
         resolve(false);
         return;
       }
+      consecutive429 = 0;
 
       const ct = res.headers['content-type'] || '';
       if (!ct.includes('image')) {
@@ -83,12 +111,35 @@ function downloadTile(layerId, z, x, y, url) {
       const ws = fs.createWriteStream(file);
       res.pipe(ws);
       ws.on('finish', () => { ws.close(); resolve(true); });
-      ws.on('error', () => { fs.unlinkSync(file); resolve(false); });
+      ws.on('error', () => { try { fs.unlinkSync(file) } catch {} resolve(false); });
     });
 
     req.on('error', () => resolve(false));
     req.on('timeout', () => { req.destroy(); resolve(false); });
   });
+}
+
+// ── Key 轮换：当前 Key 熔断后切换到下一个，全部用完返回 false ──
+function switchKey() {
+  if (keyIndex + 1 >= KEYS.length) return false;
+  keyIndex++;
+  TMAP_KEY = KEYS[keyIndex];
+  consecutive429 = 0;
+  rateLimited = false;
+  console.error(`  [KEY-SWITCH] → ${keyIndex + 1}/${KEYS.length}: ${TMAP_KEY.substring(0, 8)}…`);
+  return true;
+}
+
+// ── Download single tile with retry (网络错误/超时重试, 退避 500ms/1.5s/3s) ──
+async function downloadTile(layerId, z, x, y, url) {
+  const maxTries = 4; // 首次 + 3 次重试
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    if (rateLimited) return false; // 已熔断：不再重试
+    const ok = await downloadOnce(layerId, z, x, y, url);
+    if (ok) return true;
+    if (attempt < maxTries && !rateLimited) await sleep([500, 1500, 3000][attempt - 1] || 2000);
+  }
+  return false;
 }
 
 // ── Sleep helper (be polite to TMAP servers) ──────────────────────────────
@@ -100,7 +151,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   console.log('\n🗺  Tianditu WGS-84 Tile Downloader');
   console.log(`   Center: Wanzhou (${CENTER_LAT}, ${CENTER_LNG})`);
   console.log(`   Zoom: ${ZOOM_MIN}-${ZOOM_MAX}, Radius: ${RADIUS_KM}km`);
-  console.log(`   Key: ${TMAP_KEY.substring(0, 8)}...\n`);
+  console.log(`   Key pool: ${KEYS.length} keys (${KEYS.map(k => k.substring(0, 8)).join(', ')})`);
+  console.log(`   Start key: ${TMAP_KEY.substring(0, 8)}...\n`);
 
   for (const layer of LAYERS) {
     console.log(`\n📦 Layer: ${layer.name} (${layer.id})`);
@@ -123,23 +175,36 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         }
       }
 
-      // Concurrent limit: 4 at a time (be polite to TMAP)
-      const CHUNK = 4;
+      // Concurrent limit: 6 at a time（48km 大范围下载，12 并发会触发限流导致大量失败；6 并发 + 150ms 平衡速度与成功率）
+      const CHUNK = 6;
       let zOk = 0;
-      for (let i = 0; i < tasks.length; i += CHUNK) {
+      let i = 0;
+      while (i < tasks.length) {
+        if (rateLimited) {
+          // 当前 Key 熔断 → 切下一个 Key 后从断点继续（已存在瓦片自动跳过）
+          if (!switchKey()) break; // 全部 Key 用完，退出本轮
+          console.error(`  ⟳ Retrying from tile #${i} with ${TMAP_KEY.substring(0, 8)}…`);
+          continue;
+        }
         const batch = tasks.slice(i, i + CHUNK);
         const urls  = batch.map(t => layer.tileUrl(t.z, t.x, t.y));
-        const results = await Promise.all(batch.map((t, i) => downloadTile(layer.id, t.z, t.x, t.y, urls[i])));
+        const results = await Promise.all(batch.map((t, idx) => downloadTile(layer.id, t.z, t.x, t.y, urls[idx])));
         zOk  += results.filter(Boolean).length;
         layerOk += results.filter(Boolean).length;
+        i += CHUNK;
         // Polite delay
-        if (i + CHUNK < tasks.length) await sleep(200);
+        if (i < tasks.length) await sleep(150);
       }
 
       console.log(`  zoom ${z}: ${tasks.length} tiles, ${zOk} ok`);
+      if (rateLimited) {
+        console.error(`  ⛔ All keys rate-limited (429) → aborting. Resume next run.`);
+        break;
+      }
     }
 
     console.log(`  [${layer.name}] total: ${layerOk}/${layerTotal} tiles`);
+    if (rateLimited) break;
   }
 
   // Calculate total size

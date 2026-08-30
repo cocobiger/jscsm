@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { OverviewPage } from './OverviewPage'
+import { ServerMonitorPage } from './ServerMonitorPage'
+import { ServerReviewPage } from './ServerReviewPage'
+import { TunePage } from './TunePage'
 import { VideoStreamPage } from './VideoStreamPage'
 import { MqttPage } from './MqttPage'
 import { AlertFormatPage } from './AlertFormatPage'
@@ -7,16 +10,15 @@ import { AirQualityDataPage } from './AirQualityDataPage'
 import { GasMonitorPage } from './GasMonitorPage'
 import { SmsWarningPage } from './SmsWarningPage'
 import { StatsPage } from './StatsPage'
-import { IconConfigPage } from './IconConfigPage'
 import { MediaServerPage } from './MediaServerPage'
 import { UsersPage } from './UsersPage'
 import { EnterprisePage } from './EnterprisePage'
 import { SmartPushPage } from './SmartPushPage'
 import { WorkReportPage } from './WorkReportPage'
 import { IotArchivePage } from './IotArchivePage'
-import { MapPointManage } from './MapPointManage'
 import { GovDataPage } from './GovDataPage'
-import { MapCoordPage } from './MapCoordPage'
+import { StrawMonitorPage } from './StrawMonitorPage'
+import { MapCenterPage } from './MapCenterPage'
 import { useDashboard } from '../../context/DashboardContext'
 import { changePassword, ROLE_LABELS, roleAtLeast, type CurrentUser } from '../../lib/auth'
 
@@ -25,28 +27,32 @@ const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const RED = '#ff4444'
 
-type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'icons' | 'mappoints' | 'coord' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata'
+type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata' | 'straw' | 'map' | 'servermonitor' | 'review' | 'tune'
 
 // minRole：访问该页所需最低角色（viewer=任意登录可看）
-const NAV: { key: Page; label: string; icon: string; desc: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
-  { key: 'overview',   label: '系统总览',   icon: '◈',  desc: '连接状态与数据统计', minRole: 'viewer' },
-  { key: 'video',      label: '视频流管理', icon: '▶',  desc: 'RTSP / HLS 流配置', minRole: 'viewer' },
-  { key: 'media',      label: '流媒体服务器', icon: '🎬', desc: 'ZLMediaKit 节点配置', minRole: 'admin' },
-  { key: 'mqtt',       label: 'MQTT 配置',  icon: '⟁',  desc: 'Broker 与 Topic 订阅', minRole: 'admin' },
-  { key: 'alert',      label: '告警接入',   icon: '⚡', desc: 'JSON 格式映射与测试', minRole: 'admin' },
-  { key: 'smartpush',  label: '智治推送',   icon: '🏛', desc: '城运中心处置预案对接', minRole: 'admin' },
-  { key: 'workreport', label: '智治工作报表', icon: '📑', desc: '推送处置工作统计报表', minRole: 'viewer' },
-  { key: 'govdata',    label: '政务数据导入', icon: '🏛', desc: '预报/治理任务/制度/考核 Excel 导入', minRole: 'admin' },
-  { key: 'airquality', label: '市局监测站数据', icon: '🌫', desc: '市局整点数据管理与推送', minRole: 'viewer' },
-  { key: 'gas',        label: '气体采集预警', icon: '☣', desc: '数据源采集与污染物预警', minRole: 'viewer' },
-  { key: 'iotarchive', label: 'AI分析存档',  icon: '🤖', desc: 'IoT视频分析记录按通道归档', minRole: 'viewer' },
-  { key: 'sms',        label: '短信预警推送', icon: '✉', desc: '云MAS 短信通知与联系人', minRole: 'operator' },
-  { key: 'stats',      label: '数据统计报表', icon: '📊', desc: '采集趋势与超标统计', minRole: 'viewer' },
-  { key: 'enterprise', label: '重点企业管理', icon: '🏭', desc: '企业名单与污染事件', minRole: 'operator' },
-  { key: 'icons',      label: '地图图标配置', icon: '🗺', desc: '点位与群组图标自定义', minRole: 'admin' },
-  { key: 'mappoints',  label: '地图点位管理', icon: '📍', desc: '地图标注点增删改', minRole: 'operator' },
-  { key: 'coord',      label: '地图坐标系',   icon: '🧭', desc: '点位坐标系 GCJ-02/WGS-84 切换', minRole: 'admin' },
-  { key: 'users',      label: '用户管理',   icon: '👤', desc: '账号、角色与权限', minRole: 'admin' },
+import type { LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Video, Server, Radio, Bell, Send, FileText, Database, Wind, FlaskConical, Bot, Flame, Map, MessageSquare, BarChart3, Building2, Users, Activity, ClipboardCheck, SlidersHorizontal } from 'lucide-react'
+const NAV: { key: Page; label: string; icon: LucideIcon; desc: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
+  { key: 'overview',   label: '系统总览',   icon: LayoutDashboard, desc: '连接状态与数据统计', minRole: 'viewer' },
+  { key: 'servermonitor', label: '服务器监控', icon: Activity,   desc: 'CPU/内存/磁盘/服务 · 异常邮件告警', minRole: 'viewer' },
+  { key: 'review',     label: 'AI 检测复检', icon: ClipboardCheck, desc: '人工判定检测结果 · 数据回流迭代', minRole: 'viewer' },
+  { key: 'tune',       label: '算法调参',   icon: SlidersHorizontal, desc: '自研算法参数优化 · 搜索/应用/回滚', minRole: 'admin' },
+  { key: 'video',      label: '视频流管理', icon: Video,           desc: 'RTSP / HLS 流配置', minRole: 'viewer' },
+  { key: 'media',      label: '流媒体服务器', icon: Server,        desc: 'ZLMediaKit 节点配置', minRole: 'admin' },
+  { key: 'mqtt',       label: 'MQTT 配置',  icon: Radio,           desc: 'Broker 与 Topic 订阅', minRole: 'admin' },
+  { key: 'alert',      label: '告警接入',   icon: Bell,            desc: 'JSON 格式映射与测试', minRole: 'admin' },
+  { key: 'smartpush',  label: '智治推送',   icon: Send,            desc: '城运中心处置预案对接', minRole: 'admin' },
+  { key: 'workreport', label: '智治工作报表', icon: FileText,      desc: '推送处置工作统计报表', minRole: 'viewer' },
+  { key: 'govdata',    label: '政务数据导入', icon: Database,      desc: '预报/治理任务/制度/考核 Excel 导入', minRole: 'admin' },
+  { key: 'airquality', label: '市局监测站数据', icon: Wind,        desc: '市局整点数据管理与推送', minRole: 'viewer' },
+  { key: 'gas',        label: '气体采集预警', icon: FlaskConical,  desc: '数据源采集与污染物预警', minRole: 'viewer' },
+  { key: 'iotarchive', label: 'AI分析存档',  icon: Bot,           desc: 'IoT视频分析记录按通道归档', minRole: 'viewer' },
+  { key: 'straw',      label: '秸秆焚烧监控', icon: Flame,         desc: '无人机秸秆 · 引擎/告警/责任推送/复核', minRole: 'viewer' },
+  { key: 'map',        label: '地图管理',   icon: Map,             desc: '图标 / 点位 / 坐标系 / 边界', minRole: 'operator' },
+  { key: 'sms',        label: '短信预警推送', icon: MessageSquare, desc: '云MAS 短信通知与联系人', minRole: 'operator' },
+  { key: 'stats',      label: '数据统计报表', icon: BarChart3,     desc: '采集趋势与超标统计', minRole: 'viewer' },
+  { key: 'enterprise', label: '重点企业管理', icon: Building2,     desc: '企业名单与污染事件', minRole: 'operator' },
+  { key: 'users',      label: '用户管理',   icon: Users,           desc: '账号、角色与权限', minRole: 'admin' },
 ]
 
 interface Props {
@@ -206,7 +212,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <span style={{ color: active ? CYAN : '#5a8aaa', fontSize: 14, width: 16 }}>{n.icon}</span>
+                  <n.icon size={18} strokeWidth={1.75} color={active ? CYAN : '#5a8aaa'} />
                   <span style={{ color: active ? '#c8e6ff' : '#7ab8e0', fontSize: 13, fontWeight: active ? 600 : 400 }}>{n.label}</span>
                 </div>
                 <span style={{ color: '#3a5a70', fontSize: 11, paddingLeft: 24 }}>{n.desc}</span>
@@ -227,6 +233,9 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
         {/* Content */}
         <div style={{ flex: 1, overflow: 'hidden', background: 'rgba(3,10,28,0.98)' }}>
           {page === 'overview'   && <OverviewPage />}
+          {page === 'servermonitor' && <ServerMonitorPage />}
+          {page === 'review'     && <ServerReviewPage />}
+          {page === 'tune'       && <TunePage />}
           {page === 'video'      && <VideoStreamPage />}
           {page === 'media'      && <MediaServerPage />}
           {page === 'mqtt'       && <MqttPage />}
@@ -240,10 +249,9 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           {page === 'smartpush'  && <SmartPushPage />}
           {page === 'workreport' && <WorkReportPage />}
           {page === 'govdata'    && <GovDataPage />}
-          {page === 'icons'      && <IconConfigPage />}
-          {page === 'mappoints'  && <MapPointManage />}
-          {page === 'coord'      && <MapCoordPage />}
           {page === 'users'      && <UsersPage currentUserId={user.id} />}
+          {page === 'straw'      && <StrawMonitorPage />}
+          {page === 'map'        && <MapCenterPage role={user.role} />}
         </div>
       </div>
 

@@ -239,6 +239,17 @@ export function LeftPanel() {
         </svg>
         更多
       </button>
+      {/* 趋势小图时间范围标注（走查建议 #12） */}
+      <span
+        title="每条小趋势为最近 14 条整点采集记录（约 14 小时）"
+        style={{
+          color: '#3a5a70', fontSize: 10, marginLeft: 4, whiteSpace: 'nowrap',
+          border: '1px solid rgba(0,150,220,0.15)', borderRadius: 2, padding: '2px 5px',
+          background: 'rgba(8,20,44,0.35)', cursor: 'default',
+        }}
+      >
+        趋势 · 近14条整点
+      </span>
     </div>
   )
 

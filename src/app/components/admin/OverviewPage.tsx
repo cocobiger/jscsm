@@ -68,7 +68,20 @@ export function OverviewPage() {
         {/* MQTT status */}
         <div style={{ background: 'rgba(0,20,50,0.4)', border: '1px solid rgba(0,150,220,0.15)', borderRadius: 6, padding: '18px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>MQTT Broker</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>MQTT Broker</span>
+              {status.mqtt === 'disconnected' && (
+                <span
+                  title={'未连接可能原因：① Broker 服务未启动 ② brokerUrl 配置错误 ③ 网络/防火墙不通 ④ 账号密码错误。\n排查步骤：确认服务→核对 MQTT 配置页→点击"模拟连接"验证。'}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 15, height: 15, borderRadius: '50%',
+                    border: '1px solid rgba(255,112,67,0.5)', color: '#ff7043',
+                    fontSize: 10, cursor: 'help', fontStyle: 'normal',
+                  }}
+                >?</span>
+              )}
+            </span>
             <StatusDot status={status.mqtt} />
           </div>
           <div style={{ color: '#5a8aaa', fontSize: 12, marginBottom: 8 }}>
@@ -124,7 +137,15 @@ export function OverviewPage() {
         </div>
         <div style={{ maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'none' }}>
           {dataLog.length === 0 ? (
-            <div style={{ padding: '32px 0', textAlign: 'center', color: '#3a5a70', fontSize: 13 }}>暂无数据日志</div>
+            <div style={{ padding: '32px 0', textAlign: 'center', color: '#3a5a70', fontSize: 13 }}>
+              暂无数据日志
+              <div style={{ marginTop: 8, fontSize: 12 }}>
+                还没有接入数据？请到
+                <span style={{ color: CYAN }}>「MQTT 配置」</span>或
+                <span style={{ color: CYAN }}>「气体采集预警」</span>
+                页添加数据源并启用，消息到达后即在此显示。
+              </div>
+            </div>
           ) : dataLog.map(entry => (
             <div key={entry.id} style={{
               display: 'flex', alignItems: 'center', gap: 10,

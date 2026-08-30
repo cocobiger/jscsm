@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 
 interface Props {
   src?: string
@@ -23,7 +23,15 @@ export function AlertThumbnail({ src, alt = '', onClick, fallback, borderColor =
   // src 变化时重置状态（列表复用时避免旧图残留）
   useEffect(() => { setLoaded(false); setErrored(false) }, [src])
 
-  const showImg = !!src && !errored
+  // 缩略图加速：/api/iot-image 原图代理 → /api/thumb 缩放+webp 压缩（72×48 显示不再加载 ~1MB 原图）
+  const thumbSrc = useMemo(() => {
+    if (!src) return src
+    const m = src.match(/\/api\/iot-image\?url=([^&]+)/)
+    if (m) return '/api/thumb?url=' + m[1] + '&w=200'
+    return src
+  }, [src])
+
+  const showImg = !!thumbSrc && !errored
 
   return (
     <div
@@ -60,7 +68,7 @@ export function AlertThumbnail({ src, alt = '', onClick, fallback, borderColor =
       {showImg && (
         <img
           ref={imgRef}
-          src={src}
+          src={thumbSrc}
           alt={alt}
           loading="lazy"
           decoding="async"
