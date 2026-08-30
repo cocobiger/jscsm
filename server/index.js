@@ -89,7 +89,13 @@ app.use('/api', (req, res, next) => {
   const fullPath = req.baseUrl + req.path
   // 精确匹配 OR 前缀匹配（白名单加 /api/monitor/、/api/review/、/api/evidence/）
   const PREFIX_PATHS = ['/api/monitor/', '/api/review/', '/api/evidence/']
-  if (PUBLIC_PATHS.has(fullPath) || PREFIX_PATHS.some(p => fullPath.startsWith(p))) return next()
+  if (PUBLIC_PATHS.has(fullPath) || PREFIX_PATHS.some(p => fullPath.startsWith(p))) {
+    // 白名单/免鉴权路径：若请求带了有效 token，仍解析挂载 req.user（供 reviewer 归属等使用），未带则放行
+    const t = auth.extractToken(req)
+    const s = t ? auth.verify(t) : null
+    if (s) req.user = { id: s.user_id, username: s.username, role: s.role }
+    return next()
+  }
   const token = auth.extractToken(req)
   const session = auth.verify(token)
   if (!session) return res.status(401).json({ ok: false, code: 'UNAUTHORIZED', error: '未登录或会话已过期，请重新登录' })
@@ -1597,8 +1603,9 @@ app.get('/api/health', (req, res) => {
 })
 
 // ── 秸秆燃烧推理引擎告警入库（内网，straw-engine 推理服务调用）──
+// detId：检测记录(straw_detections) id——straw-engine 先 record 再告警，实现检测↔告警精确关联
 app.post('/api/straw-alert', async (req, res) => {
-  const { streamId, aiType, confidence, bbox, imageUrl, sensor, label, firstSeenAt, lat, lon, taskId, waypointId, nearbyPersons, personBoxes } = req.body || {}
+  const { streamId, aiType, confidence, bbox, imageUrl, sensor, label, firstSeenAt, lat, lon, taskId, waypointId, nearbyPersons, personBoxes, detId } = req.body || {}
   if (!streamId) return res.status(400).json({ error: 'streamId 必填' })
   const conf = Number(confidence) || 0
   // AI 类型统一为系统中文类型名（与 ai_types 主数据一致，前端/推送规则可识别）
@@ -1641,11 +1648,18 @@ app.post('/api/straw-alert', async (req, res) => {
     nearbyPersons: typeof nearbyPersons === 'number' ? nearbyPersons : null,
     personBoxes: Array.isArray(personBoxes) ? personBoxes : [],
     evidence: { bbox: bbox || null, sensor: sensor || 'visible', frames: 3 },
+    detId: Number.isInteger(detId) ? detId : null, // 关联 straw_detections 记录（精确关联，替代时间窗近似）
   }
   store.insertWarning(warning)
+  // 检测↔告警精确关联：回填 warning_id 到 straw_detections（第 3 批，供复检联动与结果视图精确展示）
+  if (warning.detId) {
+    try {
+      store.getDb().prepare('UPDATE straw_detections SET warning_id = ? WHERE id = ?').run(warning.id, warning.detId)
+    } catch (e) { console.error('[straw-alert] 回填 warning_id 失败:', e.message) }
+  }
   // 异步责任反查 + 卡片渲染 + 微信群推送（不阻塞告警入库返回）
   setImmediate(() => { strawWorkflow(warning).catch(e => console.error('[straw-workflow]', e.message)) })
-  res.json({ ok: true, warningId: warning.id })
+  res.json({ ok: true, warningId: warning.id, detId: warning.detId })
 })
 
 // ── 秸秆证据图静态服务（读 straw-engine/evidence 目录）──
@@ -1677,8 +1691,10 @@ app.get('/api/straw-samples', (req, res) => {
   res.json(store.listStrawSamples({ verdict: req.query.verdict || undefined, limit: Number(req.query.limit) || 200 }))
 })
 
-// ── 秸秆告警后处理工作流：责任反查 → 卡片渲染 → 微信群推送 ──
-async function strawWorkflow(warning) {
+// ── 秸秆告警后处理工作流：责任反查 → 复检把关(gate) → 卡片渲染 → 微信群推送 ──
+// gate=pre：低置信度(aiConfidence<阈值) 告警先 held 不推，等人工复核通过后由 onReviewVerdict 释放推送
+// gate=post/off：照常先推后检；复检误报时由 strawCorrection 追发更正推送
+async function strawWorkflow(warning, opts = {}) {
   const lat = Number(warning.lat)
   const lon = Number(warning.lon)
   const town = (isFinite(lat) && isFinite(lon)) ? reverseGeocode.reverseGeocode(lon, lat) : null
@@ -1689,7 +1705,14 @@ async function strawWorkflow(warning) {
   const personTip = personN > 0
     ? `> 👤 事发地附近有人（${personN}人）→ 无人机抵近喊话，督促处置`
     : `> 👤 事发地附近无人 → 推送证据，请街道办处置`
-  if (!resp || !resp.webhook) {
+  // 复检把关：pre 模式低置信度 → held（等复核通过后 force 释放推送；复检误报则静默取消）
+  const gate = store.kvGet('straw_review_gate', 'off')
+  const gateConf = Number(store.kvGet('straw_review_gate_conf', null) || 0.5)
+  const held = !opts.force && gate === 'pre' && (Number(warning.aiConfidence) || 0) < gateConf
+  if (held) {
+    pushInfo.held = true
+    pushInfo.reason = `低置信度待复核（gate=pre 阈值 ${gateConf}）`
+  } else if (!resp || !resp.webhook) {
     pushInfo.reason = resp ? '未配置微信群' : '责任单位未配置'
   } else {
     try {
@@ -1742,14 +1765,106 @@ async function strawWorkflow(warning) {
     const w = store.getWarning(warning.id)
     if (w) {
       w.wechatPush = pushInfo
-      const dbw = { ...w }
       const { DatabaseSync } = require('node:sqlite')
       const dbs = new DatabaseSync('/opt/jsc/backend/data/jsc.db')
-      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(dbw), w.id)
+      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(w), w.id)
     }
   } catch (e) { console.error('[straw-workflow] 回写失败:', e.message) }
-  console.log('[straw-workflow]', warning.id, JSON.stringify(pushInfo))
+  console.log('[straw-workflow]', warning.id, held ? 'HELD' : 'PUSH', JSON.stringify(pushInfo))
 }
+
+// ── 复检误报更正推送：向责任单位微信群追发更正说明（微信群机器人无法撤回，只能追发）──
+// 无论成败都回写 correctedAt 留痕（correctionOk/correctionReason 记录结果）
+async function strawCorrection(warning, note, reviewer) {
+  const wp = warning.wechatPush || {}
+  if (!wp.pushed) return false // 未推送成功无需更正（held 静默取消）
+  const lat = Number(warning.lat)
+  const lon = Number(warning.lon)
+  const town = (isFinite(lat) && isFinite(lon)) ? reverseGeocode.reverseGeocode(lon, lat) : null
+  const resp = town ? store.findResponsibility(town.name, '') : null
+  let ok = false
+  let failReason = ''
+  if (!resp || !resp.webhook) {
+    failReason = '责任单位未配置（无法追发更正）'
+  } else {
+    const content = [
+      `**⚠️ 复核更正 · 误报撤销**`,
+      `> 此前秸秆焚烧告警 ${warning.id} 经人工复核判定为**误报**，请忽略对应处置要求。`,
+      note ? `> 复核说明：${note}` : '',
+      reviewer ? `> 复核人：${reviewer}` : '',
+      `> 原告警：${warning.location || warning.streamId || ''} · 置信度 ${((warning.aiConfidence || 0) * 100).toFixed(1)}%`,
+    ].filter(Boolean).join('\n')
+    try {
+      const r = await fetch(resp.webhook, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgtype: 'markdown', markdown: { content } }),
+        signal: AbortSignal.timeout(10000),
+      }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
+      ok = r.errcode === 0
+      failReason = ok ? '' : `推送失败(${r.errmsg || r.errcode})`
+      if (!ok) console.error('[straw-correction] 更正推送失败:', r.errmsg || r.errcode)
+    } catch (e) { failReason = '推送异常: ' + e.message }
+  }
+  // 回写更正状态（无论成败都留痕）
+  try {
+    const w = store.getWarning(warning.id)
+    if (w) {
+      w.wechatPush = { ...(w.wechatPush || {}), correctedAt: new Date().toISOString(), correctionNote: note || '', correctedBy: reviewer || '', correctionOk: ok, correctionReason: failReason }
+      const { DatabaseSync } = require('node:sqlite')
+      const dbs = new DatabaseSync('/opt/jsc/backend/data/jsc.db')
+      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(w), w.id)
+    }
+  } catch (e) { console.error('[straw-correction] 回写失败:', e.message) }
+  console.log('[straw-correction]', warning.id, 'ok=' + ok, failReason || '')
+  return ok
+}
+
+// ── 复检↔推送联动（review.js 判定后回调）──
+// true(复检通过)：gate=pre 且 held → 释放推送；已推送则无需动作
+// false(误报)：已推送 → 追发更正推送；held 未推 → 静默取消（自动）
+async function onReviewVerdict(det, verdict, note, reviewer) {
+  const wid = det && det.warning_id
+  if (!wid) return
+  const w = store.getWarning(wid)
+  if (!w) return
+  if (verdict === 'true') {
+    if (w.wechatPush && w.wechatPush.held) {
+      console.log('[straw-linkage] 复检通过，释放 held 推送:', w.id)
+      await strawWorkflow(w, { force: true })
+    }
+  } else if (verdict === 'false') {
+    if (w.wechatPush && w.wechatPush.pushed) {
+      console.log('[straw-linkage] 复检误报，追发更正推送:', w.id)
+      await strawCorrection(w, note, reviewer)
+    } else {
+      console.log('[straw-linkage] 复检误报，未推送/held，静默:', w.id)
+    }
+  }
+}
+
+// ── 复检把关开关配置（straw_review_gate: off/post/pre + 低置信阈值 conf）──
+app.get('/api/straw/review-gate', (req, res) => {
+  res.json({
+    gate: store.kvGet('straw_review_gate', 'off'),
+    conf: Number(store.kvGet('straw_review_gate_conf', null) || 0.5),
+  })
+})
+app.post('/api/straw/review-gate', (req, res) => {
+  const { gate, conf } = req.body || {}
+  if (!gate || !['off', 'post', 'pre'].includes(gate)) {
+    return res.status(400).json({ error: 'gate 仅支持 off / post / pre' })
+  }
+  store.kvSet('straw_review_gate', gate)
+  if (conf !== undefined) {
+    const c = Math.max(0, Math.min(1, Number(conf) || 0.5))
+    store.kvSet('straw_review_gate_conf', c)
+  }
+  res.json({
+    ok: true,
+    gate: store.kvGet('straw_review_gate', 'off'),
+    conf: Number(store.kvGet('straw_review_gate_conf', null) || 0.5),
+  })
+})
 
 // ── 秸秆推理引擎聚合状态（驾驶舱「引擎健康」页数据源）──
 app.get('/api/straw-engine/status', async (req, res) => {
@@ -3165,11 +3280,12 @@ app.listen(PORT, () => {
   log.info(`JSC Media Server 已启动 http://localhost:${PORT}`)
   try { serverMonitor.startMonitor() } catch (e) { log.error('监控模块启动失败: ' + e.message) }
   // AI 复检模块（人工复检 → 数据回流 → 算法迭代）
+  // 第 3 批：传宿主上下文（store + onVerdict），复检判定联动释放 held 推送 / 误报更正推送
   try {
     const review = require('./review.js')
     review.initReviewDb(store.getDb())
-    review.registerReviewRoutes(app)
-    log.info('AI 复检模块已启动（/api/review/*）')
+    review.registerReviewRoutes(app, { store, onVerdict: onReviewVerdict })
+    log.info('AI 复检模块已启动（/api/review/*，含复检↔推送联动）')
   } catch (e) { log.error('复检模块启动失败: ' + e.message) }
   // 算法调参模块（自研推理参数优化：注册表驱动 / 搜索 / 应用回滚）
   try {

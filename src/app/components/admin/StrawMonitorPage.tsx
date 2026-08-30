@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { StrawEnginePage, StrawReviewBoard } from './StrawEnginePage'
 import { RunPipeline, LiveDetection } from './StrawLivePage'
+import { StrawResultsView } from './StrawResultsView'
 import { StreamPanel } from './StreamPanel'
 import { SikongPanel } from './SikongPanel'
 import { authFetch } from '../../lib/apiFetch'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye } from 'lucide-react'
+import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch } from 'lucide-react'
 
 // ── 秸秆焚烧监控 · 独立功能点（无人机视角）──
 // 数据边界：source='straw-engine' 的自研推理告警，与 AI分析存档（IoTCloud）完全隔离
@@ -38,7 +39,7 @@ interface RespRow {
 const EMPTY_FORM = { town: '', community: '', unit: '', person: '', phone: '', webhook: '', remark: '' }
 
 export function StrawMonitorPage() {
-  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style'>('engine')
+  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results'>('engine')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -55,6 +56,7 @@ export function StrawMonitorPage() {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {([
           ['engine', '引擎健康 / 告警工作台', Brain],
+          ['results', '检测结果', ScanSearch],
           ['pipeline', '运行链路全景', Workflow],
           ['live', '实时检测过程', Radar],
           ['streams', '视频流面板', Video],
@@ -73,6 +75,7 @@ export function StrawMonitorPage() {
       </div>
 
       {tab === 'engine' ? <StrawEnginePage />
+        : tab === 'results' ? <StrawResultsView />
         : tab === 'pipeline' ? <RunPipeline />
         : tab === 'live' ? <LiveDetection />
         : tab === 'streams' ? <StreamPanel />
@@ -389,7 +392,7 @@ function PushStyleEditor() {
                   onChange={e => {
                     const fields = e.target.checked
                       ? [...(style.fields || []), f.key]
-                      : (style.fields || []).filter(k => k !== f.key)
+                      : (style.fields || []).filter((k: string) => k !== f.key)
                     set('fields', fields)
                   }}
                   style={{ cursor: 'pointer' }} />
@@ -434,7 +437,7 @@ function PushStyleEditor() {
           </div>
           {/* 字段区 */}
           <div style={{ background: style.bg, borderTop: `1px solid ${style.border || '#2a4a70'}` }}>
-            {(style.fields || []).map(key => {
+            {(style.fields || []).map((key: string) => {
               const opt = FIELD_OPTIONS.find(o => o.key === key)
               if (!opt) return null
               return (
