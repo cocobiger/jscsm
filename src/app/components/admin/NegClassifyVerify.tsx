@@ -24,6 +24,8 @@ const CAT_COLORS: Record<string, string> = {
   other: RED,
 }
 const CATS = ['pole', 'concrete', 'cloud', 'building', 'reflection', 'none', 'other']
+// 补选类别（多标签）：排除 none（补选语义 = 漏判的具体干扰物）；reflection 保留供水面场景
+const FIX_CATS = CATS.filter(c => c !== 'none')
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   ok: { label: '✅ 正确', color: GREEN, bg: 'rgba(74,222,128,0.12)' },
@@ -48,6 +50,7 @@ interface Frame {
   reviewer: string
   reviewedAt: string
   note: string
+  labelFix: string[]
 }
 
 interface Stats {
@@ -65,6 +68,8 @@ export function NegClassifyVerify() {
   const [curIdx, setCurIdx] = useState(0)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  // 补选漏判类别（多标签）：随三态按钮一起提交
+  const [labelFix, setLabelFix] = useState<string[]>([])
 
   const load = useCallback(async () => {
     setLoading(true); setErr('')
@@ -85,6 +90,7 @@ export function NegClassifyVerify() {
           reviewer: rv.reviewer || '',
           reviewedAt: rv.reviewed_at || '',
           note: rv.note || '',
+          labelFix: (() => { try { const x = JSON.parse(rv.label_fix || '[]'); return Array.isArray(x) ? x : [] } catch { return [] } })(),
         }
       })
       setFrames(list)
@@ -104,6 +110,11 @@ export function NegClassifyVerify() {
   }, [frames, filter])
 
   const cur = filtered[curIdx] || null
+  // 切帧时重置补选（回显已存 label_fix）
+  useEffect(() => {
+    setLabelFix(cur?.labelFix || [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur?.fp])
   const imgUrl = cur ? `/api/review/image?path=${encodeURIComponent(cur.rel)}&w=1400` : ''
   const thumbUrl = (f: Frame) => `/api/review/image?path=${encodeURIComponent(f.rel)}&w=180`
 
@@ -114,11 +125,11 @@ export function NegClassifyVerify() {
       const r = await authFetch('/api/review/neg-classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frame_path: cur.fp, review_status: review }),
+        body: JSON.stringify({ frame_path: cur.fp, review_status: review, label_fix: labelFix }),
       })
       const d = await r.json()
       if (!d.ok) throw new Error(d.error || '提交失败')
-      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review, reviewer: d.reviewer || '', reviewedAt: new Date().toLocaleString('zh-CN') } : f))
+      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review, reviewer: d.reviewer || '', reviewedAt: new Date().toLocaleString('zh-CN'), labelFix } : f))
       // 同步本地统计
       setStats(s => {
         const by = { ...s.byStatus }
@@ -142,9 +153,10 @@ export function NegClassifyVerify() {
       await authFetch('/api/review/neg-classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frame_path: cur.fp, review_status: 'pending' }),
+        body: JSON.stringify({ frame_path: cur.fp, review_status: 'pending', label_fix: [] }),
       })
-      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review: '', reviewer: '', reviewedAt: '' } : f))
+      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review: '', reviewer: '', reviewedAt: '', labelFix: [] } : f))
+      setLabelFix([])
       setStats(s => ({ ...s, reviewed: Math.max(0, s.reviewed - 1), byStatus: { ...s.byStatus, [cur.review]: Math.max(0, (s.byStatus[cur.review] || 0) - 1), pending: (s.byStatus.pending || 0) + 1 } }))
       setMsg('↩ 已撤销该帧判定')
     } catch (e: any) {
@@ -155,9 +167,9 @@ export function NegClassifyVerify() {
   }
 
   const exportCsv = () => {
-    const lines = ['frame_path,cats,raw,review']
+    const lines = ['frame_path,cats,raw,review,label_fix']
     for (const f of frames) {
-      lines.push(`${f.fp},"${f.cats.join('|')}","${f.raw.replace(/"/g, '""')}",${f.review}`)
+      lines.push(`${f.fp},"${f.cats.join('|')}","${f.raw.replace(/"/g, '""')}",${f.review},"${(f.labelFix || []).join('|')}"`)
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -257,6 +269,25 @@ export function NegClassifyVerify() {
               {cur?.raw && <span style={{ fontSize: 10, color: '#3a5a70', fontFamily: "'JetBrains Mono', monospace" }}>raw: "{cur.raw.slice(0, 60)}"</span>}
             </div>
 
+            {/* 补选漏判类别（多标签）：点击 toggle，随三态一起提交 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: AMBER }}>补选漏判：</span>
+              {FIX_CATS.map(c => {
+                const on = labelFix.includes(c)
+                return (
+                  <button key={c} onClick={() => setLabelFix(a => on ? a.filter(x => x !== c) : [...a, c])} title={`补选 ${c}（模型漏判的干扰物类别）`} style={{
+                    fontSize: 11, padding: '2px 9px', borderRadius: 3, cursor: 'pointer', fontWeight: on ? 700 : 500,
+                    color: on ? CAT_COLORS[c] || '#fff' : '#3a5a70',
+                    border: `1px solid ${on ? CAT_COLORS[c] || '#fff' : 'rgba(0,150,220,0.25)'}`,
+                    background: on ? `${CAT_COLORS[c] || '#fff'}26` : 'transparent',
+                  }}>{c}</button>
+                )
+              })}
+              {labelFix.length > 0 && (
+                <span style={{ fontSize: 10, color: '#5a8aaa' }}>已补 {labelFix.length} 项 · 与判定一起提交</span>
+              )}
+            </div>
+
             {/* 三态 + 导航 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {(['ok', 'no', 'dn'] as const).map(k => (
@@ -310,7 +341,8 @@ export function NegClassifyVerify() {
 
       <div style={{ fontSize: 11, color: '#3a5a70', lineHeight: 1.8 }}>
         <b style={{ color: '#5a8aaa' }}>说明</b>：本页用于人工复核 <code style={{ color: PURPLE }}>VLM 干扰物分类</code>（pole 电线杆 / cloud 云 / building 建筑 / concrete 水泥地 / reflection 水面倒影 / none 无干扰 / other 其他）。
-        判定结果持久化到后端 <code style={{ color: AMBER }}>straw_neg_reviews</code> 表，导出脚本据此生成训练负样本（ok 帧保留为负样本，no 帧剔除）。
+        一帧通常含 <b style={{ color: AMBER }}>多个干扰物</b>（实测 94% 双标签）——若模型漏判，点下方「补选漏判」chips 补选类别，随三态判定一起提交。
+        判定结果与补选类别持久化到后端 <code style={{ color: AMBER }}>straw_neg_reviews</code> 表，导出脚本据此生成训练负样本（ok 帧保留，no 帧剔除）并回流修正分类画像。
         切换「待审」聚焦未复核帧，快捷键可配 ←/→ 与 1/2/3。
       </div>
     </div>

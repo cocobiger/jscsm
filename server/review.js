@@ -78,9 +78,12 @@ function initReviewDb(database) {
       review_status TEXT DEFAULT 'pending',
       reviewer TEXT DEFAULT '',
       reviewed_at TEXT,
-      note TEXT DEFAULT ''
+      note TEXT DEFAULT '',
+      label_fix TEXT DEFAULT ''
     )
   `)
+  // 2026-09-01 多标签补选：人工补选模型漏判类别（JSON 数组字符串），旧库无此列时 ALTER 追加
+  try { db.exec(`ALTER TABLE straw_neg_reviews ADD COLUMN label_fix TEXT DEFAULT ''`) } catch (e) { /* 已存在 */ }
 }
 
 function parseBoxes(boxes) {
@@ -553,6 +556,8 @@ function registerReviewRoutes(app, reviewCtx = {}) {
   // 人工复核结果持久化到 straw_neg_reviews，供 gen_v5_neg_from_reviews.py 消费
   const NEG_CATALOG = '/video/shujuji/datasets/v5_candidates/neg_classified.json'
   const NEG_VALID = { ok: 1, no: 1, dn: 1, pending: 1 }
+  // 补选类别白名单（与 classify_neg_v5.py VALID 集一致，reflection 预留）
+  const NEG_VALID_LABEL = { pole: 1, concrete: 1, cloud: 1, building: 1, reflection: 1, none: 1, other: 1 }
 
   const loadNegCatalog = () => {
     try {
@@ -569,7 +574,7 @@ function registerReviewRoutes(app, reviewCtx = {}) {
   app.get('/api/straw/neg-classify', (req, res) => {
     try {
       const catalog = loadNegCatalog()
-      const reviews = db.prepare(`SELECT frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note FROM straw_neg_reviews`).all()
+      const reviews = db.prepare(`SELECT frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note, label_fix FROM straw_neg_reviews`).all()
       const byStatus = { ok: 0, no: 0, dn: 0, pending: 0 }
       let reviewed = 0
       for (const r of reviews) {
@@ -583,22 +588,24 @@ function registerReviewRoutes(app, reviewCtx = {}) {
   })
 
   // 提交单帧复核（upsert：同一帧重复提交覆盖旧判定）
+  // label_fix：人工补选的漏判类别（数组，如 ['building','reflection']），JSON 数组字符串存储
   app.post('/api/review/neg-classify', (req, res) => {
     try {
-      const { frame_path, review_status, note, reviewer } = req.body || {}
+      const { frame_path, review_status, note, reviewer, label_fix } = req.body || {}
       if (!frame_path || !NEG_VALID[review_status]) return res.json({ ok: false, error: '参数错误' })
+      const fixArr = Array.isArray(label_fix) ? label_fix.filter(c => NEG_VALID_LABEL[c]) : []
       const catalog = loadNegCatalog()
       const v = catalog[frame_path] || {}
       const rv = reviewerOf(req, reviewer)
       const r = db.prepare(`
-        INSERT INTO straw_neg_reviews (frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note)
-        VALUES (?,?,?,?,?,?,datetime('now','localtime'),?)
+        INSERT INTO straw_neg_reviews (frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note, label_fix)
+        VALUES (?,?,?,?,?,?,datetime('now','localtime'),?,?)
         ON CONFLICT(frame_path) DO UPDATE SET
           cats=excluded.cats, raw=excluded.raw, ts=excluded.ts,
           review_status=excluded.review_status, reviewer=excluded.reviewer,
-          reviewed_at=excluded.reviewed_at, note=excluded.note
-      `).run(frame_path, JSON.stringify(v.cats || []), v.raw || '', v.ts || '', review_status, rv, note || '')
-      res.json({ ok: true, saved: r.changes, reviewer: rv })
+          reviewed_at=excluded.reviewed_at, note=excluded.note, label_fix=excluded.label_fix
+      `).run(frame_path, JSON.stringify(v.cats || []), v.raw || '', v.ts || '', review_status, rv, note || '', JSON.stringify(fixArr))
+      res.json({ ok: true, saved: r.changes, reviewer: rv, label_fix: fixArr })
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
 
