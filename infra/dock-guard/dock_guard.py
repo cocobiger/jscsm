@@ -22,10 +22,12 @@ from pydantic import BaseModel
 DOCK_DIR = os.path.dirname(os.path.abspath(__file__))
 CFG_PATH = os.path.join(DOCK_DIR, 'config.json')
 
-app = FastAPI(title='dock-guard', version='0.2.0')
+app = FastAPI(title='dock-guard', version='0.2.2')
 
 _docks = {}    # streamId -> state
 _threads = {}  # streamId -> thread
+_caps = {}     # streamId -> VideoCapture（热重载快停用：release 使 read 立即返回）
+_reload_lock = threading.Lock()  # 防并发热重载
 
 
 class ConfigPayload(BaseModel):
@@ -94,15 +96,26 @@ def _reload_config(new_cfg):
 
 
 def _restart_workers():
-    """停旧线程 → 起新线程（后台执行，避免阻塞配置 API 请求）"""
-    for sid, st in _docks.items():
-        st['running'] = False
-    for sid, t in _threads.items():
-        if t.is_alive():
-            t.join(timeout=8)
-    _docks.clear()
-    _threads.clear()
-    _start()
+    """停旧线程 → 起新线程（后台执行，避免阻塞配置 API 请求）
+
+    快停：先 release 各流的 VideoCapture（read 立即返回），再 join，
+    避免旧 worker 阻塞在拉流导致线程残留（反复 PUT 堆积僵尸线程）。
+    """
+    with _reload_lock:
+        for sid, st in _docks.items():
+            st['running'] = False
+        for sid, cap in _caps.items():
+            try:
+                cap.release()
+            except Exception:
+                pass
+        for sid, t in _threads.items():
+            if t.is_alive():
+                t.join(timeout=6)
+        _docks.clear()
+        _threads.clear()
+        _caps.clear()
+        _start()
 
 
 def _in_hours(hours, now=None):
@@ -128,6 +141,33 @@ def _point_in_roi(x, y, roi, w, h):
         return True
     pts = np.array([[p[0] * w, p[1] * h] for p in roi], dtype=np.float32)
     return cv2.pointPolygonTest(pts, (float(x), float(y)), False) >= 0
+
+
+def _read_frame_timeout(cap, timeout=8.0):
+    """带超时的 cap.read()（cv2 的 CAP_PROP_READ_TIMEOUT_MSEC 实测无效）。
+
+    ZLM 对不存在的流 keep-alive 时 isOpened() 仍返回 True、read() 无限阻塞；
+    这里用独立线程读帧 + join(timeout) 兜底：
+      - 正常返回 (ok, frame)
+      - 超时返回 (False, None)，主线程随后 release 唤醒阻塞的 read
+    """
+    result = {}
+
+    def _do_read():
+        try:
+            ok, frame = cap.read()
+            result['ok'] = ok
+            result['frame'] = frame
+        except Exception as e:
+            result['ok'] = False
+            result['err'] = e
+
+    t = threading.Thread(target=_do_read, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
+    if t.is_alive():
+        return False, None  # 超时：read 仍阻塞，由调用方 release 唤醒
+    return result.get('ok', False), result.get('frame')
 
 
 def _save_evidence(frame, boxes, stream_id, evidence_dir, label):
@@ -204,6 +244,7 @@ def _worker(cfg, dc):
                 if cap is not None:
                     cap.release()
                     cap = None
+                    _caps.pop(sid, None)
                 st['armed'] = False
                 time.sleep(interval * 2)
                 continue
@@ -216,12 +257,21 @@ def _worker(cfg, dc):
                     time.sleep(5)
                     continue
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            ok, frame = cap.read()
+                # 拉流看门狗：FLV 无数据时 read 会无限阻塞，
+                # READ_TIMEOUT_MSEC 实测无效 → 手写 _read_frame_timeout 兜底
+                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 8000)
+                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 8000)
+                _caps[sid] = cap
+            ok, frame = _read_frame_timeout(cap, timeout=8.0)
             if not ok:
                 st['stream_ok'] = False
-                print(f'[stream:{sid}] 读帧失败，3s 后重连')
-                cap.release()
+                print(f'[stream:{sid}] 读帧失败/超时(8s)，3s 后重连')
+                try:
+                    cap.release()  # 唤醒阻塞中的 read
+                except Exception:
+                    pass
                 cap = None
+                _caps.pop(sid, None)
                 time.sleep(3)
                 continue
             st['stream_ok'] = True
@@ -310,7 +360,7 @@ def _start():
 def health():
     return {
         'ok': True,
-        'version': '0.2.0',
+        'version': app.version,
         'docks': {
             sid: {
                 'armed': st['armed'], 'stream_ok': st['stream_ok'],

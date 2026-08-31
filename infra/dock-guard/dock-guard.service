@@ -1,0 +1,15 @@
+[Unit]
+Description=Dock Guard - 机场人员入侵检测（司空2 dock 摄像头）
+After=network.target zlmediakit-jsc.service jsc-backend.service straw-engine.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jsc/dock-guard
+Environment=LD_LIBRARY_PATH=/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cublas/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cudnn/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cufft/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cusparse/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/curand/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cuda_runtime/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/nvjitlink/lib:/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cusolver/lib
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/jsc/straw-engine/venv/bin/python -m uvicorn dock_guard:app --host 0.0.0.0 --port 7210
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
