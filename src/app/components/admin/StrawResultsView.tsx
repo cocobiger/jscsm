@@ -116,6 +116,13 @@ const nowLocal = () => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
+// 筛选记忆（批次3）：刷新/重进页面保留筛选条件
+const FILTER_LS = 'jsc_straw_filters_v1'
+const readFilters = (): any => { try { return JSON.parse(localStorage.getItem(FILTER_LS) || '{}') } catch { return {} } }
+
+// 是否已完成复核（用于自动下一张 / 待复核判断）
+const isDone = (r: Row) => r.review_status === 'true' || r.review_status === 'false' || r.review_status === 'uncertain'
+
 export function StrawResultsView() {
   const PAGE_SIZE = 50
   const [rows, setRows] = useState<Row[]>([])
@@ -123,11 +130,15 @@ export function StrawResultsView() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [fStatus, setFStatus] = useState('')
-  const [fPush, setFPush] = useState('')
-  const [fLabel, setFLabel] = useState('')
-  const [fSource, setFSource] = useState('')
-  const [fMinConf, setFMinConf] = useState('')
+  const [fStatus, setFStatus] = useState(() => readFilters().fStatus || '')
+  const [fPush, setFPush] = useState(() => readFilters().fPush || '')
+  const [fLabel, setFLabel] = useState(() => readFilters().fLabel || '')
+  const [fSource, setFSource] = useState(() => readFilters().fSource || '')
+  const [fMinConf, setFMinConf] = useState(() => readFilters().fMinConf || '')
+  const [fMaxConf, setFMaxConf] = useState(() => readFilters().fMaxConf || '')   // 批次3：置信度上限（只看低置信度）
+  const [fStream, setFStream] = useState(() => readFilters().fStream || '')       // 批次3：按流筛选
+  const [fSort, setFSort] = useState(() => readFilters().fSort || '')             // 批次2：排序（''=时间倒序 / pending / conf_desc / conf_asc）
+  const [jumpPage, setJumpPage] = useState('')                                    // 批次2：页码跳转输入
   const [focus, setFocus] = useState<Row | null>(null)
   const [imgSizes, setImgSizes] = useState<Record<number, { w: number; h: number }>>({})
   const [me, setMe] = useState<{ username?: string; role?: string } | null>(null)
@@ -138,6 +149,16 @@ export function StrawResultsView() {
   const [gateSaving, setGateSaving] = useState(false)
   // 第 4 批：数据资产报表弹层开关
   const [showStats, setShowStats] = useState(false)
+  // 批次1：批量复检（多选 + 二次确认）
+  const [sel, setSel] = useState<Set<number>>(new Set())
+  const [batchAsk, setBatchAsk] = useState<null | { status: string; ids: number[] }>(null)
+  // 批次4：键盘导航高亮行
+  const [activeId, setActiveId] = useState<number | null>(null)
+
+  // 筛选记忆（批次3）：任一筛选变化即持久化
+  useEffect(() => {
+    try { localStorage.setItem(FILTER_LS, JSON.stringify({ fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort })) } catch {}
+  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort])
 
   // 当前登录用户（复核人绑定；后端优先从 token 解析，此值仅用于界面展示）
   useEffect(() => {
@@ -176,12 +197,15 @@ export function StrawResultsView() {
       if (fLabel) params.set('label', fLabel)
       if (fSource) params.set('source', fSource)
       if (fMinConf) params.set('min_conf', fMinConf)
+      if (fMaxConf) params.set('max_conf', fMaxConf)   // 批次3：置信度上限（只看低置信度）
+      if (fStream) params.set('stream', fStream)        // 批次3：按流筛选
+      if (fSort) params.set('sort', fSort)              // 批次2：排序
       const r = await authFetch(`/api/straw/results?${params}`)
       const d = await r.json()
-      if (d.ok) { setRows(d.rows || []); setTotal(d.total || 0); setStats(d.stats || null) }
+      if (d.ok) { setRows(d.rows || []); setTotal(d.total || 0); setStats(d.stats || null); setActiveId(null) }
     } catch {}
     setLoading(false)
-  }, [fStatus, fPush, fLabel, fSource, fMinConf])
+  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort])
 
   useEffect(() => { setPage(1); load(1) }, [load])
 
@@ -203,14 +227,14 @@ export function StrawResultsView() {
     })
   }
 
-  const applyReview = async (id: number, status: string, note = '') => {
+  const applyReview = async (id: number, status: string, note = ''): Promise<boolean> => {
     try {
       const r = await authFetch('/api/review/submit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, review_status: status, note }),
       })
       const d = await r.json()
-      if (!d.ok) { flash(d.error || '提交失败'); return }
+      if (!d.ok) { flash(d.error || '提交失败'); return false }
       const prev = rows.find(x => x.id === id)
       syncRow(id, { review_status: status, reviewer: me?.username || prev?.reviewer || '', reviewed_at: nowLocal(), note: note || prev?.note || '' })
       bumpStats(prev?.review_status, status)
@@ -219,7 +243,55 @@ export function StrawResultsView() {
       if (prev?.push && (prev.push.status === 'held' || prev.push.status === 'pushed' || prev.push.warning_id)) {
         setTimeout(() => load(page), 1800)
       }
-    } catch { flash('提交失败') }
+      return true
+    } catch { flash('提交失败'); return false }
+  }
+
+  // 批次1：详情弹层判定后自动跳下一张未复核（同页顺序），本页完成则关闭并提示
+  const applyAndAdvance = async (id: number, status: string, note = '') => {
+    const ok = await applyReview(id, status, note)
+    if (!ok) return
+    const idx = rows.findIndex(x => x.id === id)
+    const next = rows.slice(idx + 1).find(x => !isDone(x))
+    if (next) setFocus(next)
+    else { setFocus(null); flash('本页已全部复检完成 ✓') }
+  }
+
+  // 批次1：批量复检（循环调 /api/review/submit，复用 ServerReviewPage 模式）
+  const batchApply = async (ids: number[], status: string) => {
+    setBatchAsk(null)
+    try {
+      let okCount = 0
+      for (const id of ids) {
+        const r = await authFetch('/api/review/submit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, review_status: status }),
+        })
+        const d = await r.json()
+        if (d.ok) {
+          okCount++
+          const prev = rows.find(x => x.id === id)
+          syncRow(id, { review_status: status, reviewer: me?.username || prev?.reviewer || '', reviewed_at: nowLocal() })
+          bumpStats(prev?.review_status, status)
+        }
+      }
+      flash(`批量 ${okCount}/${ids.length} 条 → ${status === 'true' ? '真烟' : status === 'false' ? '误报' : '稍后处理'}`)
+      setSel(new Set())
+    } catch { flash('批量提交失败') }
+  }
+
+  // 批次1：行选中/全选当前页
+  const toggleSel = (id: number) => {
+    setSel(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  const selAllPage = () => {
+    setSel(prev => {
+      const n = new Set(prev)
+      const all = rows.length > 0 && rows.every(r => n.has(r.id))
+      if (all) rows.forEach(r => n.delete(r.id))
+      else rows.forEach(r => n.add(r.id))
+      return n
+    })
   }
 
   const undoReview = async (id: number) => {
@@ -236,7 +308,7 @@ export function StrawResultsView() {
     } catch { flash('撤销失败') }
   }
 
-  const saveBoxes = async (id: number, boxes: any[]) => {
+  const saveBoxes = async (id: number, boxes: any[]): Promise<boolean> => {
     try {
       // 记录级 label 按框类别优先级：smoke（烟为主）> fire > house（房屋排除）
       const hasSmoke = boxes.some((b: any) => b.cls === 0)
@@ -248,17 +320,82 @@ export function StrawResultsView() {
         body: JSON.stringify({ id, boxes, label }),
       })
       const d = await r.json()
-      if (!d.ok) { flash(d.error || '保存失败'); return }
+      if (!d.ok) { flash(d.error || '保存失败'); return false }
       const prev = rows.find(x => x.id === id)
       const maxConf = boxes.length ? Math.max(...boxes.map((b: any) => b.conf || 0)) : prev?.max_conf
       syncRow(id, { boxes, label, max_conf: maxConf, review_status: 'true', reviewer: me?.username || prev?.reviewer || '', reviewed_at: nowLocal() })
       bumpStats(prev?.review_status, 'true')
       flash(`#${id} 画框已保存（${boxes.length} 框）→ 真烟`)
-    } catch { flash('保存失败') }
+      return true
+    } catch { flash('保存失败'); return false }
+  }
+
+  // 批次1：画框保存后同样自动跳下一张
+  const saveBoxesAndAdvance = async (id: number, boxes: any[]) => {
+    const ok = await saveBoxes(id, boxes)
+    if (!ok) return
+    const idx = rows.findIndex(x => x.id === id)
+    const next = rows.slice(idx + 1).find(x => !isDone(x))
+    if (next) setFocus(next)
+    else { setFocus(null); flash('本页已全部复检完成 ✓') }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const pushDist = stats?.push || {}
+
+  // 批次3：统计卡点击联动筛选（再点取消；检测帧总数卡不可点）
+  const statCards: [string, number | string | undefined, string, { f: 'status' | 'push'; v: string } | null][] = [
+    ['检测帧总数', stats?.total, '#c8e6ff', null],
+    ['待复检', stats?.pending, AMBER, { f: 'status', v: 'pending' }],
+    ['确认真烟', stats?.trueCount, GREEN, { f: 'status', v: 'true' }],
+    ['确认误报', stats?.falseCount, RED, { f: 'status', v: 'false' }],
+    ['已推送告警', pushDist.pushed, CYAN, { f: 'push', v: 'pushed' }],
+    ['待复核后推', pushDist.held, PURPLE, { f: 'push', v: 'held' }],
+    ['推送失败', pushDist.failed, ORANGE, { f: 'push', v: 'failed' }],
+  ]
+  const clickStat = (f: 'status' | 'push', v: string) => {
+    if (f === 'status') { const nv = fStatus === v ? '' : v; setFStatus(nv); setPage(1) }
+    else { const nv = fPush === v ? '' : v; setFPush(nv); setPage(1) }
+  }
+
+  // 批次2：页码按钮（窗口化：首尾 + 当前 ±1，中间省略）
+  const pageBtns: number[] = []
+  {
+    const set = new Set<number>([1, totalPages, page - 1, page, page + 1])
+    for (let i = 1; i <= totalPages; i++) if (set.has(i)) pageBtns.push(i)
+  }
+  const goPage = (p: number) => { const np = Math.min(totalPages, Math.max(1, p)); setPage(np); load(np) }
+
+  // 批次4：键盘导航（列表态 ↑↓ 移动高亮 / Enter 打开详情；弹层打开或输入框聚焦时停用）
+  useEffect(() => {
+    if (focus) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const dir = e.key === 'ArrowDown' ? 1 : -1
+        if (activeId === null) {
+          const first = rows.findIndex(r => !isDone(r))
+          setActiveId(rows[first >= 0 ? first : 0]?.id ?? null)
+        } else {
+          const idx = rows.findIndex(r => r.id === activeId)
+          const n = Math.min(rows.length - 1, Math.max(0, idx + dir))
+          setActiveId(rows[n]?.id ?? null)
+        }
+      } else if (e.key === 'Enter' && activeId !== null) {
+        const r = rows.find(x => x.id === activeId)
+        if (r) setFocus(r)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [focus, activeId, rows])
+
+  // 批次4：高亮行滚动到可视区
+  useEffect(() => {
+    if (activeId !== null) document.getElementById(`straw-row-${activeId}`)?.scrollIntoView({ block: 'nearest' })
+  }, [activeId])
 
   const selectStyle: React.CSSProperties = {
     background: 'rgba(0,20,60,0.6)', color: '#c8e6ff', border: '1px solid rgba(0,150,220,0.3)',
@@ -309,22 +446,24 @@ export function StrawResultsView() {
         {msg && <span style={{ color: ORANGE, marginLeft: 8 }}>{msg}</span>}
       </div>
 
-      {/* 统计卡 */}
+      {/* 统计卡（点击联动筛选，批次3；再点取消） */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-        {([
-          ['检测帧总数', stats?.total ?? '—', '#c8e6ff'],
-          ['待复检', stats?.pending ?? '—', AMBER],
-          ['确认真烟', stats?.trueCount ?? '—', GREEN],
-          ['确认误报', stats?.falseCount ?? '—', RED],
-          ['已推送告警', pushDist.pushed ?? '—', CYAN],
-          ['待复核后推', pushDist.held ?? '—', PURPLE],
-          ['推送失败', pushDist.failed ?? '—', ORANGE],
-        ] as const).map(([label, v, color]) => (
-          <div key={label} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ fontSize: 11, color: '#5a8aaa' }}>{label}</div>
-            <div style={{ color, fontSize: 20, fontWeight: 700, fontFamily: 'monospace' }}>{v}</div>
-          </div>
-        ))}
+        {statCards.map(([label, v, color, link]) => {
+          const active = link ? (link.f === 'status' ? fStatus === link.v : fPush === link.v) : false
+          return (
+            <div key={label}
+              onClick={link ? () => clickStat(link.f, link.v) : undefined}
+              title={link ? (active ? '点击取消该筛选' : `点击只看「${label}」`) : ''}
+              style={{
+                ...card, display: 'flex', flexDirection: 'column', gap: 4,
+                ...(link ? { cursor: 'pointer', transition: 'box-shadow .15s' } : {}),
+                ...(active ? { borderColor: color, boxShadow: `0 0 0 1px ${color}44, 0 0 14px ${color}33` } : {}),
+              }}>
+              <div style={{ fontSize: 11, color: active ? color : '#5a8aaa' }}>{label}</div>
+              <div style={{ color, fontSize: 20, fontWeight: 700, fontFamily: 'monospace' }}>{v ?? '—'}</div>
+            </div>
+          )
+        })}
       </div>
 
       {/* 筛选栏 */}
@@ -366,10 +505,46 @@ export function StrawResultsView() {
           <option value="0.3">≥ 0.30</option>
           <option value="0.25">≥ 0.25</option>
         </select>
+        <select value={fMaxConf} onChange={e => setFMaxConf(e.target.value)} style={selectStyle} title="只看低置信度帧（复检重点）">
+          <option value="">置信度无上限</option>
+          <option value="0.5">只看 &lt;0.50</option>
+          <option value="0.4">只看 &lt;0.40</option>
+          <option value="0.3">只看 &lt;0.30</option>
+        </select>
+        <select value={fStream} onChange={e => setFStream(e.target.value)} style={selectStyle}>
+          <option value="">全部流</option>
+          {(stats?.streams || []).map((s: string) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={fSort} onChange={e => setFSort(e.target.value)} style={selectStyle} title="排序方式（待复核优先可让'下一张没标的'自动顶上）">
+          <option value="">按时间倒序</option>
+          <option value="pending">待复核优先</option>
+          <option value="conf_desc">置信度从高到低</option>
+          <option value="conf_asc">置信度从低到高</option>
+        </select>
         <span style={{ marginLeft: 'auto', fontSize: 11, color: '#5a8aaa' }}>
           共 <b style={{ color: CYAN, fontFamily: 'monospace' }}>{total}</b> 条 · 第 {page} / {totalPages} 页
         </span>
       </div>
+
+      {/* 批次1：批量操作栏（选中行后出现） */}
+      {sel.size > 0 && (
+        <div style={{
+          ...card, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          background: 'rgba(0,120,220,0.10)', border: '1px solid rgba(0,170,255,0.35)',
+        }}>
+          <span style={{ fontSize: 12, color: CYAN, fontWeight: 700 }}>
+            已选 <b style={{ fontFamily: 'monospace' }}>{sel.size}</b> 条
+          </span>
+          <button onClick={() => setBatchAsk({ status: 'true', ids: [...sel] })}
+            style={{ ...tinyBtn('rgba(74,222,128,0.15)', GREEN, 'rgba(74,222,128,0.4)'), padding: '4px 12px', fontSize: 12 }}>✓ 批量真烟</button>
+          <button onClick={() => setBatchAsk({ status: 'false', ids: [...sel] })}
+            style={{ ...tinyBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)'), padding: '4px 12px', fontSize: 12 }}>✗ 批量误报</button>
+          <button onClick={() => setBatchAsk({ status: 'uncertain', ids: [...sel] })}
+            style={{ ...tinyBtn('rgba(255,183,77,0.15)', AMBER, 'rgba(255,183,77,0.4)'), padding: '4px 12px', fontSize: 12 }}>⏸ 批量稍后</button>
+          <button onClick={() => setSel(new Set())}
+            style={{ ...tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), padding: '4px 12px', fontSize: 12, marginLeft: 'auto' }}>清空选择 ✕</button>
+        </div>
+      )}
 
       {/* 表格 */}
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
@@ -382,6 +557,13 @@ export function StrawResultsView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...th, width: 34 }}>
+                    <input type="checkbox"
+                      checked={rows.length > 0 && rows.every(r => sel.has(r.id))}
+                      onChange={selAllPage}
+                      title="全选/取消本页"
+                      style={{ cursor: 'pointer', accentColor: CYAN }} />
+                  </th>
                   {['时间', '流', '类别', '置信度', '框', '推送状态', '复检状态', '坐标', '快捷复检'].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
@@ -394,9 +576,19 @@ export function StrawResultsView() {
                   const hasFire = (r.boxes || []).some(b => b.cls === 1)
                   const hasSmoke = (r.boxes || []).some(b => b.cls === 0)
                   const clsCol = hasFire ? RED : hasSmoke ? CYAN : AMBER
-                  const done = r.review_status === 'true' || r.review_status === 'false' || r.review_status === 'uncertain'
+                  const done = isDone(r)
+                  const hl = activeId === r.id
                   return (
-                    <tr key={r.id} style={{ opacity: done && fStatus === '' ? 0.62 : 1 }}>
+                    <tr key={r.id} id={`straw-row-${r.id}`}
+                      style={{
+                        opacity: done && fStatus === '' ? 0.62 : 1,
+                        cursor: 'default',
+                        ...(hl ? { background: 'rgba(0,120,220,0.16)', boxShadow: 'inset 2px 0 0 ' + CYAN } : {}),
+                      }}>
+                      <td style={{ ...td, width: 34 }}>
+                        <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggleSel(r.id)}
+                          style={{ cursor: 'pointer', accentColor: CYAN }} />
+                      </td>
                       <td style={{ ...td, ...mono, fontSize: 11, whiteSpace: 'nowrap' }}>
                         {r.ts ? r.ts.slice(5, 19) : '-'}
                       </td>
@@ -454,6 +646,12 @@ export function StrawResultsView() {
                             style={{ ...tinyBtn('rgba(74,222,128,0.12)', r.review_status === 'true' ? '#2e6b45' : GREEN, 'rgba(74,222,128,0.35)'), opacity: r.review_status === 'true' ? 0.45 : 1 }}>真烟</button>
                           <button onClick={() => applyReview(r.id, 'false')} disabled={r.review_status === 'false'}
                             style={{ ...tinyBtn('rgba(255,68,68,0.12)', r.review_status === 'false' ? '#6b2e2e' : RED, 'rgba(255,68,68,0.35)'), opacity: r.review_status === 'false' ? 0.45 : 1 }}>误报</button>
+                          <button onClick={() => applyReview(r.id, 'uncertain')} disabled={r.review_status === 'uncertain'}
+                            style={{ ...tinyBtn('rgba(255,183,77,0.12)', r.review_status === 'uncertain' ? '#6b5a2e' : AMBER, 'rgba(255,183,77,0.35)'), opacity: r.review_status === 'uncertain' ? 0.45 : 1 }}>稍后</button>
+                          {done && (
+                            <button onClick={() => undoReview(r.id)} title="撤销该条复核 → 待复检"
+                              style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>↩</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -465,22 +663,65 @@ export function StrawResultsView() {
         )}
       </div>
 
-      {/* 分页 */}
+      {/* 分页（批次2：页码按钮 + 跳转） */}
       {!loading && total > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={() => { const p = page - 1; setPage(p); load(p) }} disabled={page <= 1} style={{ ...navBtn, opacity: page <= 1 ? 0.4 : 1 }}>← 上一页</button>
-          <button onClick={() => { const p = page + 1; setPage(p); load(p) }} disabled={page >= totalPages} style={{ ...navBtn, opacity: page >= totalPages ? 0.4 : 1 }}>下一页 →</button>
-          <span style={{ fontSize: 11, color: '#5a8aaa' }}>{page} / {totalPages} 页 · 每页 {PAGE_SIZE} 条</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => goPage(page - 1)} disabled={page <= 1} style={{ ...navBtn, opacity: page <= 1 ? 0.4 : 1 }}>← 上一页</button>
+          {pageBtns.map((p, i) => (
+            <span key={p} style={{ display: 'inline-flex', alignItems: 'center' }}>
+              {i > 0 && p - pageBtns[i - 1] > 1 && <span style={{ fontSize: 11, color: '#3a5a70', margin: '0 2px' }}>…</span>}
+              <button onClick={() => goPage(p)} disabled={p === page}
+                style={{
+                  ...navBtn, minWidth: 30, textAlign: 'center',
+                  ...(p === page ? { background: 'rgba(0,170,255,0.25)', color: CYAN, borderColor: CYAN, fontWeight: 700 } : {}),
+                }}>{p}</button>
+            </span>
+          ))}
+          <button onClick={() => goPage(page + 1)} disabled={page >= totalPages} style={{ ...navBtn, opacity: page >= totalPages ? 0.4 : 1 }}>下一页 →</button>
+          <span style={{ fontSize: 11, color: '#5a8aaa', marginLeft: 4 }}>第 {page} / {totalPages} 页 · 每页 {PAGE_SIZE} 条</span>
+          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', marginLeft: 8 }}>
+            <input
+              value={jumpPage} onChange={e => setJumpPage(e.target.value.replace(/\D/g, ''))}
+              placeholder="页码" inputMode="numeric"
+              style={{ ...selectStyle, width: 52, fontFamily: 'monospace' }}
+              onKeyDown={e => { if (e.key === 'Enter') goPage(parseInt(jumpPage) || 1) }} />
+            <button onClick={() => goPage(parseInt(jumpPage) || 1)} style={navBtn}>跳转</button>
+          </span>
         </div>
       )}
 
-      {/* 详情弹层（内嵌复检工作台） */}
+      {/* 批次1：批量二次确认弹窗 */}
+      {batchAsk && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,6,18,0.72)', zIndex: 3100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ ...card, width: 400, padding: 22 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#c8e6ff', marginBottom: 8 }}>
+              批量确认：将 <b style={{ color: CYAN, fontFamily: 'monospace' }}>{batchAsk.ids.length}</b> 条标记为
+              <span style={{ color: batchAsk.status === 'true' ? GREEN : batchAsk.status === 'false' ? RED : AMBER, marginLeft: 6 }}>
+                {batchAsk.status === 'true' ? '真烟' : batchAsk.status === 'false' ? '误报' : '稍后处理'}
+              </span>？
+            </div>
+            <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 18, lineHeight: 1.7 }}>
+              已复核记录将被覆盖；批量操作可逐条「↩ 撤销」恢复。低置信度 held 帧判定「真烟」将触发推送。
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setBatchAsk(null)}
+                style={{ ...tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), padding: '6px 18px', fontSize: 12 }}>取消</button>
+              <button onClick={() => batchApply(batchAsk.ids, batchAsk.status)}
+                style={{ ...tinyBtn(batchAsk.status === 'true' ? 'rgba(74,222,128,0.18)' : batchAsk.status === 'false' ? 'rgba(255,68,68,0.18)' : 'rgba(255,183,77,0.18)', batchAsk.status === 'true' ? GREEN : batchAsk.status === 'false' ? RED : AMBER, batchAsk.status === 'true' ? 'rgba(74,222,128,0.5)' : batchAsk.status === 'false' ? 'rgba(255,68,68,0.5)' : 'rgba(255,183,77,0.5)'), padding: '6px 18px', fontSize: 12, fontWeight: 700 }}>
+                确认批量
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 详情弹层（内嵌复检工作台；判定/画框后自动跳下一张） */}
       {focus && (
         <DetailModal
           row={rows.find(x => x.id === focus.id) ?? focus}
           onClose={() => setFocus(null)}
           imgSizes={imgSizes} setImgSizes={setImgSizes}
-          onApply={applyReview} onUndo={undoReview} onSaveBoxes={saveBoxes}
+          onApply={applyAndAdvance} onUndo={undoReview} onSaveBoxes={saveBoxesAndAdvance}
           reviewer={me?.username || ''}
         />
       )}
