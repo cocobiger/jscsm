@@ -74,6 +74,8 @@ interface Row {
   note?: string
   lat?: number
   lng?: number
+  scene?: string          // P2 场景标签：dock机场期 / sim模拟流 / night夜间 / day白天 / urban城区
+  exclude?: number        // P2 人工"不纳入判例"标记：1=排除
   push?: PushInfo
 }
 
@@ -110,6 +112,26 @@ function reviewBadge(s?: string) {
   return { text: '待复检', color: '#5a8aaa', bg: 'rgba(90,138,170,0.08)' }
 }
 
+// P2 场景徽标（scene 标签 + exclude 不纳入判例）
+function sceneBadge(scene?: string, exclude?: number) {
+  if (exclude === 1) return { text: '⛔ 不纳入判例', color: RED, bg: 'rgba(255,68,68,0.14)' }
+  if (scene === 'dock') return { text: '🅳 机场期', color: PURPLE, bg: 'rgba(179,136,255,0.14)' }
+  if (scene === 'sim') return { text: '🅼 模拟流', color: '#7a8a9a', bg: 'rgba(122,138,154,0.14)' }
+  if (scene === 'night') return { text: '🌙 夜间', color: '#7c8cff', bg: 'rgba(124,140,255,0.14)' }
+  if (scene === 'urban') return { text: '🏙 城区', color: ORANGE, bg: 'rgba(255,112,67,0.14)' }
+  if (scene === 'day') return { text: '☀ 白天', color: GREEN, bg: 'rgba(74,222,128,0.12)' }
+  return null
+}
+
+const SCENE_OPTIONS: [string, string][] = [
+  ['', '全部场景'],
+  ['dock', '🅳 机场期'],
+  ['sim', '🅼 模拟流'],
+  ['night', '🌙 夜间'],
+  ['day', '☀ 白天'],
+  ['urban', '🏙 城区'],
+]
+
 const nowLocal = () => {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
@@ -137,6 +159,8 @@ export function StrawResultsView() {
   const [fMinConf, setFMinConf] = useState(() => readFilters().fMinConf || '')
   const [fMaxConf, setFMaxConf] = useState(() => readFilters().fMaxConf || '')   // 批次3：置信度上限（只看低置信度）
   const [fStream, setFStream] = useState(() => readFilters().fStream || '')       // 批次3：按流筛选
+  const [fScene, setFScene] = useState(() => readFilters().fScene || '')          // P2：场景筛选（dock/sim/night/day/urban）
+  const [fExcluded, setFExcluded] = useState(() => readFilters().fExcluded || '') // P2：只看"不纳入判例"
   const [fSort, setFSort] = useState(() => readFilters().fSort || '')             // 批次2：排序（''=时间倒序 / pending / conf_desc / conf_asc）
   const [jumpPage, setJumpPage] = useState('')                                    // 批次2：页码跳转输入
   const [focus, setFocus] = useState<Row | null>(null)
@@ -157,8 +181,8 @@ export function StrawResultsView() {
 
   // 筛选记忆（批次3）：任一筛选变化即持久化
   useEffect(() => {
-    try { localStorage.setItem(FILTER_LS, JSON.stringify({ fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort })) } catch {}
-  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort])
+    try { localStorage.setItem(FILTER_LS, JSON.stringify({ fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fScene, fExcluded, fSort })) } catch {}
+  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fScene, fExcluded, fSort])
 
   // 当前登录用户（复核人绑定；后端优先从 token 解析，此值仅用于界面展示）
   useEffect(() => {
@@ -199,13 +223,15 @@ export function StrawResultsView() {
       if (fMinConf) params.set('min_conf', fMinConf)
       if (fMaxConf) params.set('max_conf', fMaxConf)   // 批次3：置信度上限（只看低置信度）
       if (fStream) params.set('stream', fStream)        // 批次3：按流筛选
+      if (fScene) params.set('scene', fScene)           // P2：场景筛选
+      if (fExcluded) params.set('exclude', '1')         // P2：只看"不纳入判例"
       if (fSort) params.set('sort', fSort)              // 批次2：排序
       const r = await authFetch(`/api/straw/results?${params}`)
       const d = await r.json()
       if (d.ok) { setRows(d.rows || []); setTotal(d.total || 0); setStats(d.stats || null); setActiveId(null) }
     } catch {}
     setLoading(false)
-  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fSort])
+  }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fScene, fExcluded, fSort])
 
   useEffect(() => { setPage(1); load(1) }, [load])
 
@@ -278,6 +304,24 @@ export function StrawResultsView() {
       flash(`批量 ${okCount}/${ids.length} 条 → ${status === 'true' ? '真烟' : status === 'false' ? '误报' : '稍后处理'}`)
       setSel(new Set())
     } catch { flash('批量提交失败') }
+  }
+
+  // P2：批量"不纳入判例"标记（exclude=1）/ 恢复（exclude=0）
+  const batchExclude = async (exclude: boolean) => {
+    const ids = [...sel]
+    if (!ids.length) return
+    try {
+      const r = await authFetch('/api/review/exclude', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, exclude }),
+      })
+      const d = await r.json()
+      if (d.ok) {
+        setRows(prev => prev.map(x => (ids.includes(x.id) ? { ...x, exclude: exclude ? 1 : 0 } : x)))
+        flash(`批量${exclude ? '标记不纳入判例' : '恢复纳入判例'} ${d.changed}/${ids.length} 条`)
+        setSel(new Set())
+      } else flash(d.error || '操作失败')
+    } catch { flash('操作失败') }
   }
 
   // 批次1：行选中/全选当前页
@@ -515,6 +559,14 @@ export function StrawResultsView() {
           <option value="">全部流</option>
           {(stats?.streams || []).map((s: string) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* P2：场景筛选（机场期/模拟流/夜间/白天/城区） + 只看"不纳入判例" */}
+        <select value={fScene} onChange={e => setFScene(e.target.value)} style={selectStyle} title="场景标签：机场期/模拟流为无效输入，夜间阈值策略相关">
+          {SCENE_OPTIONS.map(([v, label]) => <option key={v || 'all'} value={v}>{label}</option>)}
+        </select>
+        <select value={fExcluded} onChange={e => setFExcluded(e.target.value)} style={selectStyle} title="只查看人工标记为「不纳入判例」的帧">
+          <option value="">含纳入判例</option>
+          <option value="1">⛔ 只看不纳入判例</option>
+        </select>
         <select value={fSort} onChange={e => setFSort(e.target.value)} style={selectStyle} title="排序方式（待复核优先可让'下一张没标的'自动顶上）">
           <option value="">按时间倒序</option>
           <option value="pending">待复核优先</option>
@@ -541,6 +593,13 @@ export function StrawResultsView() {
             style={{ ...tinyBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)'), padding: '4px 12px', fontSize: 12 }}>✗ 批量误报</button>
           <button onClick={() => setBatchAsk({ status: 'uncertain', ids: [...sel] })}
             style={{ ...tinyBtn('rgba(255,183,77,0.15)', AMBER, 'rgba(255,183,77,0.4)'), padding: '4px 12px', fontSize: 12 }}>⏸ 批量稍后</button>
+          {/* P2：批量不纳入判例（导出重训默认剔除） */}
+          <button onClick={() => batchExclude(true)} title="标记为不纳入判例：一键导出重训时将自动剔除这批帧"
+            style={{ ...tinyBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)'), padding: '4px 12px', fontSize: 12 }}>⛔ 批量不纳入判例</button>
+          {rows.some(r => sel.has(r.id) && r.exclude === 1) && (
+            <button onClick={() => batchExclude(false)} title="恢复纳入判例"
+              style={{ ...tinyBtn('rgba(74,222,128,0.15)', GREEN, 'rgba(74,222,128,0.4)'), padding: '4px 12px', fontSize: 12 }}>↩ 恢复判例</button>
+          )}
           <button onClick={() => setSel(new Set())}
             style={{ ...tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), padding: '4px 12px', fontSize: 12, marginLeft: 'auto' }}>清空选择 ✕</button>
         </div>
@@ -564,7 +623,7 @@ export function StrawResultsView() {
                       title="全选/取消本页"
                       style={{ cursor: 'pointer', accentColor: CYAN }} />
                   </th>
-                  {['时间', '流', '类别', '置信度', '框', '推送状态', '复检状态', '坐标', '快捷复检'].map(h => (
+                  {['时间', '流', '场景', '类别', '置信度', '框', '推送状态', '复检状态', '坐标', '快捷复检'].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -594,6 +653,19 @@ export function StrawResultsView() {
                       </td>
                       <td style={{ ...td, ...mono, fontSize: 10, maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#7ab8e0' }}>
                         {r.stream_id || '-'}
+                      </td>
+                      {/* P2：场景徽标（机场期/模拟流/夜间/白天/城区 + 不纳入判例） */}
+                      <td style={td}>
+                        {(() => {
+                          const sb = sceneBadge(r.scene, r.exclude)
+                          if (!sb) return <span style={{ fontSize: 10, color: '#3a5a70' }}>—</span>
+                          return (
+                            <span style={{
+                              display: 'inline-block', padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 600,
+                              color: sb.color, background: sb.bg, whiteSpace: 'nowrap',
+                            }}>{sb.text}</span>
+                          )
+                        })()}
                       </td>
                       <td style={{ ...td }}>
                         <span style={{ color: clsCol, fontWeight: 700, fontSize: 11 }}>
@@ -722,6 +794,17 @@ export function StrawResultsView() {
           onClose={() => setFocus(null)}
           imgSizes={imgSizes} setImgSizes={setImgSizes}
           onApply={applyAndAdvance} onUndo={undoReview} onSaveBoxes={saveBoxesAndAdvance}
+          onToggleExclude={async (exclude) => {
+            try {
+              const r = await authFetch('/api/review/exclude', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [focus.id], exclude }),
+              })
+              const d = await r.json()
+              if (d.ok) { syncRow(focus.id, { exclude: exclude ? 1 : 0 }); flash(exclude ? '已标记不纳入判例（导出重训将剔除）' : '已恢复纳入判例') }
+              else flash(d.error || '操作失败')
+            } catch { flash('操作失败') }
+          }}
           reviewer={me?.username || ''}
         />
       )}
@@ -733,7 +816,7 @@ export function StrawResultsView() {
 }
 
 // ── 详情弹层：大图 + 检测框 + 推送状态 + 复检状态 + 快捷复检操作 ──
-function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onSaveBoxes, reviewer }: {
+function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onSaveBoxes, onToggleExclude, reviewer }: {
   row: Row
   onClose: () => void
   imgSizes: Record<number, { w: number; h: number }>
@@ -741,6 +824,7 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
   onApply: (id: number, status: string, note?: string) => void
   onUndo: (id: number) => void
   onSaveBoxes: (id: number, boxes: any[]) => void
+  onToggleExclude: (exclude: boolean) => void
   reviewer: string
 }) {
   const [drawing, setDrawing] = useState(false)
@@ -868,6 +952,29 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
           <div style={{ color: '#7ab8e0', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>检测信息</div>
           {labelLine('时间', row.ts || '-')}
           {labelLine('来源', row.source || '-')}
+          {/* P2：场景标签 + 不纳入判例切换 */}
+          {labelLine('场景', (() => {
+            const sb = sceneBadge(row.scene, row.exclude)
+            return (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {sb ? (
+                  <span style={{
+                    display: 'inline-block', padding: '2px 9px', borderRadius: 3, fontSize: 11, fontWeight: 600,
+                    color: sb.color, background: sb.bg,
+                  }}>{sb.text}</span>
+                ) : <span style={{ color: '#3a5a70' }}>未分类</span>}
+                <button
+                  onClick={() => onToggleExclude(!(row.exclude === 1))}
+                  title={row.exclude === 1 ? '恢复纳入判例（导出重训将重新包含）' : '标记不纳入判例（导出重训将剔除）'}
+                  style={{
+                    ...tinyBtn(row.exclude === 1 ? 'rgba(74,222,128,0.15)' : 'rgba(255,68,68,0.15)', row.exclude === 1 ? GREEN : RED, row.exclude === 1 ? 'rgba(74,222,128,0.4)' : 'rgba(255,68,68,0.4)'),
+                    padding: '3px 10px', fontWeight: 600,
+                  }}>
+                  {row.exclude === 1 ? '↩ 恢复判例' : '⛔ 不纳入判例'}
+                </button>
+              </span>
+            )
+          })())}
           {labelLine('坐标', (typeof row.lat === 'number' && typeof row.lng === 'number') ? `${row.lat.toFixed(5)}, ${row.lng.toFixed(5)}` : '-')}
         </div>
 
@@ -1326,6 +1433,7 @@ function StatsOverlay({ onClose }: { onClose: () => void }) {
               <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(0,80,150,0.3)' }}>
                   <span style={{ fontSize: 12, color: CYAN, fontWeight: 700 }}>YOLO 训练数据导出（数据资产台账）</span>
+                  <span style={{ fontSize: 10, color: '#5a8aaa' }} title="默认剔除：机场期(dock) / 模拟流(sim) / 人工「不纳入判例」帧">默认剔除无效场景</span>
                   <button onClick={doExport} disabled={exporting}
                     style={{ ...tinyBtn('rgba(0,170,255,0.18)', exporting ? '#6b9abf' : CYAN, 'rgba(0,170,255,0.5)'), padding: '5px 14px', marginLeft: 'auto', fontWeight: 700 }}>
                     {exporting ? '导出中...' : '⚡ 一键导出重训'}
