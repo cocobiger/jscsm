@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>复检图「点击放大看细节」需求评估与排期</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --line:#e3e6ea; --text:#1f2937; --sub:#5b6472;
+    --blue:#1a5fb4; --blue-bg:#eaf1fb; --amber:#9a6a00; --amber-bg:#fdf3e0;
+    --red:#c0392b; --red-bg:#fdecea; --green:#1e7d46; --green-bg:#e8f5ee;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","PingFang SC","SimSun",sans-serif; line-height:1.75; padding:32px 16px;}
+  .wrap{max-width:1080px; margin:0 auto;}
+  .head{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:28px 32px; margin-bottom:20px;}
+  .head h1{font-size:22px; font-weight:700; letter-spacing:0.5px;}
+  .head .meta{color:var(--sub); font-size:13px; margin-top:10px; display:flex; gap:18px; flex-wrap:wrap;}
+  .head .badge{display:inline-block; background:var(--blue-bg); color:var(--blue); border-radius:4px; padding:2px 10px; font-size:12px; font-weight:600;}
+  .sec{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 32px; margin-bottom:20px;}
+  .sec h2{font-size:17px; font-weight:700; padding-left:10px; border-left:4px solid var(--blue); margin-bottom:16px;}
+  .sec h3{font-size:15px; font-weight:700; color:var(--blue); margin:18px 0 8px;}
+  .sec p, .sec li{font-size:14px; color:var(--text);}
+  .sec p{margin:8px 0;}
+  ul,ol{padding-left:22px;}
+  li{margin:5px 0;}
+  code{background:#f0f2f5; border:1px solid var(--line); border-radius:3px; padding:0 5px; font-size:12px; color:#c0392b;}
+  table{width:100%; border-collapse:collapse; font-size:13px; margin:12px 0;}
+  th{background:#f0f2f5; color:#333; font-weight:600; text-align:left; padding:8px 10px; border:1px solid var(--line);}
+  td{padding:8px 10px; border:1px solid var(--line); vertical-align:top;}
+  tr:nth-child(even) td{background:#fafbfc;}
+  .note{border-radius:6px; padding:12px 16px; font-size:13px; margin:12px 0;}
+  .note.blue{background:var(--blue-bg); color:var(--blue);}
+  .note.amber{background:var(--amber-bg); color:var(--amber);}
+  .note.red{background:var(--red-bg); color:var(--red);}
+  .note.green{background:var(--green-bg); color:var(--green);}
+  .note b{font-weight:700;}
+  .batch{border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:12px 0; background:#fafbfc;}
+  .batch .bt{display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px;}
+  .batch .tag{font-size:11px; border-radius:4px; padding:1px 8px; font-weight:600;}
+  .tag.b1{background:var(--blue-bg); color:var(--blue);}
+  .tag.b2{background:var(--green-bg); color:var(--green);}
+  .batch .desc{font-size:13px; color:var(--sub); margin-top:6px;}
+  .batch ul{margin-top:6px;}
+  .batch li{font-size:13px;}
+  .footer{color:#9aa1ab; font-size:12px; text-align:center; margin-top:16px;}
+  .kpi{display:flex; gap:14px; flex-wrap:wrap; margin:14px 0;}
+  .kpi .box{flex:1 1 150px; border:1px solid var(--line); border-radius:8px; padding:12px 14px; text-align:center;}
+  .kpi .v{font-size:22px; font-weight:700; color:var(--blue);}
+  .kpi .k{font-size:12px; color:var(--sub); margin-top:2px;}
+  @media print{ body{background:#fff; padding:0;} .sec,.head{page-break-inside:avoid;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 页头 -->
+  <div class="head">
+    <h1>复检图「点击放大看细节」需求评估与排期</h1>
+    <div class="meta">
+      <span class="badge">需求评估</span>
+      <span>2026-08-31</span>
+      <span>关联：秸秆复检闭环 · StrawResultsView / ServerReviewPage · 画框补标</span>
+    </div>
+  </div>
+
+  <!-- 一、需求理解 -->
+  <div class="sec">
+    <h2>一、需求理解</h2>
+    <p><b>业务背景</b>：复检人员需要判断 1km 外无人机航拍画面里的细微烟雾。模型原图分辨率 2942×1732（约 2.9MP），但当前复核界面把图<b>压缩显示</b>：详情弹层左右并排后每张仅约 520px 宽、放大复核弹层大图上限 70vh——细微烟柱（30~130px）在屏幕上只剩几个像素，<b>人眼根本看不清，导致误判/漏判</b>。</p>
+    <p><b>一句话需求</b>：复核用的图，<b>点击后能放大</b>，支持缩放/平移看细节，且放大后标注框仍能正确显示。</p>
+    <div class="kpi">
+      <div class="box"><div class="v">3 处</div><div class="k">图片触点需改造</div></div>
+      <div class="box"><div class="v">2.9MP</div><div class="k">原图分辨率（2942×1732）</div></div>
+      <div class="box"><div class="v">2 批</div><div class="k">排期计划（约 3~4 小时）</div></div>
+      <div class="box"><div class="v">全可回退</div><div class="k">纯前端 + 构建备份</div></div>
+    </div>
+  </div>
+
+  <!-- 二、现状盘点 -->
+  <div class="sec">
+    <h2>二、图片触点现状盘点（已逐处读码确认）</h2>
+    <table>
+      <tr><th style="width:150px">触点</th><th>位置</th><th>当前显示方式</th><th style="width:170px">痛点</th></tr>
+      <tr>
+        <td>① 详情弹层 左右比对图</td>
+        <td><code>StrawResultsView.tsx</code> DetailModal</td>
+        <td>弹层 1080px 内并排两图，各约 520px，<code>width:100%</code> 压缩</td>
+        <td>细节不可见（最核心）</td>
+      </tr>
+      <tr>
+        <td>② 画框补标 画布</td>
+        <td><code>StrawResultsView.tsx</code> BoxDrawerOverlay</td>
+        <td>canvas 原生分辨率绘制 + <code>width:100%</code> 压缩到 ~1150px</td>
+        <td>小目标画框定位难</td>
+      </tr>
+      <tr>
+        <td>③ 放大复核 大图</td>
+        <td><code>ServerReviewPage.tsx</code> 弹层</td>
+        <td><code>maxHeight:70vh</code> 适配显示（1200px 弹层）</td>
+        <td>70vh 上限仍看不清细节</td>
+      </tr>
+      <tr>
+        <td>④ 画框补标 画布（旧页）</td>
+        <td><code>ServerReviewPage.tsx</code> BoxDrawer</td>
+        <td>同②，canvas 压缩显示</td>
+        <td>同上</td>
+      </tr>
+    </table>
+    <div class="note blue"><b>关键发现</b>：画框 canvas 的坐标映射基于 <code>getBoundingClientRect</code> 比率（<code>canvas.width / rect.width</code>），<b>天然兼容 CSS transform 缩放</b>——放大显示后坐标自动换算正确，实现成本很低，这是本次方案能轻量落地的技术基础。</div>
+  </div>
+
+  <!-- 三、方案对比 -->
+  <div class="sec">
+    <h2>三、放大方案对比（4 选）</h2>
+    <table>
+      <tr><th style="width:130px">方案</th><th>交互</th><th>优点</th><th>缺点</th><th style="width:90px">结论</th></tr>
+      <tr>
+        <td><b>A · 全屏查看器</b>（Lightbox）</td>
+        <td>点击图 → 全屏黑底查看器：滚轮缩放 + 拖拽平移 + 显隐框 + 原图/标注切换 + 1:1/适应</td>
+        <td>查看体验最佳；不改两页现有布局；组件可复用</td>
+        <td>需新写 ~150 行组件</td>
+        <td><b style="color:var(--green)">推荐</b></td>
+      </tr>
+      <tr>
+        <td><b>B · 内嵌缩放平移</b></td>
+        <td>图片容器内直接滚轮缩放 + 拖拽（transform 就地变换）</td>
+        <td>不跳层，查看与操作同屏</td>
+        <td>左右并排各 520px 空间太小，缩放平移体验局促</td>
+        <td style="color:var(--sub)">备选</td>
+      </tr>
+      <tr>
+        <td><b>C · hover 放大镜</b></td>
+        <td>鼠标悬停显示局部放大窗</td>
+        <td>实现简单、直观</td>
+        <td>只能看局部，不能整体平移；与画框交互冲突</td>
+        <td style="color:var(--sub)">不选</td>
+      </tr>
+      <tr>
+        <td><b>D · 新标签页开原图</b></td>
+        <td><code>window.open</code> 原图 URL</td>
+        <td>零实现成本</td>
+        <td>无框、无法切换原图/标注、体验割裂</td>
+        <td style="color:var(--red)">不选</td>
+      </tr>
+    </table>
+    <div class="note green"><b>推荐组合</b>：查看场景（触点①②③④）用 <b>方案 A 全屏查看器</b>；同时给画框 canvas 叠加<b>滚轮缩放 + 拖拽平移</b>（坐标自动正确），让「放大后直接画框」成为可能。</div>
+  </div>
+
+  <!-- 四、落地步骤 -->
+  <div class="sec">
+    <h2>四、落地步骤与排期（2 批，合计约 3~4 小时）</h2>
+
+    <div class="batch">
+      <div class="bt"><span class="tag b1">第 1 批</span> 全屏查看器组件 + 查看场景接入 <span style="color:var(--sub); font-weight:400; font-size:12px">≈ 2 小时</span></div>
+      <div class="desc">解决「复核时看不清细节」核心痛点</div>
+      <ul>
+        <li>新建 <code>src/app/components/admin/ImgViewer.tsx</code>（~150 行，无第三方依赖）：<b>滚轮缩放</b>（0.25x~4x，以鼠标为中心）、<b>拖拽平移</b>、<b>双击</b> 1:1↔适应、顶部工具条（放大/缩小/1:1/适应/显隐框/原图↔标注切换/关闭）、Esc 关闭、标注框按百分比叠加</li>
+        <li>接入 <code>StrawResultsView</code> 详情弹层：左右两张图均可点击 → 全屏查看（左图无框 / 右图带框，查看器内一键切换视角）</li>
+        <li>接入 <code>ServerReviewPage</code> 放大复核弹层：大图点击 → 全屏查看</li>
+        <li>快捷键冲突处理：查看器打开时暂停父层 1/2/3/5/Esc 快捷键（仅 Esc 关闭查看器）</li>
+      </ul>
+    </div>
+
+    <div class="batch">
+      <div class="bt"><span class="tag b2">第 2 批</span> 画框画布内嵌缩放平移 <span style="color:var(--sub); font-weight:400; font-size:12px">≈ 1~1.5 小时</span></div>
+      <div class="desc">解决「小目标画框定位难」，放大后可直接精确画框</div>
+      <ul>
+        <li><code>BoxDrawerOverlay</code>（StrawResultsView）与 <code>BoxDrawer</code>（ServerReviewPage）统一改造：canvas 容器加 <b>滚轮缩放 + 拖拽平移</b>（CSS transform 就地变换），顶栏显示缩放比例 + 复位按钮</li>
+        <li>坐标映射：现有 <code>pos()</code> 基于 rect 比率，<b>零改动自动适配</b>；缩放后画框/删除命中区域同步正确</li>
+        <li>缩放时框标注文字（28px）与删除按钮（20px 命中区）保持视觉大小，不随图失真</li>
+      </ul>
+    </div>
+
+    <div class="batch" style="border-color:var(--green); background:var(--green-bg)">
+      <div class="bt"><span class="tag" style="background:var(--green); color:#fff">验证 + 部署</span> 约 0.5 小时</div>
+      <ul>
+        <li>typecheck 硬门禁（历史 19 条错误不动，保证 0 新增）→ <code>npx vite build</code></li>
+        <li>备份 <code>/opt/jsc/frontend_bak_&lt;ts&gt;_&lt;tag&gt;</code> → scp dist → <code>:80/jsc/</code> HTTP 200</li>
+        <li>headless 验证（沿用 <code>shot_compare.cjs</code> 严格匹配法）：详情放大 / 查看器缩放 / 原图标注切换 / 画框缩放截图 4 张</li>
+        <li>回滚预案：<code>jsc-rollback restore</code> 或前端目录整备份还原</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 五、冲突排查 -->
+  <div class="sec">
+    <h2>五、冲突与风险排查</h2>
+    <table>
+      <tr><th style="width:220px">风险点</th><th>影响</th><th style="width:260px">对策</th></tr>
+      <tr><td>快捷键冲突（父层 1/2/3/5/Esc）</td><td>查看器内按键误触复检判定</td><td>查看器打开时 <code>stopPropagation</code> + 父层键盘监听加「查看器开启」守卫</td></tr>
+      <tr><td>弹层遮罩点击关闭误触</td><td>点图放大时触发 <code>onClose</code></td><td>查看器容器 <code>onClick={e => e.stopPropagation()}</code>（沿用现有模式）</td></tr>
+      <tr><td>滚轮事件冒泡</td><td>缩放时页面/弹层跟着滚动</td><td>查看器内 <code>onWheel</code> 阻止默认 + 冒泡；父弹层 <code>overflow</code> 隔离</td></tr>
+      <tr><td>大图缩放卡顿</td><td>2942×1732 大图高频重绘</td><td>CSS transform（GPU 合成）而非 canvas 重绘；滚轮节流 rAF</td></tr>
+      <tr><td>框文字缩放失真</td><td>放大后 28px 标注字变大模糊</td><td>缩放系数反算，标注文字恒定视觉大小（第 2 批）</td></tr>
+      <tr><td>typecheck 既有 19 条错误</td><td>与本次无关（Detection.lat/lng 等）</td><td>不修旧债，保证 0 新增即可</td></tr>
+    </table>
+  </div>
+
+  <!-- 六、结论 -->
+  <div class="sec">
+    <h2>六、结论</h2>
+    <ul>
+      <li><b>需求成立且必要</b>：当前压缩显示是复检误判的直接原因之一，放大查看是复检质量的基本保障</li>
+      <li><b>方案 A（全屏查看器）+ 画布内嵌缩放</b> 落地成本低：依赖现有 <code>pos()</code> rect 比率映射，缩放后坐标自动正确，无需改动坐标换算逻辑</li>
+      <li><b>排期 2 批共 3~4 小时</b>：第 1 批解决查看痛点（2h），第 2 批增强画框标注（1~1.5h），验证部署 0.5h；纯前端改动，无后端/数据库变更，风险低</li>
+      <li>开工指令确认后即按批次执行</li>
+    </ul>
+    <div class="note blue"><b>建议</b>：若当天时间紧，可只做第 1 批（查看放大）即可解决「看不清」核心问题；第 2 批画框缩放后续补上。</div>
+  </div>
+
+  <div class="footer">JSC 秸秆复检 · 需求评估报告 · 2026-08-31</div>
+</div>
+</body>
+</html>

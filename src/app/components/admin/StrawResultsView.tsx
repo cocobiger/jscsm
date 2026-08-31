@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../../lib/apiFetch'
 import { Camera, Image as ImageIcon, BarChart3 } from 'lucide-react'
+import { ImgViewer, useCanvasZoom } from './ImgViewer'
 
 // ── 检测结果统一视图（三合一：全量检测 + 推送状态 + 复检状态 + 内嵌复检工作台）──
 // 数据源：/api/straw/results（主表 straw_detections；推送状态按 warning_id 精确关联，老数据时间窗回退）
@@ -503,6 +504,8 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
 }) {
   const [drawing, setDrawing] = useState(false)
   const [note, setNote] = useState(row.note || '')
+  // 全屏放大查看器：mode=orig 从左侧原图进入（初始隐藏框）/ boxed 从右侧标注图进入（初始显示框）
+  const [viewer, setViewer] = useState<null | { mode: 'orig' | 'boxed' }>(null)
   const sz = imgSizes[row.id]
   const iw = sz?.w || 2942, ih = sz?.h || 1732
   const pb = pushBadge(row.push)
@@ -516,11 +519,12 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
     </div>
   )
 
-  // 键盘快捷键（输入框聚焦时不触发）
+  // 键盘快捷键（输入框聚焦时不触发；全屏查看器打开时其捕获阶段拦截，这里再兜底）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
+      if (viewer) return
       if (e.key === '1') { onApply(row.id, 'true', note) }
       else if (e.key === '2') { onApply(row.id, 'false', note) }
       else if (e.key === '3') { onApply(row.id, 'uncertain', note) }
@@ -530,7 +534,7 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [row.id, note, onApply, onUndo, onClose])
+  }, [row.id, note, viewer, onApply, onUndo, onClose])
 
   const opBtn = (bg: string, color: string, border: string): React.CSSProperties => ({
     padding: '6px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer', background: bg, color,
@@ -566,8 +570,9 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
               左 = 未标注原图（先独立判断是否存在烟/火，不受框误导） · 右 = 检测标注（验证模型框是否准确框住目标）
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              {/* 左：未标注原图 */}
-              <div style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden' }}>
+              {/* 左：未标注原图（点击放大，初始隐藏框） */}
+              <div onClick={() => setViewer({ mode: 'orig' })}
+                style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden', cursor: 'zoom-in' }}>
                 <img src={srcOf(row.frame_path)}
                   onLoad={e => {
                     const nw = (e.target as HTMLImageElement).naturalWidth, nh = (e.target as HTMLImageElement).naturalHeight
@@ -577,9 +582,13 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
                 <span style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(0,10,25,0.8)', color: '#7ee0ff', fontSize: 11, padding: '2px 8px', borderRadius: 3, fontWeight: 700 }}>
                   原图 · 未标注
                 </span>
+                <span style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,10,25,0.75)', color: '#7ee0ff', fontSize: 10, padding: '2px 8px', borderRadius: 3, fontWeight: 700 }}>
+                  ⛶ 点击放大
+                </span>
               </div>
-              {/* 右：检测标注（带框） */}
-              <div style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden' }}>
+              {/* 右：检测标注（带框，点击放大，初始显示框） */}
+              <div onClick={() => setViewer({ mode: 'boxed' })}
+                style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden', cursor: 'zoom-in' }}>
                 <img src={srcOf(row.frame_path)} alt="" style={{ width: '100%', display: 'block', borderRadius: 6 }} />
                 {(row.boxes || []).map((b, i) => (
                   <div key={i} style={{
@@ -604,6 +613,9 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
                   fontSize: 11, padding: '2px 8px', borderRadius: 3, ...mono,
                 }}>
                   {row.label} · {(row.max_conf || 0).toFixed(3)}
+                </span>
+                <span style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,10,25,0.75)', color: CYAN, fontSize: 10, padding: '2px 8px', borderRadius: 3, fontWeight: 700 }}>
+                  ⛶ 点击放大
                 </span>
               </div>
             </div>
@@ -709,6 +721,18 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
           onCancel={() => setDrawing(false)}
         />
       )}
+
+      {/* 全屏放大查看器（点击左右比对图进入；滚轮缩放/拖拽平移/显隐框） */}
+      {viewer && (
+        <ImgViewer
+          src={srcOf(row.frame_path) || ''}
+          boxes={row.boxes || []}
+          title={viewer.mode === 'orig' ? '原图 · 未标注' : '检测标注'}
+          subtitle={`#${row.id} · ${row.label || ''} · ${(row.max_conf || 0).toFixed(3)}`}
+          showBoxes={viewer.mode === 'boxed'}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   )
 }
@@ -727,6 +751,9 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
   const [cls, setCls] = useState(0)
   // 原图模式：隐藏已有标注框（只看干净原图，避免被模型框带偏；新画的框始终显示）
   const [hideBoxes, setHideBoxes] = useState(false)
+  // 画布滚轮缩放（以鼠标为中心；平移交给容器滚动条；坐标映射基于 getBoundingClientRect 比率自动正确）
+  const stageRef = useRef<HTMLDivElement>(null)
+  const { zoom, zoomBy, resetZoom } = useCanvasZoom(stageRef)
 
   useEffect(() => {
     const img = new Image()
@@ -807,7 +834,7 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
         {/* 顶栏 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(0,80,150,0.3)' }}>
           <span style={{ color: CYAN, fontSize: 14, fontWeight: 700 }}>✏ 画框补标（漏报补标 · 保存即真烟）</span>
-          <span style={{ fontSize: 11, color: '#5a8aaa', marginLeft: 'auto' }}>在图上拖拽画框 · 点框右上角 × 删除 · {boxes.length} 框</span>
+          <span style={{ fontSize: 11, color: '#5a8aaa', marginLeft: 'auto' }}>拖拽画框 · 滚轮缩放 · 点框右上角 × 删除 · {boxes.length} 框</span>
           <button onClick={() => setHideBoxes(v => !v)} title="隐藏模型标注框，只看干净原图，避免被框带偏（新画的框始终显示）"
             style={{
               ...tinyBtn(hideBoxes ? 'rgba(126,224,255,0.18)' : 'rgba(90,138,170,0.12)', hideBoxes ? '#7ee0ff' : '#7ab8e0', hideBoxes ? 'rgba(126,224,255,0.5)' : 'rgba(90,138,170,0.35)'),
@@ -815,6 +842,10 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
             }}>
             {hideBoxes ? '◉ 原图模式' : '○ 隐藏标注框'}
           </button>
+          <span style={{ fontSize: 11, color: '#5a8aaa', ...mono, marginLeft: 4 }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => zoomBy(1 / 1.25)} title="缩小（滚轮向下）" style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>−</button>
+          <button onClick={() => zoomBy(1.25)} title="放大（滚轮向上）" style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>＋</button>
+          <button onClick={resetZoom} title="恢复 100%" style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>重置</button>
           <button onClick={onCancel} style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>取消 ✕</button>
         </div>
         {/* 类别栏 */}
@@ -826,10 +857,11 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
           <button onClick={() => setBoxes(prev => prev.slice(0, -1))} disabled={!boxes.length}
             style={{ ...tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), opacity: boxes.length ? 1 : 0.4 }}>撤销上一框</button>
         </div>
-        {/* 图 + 画布 */}
-        <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'auto', background: '#000' }}>
-          <img ref={imgRef} src={src} alt="" style={{ width: '100%', display: 'block' }} />
-          <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'crosshair' }}
+        {/* 图 + 画布（滚轮缩放；wrapper transform 缩放，canvas 坐标比率自动正确） */}
+        <div ref={stageRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'auto', background: '#000' }}>
+          <div style={{ width: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <img ref={imgRef} src={src} alt="" style={{ width: '100%', display: 'block' }} />
+            <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'crosshair' }}
             onMouseDown={e => { const p = pos(e); setDrawing({ x1: p.x, y1: p.y, x2: p.x, y2: p.y }) }}
             onMouseMove={e => { if (drawing) { const p = pos(e); setDrawing({ ...drawing, x2: p.x, y2: p.y }); redraw() } }}
             onMouseUp={e => {
@@ -843,6 +875,7 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
               }
             }}
           />
+          </div>
         </div>
         {/* 底栏 */}
         <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid rgba(0,80,150,0.3)' }}>

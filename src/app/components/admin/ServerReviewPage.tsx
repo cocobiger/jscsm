@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CK, alpha } from '../../lib/cockpitTheme'
 import { authFetch } from '../../lib/apiFetch'
+import { ImgViewer, useCanvasZoom } from './ImgViewer'
 
 interface Detection {
   id: number
@@ -51,6 +52,9 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
   const [drawing, setDrawing] = useState<any>(null)
   // 原图模式：隐藏已有标注框，只看干净原图辅助人眼判断/标注（新画的框始终显示）
   const [hideBoxes, setHideBoxes] = useState(false)
+  // 画布滚轮缩放（以鼠标为中心；平移交给容器滚动条；坐标映射基于 getBoundingClientRect 比率自动正确）
+  const stageRef = useRef<HTMLDivElement>(null)
+  const { zoom, zoomBy, resetZoom } = useCanvasZoom(stageRef)
 
   useEffect(() => {
     const img = new Image()
@@ -123,9 +127,14 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
           {hideBoxes ? '◉ 原图模式' : '○ 隐藏标注框'}
         </button>
         {boxes.length > 0 && <span style={{ fontSize: 11, color: CK.green, marginLeft: 'auto' }}>{boxes.length} 框</span>}
+        <span style={{ fontSize: 11, color: CK.textDim, ...mono }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => zoomBy(1 / 1.25)} title="缩小（滚轮向下）" style={btn('rgba(0,20,50,0.4)', CK.textSub, alpha(CK.border, 0.3))}>−</button>
+        <button onClick={() => zoomBy(1.25)} title="放大（滚轮向上）" style={btn('rgba(0,20,50,0.4)', CK.textSub, alpha(CK.border, 0.3))}>＋</button>
+        <button onClick={resetZoom} title="恢复 100%" style={btn('rgba(0,20,50,0.4)', CK.textSub, alpha(CK.border, 0.3))}>重置</button>
       </div>
-      {/* 图 + 画布同一容器：限高 + 内部可滚，避免画布过大延伸到底部按钮区域 */}
-      <div style={{ position: 'relative', maxHeight: '50vh', overflow: 'auto', background: '#000' }}>
+      {/* 图 + 画布同一容器：限高 + 内部可滚，避免画布过大延伸到底部按钮区域；滚轮缩放 */}
+      <div ref={stageRef} style={{ position: 'relative', maxHeight: '50vh', overflow: 'auto', background: '#000' }}>
+        <div style={{ width: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
         <img ref={imgRef} src={src} alt="" style={{ width: '100%', display: 'block' }} />
         <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'crosshair' }}
           onMouseDown={e => { const p = pos(e); setDrawing({ x1: p.x, y1: p.y, x2: p.x, y2: p.y }) }}
@@ -142,6 +151,7 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
             }
           }}
         />
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         <button onClick={() => onSave(boxes)} style={btn(alpha(CK.cyan, 0.15), CK.cyan, alpha(CK.cyan, 0.4))}>保存画框（真烟）</button>
@@ -162,6 +172,7 @@ export function ServerReviewPage() {
   const [boxCls, setBoxCls] = useState(0)  // 画框类别：0=smoke 1=fire 2=house（底部操作栏 + 画框面板同步）
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [focusIdx, setFocusIdx] = useState<number | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)  // 全屏放大查看器（点击大图进入）
   const [fSource, setFSource] = useState('')
   const [fMinConf, setFMinConf] = useState('')
   const [fSort, setFSort] = useState('ts')
@@ -301,7 +312,7 @@ export function ServerReviewPage() {
       else if (e.key === 'h' || e.key === 'H') setShowHelp(s => !s)
       else if (e.key === 'ArrowRight') gotoFocus(1)
       else if (e.key === 'ArrowLeft') gotoFocus(-1)
-      else if (e.key === 'Escape') { setFocusIdx(null); setDrawingId(null); setShowHelp(false) }
+      else if (e.key === 'Escape') { setFocusIdx(null); setDrawingId(null); setShowHelp(false); setViewerOpen(false) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -503,7 +514,7 @@ export function ServerReviewPage() {
               </span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button onClick={() => setShowHelp(s => !s)} style={btn('rgba(0,20,50,0.4)', showHelp ? CK.cyan : CK.textDim, alpha(CK.cyan, showHelp ? 0.5 : 0.3))}>? 帮助（h）</button>
-                <button onClick={() => { setFocusIdx(null); setDrawingId(null); setShowHelp(false) }} style={btn('rgba(0,20,50,0.4)', CK.textDim, alpha(CK.border, 0.3))}>✕ 退出（Esc）</button>
+                <button onClick={() => { setFocusIdx(null); setDrawingId(null); setShowHelp(false); setViewerOpen(false) }} style={btn('rgba(0,20,50,0.4)', CK.textDim, alpha(CK.border, 0.3))}>✕ 退出（Esc）</button>
               </div>
             </div>
             {/* 目标位置（告警带 GPS 时显示） */}
@@ -516,8 +527,9 @@ export function ServerReviewPage() {
                   style={{ fontSize: 11, color: CK.cyan, textDecoration: 'none', borderBottom: `1px dashed ${alpha(CK.cyan, 0.4)}` }}>高德地图打开</a>
               </div>
             )}
-            {/* 大图 */}
-            <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', padding: 10 }}>
+            {/* 大图（点击放大全屏查看器：滚轮缩放/拖拽平移/显隐框） */}
+            <div onClick={() => setViewerOpen(true)} title="点击放大查看（滚轮缩放 · 拖拽平移）"
+              style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', padding: 10, cursor: 'zoom-in' }}>
               <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '70vh', lineHeight: 0 }}>
                 <RetryImg src={srcOf(focusRow.frame_path) || ''} style={{ maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto' }}
                   onLoad={e => {
@@ -537,6 +549,9 @@ export function ServerReviewPage() {
                     </span>
                   </div>
                 )) })()}
+                <span style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,10,25,0.75)', color: CK.cyan, fontSize: 11, padding: '3px 10px', borderRadius: 4, fontWeight: 700, pointerEvents: 'none', lineHeight: 1.6 }}>
+                  ⛶ 点击放大查看
+                </span>
               </div>
             </div>
             {/* 画框区 */}
@@ -585,6 +600,17 @@ export function ServerReviewPage() {
                   <div style={{ marginTop: 10, fontSize: 11, color: CK.textFaint }}>再次按 h 或 Esc 关闭</div>
                 </div>
               </div>
+            )}
+            {/* 全屏放大查看器（点击大图进入；滚轮缩放/拖拽平移/显隐框；捕获阶段拦截父层快捷键） */}
+            {viewerOpen && (
+              <ImgViewer
+                src={srcOf(focusRow.frame_path) || ''}
+                boxes={focusRow.boxes || []}
+                title="放大复核"
+                subtitle={`#${focusRow.id} · ${focusRow.label || ''} · conf ${(focusRow.max_conf || 0).toFixed(2)}`}
+                showBoxes
+                onClose={() => setViewerOpen(false)}
+              />
             )}
           </div>
         </div>
