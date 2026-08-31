@@ -49,6 +49,8 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
   const imgRef = useRef<HTMLImageElement>(null)
   const [boxes, setBoxes] = useState<any[]>(initialBoxes || [])
   const [drawing, setDrawing] = useState<any>(null)
+  // 原图模式：隐藏已有标注框，只看干净原图辅助人眼判断/标注（新画的框始终显示）
+  const [hideBoxes, setHideBoxes] = useState(false)
 
   useEffect(() => {
     const img = new Image()
@@ -73,7 +75,7 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
     if (!canvas || !img || !ctx) return
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-    for (let i = 0; i < boxes.length; i++) {
+    for (let i = 0; i < (hideBoxes ? 0 : boxes.length); i++) {
       const b = boxes[i]
       ctx.strokeStyle = clsColor(b.cls)
       ctx.lineWidth = 3
@@ -97,6 +99,9 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
     }
   }
 
+  // 原图模式切换时重绘
+  useEffect(() => { if (imgRef.current) redraw() }, [hideBoxes])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const pos = (e: React.MouseEvent) => {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
@@ -114,6 +119,9 @@ function BoxDrawer({ src, onSave, onCancel, initialBoxes, cls, onClsChange }: { 
         <button onClick={() => onClsChange(0)} style={btn(cls === 0 ? alpha(CK.cyan, 0.25) : 'rgba(0,20,50,0.4)', cls === 0 ? CK.cyan : CK.textSub, cls === 0 ? alpha(CK.cyan, 0.6) : alpha(CK.borderSoft, 0.6))}>烟 smoke</button>
         <button onClick={() => onClsChange(1)} style={btn(cls === 1 ? alpha(CK.red, 0.25) : 'rgba(0,20,50,0.4)', cls === 1 ? CK.red : CK.textSub, cls === 1 ? alpha(CK.red, 0.6) : alpha(CK.borderSoft, 0.6))}>火 fire</button>
         <button onClick={() => onClsChange(2)} style={btn(cls === 2 ? alpha(CK.amber, 0.25) : 'rgba(0,20,50,0.4)', cls === 2 ? CK.amber : CK.textSub, cls === 2 ? alpha(CK.amber, 0.6) : alpha(CK.borderSoft, 0.6))}>房 house</button>
+        <button onClick={() => setHideBoxes(v => !v)} title="隐藏模型标注框，只看干净原图辅助判断/标注（新画的框始终显示）" style={btn(hideBoxes ? alpha(CK.cyan, 0.25) : 'rgba(0,20,50,0.4)', hideBoxes ? CK.cyan : CK.textSub, hideBoxes ? alpha(CK.cyan, 0.6) : alpha(CK.borderSoft, 0.6))}>
+          {hideBoxes ? '◉ 原图模式' : '○ 隐藏标注框'}
+        </button>
         {boxes.length > 0 && <span style={{ fontSize: 11, color: CK.green, marginLeft: 'auto' }}>{boxes.length} 框</span>}
       </div>
       {/* 图 + 画布同一容器：限高 + 内部可滚，避免画布过大延伸到底部按钮区域 */}

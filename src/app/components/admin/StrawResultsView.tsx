@@ -544,7 +544,7 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#040e25', border: '1px solid rgba(0,150,220,0.4)', borderRadius: 10,
-        padding: 18, width: 880, maxWidth: '94vw', maxHeight: '92vh', overflowY: 'auto',
+        padding: 18, width: 1080, maxWidth: '96vw', maxHeight: '92vh', overflowY: 'auto',
       }}>
         {/* 头 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -558,36 +558,55 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
           }}>关闭 ✕</button>
         </div>
 
-        {/* 大图 + 检测框 */}
+        {/* 原图 vs 标注图 并排比对：先看无框原图独立判断，再对照检测框验证标注位置 */}
         {row.frame_path && (
-          <div style={{ position: 'relative', marginBottom: 12, background: '#000', borderRadius: 6, overflow: 'hidden' }}>
-            <img src={srcOf(row.frame_path)}
-              onLoad={e => {
-                const nw = (e.target as HTMLImageElement).naturalWidth, nh = (e.target as HTMLImageElement).naturalHeight
-                if (nw && nh) setImgSizes(prev => (prev[row.id] ? prev : { ...prev, [row.id]: { w: nw, h: nh } }))
-              }}
-              alt="" style={{ width: '100%', display: 'block', borderRadius: 6 }} />
-            {(row.boxes || []).map((b, i) => (
-              <div key={i} style={{
-                position: 'absolute',
-                left: `${(b.x1 / iw) * 100}%`, top: `${(b.y1 / ih) * 100}%`,
-                width: `${((b.x2 - b.x1) / iw) * 100}%`, height: `${((b.y2 - b.y1) / ih) * 100}%`,
-                border: `2px solid ${clsColor(b.cls)}`, boxSizing: 'border-box',
-              }}>
-                <span style={{
-                  position: 'absolute', top: -17, left: 0, background: clsColor(b.cls), color: '#000',
-                  fontSize: 10, padding: '0 4px', borderRadius: 2, fontWeight: 600, lineHeight: '15px', ...mono,
-                }}>
-                  {clsName(b.cls)} {(b.conf || 0).toFixed(2)}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 6, lineHeight: 1.6 }}>
+              <span style={{ color: CYAN, fontWeight: 700 }}>左右比对：</span>
+              左 = 未标注原图（先独立判断是否存在烟/火，不受框误导） · 右 = 检测标注（验证模型框是否准确框住目标）
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              {/* 左：未标注原图 */}
+              <div style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden' }}>
+                <img src={srcOf(row.frame_path)}
+                  onLoad={e => {
+                    const nw = (e.target as HTMLImageElement).naturalWidth, nh = (e.target as HTMLImageElement).naturalHeight
+                    if (nw && nh) setImgSizes(prev => (prev[row.id] ? prev : { ...prev, [row.id]: { w: nw, h: nh } }))
+                  }}
+                  alt="" style={{ width: '100%', display: 'block', borderRadius: 6 }} />
+                <span style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(0,10,25,0.8)', color: '#7ee0ff', fontSize: 11, padding: '2px 8px', borderRadius: 3, fontWeight: 700 }}>
+                  原图 · 未标注
                 </span>
               </div>
-            ))}
-            <span style={{
-              position: 'absolute', top: 8, right: 8, background: 'rgba(0,10,25,0.75)', color: '#7ab8e0',
-              fontSize: 11, padding: '2px 8px', borderRadius: 3, ...mono,
-            }}>
-              {row.label} · {(row.max_conf || 0).toFixed(3)}
-            </span>
+              {/* 右：检测标注（带框） */}
+              <div style={{ flex: 1, minWidth: 0, position: 'relative', background: '#000', borderRadius: 6, overflow: 'hidden' }}>
+                <img src={srcOf(row.frame_path)} alt="" style={{ width: '100%', display: 'block', borderRadius: 6 }} />
+                {(row.boxes || []).map((b, i) => (
+                  <div key={i} style={{
+                    position: 'absolute',
+                    left: `${(b.x1 / iw) * 100}%`, top: `${(b.y1 / ih) * 100}%`,
+                    width: `${((b.x2 - b.x1) / iw) * 100}%`, height: `${((b.y2 - b.y1) / ih) * 100}%`,
+                    border: `2px solid ${clsColor(b.cls)}`, boxSizing: 'border-box',
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: -17, left: 0, background: clsColor(b.cls), color: '#000',
+                      fontSize: 10, padding: '0 4px', borderRadius: 2, fontWeight: 600, lineHeight: '15px', ...mono,
+                    }}>
+                      {clsName(b.cls)} {(b.conf || 0).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+                <span style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(0,10,25,0.8)', color: CYAN, fontSize: 11, padding: '2px 8px', borderRadius: 3, fontWeight: 700 }}>
+                  检测标注 · {(row.boxes || []).length} 框
+                </span>
+                <span style={{
+                  position: 'absolute', top: 6, right: 6, background: 'rgba(0,10,25,0.75)', color: '#7ab8e0',
+                  fontSize: 11, padding: '2px 8px', borderRadius: 3, ...mono,
+                }}>
+                  {row.label} · {(row.max_conf || 0).toFixed(3)}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -706,6 +725,8 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
   const [boxes, setBoxes] = useState<any[]>(initialBoxes || [])
   const [drawing, setDrawing] = useState<any>(null)
   const [cls, setCls] = useState(0)
+  // 原图模式：隐藏已有标注框（只看干净原图，避免被模型框带偏；新画的框始终显示）
+  const [hideBoxes, setHideBoxes] = useState(false)
 
   useEffect(() => {
     const img = new Image()
@@ -731,7 +752,7 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
     if (!canvas || !img || !ctx) return
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-    for (const b of boxes) {
+    for (const b of (hideBoxes ? [] : boxes)) {
       ctx.strokeStyle = clsColor(b.cls)
       ctx.lineWidth = 3
       ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1)
@@ -753,6 +774,9 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
       ctx.strokeRect(drawing.x1, drawing.y1, drawing.x2 - drawing.x1, drawing.y2 - drawing.y1)
     }
   }
+
+  // 原图模式切换时重绘（图已加载则直接重画；未加载时 onLoad 会画一次）
+  useEffect(() => { if (imgRef.current) redraw() }, [hideBoxes])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const pos = (e: React.MouseEvent) => {
     const canvas = canvasRef.current!
@@ -784,6 +808,13 @@ function BoxDrawerOverlay({ src, initialBoxes, onSave, onCancel }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(0,80,150,0.3)' }}>
           <span style={{ color: CYAN, fontSize: 14, fontWeight: 700 }}>✏ 画框补标（漏报补标 · 保存即真烟）</span>
           <span style={{ fontSize: 11, color: '#5a8aaa', marginLeft: 'auto' }}>在图上拖拽画框 · 点框右上角 × 删除 · {boxes.length} 框</span>
+          <button onClick={() => setHideBoxes(v => !v)} title="隐藏模型标注框，只看干净原图，避免被框带偏（新画的框始终显示）"
+            style={{
+              ...tinyBtn(hideBoxes ? 'rgba(126,224,255,0.18)' : 'rgba(90,138,170,0.12)', hideBoxes ? '#7ee0ff' : '#7ab8e0', hideBoxes ? 'rgba(126,224,255,0.5)' : 'rgba(90,138,170,0.35)'),
+              fontWeight: 600,
+            }}>
+            {hideBoxes ? '◉ 原图模式' : '○ 隐藏标注框'}
+          </button>
           <button onClick={onCancel} style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>取消 ✕</button>
         </div>
         {/* 类别栏 */}
