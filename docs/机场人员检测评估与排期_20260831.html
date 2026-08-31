@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机场摄像头人员检测 · 需求评估与排期（2026-08-31）</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1c2330;
+    --line:#2d3748; --line2:#3b4a63;
+    --txt:#e6edf3; --sub:#9aa7b8; --dim:#6b7686;
+    --blue:#58a6ff; --green:#3fb950; --yellow:#d29922; --red:#f85149; --purple:#bc8cff;
+    --chip:#1f6feb22;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei","PingFang SC",-apple-system,sans-serif;line-height:1.7;padding:32px 20px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:26px;margin-bottom:6px;letter-spacing:.5px}
+  .meta{color:var(--dim);font-size:13px;margin-bottom:24px}
+  h2{font-size:19px;margin:34px 0 14px;padding-left:12px;border-left:4px solid var(--blue);color:#fff}
+  h3{font-size:15px;margin:20px 0 10px;color:var(--blue)}
+  p{color:var(--sub);margin-bottom:10px}
+  b{color:var(--txt)}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:14px 0}
+  .g-item{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .g-item .num{font-size:24px;font-weight:700;margin-bottom:2px}
+  .g-item .lab{font-size:12px;color:var(--sub)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th{background:var(--bg3);color:#fff;text-align:left;padding:8px 10px;border:1px solid var(--line2);font-weight:600;white-space:nowrap}
+  td{padding:7px 10px;border:1px solid var(--line);color:var(--sub);vertical-align:top}
+  td b{color:var(--txt)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:600;margin-right:4px}
+  .t-green{background:#1a3a24;color:var(--green);border:1px solid #2ea04355}
+  .t-blue{background:#12305a;color:var(--blue);border:1px solid #58a6ff55}
+  .t-yellow{background:#3a2f12;color:var(--yellow);border:1px solid #d2992255}
+  .t-red{background:#3a1516;color:var(--red);border:1px solid #f8514955}
+  .t-purple{background:#2a1a4a;color:var(--purple);border:1px solid #bc8cff55}
+  .t-gray{background:#262d38;color:var(--sub);border:1px solid #3b4a6355}
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0;font-size:13px}
+  .flow .node{background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:6px 12px;color:var(--txt)}
+  .flow .arrow{color:var(--dim)}
+  .flow .node.hl{border-color:var(--green);color:var(--green)}
+  .flow .node.new{border-color:var(--blue);color:var(--blue);background:#12305a66}
+  .warn{background:#2a2110;border:1px solid #d2992255;border-left:4px solid var(--yellow);border-radius:6px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:var(--yellow)}
+  .info{background:#0f2a1e;border:1px solid #2ea04355;border-left:4px solid var(--green);border-radius:6px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:var(--green)}
+  .step{display:flex;gap:12px;margin:10px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:8px}
+  .step .idx{flex:0 0 30px;height:30px;border-radius:50%;background:var(--blue);color:#0d1117;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .step .body{flex:1}
+  .step .body .ttl{font-weight:700;color:#fff;font-size:14px}
+  .step .body .desc{font-size:13px;color:var(--sub);margin-top:4px}
+  .step .body .time{font-size:12px;color:var(--yellow);margin-top:4px;font-weight:600}
+  .code{background:#0b0f14;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Menlo,monospace;font-size:12.5px;color:#79c0ff;overflow-x:auto;margin:10px 0;white-space:pre}
+  .dec{display:flex;gap:10px;margin:10px 0}
+  .dec .opt{flex:1;background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:12px;cursor:default;transition:.15s}
+  .dec .opt.rec{border-color:var(--green);box-shadow:0 0 0 1px var(--green)33}
+  .dec .opt .o-lab{font-weight:700;font-size:13.5px;margin-bottom:4px}
+  .dec .opt .o-desc{font-size:12.5px;color:var(--sub)}
+  .rec-badge{display:inline-block;background:var(--green);color:#0d1117;font-size:11px;font-weight:700;border-radius:3px;padding:0 6px;margin-left:6px}
+  .footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:12px}
+  ul,ol{margin:8px 0 8px 22px;color:var(--sub)}
+  li{margin:4px 0}
+  .kpi{display:flex;gap:20px;flex-wrap:wrap;margin:12px 0}
+  .kpi .k{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:10px 16px;min-width:150px}
+  .kpi .k .v{font-size:20px;font-weight:700}
+  .kpi .k .d{font-size:12px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🛡️ 机场摄像头人员检测 · 需求评估与排期</h1>
+<div class="meta">评估日期：2026-08-31 ｜ 项目：JSC 驾驶舱 / 大疆司空2 机场（dock） ｜ 关联主线：秸秆场景过滤（同日评估）</div>
+
+<div class="info"><b>一句话结论</b>：需求完全可落地，且与「场景过滤 P1（dock 停秸秆推理）」无缝衔接——<b>同一条 dock 流，从「秸秆判定」切换到「人员入侵检测」</b>。人员模型（COCO YOLOv8s）、告警链路（/api/straw-alert → warnings → 前端轮询）全部现成，新增成本集中在<b>独立检测服务 + ROI 布防 + 防误报策略</b>，预估 4 批 ≈7~9h。</div>
+
+<h2>一、现状侦察：可复用资产（已实测确认）</h2>
+<div class="grid">
+  <div class="g-item"><div class="num" style="color:var(--green)">✅</div><div class="lab">人员检测模型</div><p style="font-size:12.5px;margin-top:6px">COCO 预训练 YOLOv8s（person 类）<br><code>/opt/jsc/straw-engine/yolov8s.pt</code><br>GPU 推理，已封装 <code>PersonDetector</code> 类</p></div>
+  <div class="g-item"><div class="num" style="color:var(--green)">✅</div><div class="lab">dock 流已接入</div><p style="font-size:12.5px;margin-top:6px">config.json 含 8UUXN... 系机场流（5 机场），机场相机已 RTMP 直推我方 ZLM:1936</p></div>
+  <div class="g-item"><div class="num" style="color:var(--green)">✅</div><div class="lab">告警链路完整</div><p style="font-size:12.5px;margin-top:6px"><code>POST /api/straw-alert</code>（PUBLIC）→ warnings 表，自动定位（engine→osd→dock→兜底）</p></div>
+  <div class="g-item"><div class="num" style="color:var(--green)">✅</div><div class="lab">前端自动预警</div><p style="font-size:12.5px;margin-top:6px">DashboardContext 每 10s 轮询 /api/warnings，告警徽章+详情弹窗已上线（紫色标签+计数）</p></div>
+</div>
+
+<h3>1.1 告警数据流（现状，零改动）</h3>
+<div class="flow">
+  <span class="node">dock 相机 RTMP</span><span class="arrow">→</span>
+  <span class="node">我方 ZLM :1936/:6080</span><span class="arrow">→</span>
+  <span class="node new">dock-guard 检测服务（新）</span><span class="arrow">→</span>
+  <span class="node">POST /api/straw-alert</span><span class="arrow">→</span>
+  <span class="node">warnings 表</span><span class="arrow">→</span>
+  <span class="node">驾驶舱 10s 轮询</span><span class="arrow">→</span>
+  <span class="node hl">弹窗预警+徽章</span>
+</div>
+
+<h3>1.2 与「场景过滤」的关系（关键衔接点）</h3>
+<div class="warn">⚠️ 同日评估的「场景过滤 P1-①」方案是 <b>dock 流停秸秆推理</b>（机场画面无秸秆意义）。本需求恰好复用同一条流做人员检测——<b>实施顺序上，dock 流从 config.json 秸秆列表摘除的同时，dock-guard 服务接管该流</b>，一鱼两吃，不冲突、不浪费。</div>
+
+<h2>二、方案设计</h2>
+
+<h3>2.1 核心思路：独立 dock-guard 服务（职责单一，不碰秸秆主线）</h3>
+<table>
+  <tr><th>维度</th><th>设计</th><th>理由</th></tr>
+  <tr><td><b>服务形态</b></td><td>独立 Python 服务 <code>dock-guard.service</code>（systemd，多线程每机场一路）</td><td>不动 straw-engine，零风险；与秸秆推理可独立启停/升级</td></tr>
+  <tr><td><b>检测模型</b></td><td>复用 <code>yolov8s.pt</code>，只跑 <code>classes=[person]</code>，imgsz 960</td><td>机场画面人小（广角+高空），960 输入已实测有效；GPU 推理单帧 &lt;50ms</td></tr>
+  <tr><td><b>ROI 布防区</b></td><td>每机场一个多边形 ROI（停机坪+舱门区域），只统计<b>人框中心点落入 ROI</b> 的检测</td><td>机场固定机位，画面恒定；镜头边缘路人不误报</td></tr>
+  <tr><td><b>防误报三板斧</b></td><td>①连续 3 帧命中（帧间隔 1s，≈3s 确认）②告警后 60s 冷却 ③人形尺寸过滤（高度占比 2%~60%）</td><td>人不会瞬时消失；同人反复触发只告一次；飞鸟/影子/远处汽车排除</td></tr>
+  <tr><td><b>告警接入</b></td><td>POST /api/straw-alert，<code>aiType='机场人员入侵'</code>，<code>source='dock-guard'</code>，带 bbox+带框截图</td><td>复用入库/定位/前端展示全链路，零后端新接口</td></tr>
+  <tr><td><b>布防配置</b></td><td>每机场独立：启停开关、ROI 坐标、置信度阈值、布防时段（默认全天）、夜间高敏开关</td><td>运维灵活：调试点位、作业时段可单独撤防</td></tr>
+</table>
+
+<h3>2.2 检测逻辑（worker 循环）</h3>
+<div class="code">循环（每机场线程，间隔 1s）:
+  1. 从 ZLM 拉流取帧（FLV/RTSP → cv2）
+  2. YOLOv8s 全画面检测，过滤出 person 类（conf≥阈值）
+  3. 人框中心点 ∈ ROI 多边形？ → 命中
+  4. 连续命中计数 ≥ 3 → 触发告警：
+     - 截带框图 → 存 /api/evidence 目录
+     - POST /api/straw-alert {aiType:'机场人员入侵', label:'person',
+       confidence, bbox, imageUrl, streamId, sensor:'visible'}
+  5. 冷却 60s 内不再重复告警（人仍停留则每 60s 补报一次，可配置）</div>
+
+<h2>三、方案对比（A/B/C）</h2>
+<table>
+  <tr><th>方案</th><th>形态</th><th>优点</th><th>缺点</th><th>判定</th></tr>
+  <tr>
+    <td><b>A 独立 dock-guard 服务</b></td>
+    <td>新 systemd 服务 + 复用 venv/模型</td>
+    <td>职责单一、零影响秸秆主线、独立启停/升级、ROI/冷却策略可自由扩展</td>
+    <td>多一个进程（GPU 显存 +~1.5GB，3090 充裕）</td>
+    <td><span class="tag t-green">推荐</span> 长期方案，契合「彻底隔离」惯例</td>
+  </tr>
+  <tr>
+    <td><b>B 并入 straw-engine</b></td>
+    <td>在 main.py 加 dock 分支</td>
+    <td>省一个进程、复用现有 worker 框架</td>
+    <td>耦合两套检测逻辑；场景过滤 P1 要停 dock 秸秆推理，同文件改两处易错</td>
+    <td><span class="tag t-gray">不推荐</span></td>
+  </tr>
+  <tr>
+    <td><b>C 后端 Node 定时截图检测</b></td>
+    <td>jsc-backend 内 setInterval 拉截图调 ONNX</td>
+    <td>最轻量、无新服务</td>
+    <td>Node 侧无现成 YOLO 推理环境；帧率低（秒级 1 帧）；GPU 复用难</td>
+    <td><span class="tag t-gray">不推荐</span></td>
+  </tr>
+</table>
+
+<h2>四、落地步骤与排期（4 批 ≈7~9h，与场景过滤合并排期）</h2>
+
+<div class="step"><div class="idx">1</div><div class="body">
+  <div class="ttl">dock-guard 检测服务引擎 <span class="tag t-blue">核心</span></div>
+  <div class="desc">新建 <code>/opt/jsc/dock-guard/</code>：拉流取帧 + YOLOv8s person 检测 + ROI 判定 + 连续帧确认 + 冷却 + 告警上报（复用 straw-engine 的 venv 与 reporter 模式）；config.json 按机场配置 ROI/阈值/时段；systemd 服务</div>
+  <div class="time">⏱ 3~4h（含 ROI 配置文件格式设计）</div>
+</div></div>
+
+<div class="step"><div class="idx">2</div><div class="body">
+  <div class="ttl">驾驶舱预警升级 <span class="tag t-blue">联动</span></div>
+  <div class="desc">前端告警弹窗对「机场人员入侵」类型高亮置顶（红色警示色区分秸秆黄色）；TopBar 轮询已够（60s），DashboardContext 10s 已够；可加告警声音开关（可选）</div>
+  <div class="time">⏱ 1~1.5h</div>
+</div></div>
+
+<div class="step"><div class="idx">3</div><div class="body">
+  <div class="ttl">布防配置管理 <span class="tag t-purple">体验</span></div>
+  <div class="desc">驾驶舱「机场布防」管理页：ROI 在线划框（拉取 dock 实时帧，多边形框选停机坪）、布防时段、置信度/冷却参数、按机场启停；配置写入 dock-guard config.json（热重载）</div>
+  <div class="time">⏱ 2h</div>
+</div></div>
+
+<div class="step"><div class="idx">4</div><div class="body">
+  <div class="ttl">联调实测 <span class="tag t-yellow">验收</span></div>
+  <div class="desc">真人在机场停机坪走动触发 → 验证告警延迟（目标 ≤10s）、连续帧确认、冷却去重、ROI 外路人不误报；调阈值至稳定；夜间补光/红外画面抽检</div>
+  <div class="time">⏱ 1h（需 dock 流在线 + 现场配合）</div>
+</div></div>
+
+<h3>4.1 合并总排期（场景过滤 + 人员检测）</h3>
+<table>
+  <tr><th>批次</th><th>内容</th><th>工时</th><th>并行性</th></tr>
+  <tr><td>场景 P1</td><td>引擎侧过滤（dock 停秸秆 / 起飞 60s 跳帧 / 夜间提阈）</td><td>3~4h</td><td>先做（dock 流腾出）</td></tr>
+  <tr><td>人员 新1</td><td>dock-guard 引擎（与 P1 交接 dock 流）</td><td>3~4h</td><td>依赖 P1 完成 dock 摘除</td></tr>
+  <tr><td>场景 P2</td><td>场景标签 scene 列 + 复检页筛选 + 导出过滤</td><td>2~3h</td><td>可并行</td></tr>
+  <tr><td>人员 新2</td><td>前端预警升级</td><td>1~1.5h</td><td>依赖 新1 告警能入</td></tr>
+  <tr><td>场景 P3</td><td>训练数据治理（负样本/配比/热成像评估）</td><td>4~6h</td><td><b>完全独立，任意时段并行</b></td></tr>
+  <tr><td>人员 新3</td><td>布防配置管理页</td><td>2h</td><td>可并行</td></tr>
+  <tr><td>人员 新4</td><td>联调实测</td><td>1h</td><td>依赖 新1~3 完成</td></tr>
+  <tr><td style="background:var(--bg3)"><b>合计</b></td><td style="background:var(--bg3)"><b>7 个批次</b></td><td style="background:var(--bg3)"><b>16~22h</b></td><td style="background:var(--bg3)">P3/新3 可并行，关键路径 ≈11h</td></tr>
+</table>
+
+<h2>五、冲突排查（已逐项核对）</h2>
+<table>
+  <tr><th>潜在冲突</th><th>核查结论</th></tr>
+  <tr><td>dock 流被场景过滤 P1 停掉？</td><td><b>不冲突</b>：P1 停的是「秸秆推理」，dock-guard 接管后该流继续被消费（人员检测），画面/流本身不动</td></tr>
+  <tr><td>与秸秆告警抢 GPU？</td><td>3090 24GB：秸秆引擎 + dock-guard 各自 &lt;2GB，显存充裕；推理时延均远低于帧间隔</td></tr>
+  <tr><td>夜间干扰多？</td><td>人员检测与秸秆不同：人形轮廓在夜间红外/补光下仍可检；布防时段默认全天，夜间可单独调阈值</td></tr>
+  <tr><td>机场作业人员误报？</td><td>布防时段配置（如维护时段撤防）+ ROI 划定（只圈停机坪不圈出入口）+ 冷却；误报可接受度由阈值调</td></tr>
+  <tr><td>与司空自带的机场防护功能重复？</td><td>司空有周界/降落保护，但归属司空平台（web 界面），我方驾驶舱要的是<b>本地自主预警</b>；二期可考虑调司空 API 联动锁舱（见 D5）</td></tr>
+  <tr><td>后端零改动？</td><td>是：/api/straw-alert 为 PUBLIC 接口，aiType 传「机场人员入侵」即可入库展示；仅前端按新 aiType 加样式（新2）</td></tr>
+</table>
+
+<h2>六、风险与回滚</h2>
+<div class="card">
+  <h3>风险清单</h3>
+  <table>
+    <tr><th>风险</th><th>等级</th><th>缓解</th></tr>
+    <tr><td>dock 流当前不在线（夜间无任务），联调需等流</td><td><span class="tag t-yellow">中</span></td><td>新1 开发期用历史录像/模拟流验证，真机联调排到白天作业时段</td></tr>
+    <tr><td>人员误报（影子/动物/树叶晃动）</td><td><span class="tag t-yellow">中</span></td><td>3 帧连续确认 + 尺寸过滤 + ROI，实测调阈值</td></tr>
+    <tr><td>ROI 划错导致漏报（人没进框）</td><td><span class="tag t-green">低</span></td><td>ROI 支持热更新，划框页实时预览帧 + 试触发</td></tr>
+    <tr><td>告警风暴（多人/持续停留）</td><td><span class="tag t-green">低</span></td><td>60s 冷却 + 每机场每日告警上限（可配）</td></tr>
+  </table>
+  <h3 style="margin-top:16px">回滚方案</h3>
+  <p>dock-guard 为独立服务，<code>systemctl stop dock-guard</code> 即整体撤防（不碰秸秆主线）；配置热重载失败自动回退上一版 config.json；前端样式改动仅影响新 aiType 展示，不影响既有告警。</p>
+</div>
+
+<h2>七、决策点（D1~D5，回复编号+选项即可拍板）</h2>
+<div class="dec">
+  <div class="opt rec"><div class="o-lab">D1 引擎形态<span class="rec-badge">推荐</span></div><div class="o-desc"><b>A</b> 独立 dock-guard 服务（隔离，推荐）<br><b>B</b> 并入 straw-engine<br><b>C</b> 后端定时截图</div></div>
+  <div class="opt rec"><div class="o-lab">D2 确认策略<span class="rec-badge">推荐</span></div><div class="o-desc"><b>A</b> 3 帧确认+60s 冷却（推荐）<br><b>B</b> 1 帧即告（快但误报高）<br><b>C</b> 5 帧+5min 冷却（稳但慢）</div></div>
+</div>
+<div class="dec">
+  <div class="opt rec"><div class="o-lab">D3 ROI 划定<span class="rec-badge">推荐</span></div><div class="o-desc"><b>A</b> 驾驶舱在线划框（推荐）<br><b>B</b> 配置文件手填<br><b>C</b> 全画面不划框</div></div>
+  <div class="opt rec"><div class="o-lab">D4 预警强度<span class="rec-badge">推荐</span></div><div class="o-desc"><b>A</b> 徽章+弹窗（推荐）<br><b>B</b> 仅徽章<br><b>C</b> 弹窗+声音</div></div>
+</div>
+<div class="dec">
+  <div class="opt rec"><div class="o-lab">D5 联动司空<span class="rec-badge">推荐</span></div><div class="o-desc"><b>A</b> 本期只预警，二期联动锁舱/返航（推荐）<br><b>B</b> 本期就调司空 API 锁舱（需评估接口）</div></div>
+</div>
+
+<h2>八、结论</h2>
+<div class="info">✅ <b>可行性：高</b>。人员模型、dock 流、告警入库、前端轮询全部现成，核心工作量 = 独立检测服务 + ROI/防误报策略 + 布防管理页。<b>推荐按 A（独立服务）/3 帧+60s/在线划框/徽章+弹窗/二期联动</b> 实施，4 批 ≈7~9h，与场景过滤合并排期后关键路径 ≈11h。<br><br>
+回复 <b>「开工」</b> 按推荐方案（A/3帧/在线划框/徽章弹窗/二期）实施；或指明调整项（如「D5 选 B」「D2 选 B」）。</div>
+
+<div class="footer">JSC 驾驶舱 · 机场人员入侵预警评估 ｜ 2026-08-31 ｜ 数据依据：服务器实测（straw-engine 结构 / person_detector.py / /api/straw-alert / ZLM 流状态 / warnings 表）</div>
+</div>
+</body>
+</html>

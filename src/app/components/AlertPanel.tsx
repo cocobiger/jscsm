@@ -40,6 +40,12 @@ function isStrawAlert(alert: AlertItem): boolean {
   return (alert.aiType || alert.aggregateAiType || alert.type || '').includes('秸秆燃烧')
 }
 
+// 机场人员入侵告警识别（dock-guard 服务上报，aiType=机场人员入侵）
+// 安全类告警：最高优先级 + 红色警示样式
+function isDockGuardAlert(alert: AlertItem): boolean {
+  return (alert.aiType || alert.aggregateAiType || alert.type || '').includes('机场人员入侵')
+}
+
 // Alert types that show plate + violation instead of value + limit
 const PLATE_TYPES = ['道路扬尘 AI识别', '违规车辆 AI识别']
 const DUST_AI_TYPES = ['扬尘超标 AI识别']
@@ -123,10 +129,10 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   // 实时/历史分区（走查建议 #3）：今日 → 实时；跨天 → 历史（灰化置底）
   const todayAlerts = alerts.filter(isTodayAlert)
   const historyAlerts = alerts.filter(a => !isTodayAlert(a))
-  // 排序：秸秆燃烧优先 + 未处置优先（走查建议：秸秆主屏显式 + 状态色差）
+  // 排序：机场人员入侵 > 秸秆燃烧 > 其余；未处置优先（人员入侵=安全类，最高优先级置顶）
   const sortAlerts = (list: AlertItem[]) => {
     const weight = (a: AlertItem) =>
-      (isStrawAlert(a) ? 0 : 2) + (a.status === 'handled' ? 1 : a.status === 'partial' ? 0.5 : 0)
+      (isDockGuardAlert(a) ? -2 : isStrawAlert(a) ? 0 : 2) + (a.status === 'handled' ? 1 : a.status === 'partial' ? 0.5 : 0)
     return [...list].sort((a, b) => weight(a) - weight(b))
   }
   const sortedToday = sortAlerts(todayAlerts)
@@ -137,6 +143,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
           const isFlashing = flashId === alert.id
           const iotVideo = isIotVideo(alert)
           const isStraw = isStrawAlert(alert)
+          const isDockGuard = isDockGuardAlert(alert)
           const isHandled = alert.status === 'handled'
           const isPartial = alert.status === 'partial'
 
@@ -147,9 +154,9 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
               style={{
                 margin: '4px 10px',
                 padding: '6px 10px',
-                background: isSelected ? 'rgba(0,170,255,0.15)' : (isHandled ? 'rgba(80,100,120,0.12)' : isPartial ? 'rgba(0,140,255,0.08)' : style.bg),
+                background: isSelected ? 'rgba(0,170,255,0.15)' : (isDockGuard ? 'rgba(255,30,30,0.16)' : isHandled ? 'rgba(80,100,120,0.12)' : isPartial ? 'rgba(0,140,255,0.08)' : style.bg),
                 border: `1px solid ${isSelected ? 'rgba(0,170,255,0.5)' : isStraw ? 'rgba(255,60,60,0.55)' : isHandled ? 'rgba(120,140,160,0.3)' : isPartial ? 'rgba(0,140,255,0.4)' : style.border}`,
-                borderLeft: isStraw ? `3px solid #ff4444` : undefined,
+                borderLeft: isDockGuard ? `3px solid #ff2222` : isStraw ? `3px solid #ff4444` : undefined,
                 borderRadius: 3,
                 cursor: 'pointer',
                 animation: isFlashing ? 'alert-flash 0.5s ease 3' : 'none',
@@ -186,6 +193,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         聚合
                       </span>
+                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠️ 人员入侵</span>}
                       {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
                       {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
                       {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
@@ -236,6 +244,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         AI视频
                       </span>
+                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠️ 人员入侵</span>}
                       {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
                       {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
                       {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆检测场景过滤评估与排期（4 项新发现）</title>
+<style>
+  :root {
+    --bg: #f6f8fa; --card: #ffffff; --border: #e2e8f0;
+    --text: #1e293b; --sub: #64748b; --accent: #0f766e; --accent2: #1d4ed8;
+    --red: #dc2626; --amber: #d97706; --green: #16a34a; --cyan: #0891b2;
+    --code-bg: #f1f5f9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 32px 16px; }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  header { background: linear-gradient(135deg, #0f766e, #1d4ed8); color: #fff; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }
+  header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  header .meta { font-size: 13px; opacity: .85; }
+  header .tag { display: inline-block; background: rgba(255,255,255,.18); border-radius: 4px; padding: 2px 10px; font-size: 12px; margin-right: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; }
+  h2 { font-size: 18px; color: var(--accent2); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .no { color: var(--accent); margin-right: 6px; }
+  h3 { font-size: 15px; margin: 14px 0 8px; color: #334155; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  th { background: #f1f5f9; text-align: left; padding: 8px 10px; font-weight: 600; color: #475569; border-bottom: 2px solid var(--border); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .ok { color: var(--green); font-weight: 600; }
+  .warn { color: var(--amber); font-weight: 600; }
+  .bad { color: var(--red); font-weight: 600; }
+  .hl { background: #ecfdf5; border-left: 3px solid var(--green); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 13px; }
+  .box { background: var(--code-bg); border-radius: 6px; padding: 10px 14px; font-family: Consolas, monospace; font-size: 12px; overflow-x: auto; margin: 8px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pill { display: inline-block; border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
+  .pill-g { background: #dcfce7; color: #166534; } .pill-y { background: #fef3c7; color: #92400e; } .pill-r { background: #fee2e2; color: #991b1b; } .pill-b { background: #dbeafe; color: #1e40af; } .pill-c { background: #cffafe; color: #155e75; }
+  ul, ol { padding-left: 22px; font-size: 13.5px; }
+  li { margin: 4px 0; }
+  .foot { text-align: center; color: var(--sub); font-size: 12px; margin-top: 24px; }
+  .kv { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; margin: 8px 0; }
+  .kv b { color: #334155; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } header { padding: 20px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>秸秆检测「场景过滤」评估与排期</h1>
+  <div class="meta">
+    <span class="tag">4 项新发现</span>
+    <span class="tag">引擎侧 + 数据侧 + 训练侧</span>
+    <span class="tag">2026-08-31</span>
+    <span style="display:block;margin-top:8px;">驾驶舱复检页人性化改造（commit 6940aec）后，进入"无效场景治理"阶段</span>
+  </div>
+</header>
+
+<!-- 一、需求背景 -->
+<div class="card">
+  <h2><span class="no">①</span>需求背景：4 项新发现</h2>
+  <table>
+    <tr><th style="width:34px">#</th><th style="width:150px">发现</th><th>含义</th><th style="width:120px">本质</th></tr>
+    <tr><td><b>1</b></td><td>机场视频 + 起飞 1 分钟</td><td>机场(Dock)自带摄像头画面无意义；无人机刚起飞时镜头拍到机库盖子 → 纯干扰</td><td><span class="pill pill-r">无效输入</span></td></tr>
+    <tr><td><b>2</b></td><td>90%+ 判例在农田</td><td>真实秸秆焚烧围绕农田发生；白天最大干扰 = 电线杆 / 水泥地 / 天空云彩 / 远处民居</td><td><span class="pill pill-y">训练数据</span></td></tr>
+    <tr><td><b>3</b></td><td>城市场景 / 夜景不入判例</td><td>城市画面干扰项过多（建筑/路灯/霓虹/车灯），夜景尤甚 → 反而不该进训练判例</td><td><span class="pill pill-y">判例过滤</span></td></tr>
+    <tr><td><b>4</b></td><td>夜间作业从严</td><td>除非有明显野外火光 / 热成像特征，夜间帧一律不纳入判例</td><td><span class="pill pill-r">推理策略</span></td></tr>
+  </table>
+  <div class="hl">核心诉求：<b>让无效帧不进算法判定、让无效场景不进训练判例</b>——一条"场景红线"贯穿 推理 → 入库 → 复核 → 训练 全链路。</div>
+</div>
+
+<!-- 二、现状盘点 -->
+<div class="card">
+  <h2><span class="no">②</span>现状盘点（数据实证）</h2>
+  <h3>检测链路</h3>
+  <div class="box">straw-engine(config.json streams) → RT-DETR 推理 → Confirmer 确认 → POST /api/straw-alert → straw_detections + warnings → 驾驶舱复检页</div>
+  <h3>流清单（司空设备，streamId = sikong_&lt;sn&gt;）</h3>
+  <table>
+    <tr><th>类型</th><th>机场 / 无人机</th><th>sn</th><th>检测记录</th></tr>
+    <tr><td rowspan="4"><span class="pill pill-r">Dock 机场流</span></td><td>环保局机场</td><td class="box" style="margin:0">8UUXN7G00A0FDP</td><td><b>14</b></td></tr>
+    <tr><td>三峡大学机场</td><td class="box" style="margin:0">8UUXN8N00A0LS7</td><td><b>8</b></td></tr>
+    <tr><td>经开区机场</td><td class="box" style="margin:0">8UUXN5500A07D1</td><td><b>5</b></td></tr>
+    <tr><td>职教中心机场</td><td class="box" style="margin:0">8UUXN8P00A0LZ4</td><td><b>2</b></td></tr>
+    <tr><td rowspan="4"><span class="pill pill-b">Drone 无人机流</span></td><td>M4TD</td><td class="box" style="margin:0">1581F8HGX253U00A064U</td><td>34</td></tr>
+    <tr><td>经开区无人机</td><td class="box" style="margin:0">1581F8HGX258900A0SJM</td><td>15</td></tr>
+    <tr><td>职教中心无人机</td><td class="box" style="margin:0">1581F8HGX258600A0S4J</td><td>13</td></tr>
+    <tr><td>三峡大学无人机</td><td class="box" style="margin:0">1581F8HGX258600A0S4G</td><td>4</td></tr>
+    <tr><td><span class="pill pill-y">模拟流</span></td><td>jgfs_sim / picall / straw-sim1 / test_*</td><td>—</td><td><b>559</b></td></tr>
+  </table>
+  <h3>关键实证（654 条检测记录）</h3>
+  <table>
+    <tr><th>指标</th><th>数量</th><th>占比</th><th>印证发现</th></tr>
+    <tr><td>机场流检测</td><td><b>29 条</b></td><td>4.4%</td><td>发现 1：机场画面无意义</td></tr>
+    <tr><td>夜间帧（19:00-23:00 / 00:00-05:00）</td><td><b>431 条</b></td><td><b>66%</b></td><td>发现 3/4：夜间干扰重灾区</td></tr>
+    <tr><td>模拟流检测</td><td><b>559 条</b></td><td>85%</td><td>测试数据不应进判例</td></tr>
+    <tr><td>例：id=670 fire 误报</td><td colspan="3"><span class="bad">三峡大学机场 2026-08-30 19:13</span> = 机场流 + 夜间双重无效场景，已标误报</td></tr>
+  </table>
+  <h3>已有可复用能力</h3>
+  <div class="kv">
+    <span>✅ <b>dock/drone 配对</b>：dji-openapi <span class="box" style="margin:0">/api/devices</span> 返回 deviceSn ↔ drone.droneSn</span>
+    <span>✅ <b>OSD 遥测</b>：WS 透传原始字段（含飞行状态/高度，字段名待 dump）</span>
+    <span>✅ <b>夜间判定</b>：PIL 灰度均值 &lt;25 判夜（v5review 已用）</span>
+    <span>✅ <b>街道边界</b>：area_boundary 表（40+ 街道 ring 多边形）</span>
+    <span>✅ <b>推理注入点</b>：main.py <span class="box" style="margin:0">_worker</span> 每流独立线程循环</span>
+  </div>
+</div>
+
+<!-- 三、逐条评估 -->
+<div class="card">
+  <h2><span class="no">③</span>4 项发现逐条评估</h2>
+
+  <h3>发现 1：机场视频 + 起飞 1 分钟 → 不判定 <span class="pill pill-g">高可行 · 治标立竿见影</span></h3>
+  <table>
+    <tr><th style="width:110px">方案</th><th>做法</th><th style="width:110px">优 / 劣</th></tr>
+    <tr><td><b>A（推荐）</b><br>引擎侧停推</td><td>/api/devices 生成 dock/drone 映射 → config.json streams 加 <span class="box" style="margin:0">kind</span> 字段 → main.py 启动时 dock 流<b>停推理不停流</b>（驾驶舱实时画面保留）；起飞判定用 OSD 飞行状态/高度，起飞后 60s 内跳帧</td><td>省算力 + 灭误报 / 需改引擎</td></tr>
+    <tr><td>B<br>后端过滤</td><td>/api/straw-alert 入库前按 streamId 类型丢弃</td><td>改动最小 / 算力白烧</td></tr>
+    <tr><td>C<br>仅数据剔除</td><td>判例不进，但推理误报仍产生</td><td>零代码 / 治标不彻底</td></tr>
+  </table>
+
+  <h3>发现 2：农田上下文 + 白天干扰物 <span class="pill pill-y">中高可行 · 训练侧治本</span></h3>
+  <table>
+    <tr><th style="width:110px">子项</th><th>做法</th><th style="width:150px">依赖</th></tr>
+    <tr><td>2a 干扰物负样本</td><td>从 straw_detections 误报(FP) 提取 + VLM 预筛，构建 <b>电线杆 / 水泥地 / 云彩 / 民居</b> 4 类难例负样本集（白天为主）</td><td>VLM 预筛 + 人工复核（既有流程）</td></tr>
+    <tr><td>2b 农田正样本配比</td><td>v5 拼装规则：正样本以农田场景为主（≥90%），呼应"90% 判例在农田"</td><td>v5 训练集拼装（待确认 A/B 方案）</td></tr>
+    <tr><td>2c 地理围栏（可选）</td><td>农田区域多边形 → 落点判断；<b>无现成农田分布数据</b>（area_boundary 是行政边界非农田），暂缓</td><td>数据源调研</td></tr>
+  </table>
+
+  <h3>发现 3：城市场景 / 夜景 → 不入判例 <span class="pill pill-g">高可行 · 判例可控</span></h3>
+  <table>
+    <tr><th style="width:110px">子项</th><th>做法</th></tr>
+    <tr><td>3a 场景标签</td><td>straw_detections 新增 <span class="box" style="margin:0">scene</span> 列：<b>夜间</b>=亮度&lt;25 或时间窗；<b>城区</b>=lat/lng 命中街道边界 ring（area_boundary 含太白街道等城区街道）；<b>机场期</b>=dock 流</td></tr>
+    <tr><td>3b 复检页联动</td><td>复检页新增"场景"筛选下拉 + 场景徽标列 + 批量"<b>不纳入判例</b>"标记（review_status 扩展或独立标记）</td></tr>
+    <tr><td>3c 导出过滤</td><td>一键导出重训（第 4 批数据资产）默认排除 scene ∈ {机场期, 城区夜景, 无火光夜间}</td></tr>
+  </table>
+
+  <h3>发现 4：夜间作业从严（除非火光 / 热成像）<span class="pill pill-y">中高可行 · 推理策略</span></h3>
+  <table>
+    <tr><th style="width:110px">子项</th><th>做法</th><th style="width:150px">依赖</th></tr>
+    <tr><td>4a 夜间阈值</td><td>帧灰度均值 &lt;25 判夜 → confFire 0.45→<b>0.60</b>、confSmoke 0.30→<b>0.45</b>（无火光不告警），阈值走 config 可调</td><td>引擎侧小改</td></tr>
+    <tr><td>4b 热成像通道（独立项）</td><td>M30T 双光（可见光 + 红外）→ 确认热成像流是否可接入 ZLM → 夜间热斑检测作第二路确认</td><td>双光流接入评估</td></tr>
+    <tr><td>4c 判例从严</td><td>夜间帧除非人工标注"火光 / 热成像确认"，否则默认进负样本</td><td>v5 拼装规则</td></tr>
+  </table>
+</div>
+
+<!-- 四、排期 -->
+<div class="card">
+  <h2><span class="no">④</span>任务排期（3 批，总量 ≈ 9~13h）</h2>
+  <table>
+    <tr><th style="width:60px">批次</th><th>内容</th><th style="width:80px">预估</th><th style="width:180px">产出 / 验收</th><th style="width:90px">依赖</th></tr>
+    <tr>
+      <td><span class="pill pill-r">P1</span></td>
+      <td><b>引擎侧「无效输入」过滤</b><br>
+        ① dock 流停推理（devices 映射 + config kind + main.py 跳过）<br>
+        ② 起飞 60s 跳帧（OSD 飞行状态 dump → telemetry 暴露飞行状态 → 每帧查询，缓存 5s）<br>
+        ③ 夜间阈值策略（亮度判夜 + conf 提升）</td>
+      <td><b>3~4h</b></td>
+      <td>引擎日志确认 dock 流不再推理 / 起飞期跳帧 / 夜间告警减少；复检页误报率下降</td>
+      <td>①无 ②OSD dump 0.5h ③无</td>
+    </tr>
+    <tr>
+      <td><span class="pill pill-b">P2</span></td>
+      <td><b>场景标签 + 复检页联动</b><br>
+        ① straw_detections 加 scene 列 + 回填（夜间/城区/机场期）<br>
+        ② /api/straw/results 支持 scene 筛选<br>
+        ③ 复检页场景下拉 + 徽标 + 批量"不纳入判例"<br>
+        ④ 导出重训默认排除无效场景</td>
+      <td><b>2~3h</b></td>
+      <td>API 断言 scene 筛选生效；headless 截图场景徽标与筛选；导出集统计排除比例</td>
+      <td>P1 完成（流类型）</td>
+    </tr>
+    <tr>
+      <td><span class="pill pill-y">P3</span></td>
+      <td><b>训练数据治理（治本，可并行）</b><br>
+        ① 4 类白天干扰物负样本集（电线杆/水泥地/云彩/民居，VLM 预筛 + 人工复核）<br>
+        ② v5 拼装：农田正样本 ≥90% + 夜场帧默认负样本<br>
+        ③ 热成像通道接入评估（M30T 双光 → ZLM → 热斑检测）</td>
+      <td><b>4~6h</b><br>（数据工作）</td>
+      <td>负样本集数量与分布统计；拼装集场景配比报告；热成像可行性结论</td>
+      <td>①VLM ②v5 拼装方案（A/B 待定）③独立</td>
+    </tr>
+  </table>
+  <div class="hl">建议顺序：<b>P1 → P2 → P3</b>。P3 为数据工作，可与 P1/P2 并行推进（不阻塞）；若时间紧，P1 单独先上即可肉眼看到误报下降。</div>
+</div>
+
+<!-- 五、冲突排查 -->
+<div class="card">
+  <h2><span class="no">⑤</span>冲突排查</h2>
+  <table>
+    <tr><th style="width:220px">潜在冲突</th><th>对策</th></tr>
+    <tr><td>OSD 飞行状态字段名未知（司空透传格式）</td><td>P1-② 前置 0.5h：dump telemetry.recent() 一条实测确认字段（flight_status / mode_code / height），字段名不符则按实测适配</td></tr>
+    <tr><td>dock 流停推理后驾驶舱实时画面消失？</td><td><b>只停推理不停流</b>——ZLM 流照常，前端实时画面不受影响（main.py 跳过该 streamId 即可）</td></tr>
+    <tr><td>模拟流 559 条（jgfs_sim 等）混入判例</td><td>P2-④ 导出时 source ∈ {sim, test} 一律排除；P2-① 标记 scene=sim 便于筛选</td></tr>
+    <tr><td>夜间判定口径（时间窗 vs 亮度 vs 太阳高度角）</td><td>以<b>亮度 &lt;25 为主</b> + 时间窗（19:00-05:00）兜底，双条件取或；口径集中在一个函数，便于调</td></tr>
+    <tr><td>热成像流未接入 ZLM</td><td>P3-③ 独立评估，不阻塞 P1/P2；若不可接入，夜间告警靠 4a 阈值策略兜底</td></tr>
+    <tr><td>机场流"起飞 60s"窗口误伤巡逻飞行</td><td>窗口时长 config 可调（默认 60s）；另以"高度 &lt;15m"辅助判断（起飞爬升期）</td></tr>
+    <tr><td>scene 回填与已有 review_status 冲突</td><td>scene 是独立增量列，不影响已复核结果；批量"不纳入判例"用独立标记字段</td></tr>
+  </table>
+</div>
+
+<!-- 六、风险回滚 -->
+<div class="card">
+  <h2><span class="no">⑥</span>风险与回滚</h2>
+  <table>
+    <tr><th style="width:200px">风险</th><th>等级</th><th>回滚方案</th></tr>
+    <tr><td>P1 过滤规则误杀有效流（如某机场流实际有监拍价值）</td><td><span class="pill pill-y">中</span></td><td>config.json streams 每流有 <span class="box" style="margin:0">enabled / kind / skipWindow</span> 开关，回滚 = 还原 config（已有 .bak 链）+ <span class="box" style="margin:0">systemctl restart straw-engine</span></td></tr>
+    <tr><td>P1-③ 夜间阈值提高后漏报（真火光被压）</td><td><span class="pill pill-y">中</span></td><td>阈值走 config 可调；夜间同时保留"热成像确认"路径（P3-③ 落地后双路并行）</td></tr>
+    <tr><td>P2 scene 回填大批量 UPDATE</td><td><span class="pill pill-g">低</span></td><td>先备份 straw_detections 表（<span class="box" style="margin:0">CREATE TABLE bak AS SELECT</span>）；回填按 id 分批，可精确回滚</td></tr>
+    <tr><td>P3 负样本误判（真烟标成干扰物）</td><td><span class="pill pill-g">低</span></td><td>沿用既有"VLM 预筛 + 人工复核"双保险；训练集改动走 git + /video 数据盘</td></tr>
+    <tr><td>引擎改造影响正在进行的推理</td><td><span class="pill pill-g">低</span></td><td>main.py 改动前 cp 备份（沿用 .bak 习惯）；改后先重启验证再放开</td></tr>
+  </table>
+</div>
+
+<!-- 七、结论 -->
+<div class="card">
+  <h2><span class="no">⑦</span>结论与决策点</h2>
+  <p style="font-size:14px;">4 项发现全部有<b>数据实证支撑</b>，且现有基础设施（dock/drone 配对、OSD 遥测、亮度判夜、街道边界）足以支撑落地，无阻塞性缺口。唯一前置侦察项是 <b>OSD 飞行状态字段名</b>（0.5h）。</p>
+  <h3>决策点（请确认）</h3>
+  <table>
+    <tr><th style="width:50px">#</th><th style="width:220px">决策</th><th>选项</th></tr>
+    <tr><td><b>D1</b></td><td>机场流处理方式</td><td><b>A. 引擎停推理（推荐）</b> / B. 仅后端丢弃 / C. 仅数据剔除</td></tr>
+    <tr><td><b>D2</b></td><td>起飞窗口时长</td><td><b>60s（推荐，config 可调）</b> / 90s / 120s</td></tr>
+    <tr><td><b>D3</b></td><td>夜间策略激进程度</td><td><b>渐进（提阈 0.45→0.60，推荐）</b> / 保守（0.45→0.50）/ 激进（夜间不告警）</td></tr>
+    <tr><td><b>D4</b></td><td>P3 是否立即并行</td><td><b>并行（推荐，数据工作不阻塞 P1/P2）</b> / 串行等 P2 后</td></tr>
+  </table>
+  <div class="hl" style="margin-top:14px;">回复 <b>"开工"</b> 按推荐方案（A / 60s / 渐进 / 并行）实施；或指明调整项（如"D1 选 B"）。</div>
+</div>
+
+<div class="foot">JSC 秸秆检测 · 场景过滤评估 · 2026-08-31 · 数据源：straw_detections 654 条 / /api/devices 4 机场 4 无人机</div>
+</div>
+</body>
+</html>

@@ -5,6 +5,7 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [time, setTime] = useState(new Date())
   const [pushStats, setPushStats] = useState<{ pushed: number; closed: number; rate: number } | null>(null)
   const [strawCount, setStrawCount] = useState(0)
+  const [guardCount, setGuardCount] = useState(0)
   const [weather, setWeather] = useState<{ text: string; temp: string; iconType: string; windSpeed: string; windDir: string }>({
     text: '晴',
     temp: '--',
@@ -74,6 +75,8 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
         const arr = Array.isArray(data) ? data : (data.list || data.data || [])
         const n = arr.filter((w: any) => (w.aiType || '').includes('秸秆燃烧') && w.status !== 'handled').length
         setStrawCount(n)
+        const g = arr.filter((w: any) => (w.aiType || '').includes('机场人员入侵') && w.status !== 'handled').length
+        setGuardCount(g)
       } catch (e) { /* 静默 */ }
     }
     loadStraw()
@@ -209,6 +212,15 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
             color: strawCount > 0 ? '#ff6b6b' : '#5a8aaa',
             textShadow: strawCount > 0 ? '0 0 8px rgba(255,80,80,0.6)' : 'none',
           }}>秸秆 {strawCount}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, lineHeight: 1 }}>⚠️</span>
+          <span style={{
+            fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace",
+            color: guardCount > 0 ? '#ff2222' : '#5a8aaa',
+            textShadow: guardCount > 0 ? '0 0 10px rgba(255,30,30,0.8)' : 'none',
+            animation: guardCount > 0 ? 'alert-flash 1s ease infinite' : 'none',
+          }}>人员入侵 {guardCount}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div

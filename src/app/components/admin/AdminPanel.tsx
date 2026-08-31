@@ -18,6 +18,7 @@ import { WorkReportPage } from './WorkReportPage'
 import { IotArchivePage } from './IotArchivePage'
 import { GovDataPage } from './GovDataPage'
 import { StrawMonitorPage } from './StrawMonitorPage'
+import { DockGuardPage } from './DockGuardPage'
 import { MapCenterPage } from './MapCenterPage'
 import { useDashboard } from '../../context/DashboardContext'
 import { changePassword, ROLE_LABELS, roleAtLeast, type CurrentUser } from '../../lib/auth'
@@ -27,11 +28,11 @@ const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const RED = '#ff4444'
 
-type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata' | 'straw' | 'map' | 'servermonitor' | 'review' | 'tune'
+type Page = 'overview' | 'video' | 'media' | 'mqtt' | 'alert' | 'airquality' | 'gas' | 'sms' | 'stats' | 'users' | 'enterprise' | 'smartpush' | 'iotarchive' | 'workreport' | 'govdata' | 'straw' | 'dockguard' | 'map' | 'servermonitor' | 'review' | 'tune'
 
 // minRole：访问该页所需最低角色（viewer=任意登录可看）
 import type { LucideIcon } from 'lucide-react'
-import { LayoutDashboard, Video, Server, Radio, Bell, Send, FileText, Database, Wind, FlaskConical, Bot, Flame, Map, MessageSquare, BarChart3, Building2, Users, Activity, ClipboardCheck, SlidersHorizontal } from 'lucide-react'
+import { LayoutDashboard, Video, Server, Radio, Bell, Send, FileText, Database, Wind, FlaskConical, Bot, Flame, Shield, Map, MessageSquare, BarChart3, Building2, Users, Activity, ClipboardCheck, SlidersHorizontal } from 'lucide-react'
 const NAV: { key: Page; label: string; icon: LucideIcon; desc: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
   { key: 'overview',   label: '系统总览',   icon: LayoutDashboard, desc: '连接状态与数据统计', minRole: 'viewer' },
   { key: 'servermonitor', label: '服务器监控', icon: Activity,   desc: 'CPU/内存/磁盘/服务 · 异常邮件告警', minRole: 'viewer' },
@@ -48,6 +49,7 @@ const NAV: { key: Page; label: string; icon: LucideIcon; desc: string; minRole: 
   { key: 'gas',        label: '气体采集预警', icon: FlaskConical,  desc: '数据源采集与污染物预警', minRole: 'viewer' },
   { key: 'iotarchive', label: 'AI分析存档',  icon: Bot,           desc: 'IoT视频分析记录按通道归档', minRole: 'viewer' },
   { key: 'straw',      label: '秸秆焚烧监控', icon: Flame,         desc: '无人机秸秆 · 引擎/告警/责任推送/复核', minRole: 'viewer' },
+  { key: 'dockguard',  label: '机场布防',   icon: Shield,          desc: '机场人员入侵检测 · ROI/时段/阈值布防', minRole: 'admin' },
   { key: 'map',        label: '地图管理',   icon: Map,             desc: '图标 / 点位 / 坐标系 / 边界', minRole: 'operator' },
   { key: 'sms',        label: '短信预警推送', icon: MessageSquare, desc: '云MAS 短信通知与联系人', minRole: 'operator' },
   { key: 'stats',      label: '数据统计报表', icon: BarChart3,     desc: '采集趋势与超标统计', minRole: 'viewer' },
@@ -251,6 +253,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           {page === 'govdata'    && <GovDataPage />}
           {page === 'users'      && <UsersPage currentUserId={user.id} />}
           {page === 'straw'      && <StrawMonitorPage />}
+          {page === 'dockguard'  && <DockGuardPage />}
           {page === 'map'        && <MapCenterPage role={user.role} />}
         </div>
       </div>

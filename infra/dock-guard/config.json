@@ -1,0 +1,72 @@
+{
+  "apiBase": "http://127.0.0.1:7170",
+  "evidenceDir": "/opt/jsc/straw-engine/evidence",
+  "model": "/opt/jsc/straw-engine/yolov8s.pt",
+  "device": null,
+  "docks": [
+    {
+      "streamId": "sikong_8UUXN8P00A0LZ4",
+      "url": "http://127.0.0.1:6080/jsc/sikong_8UUXN8P00A0LZ4.live.flv",
+      "name": "dock-1 (8UUXN8P00A0LZ4)",
+      "enabled": true,
+      "conf": 0.35,
+      "nightConf": 0.45,
+      "nightBright": 25,
+      "roi": [[0, 0], [1, 0], [1, 1], [0, 1]],
+      "frames": 3,
+      "cooldown": 60,
+      "minHeight": 0.02,
+      "maxHeight": 0.6,
+      "interval": 1.0,
+      "hours": "0-24"
+    },
+    {
+      "streamId": "sikong_8UUXN5500A07D1",
+      "url": "http://127.0.0.1:6080/jsc/sikong_8UUXN5500A07D1.live.flv",
+      "name": "dock-2 (8UUXN5500A07D1)",
+      "enabled": true,
+      "conf": 0.35,
+      "nightConf": 0.45,
+      "nightBright": 25,
+      "roi": [[0, 0], [1, 0], [1, 1], [0, 1]],
+      "frames": 3,
+      "cooldown": 60,
+      "minHeight": 0.02,
+      "maxHeight": 0.6,
+      "interval": 1.0,
+      "hours": "0-24"
+    },
+    {
+      "streamId": "sikong_8UUXN8N00A0LS7",
+      "url": "http://127.0.0.1:6080/jsc/sikong_8UUXN8N00A0LS7.live.flv",
+      "name": "dock-3 (8UUXN8N00A0LS7)",
+      "enabled": true,
+      "conf": 0.35,
+      "nightConf": 0.45,
+      "nightBright": 25,
+      "roi": [[0, 0], [1, 0], [1, 1], [0, 1]],
+      "frames": 3,
+      "cooldown": 60,
+      "minHeight": 0.02,
+      "maxHeight": 0.6,
+      "interval": 1.0,
+      "hours": "0-24"
+    },
+    {
+      "streamId": "sikong_8UUXN7G00A0FDP",
+      "url": "http://127.0.0.1:6080/jsc/sikong_8UUXN7G00A0FDP.live.flv",
+      "name": "dock-4 (8UUXN7G00A0FDP)",
+      "enabled": true,
+      "conf": 0.35,
+      "nightConf": 0.45,
+      "nightBright": 25,
+      "roi": [[0, 0], [1, 0], [1, 1], [0, 1]],
+      "frames": 3,
+      "cooldown": 60,
+      "minHeight": 0.02,
+      "maxHeight": 0.6,
+      "interval": 1.0,
+      "hours": "0-24"
+    }
+  ]
+}
