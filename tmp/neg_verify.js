@@ -23,24 +23,31 @@ let reviews = {};
 
 async function init() {
   // 拉分类 JSON
-  data = await fetch('http://111.10.220.226:81/v5_candidates/neg_classified.json').then(r => r.json());
-  // 抽样：每类 10~12 帧
+  data = await fetch('/v5_candidates/neg_classified.json').then(r => r.json());
+  // 抽样：每类 10~12 帧（多标签帧全类别分桶，抽样去重）
   const buckets = {};
   for (const [fp, v] of Object.entries(data)) {
     const cs = v.cats || [];
     if (!cs.length) continue;
-    for (const c of cs.slice(0, 1)) {
+    for (const c of cs) {
       (buckets[c] = buckets[c] || []).push(fp);
     }
   }
+  const seen = new Set();
   const sample = [];
   for (const c of CATS) {
-    const arr = buckets[c] || [];
     const n = c === 'none' ? 5 : 12;
-    sample.push(...arr.slice(0, n));
+    let got = 0;
+    for (const fp of buckets[c] || []) {
+      if (got >= n) break;
+      if (seen.has(fp)) continue;
+      seen.add(fp);
+      sample.push(fp);
+      got++;
+    }
   }
   order = sample;
-  console.log('抽样帧数:', order.length, '各类分布:', Object.fromEntries(CATS.map(c => [c, (buckets[c]||[]).length])));
+  console.log('抽样帧数:', order.length, '各类可用:', Object.fromEntries(CATS.map(c => [c, (buckets[c]||[]).length])));
 
   // 加载历史复核（localStorage）
   reviews = JSON.parse(localStorage.getItem('neg_verify_v1') || '{}');
@@ -53,7 +60,7 @@ function render() {
   const fp = order[curIdx];
   const v = data[fp];
   const rel = fp.split('/record/')[1];
-  const imgUrl = `http://111.10.220.226:81/v5_old_imgs/${rel}`;
+  const imgUrl = `/v5_old_imgs/${rel}`;
   const cats = v.cats || [];
   const catsHtml = cats.map(c => `<span class="badge" style="background:${COLORS[c]}33;color:${COLORS[c]};border:1px solid ${COLORS[c]}">${c}</span>`).join(' ');
   const review = reviews[fp] || '';
