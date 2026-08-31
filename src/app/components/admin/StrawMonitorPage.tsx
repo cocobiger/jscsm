@@ -4,9 +4,10 @@ import { RunPipeline, LiveDetection } from './StrawLivePage'
 import { StrawResultsView } from './StrawResultsView'
 import { StreamPanel } from './StreamPanel'
 import { SikongPanel } from './SikongPanel'
+import { NegClassifyVerify } from './NegClassifyVerify'
 import { authFetch } from '../../lib/apiFetch'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch } from 'lucide-react'
+import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye } from 'lucide-react'
 
 // ── 秸秆焚烧监控 · 独立功能点（无人机视角）──
 // 数据边界：source='straw-engine' 的自研推理告警，与 AI分析存档（IoTCloud）完全隔离
@@ -39,7 +40,7 @@ interface RespRow {
 const EMPTY_FORM = { town: '', community: '', unit: '', person: '', phone: '', webhook: '', remark: '' }
 
 export function StrawMonitorPage() {
-  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results'>('engine')
+  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results' | 'negverify'>('engine')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -61,6 +62,7 @@ export function StrawMonitorPage() {
           ['live', '实时检测过程', Radar],
           ['streams', '视频流面板', Video],
           ['sikong', '司空设备', Satellite],
+          ['negverify', '抽检标注', ScanEye],
           ['responsibility', '责任映射 / 微信群推送', Landmark],
           ['style', '推送样式', ClipboardList],
         ] as const).map(([key, label, Icon]) => (
@@ -80,6 +82,7 @@ export function StrawMonitorPage() {
         : tab === 'live' ? <LiveDetection />
         : tab === 'streams' ? <StreamPanel />
         : tab === 'sikong' ? <SikongPanel />
+        : tab === 'negverify' ? <NegClassifyVerify />
         : tab === 'responsibility' ? <ResponsibilityManager />
         : <PushStyleEditor />}
     </div>

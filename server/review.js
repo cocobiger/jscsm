@@ -36,7 +36,9 @@ function initReviewDb(database) {
       reviewed_at TEXT,
       note TEXT,
       lat REAL,
-      lng REAL
+      lng REAL,
+      scene TEXT DEFAULT '',
+      exclude INTEGER DEFAULT 0
     )
   `)
   // 老库兼容：已存在的表补坐标/告警关联字段
@@ -44,6 +46,10 @@ function initReviewDb(database) {
   if (!cols.includes('lat')) db.exec('ALTER TABLE straw_detections ADD COLUMN lat REAL')
   if (!cols.includes('lng')) db.exec('ALTER TABLE straw_detections ADD COLUMN lng REAL')
   if (!cols.includes('warning_id')) db.exec('ALTER TABLE straw_detections ADD COLUMN warning_id TEXT')
+  // P2 场景治理：scene 场景标签(dock机场期/sim模拟流/night夜间/day白天/urban城区) + exclude 人工"不纳入判例"标记
+  if (!cols.includes('scene')) db.exec("ALTER TABLE straw_detections ADD COLUMN scene TEXT DEFAULT ''")
+  if (!cols.includes('exclude')) db.exec('ALTER TABLE straw_detections ADD COLUMN exclude INTEGER DEFAULT 0')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_review_scene ON straw_detections(scene)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_review_status ON straw_detections(review_status)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_review_warning ON straw_detections(warning_id)')
   // 第 4 批：标注导出历史（数据资产台账，供报表与追溯）
@@ -58,6 +64,21 @@ function initReviewDb(database) {
       fire_boxes INTEGER DEFAULT 0,
       house_boxes INTEGER DEFAULT 0,
       trigger_type TEXT DEFAULT 'manual'
+    )
+  `)
+  // P3-2a 负样本抽检：VLM 干扰物分类人工复核（ok=正确 / no=错误 / dn=不确定）
+  // frame_path 为 neg_classified.json 的键（图片绝对路径），UNIQUE 防重复提交
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS straw_neg_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      frame_path TEXT UNIQUE,
+      cats TEXT DEFAULT '',
+      raw TEXT DEFAULT '',
+      ts TEXT DEFAULT '',
+      review_status TEXT DEFAULT 'pending',
+      reviewer TEXT DEFAULT '',
+      reviewed_at TEXT,
+      note TEXT DEFAULT ''
     )
   `)
 }
@@ -175,6 +196,18 @@ function registerReviewRoutes(app, reviewCtx = {}) {
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
 
+  // P2：批量"不纳入判例"标记（exclude=1 后导出重训默认剔除；再传 exclude:false 可恢复）
+  app.post('/api/review/exclude', (req, res) => {
+    try {
+      const { ids, exclude } = req.body || {}
+      if (!Array.isArray(ids) || !ids.length) return res.json({ ok: false, error: '需传 ids 数组' })
+      const v = exclude === false ? 0 : 1
+      const marks = ids.map(() => '?').join(',')
+      const r = db.prepare(`UPDATE straw_detections SET exclude = ? WHERE id IN (${marks})`).run(v, ...ids)
+      res.json({ ok: true, changed: r.changes, exclude: v })
+    } catch (e) { res.json({ ok: false, error: e.message }) }
+  })
+
   // 复检统计
   app.get('/api/review/stats', (req, res) => {
     try {
@@ -188,41 +221,55 @@ function registerReviewRoutes(app, reviewCtx = {}) {
   })
 
   // 复检图片（支持 ?w= 生成缩略图，大幅降低网格加载带宽）
+  // 统一发送：原图直出 or sharp 缩略图 + 磁盘缓存（中文路径用 sha1 做缓存名）
+  const sendImg = async (abs, keyPath, w, res) => {
+    if (w <= 0 || w >= 3000) return res.sendFile(abs)
+    const cacheDir = path.join(__dirname, 'data', 'review_thumbs')
+    const crypto = require('crypto')
+    const key = crypto.createHash('sha1').update(keyPath + '|' + w).digest('hex')
+    const cacheFile = path.join(cacheDir, key + '.jpg')
+    if (!require('fs').existsSync(cacheFile)) {
+      require('fs').mkdirSync(cacheDir, { recursive: true })
+      try {
+        const sharp = require('sharp')
+        await sharp(abs).resize({ width: w, withoutEnlargement: true }).jpeg({ quality: 72 }).toFile(cacheFile)
+      } catch (e) {
+        // sharp 失败时回退原图
+        return res.sendFile(abs)
+      }
+    }
+    res.sendFile(cacheFile)
+  }
+
   app.get('/api/review/image', async (req, res) => {
     try {
       const p = String(req.query.path || '')
       const w = parseInt(req.query.w || '0', 10) || 0
       if (!p || p.includes('..')) return res.status(400).end('bad path')
+      // P3-2a 负样本抽检白名单：record/ 前缀 → v5_candidates/record
+      if (p.startsWith('record/')) {
+        const negRoot = '/video/shujuji/datasets/v5_candidates/record'
+        const rel = p.slice('record/'.length)
+        const absNeg = path.normalize(path.join(negRoot, rel))
+        if (!absNeg.startsWith(negRoot)) return res.status(403).end('forbidden')
+        return sendImg(absNeg, p, w, res)
+      }
       const abs = path.normalize(path.join(evidenceRoot, p))
       if (!abs.startsWith(evidenceRoot)) return res.status(403).end('forbidden')
-      // 大尺寸 / 未指定 → 原图直出
-      if (w <= 0 || w >= 3000) return res.sendFile(abs)
-      // 缩略图：sharp 生成 + 磁盘缓存（中文路径用 sha1 做缓存名）
-      const cacheDir = path.join(__dirname, 'data', 'review_thumbs')
-      const crypto = require('crypto')
-      const key = crypto.createHash('sha1').update(p + '|' + w).digest('hex')
-      const cacheFile = path.join(cacheDir, key + '.jpg')
-      if (!require('fs').existsSync(cacheFile)) {
-        require('fs').mkdirSync(cacheDir, { recursive: true })
-        try {
-          const sharp = require('sharp')
-          await sharp(abs).resize({ width: w, withoutEnlargement: true }).jpeg({ quality: 72 }).toFile(cacheFile)
-        } catch (e) {
-          // sharp 失败时回退原图
-          return res.sendFile(abs)
-        }
-      }
-      res.sendFile(cacheFile)
+      return sendImg(abs, p, w, res)
     } catch (e) { res.status(500).end('err:' + e.message) }
   })
 
   // ── 导出标注数据（YOLO 格式，供重训）──
   // 真烟(true) → 正样本；误报(false) → 负样本（空标注）
   // 第 4 批：抽公共 doExport；POST 一键导出并记录历史（review_exports），GET 保留兼容旧调用
-  const doExport = async (base, exporter = '', triggerType = 'manual') => {
-    const rows = db.prepare(
-      `SELECT * FROM straw_detections WHERE review_status IN ('true','false') ORDER BY ts`
-    ).all()
+  // P2 场景治理：默认剔除 人工"不纳入判例"(exclude=1) + 场景无效帧(dock机场期/sim模拟流)；includeAll=1 可全量导出
+  const doExport = async (base, exporter = '', triggerType = 'manual', includeAll = false) => {
+    const whereAll = `WHERE review_status IN ('true','false')`
+    const whereClean = `WHERE review_status IN ('true','false')
+      AND (exclude IS NULL OR exclude = 0)
+      AND (scene IS NULL OR scene = '' OR scene NOT IN ('dock','sim'))`
+    const rows = db.prepare(`SELECT * FROM straw_detections ${includeAll ? whereAll : whereClean} ORDER BY ts`).all()
     const fs = require('fs')
     const train = path.join(base, 'v1', 'images', 'train')
     const labels = path.join(base, 'v1', 'labels', 'train')
@@ -287,14 +334,14 @@ function registerReviewRoutes(app, reviewCtx = {}) {
         `INSERT INTO review_exports (exporter, base_dir, exported, smoke_boxes, fire_boxes, house_boxes, trigger_type) VALUES (?,?,?,?,?,?,?)`
       ).run(exporter || '', base, exported, smokeBoxes, fireBoxes, houseBoxes, triggerType)
     } catch (e) { console.error('[review-export] 历史记录失败:', e.message) }
-    return { exported, skipped, dir: base, smokeBoxes, fireBoxes, houseBoxes }
+    return { exported, skipped, dir: base, smokeBoxes, fireBoxes, houseBoxes, filter: includeAll ? 'all' : 'clean' }
   }
 
   // GET 兼容（旧调用方；触发方式记 api）
   app.get('/api/review/export', async (req, res) => {
     try {
       const base = req.query.base || '/video/xunlian/retrain'
-      const out = await doExport(base, (req.user && req.user.username) || 'api', 'api')
+      const out = await doExport(base, (req.user && req.user.username) || 'api', 'api', req.query.include_all === '1')
       res.json({ ok: true, ...out })
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
@@ -303,7 +350,7 @@ function registerReviewRoutes(app, reviewCtx = {}) {
   app.post('/api/review/export', async (req, res) => {
     try {
       const base = (req.body && req.body.base) || '/video/xunlian/retrain'
-      const out = await doExport(base, (req.user && req.user.username) || '', 'manual')
+      const out = await doExport(base, (req.user && req.user.username) || '', 'manual', !!(req.body && req.body.include_all))
       res.json({ ok: true, ...out })
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
@@ -323,8 +370,12 @@ function registerReviewRoutes(app, reviewCtx = {}) {
       if (req.query.label) { cond.push('label = ?'); args.push(String(req.query.label)) }
       if (req.query.source) { cond.push('source = ?'); args.push(String(req.query.source)) }
       if (req.query.min_conf) { cond.push('max_conf >= ?'); args.push(Number(req.query.min_conf)) }
+      if (req.query.stream) { cond.push('stream_id = ?'); args.push(String(req.query.stream)) }
+      if (req.query.max_conf) { cond.push('max_conf < ?'); args.push(Number(req.query.max_conf)) }
       if (req.query.from) { cond.push('ts >= ?'); args.push(String(req.query.from)) }
       if (req.query.to) { cond.push('ts <= ?'); args.push(String(req.query.to)) }
+      if (req.query.scene) { cond.push('scene = ?'); args.push(String(req.query.scene)) }   // P2 场景筛选（dock/sim/night/day/urban）
+      if (req.query.exclude) { cond.push('exclude = 1') }                                    // P2 只看"不纳入判例"标记
       const where = cond.length ? 'WHERE ' + cond.join(' AND ') : ''
 
       // 告警索引：①id → 告警（精确关联）②streamId → [{t, w}]（时间窗回退）
@@ -384,21 +435,32 @@ function registerReviewRoutes(app, reviewCtx = {}) {
         }
       }
       // 三列轻量取全量 → JS 关联/过滤/排序/分页 → 回查完整行（数据量小，SQLite 毫秒级）
-      const brief = db.prepare(`SELECT id, stream_id, ts, warning_id FROM straw_detections ${where}`).all(...args)
+      const brief = db.prepare(`SELECT id, stream_id, ts, warning_id, review_status, max_conf, scene, exclude FROM straw_detections ${where}`).all(...args)
       const pushDist = { none: 0, pending: 0, failed: 0, pushed: 0, held: 0 }
       let ids = brief.map(r => {
         const ps = pushState(r.stream_id, r.ts, r.warning_id)
         pushDist[ps.status] = (pushDist[ps.status] || 0) + 1
-        return { id: r.id, ts: r.ts, push: ps.status }
+        return { id: r.id, ts: r.ts, push: ps.status, rs: r.review_status, mc: r.max_conf || 0 }
       })
       if (wantPush) ids = ids.filter(x => x.push === wantPush)
-      ids.sort((a, b) => (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
+      const sortBy = String(req.query.sort || '')
+      if (sortBy === 'pending') ids.sort((a, b) => {
+        const pa = a.rs === 'pending' ? 0 : 1, pb = b.rs === 'pending' ? 0 : 1
+        return pa !== pb ? pa - pb : (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1))
+      })
+      else if (sortBy === 'conf_desc') ids.sort((a, b) => b.mc - a.mc || (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
+      else if (sortBy === 'conf_asc') ids.sort((a, b) => a.mc - b.mc || (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
+      else ids.sort((a, b) => (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
       const total = ids.length
       const pageIds = ids.slice(offset, offset + limit).map(x => x.id)
       const rows = pageIds.length
         ? db.prepare(`SELECT * FROM straw_detections WHERE id IN (${pageIds.map(() => '?').join(',')})`).all(...pageIds)
         : []
-      rows.sort((a, b) => (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
+      rows.sort(sortBy === 'pending'
+        ? (a, b) => { const pa = a.review_status === 'pending' ? 0 : 1, pb = b.review_status === 'pending' ? 0 : 1; return pa !== pb ? pa - pb : (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)) }
+        : sortBy === 'conf_desc' ? (a, b) => (b.max_conf || 0) - (a.max_conf || 0) || (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1))
+        : sortBy === 'conf_asc' ? (a, b) => (a.max_conf || 0) - (b.max_conf || 0) || (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1))
+        : (a, b) => (a.ts === b.ts ? b.id - a.id : (a.ts < b.ts ? 1 : -1)))
       rows.forEach(r => { r.boxes = parseBoxes(r.boxes); r.push = pushState(r.stream_id, r.ts, r.warning_id) })
       const stats = {
         total: db.prepare('SELECT COUNT(*) c FROM straw_detections').get().c,
@@ -406,6 +468,9 @@ function registerReviewRoutes(app, reviewCtx = {}) {
         trueCount: db.prepare("SELECT COUNT(*) c FROM straw_detections WHERE review_status='true'").get().c,
         falseCount: db.prepare("SELECT COUNT(*) c FROM straw_detections WHERE review_status='false'").get().c,
         push: pushDist,
+        streams: db.prepare("SELECT DISTINCT stream_id FROM straw_detections WHERE stream_id IS NOT NULL AND stream_id != '' LIMIT 200").all().map(r => r.stream_id),
+        // P2 场景分布（前端下拉选项 + 统计卡）
+        scenes: db.prepare(`SELECT scene, COUNT(*) c FROM straw_detections GROUP BY scene ORDER BY c DESC`).all(),
       }
       res.json({ ok: true, total, rows, stats })
     } catch (e) { res.json({ ok: false, error: e.message }) }
@@ -480,6 +545,75 @@ function registerReviewRoutes(app, reviewCtx = {}) {
       // 8. 导出历史（数据资产台账）
       const exports = Q('SELECT * FROM review_exports ORDER BY id DESC LIMIT 20')
       res.json({ ok: true, verdict, labels, boxCls, reviewers, streams, months, confs, exports })
+    } catch (e) { res.json({ ok: false, error: e.message }) }
+  })
+
+  // ── P3-2a 负样本抽检（VLM 干扰物分类 → 人工复核 → 训练负样本）──
+  // 数据源：/video/shujuji/datasets/v5_candidates/neg_classified.json（VLM 分类产物）
+  // 人工复核结果持久化到 straw_neg_reviews，供 gen_v5_neg_from_reviews.py 消费
+  const NEG_CATALOG = '/video/shujuji/datasets/v5_candidates/neg_classified.json'
+  const NEG_VALID = { ok: 1, no: 1, dn: 1, pending: 1 }
+
+  const loadNegCatalog = () => {
+    try {
+      const fs = require('fs')
+      if (!fs.existsSync(NEG_CATALOG)) return {}
+      return JSON.parse(fs.readFileSync(NEG_CATALOG, 'utf8'))
+    } catch (e) {
+      console.error('[neg-classify] catalog 读取失败:', e.message)
+      return {}
+    }
+  }
+
+  // 抽检清单 + 复核记录 + 统计（一次拉全，前端本地合并渲染）
+  app.get('/api/straw/neg-classify', (req, res) => {
+    try {
+      const catalog = loadNegCatalog()
+      const reviews = db.prepare(`SELECT frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note FROM straw_neg_reviews`).all()
+      const byStatus = { ok: 0, no: 0, dn: 0, pending: 0 }
+      let reviewed = 0
+      for (const r of reviews) {
+        if (r.review_status !== 'pending') reviewed++
+        if (byStatus[r.review_status] != null) byStatus[r.review_status]++
+      }
+      const total = Object.keys(catalog).length
+      byStatus.pending = Math.max(0, total - reviewed)
+      res.json({ ok: true, catalog, reviews, stats: { total, reviewed, byStatus } })
+    } catch (e) { res.json({ ok: false, error: e.message }) }
+  })
+
+  // 提交单帧复核（upsert：同一帧重复提交覆盖旧判定）
+  app.post('/api/review/neg-classify', (req, res) => {
+    try {
+      const { frame_path, review_status, note, reviewer } = req.body || {}
+      if (!frame_path || !NEG_VALID[review_status]) return res.json({ ok: false, error: '参数错误' })
+      const catalog = loadNegCatalog()
+      const v = catalog[frame_path] || {}
+      const rv = reviewerOf(req, reviewer)
+      const r = db.prepare(`
+        INSERT INTO straw_neg_reviews (frame_path, cats, raw, ts, review_status, reviewer, reviewed_at, note)
+        VALUES (?,?,?,?,?,?,datetime('now','localtime'),?)
+        ON CONFLICT(frame_path) DO UPDATE SET
+          cats=excluded.cats, raw=excluded.raw, ts=excluded.ts,
+          review_status=excluded.review_status, reviewer=excluded.reviewer,
+          reviewed_at=excluded.reviewed_at, note=excluded.note
+      `).run(frame_path, JSON.stringify(v.cats || []), v.raw || '', v.ts || '', review_status, rv, note || '')
+      res.json({ ok: true, saved: r.changes, reviewer: rv })
+    } catch (e) { res.json({ ok: false, error: e.message }) }
+  })
+
+  // 抽检统计（独立端点，供报表/自动化）
+  app.get('/api/straw/neg-classify/stats', (req, res) => {
+    try {
+      const total = Object.keys(loadNegCatalog()).length
+      const rows = db.prepare(`SELECT review_status, COUNT(*) c FROM straw_neg_reviews GROUP BY review_status`).all()
+      const byStatus = { ok: 0, no: 0, dn: 0 }
+      let reviewed = 0
+      for (const r of rows) {
+        if (byStatus[r.review_status] != null) byStatus[r.review_status] = r.c
+        if (r.review_status !== 'pending') reviewed += r.c
+      }
+      res.json({ ok: true, stats: { total, reviewed, pending: Math.max(0, total - reviewed), byStatus } })
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
 }
