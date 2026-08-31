@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v5 复核页人性化评估与排期 · 2026-08-31</title>
+<style>
+  :root {
+    --bg:#f5f6f8; --card:#ffffff; --line:#e3e6ea;
+    --text:#1f2329; --sub:#646a73; --faint:#9aa1a9;
+    --blue:#2b6de8; --blue-bg:#eaf1fe;
+    --green:#1f9e63; --green-bg:#e8f7f0;
+    --red:#d63031; --red-bg:#fdecec;
+    --amber:#b7791f; --amber-bg:#fdf3e0;
+    --gray-bg:#f0f1f3;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; line-height:1.7; padding:32px 16px 80px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  header { margin-bottom:24px; }
+  h1 { font-size:24px; font-weight:700; }
+  .sub { color:var(--sub); font-size:13px; margin-top:6px; }
+  .tag { display:inline-block; background:var(--blue-bg); color:var(--blue); font-size:12px; padding:2px 10px; border-radius:12px; margin-right:6px; }
+  .tag.green { background:var(--green-bg); color:var(--green); }
+  .tag.red { background:var(--red-bg); color:var(--red); }
+  .tag.amber { background:var(--amber-bg); color:var(--amber); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin-bottom:18px; }
+  h2 { font-size:17px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  h2 .no { background:var(--blue); color:#fff; width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+  h3 { font-size:14px; font-weight:700; margin:16px 0 8px; color:var(--blue); }
+  p { font-size:14px; margin-bottom:8px; }
+  ul { padding-left:20px; font-size:14px; margin-bottom:8px; }
+  li { margin-bottom:5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin:10px 0 14px; }
+  th { background:var(--gray-bg); text-align:left; padding:8px 10px; font-weight:700; border:1px solid var(--line); }
+  td { padding:8px 10px; border:1px solid var(--line); vertical-align:top; }
+  .ok { color:var(--green); font-weight:600; }
+  .bad { color:var(--red); font-weight:600; }
+  .warn { color:var(--amber); font-weight:600; }
+  .mono { font-family:"SF Mono",Consolas,Menlo,monospace; font-size:12px; }
+  .box { background:var(--gray-bg); border-radius:8px; padding:12px 14px; font-size:13px; margin:10px 0; }
+  .box.blue { background:var(--blue-bg); color:#22407a; }
+  .box.green { background:var(--green-bg); color:#15583a; }
+  .box.red { background:var(--red-bg); color:#7a2424; }
+  .box.amber { background:var(--amber-bg); color:#6b4a10; }
+  .pill { display:inline-block; background:var(--gray-bg); border-radius:5px; padding:1px 8px; font-size:12px; margin-right:4px; }
+  .plan-row { display:flex; gap:12px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; background:var(--card); }
+  .plan-no { background:var(--blue); color:#fff; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0; }
+  .plan-body { flex:1; }
+  .plan-title { font-weight:700; font-size:14px; margin-bottom:4px; }
+  .plan-meta { font-size:12px; color:var(--sub); margin-bottom:6px; }
+  .plan-list { font-size:13px; padding-left:18px; }
+  .plan-list li { margin-bottom:3px; }
+  .cost { color:var(--blue); font-weight:700; white-space:nowrap; }
+  .arrow { color:var(--faint); margin:0 4px; }
+  footer { text-align:center; color:var(--faint); font-size:12px; margin-top:24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>v5 候选帧复核页 · 人性化评估与任务排期</h1>
+    <div class="sub">
+      评估对象：<b>v5review.html</b>（v5 候选帧人工复核工作台 · <span class="mono">:81/v5review.html</span>）
+      <br>日期：2026-08-31 ｜ 目标：从标注者（用户）视角优化复核体验，方便逐帧标注
+    </div>
+    <div style="margin-top:10px">
+      <span class="tag">现状体检</span>
+      <span class="tag">用户痛点</span>
+      <span class="tag">方案选型</span>
+      <span class="tag green">落地排期</span>
+      <span class="tag amber">风险回滚</span>
+    </div>
+  </header>
+
+  <!-- 一、结论先行 -->
+  <section>
+    <h2><span class="no">1</span>结论先行（1 分钟版）</h2>
+    <p><b>您说的"分页和下拉框未出现"已定位根因：</b>v5 复核页是 8/28 生成的单文件静态页，<b>41 帧候选帧一次性全部渲染</b>（页面 3.5MB，含内嵌缩略图），代码里<b>没有分页、没有筛选下拉框</b>——不是坏了，是根本没做。</p>
+    <div class="box blue">
+      现状能力盘点：<b>判定（有烟/无烟/不确定）✓ 备注 ✓ 夜场标记 ✓ 自动保存 ✓ 统计进度条 ✓ 大图放大 ✓ 导出 JSON ✓</b><br>
+      缺失：<b>分页 ✗ 筛选下拉 ✗ 键盘快捷键 ✗ 沉浸式上一张/下一张 ✗ 批量判定 ✗ 未复核优先排序 ✗</b>
+    </div>
+    <p>核心诉求"方便标注"的瓶颈：41 张卡片堆在一条 1.2 万像素的长页面上，每标一帧要<b>滚屏找下一张</b>、<b>鼠标连点 3 次</b>，无法只看"还没标过的"，夜场帧要在长页面里翻找黄框卡片。</p>
+    <p><b>建议排期：3 批共约 5 小时</b>（第 1 批 1.5h 解决"分页+下拉"痛点，第 2 批 2h 沉浸式标注提效，第 3 批 1.5h 批量+健壮性）。纯静态前端改造，无后端依赖，<b>已标数据零丢失</b>。</p>
+  </section>
+
+  <!-- 二、现状分析 -->
+  <section>
+    <h2><span class="no">2</span>现状体检（读码确认）</h2>
+    <table>
+      <tr><th style="width:180px">维度</th><th>现状</th><th style="width:100px">评估</th></tr>
+      <tr><td>页面形态</td><td>单文件静态 HTML（<span class="mono">/video/llm_infer/v5review.html</span>），41 帧数据<b>内嵌</b>（含 base64 缩略图，共 3.5MB）</td><td class="bad">一次性全渲染</td></tr>
+      <tr><td>分页</td><td><b>无</b>。41 帧全部 appendChild 到 #cards，页面约 1.2 万 px 长</td><td class="bad">缺</td></tr>
+      <tr><td>筛选下拉</td><td><b>无</b>。无法按 复核状态 / 白天夜场 / fire 次数 过滤</td><td class="bad">缺</td></tr>
+      <tr><td>排序</td><td>固定按 idx；已复核的帧不置灰、不沉底</td><td class="bad">缺"未复核优先"</td></tr>
+      <tr><td>单帧判定</td><td>三态按钮（有烟/无烟/不确定）+ 备注框，localStorage 自动保存（<span class="mono">LS_KEY=v5review_v1</span>）</td><td class="ok">已有</td></tr>
+      <tr><td>夜场标记</td><td>亮度 &lt;25 自动加黄框 + 夜场徽标（可辅助判断）</td><td class="ok">已有</td></tr>
+      <tr><td>放大看图</td><td>点击缩略图 → lightbox 单张大图（<span class="mono">#lb</span>），<b>不能左右切换相邻帧</b>，无缩放</td><td class="warn">可用但弱</td></tr>
+      <tr><td>统计进度</td><td>顶部 sticky 统计条：总/已复核/有烟/无烟/不确定 + 进度条</td><td class="ok">已有</td></tr>
+      <tr><td>批量操作</td><td>仅"全部标为有烟"一个（需 confirm），无"本页批量无烟/不确定"</td><td class="warn">弱</td></tr>
+      <tr><td>键盘快捷键</td><td><b>无</b>。纯鼠标操作</td><td class="bad">缺</td></tr>
+      <tr><td>渲染性能</td><td>每次判定都全量 <span class="mono">renderCards()</span> 重建 41 张卡 DOM；若扩到 400 帧将明显卡顿</td><td class="warn">可优化</td></tr>
+      <tr><td>导出</td><td>JSON 全量导出（<span class="mono">v5_review_result.json</span>），字段含 judge/note/vlm/fire</td><td class="ok">可用</td></tr>
+    </table>
+    <div class="box">判定依据：该页与您描述的"分页、下拉框未出现"完全一致；驾驶舱复检工作台（StrawResultsView）已有分页与 5 个筛选下拉，不在本次范围（见附注）。</div>
+  </section>
+
+  <!-- 三、用户视角痛点 -->
+  <section>
+    <h2><span class="no">3</span>从用户视角：标注者的一天</h2>
+    <p>模拟复核 41 帧的实际操作流，逐环节找卡点：</p>
+    <table>
+      <tr><th style="width:220px">操作环节</th><th>现在的体验</th><th style="width:130px">问题等级</th></tr>
+      <tr><td>① 打开页面</td><td>一次加载 3.5MB、41 张卡全出来，首屏以下全是空白等待滚动</td><td class="warn">中</td></tr>
+      <tr><td>② 找"下一张没标的"</td><td>已标的不做任何区分，混在列表里；只能靠记忆 + 顶部计数猜</td><td class="bad">高</td></tr>
+      <tr><td>③ 放大看细节</td><td>点开 lightbox 看大图 → 想对比上一张要 <b>关闭 → 滚屏 → 再点下一张</b></td><td class="bad">高</td></tr>
+      <tr><td>④ 做判定</td><td>3 次鼠标点击：看 → 移到按钮 → 点（有烟/无烟/不确定），手不离鼠标逐张点</td><td class="bad">高</td></tr>
+      <tr><td>⑤ 遇夜场帧</td><td>夜场可信度低建议标"不确定"，但要在长页面里翻找黄框卡片</td><td class="warn">中</td></tr>
+      <tr><td>⑥ 中途休息回来</td><td>localStorage 记住了判定，但看不出"接着标哪"</td><td class="warn">中</td></tr>
+      <tr><td>⑦ 批量顺手处理</td><td>只有"全部标为有烟"，想批量"本页无烟"只能逐张点</td><td class="warn">中</td></tr>
+      <tr><td>⑧ 交付复核结果</td><td>导出 JSON 下载发给 AI → 进入 M3 组集（流程可用）</td><td class="ok">低</td></tr>
+    </table>
+    <h3>痛点归纳（按影响排序）</h3>
+    <ul>
+      <li><b>P0 无分页</b>：41 帧长页 + 无页码导航，无法定位"标到哪、剩多少"；后续 400 帧全量复核时此页会直接卡死</li>
+      <li><b>P0 无筛选下拉</b>：无法"只看未复核 / 只看夜场 / 只看已标有烟"，复查与补标全靠肉眼找</li>
+      <li><b>P1 无键盘快捷键</b>：逐帧鼠标连点是标注效率的最大瓶颈（对标生产复检页 1/2/3 快捷键）</li>
+      <li><b>P1 大图无左右切换</b>：lightbox 单张看图，对比相邻帧要关开两次</li>
+      <li><b>P2 批量弱</b>、<b>P2 渲染全量重建</b>、<b>P2 数据内嵌膨胀</b></li>
+    </ul>
+  </section>
+
+  <!-- 四、方案选型 -->
+  <section>
+    <h2><span class="no">4</span>方案选型（A/B/C）</h2>
+    <table>
+      <tr><th style="width:130px">方案</th><th>做法</th><th>优点</th><th>缺点</th><th style="width:110px">结论</th></tr>
+      <tr>
+        <td><b>A 静态页原地增强</b>（推荐）</td>
+        <td>v5review.html 内加分页/筛选/快捷键/沉浸式弹层，b64 数据保留内嵌（或抽离 DATA.json）</td>
+        <td>零后端、零部署新服务；localStorage 兼容；改动集中在一个文件；<b>已标数据不丢</b></td>
+        <td>数据内嵌文件仍大；刷新页面加载稍慢（41 帧可接受）</td>
+        <td class="ok">✅ 推荐</td>
+      </tr>
+      <tr>
+        <td>B 数据外置 + 静态页</td>
+        <td>DATA 抽到 <span class="mono">v5review_data.json</span>，HTML 瘦身到 &lt;50KB，页面按需加载</td>
+        <td>HTML 极轻；后续 400 帧全量复核可行；b64 缩略图可按页懒加载</td>
+        <td>多一个文件；需处理外置读取失败回退</td>
+        <td class="warn">第 3 批并入</td>
+      </tr>
+      <tr>
+        <td>C 接驾驶舱后端</td>
+        <td>并入 StrawResultsView / 新增 /api/review 系列接口服务该页</td>
+        <td>与生产复检统一，天然分页/筛选</td>
+        <td>改动面大；本页是训练数据标注工具，与生产复检数据域不同（v5_candidates vs straw_detections），耦合反而乱</td>
+        <td class="bad">✗ 不采用</td>
+      </tr>
+    </table>
+    <div class="box green">
+      <b>选 A，第 3 批并入 B 的数据外置</b>：符合您"长期彻底方案"偏好——一次改造，后续 400 帧全量复核不再卡。所有判定数据仍存 localStorage（<span class="mono">LS_KEY=v5review_v1 保持不变</span>），已标结果零丢失。
+    </div>
+    <h3>关键设计（对标生产复检页最佳实践）</h3>
+    <ul>
+      <li><b>分页</b>：每页 10 帧（可切 10/20/50）+ 上一页/下一页 + 页码 + 第 x/y 页，滚动位置跨页保持</li>
+      <li><b>筛选下拉</b>：复核状态（全部/未复核/有烟/无烟/不确定）＋ 场景（全部/白天/夜场），筛选后自动回第 1 页</li>
+      <li><b>排序</b>：默认"未复核优先"（已复核沉底置灰），可切按 idx</li>
+      <li><b>沉浸式复核弹层</b>：点击卡片进全屏大图，快捷键 1=有烟 / 2=无烟 / 3=不确定 / ←→=相邻帧 / Esc=退出，判定后自动跳下一张</li>
+      <li><b>列表页快捷键</b>：聚焦卡片高亮 + 1/2/3 直接判定（对标 StrawResultsView 详情弹层）</li>
+      <li><b>批量</b>：本页全选 → 批量有烟/无烟/不确定（对标 ServerReviewPage 批量栏）</li>
+      <li><b>渲染</b>：setJudge 后只更新该卡状态，不再全量重建 DOM</li>
+    </ul>
+  </section>
+
+  <!-- 五、任务排期 -->
+  <section>
+    <h2><span class="no">5</span>任务排期（3 批 + 验证，合计约 5.5h）</h2>
+
+    <div class="plan-row">
+      <div class="plan-no">1</div>
+      <div class="plan-body">
+        <div class="plan-title">分页 + 筛选下拉 + 未复核优先（解决"未出现"）</div>
+        <div class="plan-meta"><span class="cost">≈ 1.5h</span> ｜ P0 ｜ 直接回答您的两个问题</div>
+        <ul class="plan-list">
+          <li>新增分页状态（page / pageSize=10 / totalPages），顶部工具条加分页控件（上一页/下一页/页码/每页条数）</li>
+          <li>新增筛选下拉：复核状态（全部/未复核/有烟/无烟/不确定）＋ 场景（全部/白天/夜场）</li>
+          <li>排序：默认未复核优先（已复核沉底置灰），可切按 idx；筛选/排序变化自动回第 1 页</li>
+          <li>renderCards 只渲染"筛选后当前页"帧（DOM 从 41 张降到 10 张）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="plan-row">
+      <div class="plan-no">2</div>
+      <div class="plan-body">
+        <div class="plan-title">沉浸式复核弹层 + 键盘快捷键（"方便标注"核心）</div>
+        <div class="plan-meta"><span class="cost">≈ 2h</span> ｜ P1 ｜ 标注效率提升 3~5 倍</div>
+        <ul class="plan-list">
+          <li>点击卡片 → 全屏复核弹层：大图 + 判定按钮 + 备注 + 夜场/亮度/fire 信息栏</li>
+          <li>快捷键：<span class="pill">1</span>有烟 <span class="pill">2</span>无烟 <span class="pill">3</span>不确定 <span class="pill">←</span><span class="pill">→</span>相邻帧 <span class="pill">Esc</span>退出，判定自动保存并跳下一张</li>
+          <li>弹层内大图支持滚轮缩放 + 拖拽平移（复用 ImgViewer 模式）</li>
+          <li>列表页：聚焦卡片（Tab/方向键）高亮，1/2/3 直接判定，无需进弹层</li>
+          <li>顶部 n/m 定位 + 当前状态色条，退出后停留在原位置</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="plan-row">
+      <div class="plan-no">3</div>
+      <div class="plan-body">
+        <div class="plan-title">批量判定 + 数据外置 + 渲染与导出增强</div>
+        <div class="plan-meta"><span class="cost">≈ 1.5h</span> ｜ P2 ｜ 为 400 帧全量复核打底</div>
+        <ul class="plan-list">
+          <li>批量操作栏：本页全选 → 批量有烟/无烟/不确定（带 confirm 与撤销提示）</li>
+          <li>数据外置：b64 缩略图抽到 <span class="mono">v5review_data.json</span>（HTML &lt;50KB），外置读取失败回退内嵌；缩略图按页懒加载</li>
+          <li>setJudge 增量更新当前卡（不再全量 renderCards），筛选/分页状态保持</li>
+          <li>导出增强：支持按当前筛选视图导出 + CSV 格式（人读/Excel）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="plan-row">
+      <div class="plan-no" style="background:var(--green)">✓</div>
+      <div class="plan-body">
+        <div class="plan-title">验证与部署（每批交付时同步做）</div>
+        <div class="plan-meta"><span class="cost">≈ 0.5h</span> ｜ 全流程</div>
+        <ul class="plan-list">
+          <li>本地静态服务验证：分页切换 / 筛选 / 快捷键 / 沉浸式 / 导出 / localStorage 兼容（<b>关键：用旧版已标数据打开新版不丢</b>）</li>
+          <li>headless 截图 4~5 张（列表分页 / 筛选后 / 沉浸式弹层 / 缩放后 / 批量栏）</li>
+          <li>备份 <span class="mono">v5review.html → v5review_bak_20260831.html</span>，scp 部署到 <span class="mono">/video/llm_infer/</span>，<span class="mono">:81/v5review.html</span> 浏览器实测</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 六、冲突排查 -->
+  <section>
+    <h2><span class="no">6</span>冲突排查与兼容</h2>
+    <table>
+      <tr><th style="width:220px">项</th><th>排查结论</th></tr>
+      <tr><td>localStorage 数据</td><td><span class="mono">LS_KEY='v5review_v1'</span> + judge 语义（smoke/no/unk）保持不变，<b>已标 41 帧结果零丢失</b></td></tr>
+      <tr><td>nginx 静态服务</td><td><span class="mono">:81/v5review.html</span> 由 alias 指向 /video/llm_infer/，纯静态无后端，替换文件即生效；建议加 no-cache 头避免浏览器缓存旧版</td></tr>
+      <tr><td>与生产复检页关系</td><td>数据域不同（v5_candidates 训练数据 vs straw_detections 生产告警），<b>不做耦合</b>，独立静态页改造</td></tr>
+      <tr><td>快捷键冲突</td><td>沉浸式弹层打开时拦截父层事件（1/2/3/←→/Esc），关闭后恢复；输入框聚焦时 1/2/3 不触发</td></tr>
+      <tr><td>文件体积</td><td>41 帧内嵌 3.5MB 可接受；第 3 批外置后 HTML &lt;50KB，为 400 帧全量复核预留</td></tr>
+      <tr><td>移动端</td><td>分页/筛选为响应式 flex 布局，窄屏自动换行；快捷键不可用但按钮保留</td></tr>
+    </table>
+  </section>
+
+  <!-- 七、风险与回滚 -->
+  <section>
+    <h2><span class="no">7</span>风险与回滚</h2>
+    <div class="box amber">
+      <b>风险 1（低）</b>：新版 bug 导致页面异常 → 备份文件 <span class="mono">v5review_bak_20260831.html</span> 一键还原（cp 覆盖即可）。
+      <br><b>风险 2（低）</b>：浏览器缓存旧版 → 部署后 nginx 加 no-cache 或用户 Ctrl+F5。
+      <br><b>风险 3（中）</b>：若中途想扩到 400 帧全量复核而第 3 批未做 → 内嵌 3.5MB×10 文件过大，需先完成第 3 批数据外置。
+      <br><b>风险 4（无）</b>：已标数据丢失 → 方案明确 LS_KEY/judge 语义不变，且改造前可先导出一次 JSON 留底。
+    </div>
+  </section>
+
+  <!-- 八、附注 -->
+  <section>
+    <h2><span class="no">8</span>附注：驾驶舱复检页（StrawResultsView）顺带增强（可选）</h2>
+    <p>该页已有 5 个筛选下拉 + 上一页/下一页分页，本次<b>不含在排期内</b>。如您期望的是"页码条 + 每页条数 + 跳转"更完整的分页器，可加第 4 批（≈ 0.5h）：</p>
+    <ul>
+      <li>分页区升级：页码按钮（1 2 3 …）+ 每页条数下拉（20/50/100）+ 页码跳转输入框</li>
+      <li>列表行"未复核"高亮 + 顶部快捷筛选 chips（只看待复检 / 只看推送失败）</li>
+    </ul>
+  </section>
+
+  <footer>v5 复核页人性化评估与排期 · 2026-08-31 · 待您确认后按批次开工</footer>
+</div>
+</body>
+</html>

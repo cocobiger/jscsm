@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v5 候选帧人工复核</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --line: #e3e6ea;
+    --text: #1f2329; --sub: #646a73;
+    --blue: #2b6de8; --blue-bg: #eaf1fe;
+    --green: #1f9e63; --green-bg: #e8f7f0;
+    --red: #d63031; --red-bg: #fdecec;
+    --amber: #b7791f; --amber-bg: #fdf3e0;
+    --gray-bg: #f0f1f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 100px; }
+
+  /* 头部 */
+  header { margin-bottom: 16px; }
+  h1 { font-size: 20px; font-weight: 700; }
+  .sub { color: var(--sub); font-size: 13px; margin-top: 4px; }
+  .tip {
+    background: var(--blue-bg); border-left: 3px solid var(--blue);
+    padding: 10px 14px; border-radius: 6px; font-size: 13px;
+    color: #22407a; margin: 12px 0;
+  }
+  .loading { text-align: center; color: var(--sub); padding: 48px 0; font-size: 14px; }
+
+  /* 统计条 */
+  .stats {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+    position: sticky; top: 8px; z-index: 20;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .stat { flex: 1; min-width: 90px; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 700; }
+  .stat .lab { font-size: 12px; color: var(--sub); }
+  .stat.total .num { color: var(--blue); }
+  .stat.done .num { color: var(--blue); }
+  .stat.smoke .num { color: var(--red); }
+  .stat.no .num { color: var(--green); }
+  .stat.unk .num { color: var(--amber); }
+  .bar { width: 100%; height: 5px; background: var(--gray-bg); border-radius: 3px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--blue); transition: width .3s; }
+
+  /* 筛选条 */
+  .filterbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .filterbar select {
+    padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+    font-size: 13px; background: #fff; color: var(--text);
+    outline: none; cursor: pointer;
+  }
+  .filterbar select:focus { border-color: var(--blue); }
+  .fb-info { margin-left: auto; font-size: 12px; color: var(--sub); }
+
+  /* 帧卡片 */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; margin-bottom: 16px; overflow: hidden;
+  }
+  .card.undone { border-style: dashed; }
+  .card-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .idx {
+    background: var(--blue); color: #fff; font-weight: 700;
+    border-radius: 5px; padding: 1px 8px; font-size: 13px;
+  }
+  .meta { color: var(--sub); }
+  .badge { border-radius: 4px; padding: 1px 7px; font-size: 12px; }
+  .badge.fire0 { background: var(--gray-bg); color: var(--sub); }
+  .badge.fire1 { background: var(--amber-bg); color: var(--amber); }
+  .badge.fire2 { background: var(--red-bg); color: var(--red); }
+  .badge.night { background: #1a1a1a; color: #ffd54f; border: 1px solid #ffd54f; }
+  .badge.todo {
+    background: #fff7e6; color: #b7791f;
+    border: 1px dashed #d98e2b;
+  }
+  .vlm { color: var(--sub); font-size: 12px; margin-left: auto; }
+  .card.night { border-color: #ffd54f; box-shadow: 0 0 0 1px #ffd54f inset; }
+  .card-body { padding: 12px 14px; }
+  .shot {
+    display: block; width: 100%; border-radius: 6px; cursor: zoom-in;
+    border: 1px solid var(--line); background: #000;
+  }
+  .judge { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 90px; padding: 8px 0; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--card);
+    font-size: 14px; cursor: pointer; color: var(--text);
+    transition: all .15s;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn.smoke.on { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn.no.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.unk.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .note {
+    width: 100%; margin-top: 8px; padding: 7px 10px;
+    border: 1px solid var(--line); border-radius: 6px; font-size: 13px;
+    outline: none; resize: vertical; min-height: 34px;
+  }
+  .note:focus { border-color: var(--blue); }
+
+  /* 分页条 */
+  .pager {
+    display: flex; gap: 6px; align-items: center; justify-content: center;
+    flex-wrap: wrap; margin: 6px 0 18px;
+  }
+  .pg {
+    padding: 6px 13px; border: 1px solid var(--line); background: var(--card);
+    border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text);
+  }
+  .pg:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+  .pg.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .pg:disabled { opacity: .4; cursor: not-allowed; }
+  .pg-info { font-size: 12px; color: var(--sub); margin-left: 6px; }
+
+  /* 底部工具条 */
+  .tools {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,.95); border-top: 1px solid var(--line);
+    padding: 10px 16px; display: flex; gap: 10px; justify-content: center;
+    flex-wrap: wrap; align-items: center;
+    z-index: 30; backdrop-filter: blur(6px);
+  }
+  #pageTodo { font-size: 12px; color: var(--amber); font-weight: 600; }
+  .tools .btn2 {
+    padding: 9px 22px; border-radius: 6px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+  }
+  .btn2.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn2.warn { color: var(--red); }
+  .btn2:hover { opacity: .9; }
+
+  /* 全屏复核弹层 */
+  #ov {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.94);
+    z-index: 200; flex-direction: column;
+  }
+  #ov.show { display: flex; }
+  .ov-stage {
+    flex: 1; min-height: 0; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; cursor: grab;
+  }
+  .ov-stage:active { cursor: grabbing; }
+  #ovImg {
+    max-width: 96vw; max-height: 76vh;
+    transform-origin: center; user-select: none; -webkit-user-drag: none;
+    border-radius: 4px; will-change: transform;
+  }
+  .ov-toolbar {
+    display: flex; gap: 8px; align-items: center; justify-content: center;
+    flex-wrap: wrap; padding: 10px 14px; background: rgba(0,0,0,.6);
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .ov-cap {
+    color: #ddd; font-size: 13px; margin-right: 8px;
+    max-width: 55vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ov-btn {
+    padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(255,255,255,.08); color: #eee; font-size: 13px; cursor: pointer;
+    transition: all .15s;
+  }
+  .ov-btn:hover { background: rgba(255,255,255,.18); }
+  .ov-btn.j.smoke.on { background: var(--red); border-color: var(--red); color: #fff; }
+  .ov-btn.j.no.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .ov-btn.j.unk.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .ov-btn.close { color: #ff9d9d; }
+  #ovZoom { color: #9fd8ff; font-size: 12px; min-width: 48px; text-align: center; }
+  .ov-hint {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,.65); font-size: 12px; background: rgba(0,0,0,.5);
+    padding: 5px 14px; border-radius: 20px; pointer-events: none; z-index: 2;
+    white-space: nowrap;
+  }
+
+  /* toast */
+  #flashMsg {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.85); color: #fff; font-size: 14px;
+    padding: 10px 20px; border-radius: 8px; z-index: 400; opacity: 0;
+    transition: opacity .2s; pointer-events: none; max-width: 82vw; text-align: center;
+  }
+  #flashMsg.show { opacity: 1; }
+
+  @media (max-width: 480px) {
+    .judge .btn { min-width: 76px; font-size: 13px; }
+    h1 { font-size: 17px; }
+    .tools .btn2 { padding: 8px 14px; font-size: 13px; }
+    .ov-cap { max-width: 90vw; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>v5 候选帧人工复核 · <span id="h1Count"></span></h1>
+    <div class="sub">VLM（Qwen2.5-VL-3B）在 400 帧探针帧中判出 <b style="color:var(--red)"><span id="subCount"></span></b>，人工逐帧复核确认，作为真实航拍正样本入 M3 训练集。</div>
+    <div class="tip">
+      判断要点：目标场景为 <b>1km 左右远距离细微烟</b>——呈灰白/淡蓝色烟柱或烟团，边缘柔和、随时间缓慢飘散；
+      注意区分 <b>云影/雾气/炊烟/房屋白顶/夜间灯火</b>（这些不是秸秆烟）。
+      标 <span class="badge night">夜场</span> 的帧是夜间拍摄（亮度&lt;25），可信度低，建议标"不确定"或"无烟"——除非能明确看到烟形。拿不准的标"不确定"。已选结果自动保存，可随时刷新续改。
+      <br><b>操作提示</b>：点卡片大图进入<b>全屏复核</b>（滚轮缩放 / 拖拽平移 / <b>1 有烟 2 无烟 3 不确定</b>自动下一张 / ←→ 相邻帧 / 0 适应 / Esc 关闭）。
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat total"><div class="num" id="sTotal">0</div><div class="lab">总帧数</div></div>
+    <div class="stat done"><div class="num" id="sDone">0</div><div class="lab">已复核</div></div>
+    <div class="stat smoke"><div class="num" id="sSmoke">0</div><div class="lab">确认有烟</div></div>
+    <div class="stat no"><div class="num" id="sNo">0</div><div class="lab">改判无烟</div></div>
+    <div class="stat unk"><div class="num" id="sUnk">0</div><div class="lab">不确定</div></div>
+    <div class="bar"><i id="sBar" style="width:0%"></i></div>
+  </div>
+
+  <div class="filterbar">
+    <select id="fStatus">
+      <option value="all">全部状态</option>
+      <option value="todo">只看未复核</option>
+      <option value="done">只看已复核</option>
+      <option value="smoke">确认有烟</option>
+      <option value="no">改判无烟</option>
+      <option value="unk">不确定</option>
+    </select>
+    <select id="fScene">
+      <option value="all">全部场景</option>
+      <option value="day">白天</option>
+      <option value="night">夜场</option>
+    </select>
+    <span class="fb-info" id="filterInfo"></span>
+  </div>
+
+  <div id="cards"><div class="loading">数据加载中…</div></div>
+
+  <div class="pager" id="pager"></div>
+
+  <div style="color:var(--sub);font-size:12px;text-align:center;margin-top:10px">
+    如需视频上下文：驾驶舱 → 司空设备 → 媒体归档 → 直播录制，按录制目录名搜索对应片段。
+  </div>
+</div>
+
+<div class="tools">
+  <span id="pageTodo"></span>
+  <button class="btn2" onclick="batchPage('smoke')">本页全标有烟</button>
+  <button class="btn2" onclick="batchPage('no')">本页全标无烟</button>
+  <button class="btn2" onclick="clearPage()">清除本页复核</button>
+  <button class="btn2" onclick="allSmoke()">全部标为有烟</button>
+  <button class="btn2 primary" onclick="exportResult()">导出 JSON</button>
+  <button class="btn2 primary" onclick="exportCSV()">导出 CSV</button>
+  <button class="btn2 warn" onclick="resetAll()">重置</button>
+</div>
+
+<div id="ov">
+  <div class="ov-hint">滚轮缩放 · 拖拽平移 · 1/2/3 判定自动下一张 · ←/→ 相邻帧 · 0 适应 · Esc 关闭</div>
+  <div class="ov-stage" id="ovStage">
+    <img id="ovImg" alt="">
+  </div>
+  <div class="ov-toolbar">
+    <span class="ov-cap" id="ovCap"></span>
+    <span id="ovZoom">100%</span>
+    <button class="ov-btn j smoke" id="ovJsmoke" onclick="ovJudge('smoke')">1 有烟</button>
+    <button class="ov-btn j no" id="ovJno" onclick="ovJudge('no')">2 无烟</button>
+    <button class="ov-btn j unk" id="ovJunk" onclick="ovJudge('unk')">3 不确定</button>
+    <button class="ov-btn" onclick="ovPrev()">← 上一张</button>
+    <button class="ov-btn" onclick="ovNext()">下一张 →</button>
+    <button class="ov-btn" onclick="ovResetZoom()">0 适应</button>
+    <button class="ov-btn close" onclick="closeOv()">Esc 关闭</button>
+  </div>
+</div>
+
+<div id="flashMsg"></div>
+
+<script>
+const LS_KEY = 'v5review_v1';      // 与旧版一致：已标数据零丢失
+const PAGE_SIZE = 10;
+let DATA = null;
+const EMBEDDED = /*__V5_DATA__*/;
+
+// state: { "path": { judge: "smoke"|"no"|"unk", note } }
+let state = {};
+try { state = JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { state = {}; }
+
+let frames = [];
+let filtered = [];          // 当前筛选 + 未复核优先排序后的帧
+let page = 1;
+let ovIdx = -1;             // 弹层中当前帧在 filtered 中的下标
+let ovScale = 1, ovTx = 0, ovTy = 0;
+let ovDrag = null;
+let flashTimer = null;
+
+function isNight(f) { return f.bright >= 0 && f.bright < 25; }
+
+function init() {
+  frames = (DATA && DATA.frames) || [];
+  const n = frames.length;
+  const h1 = document.getElementById('h1Count');
+  if (h1) h1.textContent = n + ' 帧有烟帧';
+  const sub = document.getElementById('subCount');
+  if (sub) sub.textContent = n + ' 帧有烟';
+  bindFilter();
+  bindOv();
+  applyFilter(true);
+}
+
+/* ===== 筛选 + 未复核优先排序 ===== */
+function bindFilter() {
+  document.getElementById('fStatus').addEventListener('change', () => applyFilter(true));
+  document.getElementById('fScene').addEventListener('change', () => applyFilter(true));
+}
+
+function applyFilter(resetPage) {
+  const st = document.getElementById('fStatus').value;
+  const sc = document.getElementById('fScene').value;
+  const list = frames.filter(f => {
+    const night = isNight(f);
+    if (sc === 'night' && !night) return false;
+    if (sc === 'day' && night) return false;
+    const s = state[f.path];
+    if (st === 'todo' && s) return false;
+    if (st === 'done' && !s) return false;
+    if (st === 'smoke' && !(s && s.judge === 'smoke')) return false;
+    if (st === 'no' && !(s && s.judge === 'no')) return false;
+    if (st === 'unk' && !(s && s.judge === 'unk')) return false;
+    return true;
+  });
+  // 未复核优先（稳定排序：同组内保持原 idx 顺序）
+  filtered = list.sort((a, b) => (state[a.path] ? 1 : 0) - (state[b.path] ? 1 : 0));
+  if (resetPage) page = 1;
+  const tp = totalPages();
+  if (page > tp) page = tp;
+  renderPage();
+}
+
+function totalPages() { return Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); }
+
+/* ===== 渲染（只渲染当前页，增量 DOM）===== */
+function renderPage() {
+  const box = document.getElementById('cards');
+  const tp = totalPages();
+  if (page > tp) page = tp;
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+  box.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  slice.forEach(f => frag.appendChild(makeCard(f)));
+  box.appendChild(frag);
+  renderPager();
+  refreshStats();
+  const doneInFilter = filtered.filter(f => state[f.path]).length;
+  document.getElementById('filterInfo').textContent =
+    `筛选 ${filtered.length} 帧 · 未复核 ${filtered.length - doneInFilter} · 第 ${page}/${tp} 页`;
+  const todo = slice.filter(f => !state[f.path]).length;
+  document.getElementById('pageTodo').textContent = `本页未复核 ${todo} 帧`;
+}
+
+function makeCard(f) {
+  const s = state[f.path];
+  const judged = !!s;
+  const fireCls = f.fire === 0 ? 'fire0' : (f.fire <= 5 ? 'fire1' : 'fire2');
+  const night = isNight(f);
+  const card = document.createElement('div');
+  card.className = 'card' + (night ? ' night' : '') + (judged ? '' : ' undone');
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="idx">#${String(f.idx).padStart(2, '0')}</span>
+      <span class="meta">录制 ${f.dir} · ${f.file}</span>
+      <span class="badge ${fireCls}">v3 fire ${f.fire} 次</span>
+      ${night ? `<span class="badge night">夜场(亮度 ${f.bright})</span>` : `<span class="badge fire0">亮度 ${f.bright}</span>`}
+      ${judged ? '' : '<span class="badge todo">待复核</span>'}
+      <span class="vlm">VLM: ${f.vlm}</span>
+    </div>
+    <div class="card-body">
+      <img class="shot" src="data:image/jpeg;base64,${f.b64}" alt="${f.dir}/${f.file}">
+      <div class="judge">
+        <button class="btn smoke ${s && s.judge === 'smoke' ? 'on' : ''}" data-j="smoke">有烟</button>
+        <button class="btn no ${s && s.judge === 'no' ? 'on' : ''}" data-j="no">无烟</button>
+        <button class="btn unk ${s && s.judge === 'unk' ? 'on' : ''}" data-j="unk">不确定</button>
+      </div>
+      <textarea class="note" placeholder="备注（可选，如：烟在画面右上角 / 疑似云影）">${s ? (s.note || '') : ''}</textarea>
+    </div>`;
+  card.querySelector('.shot').addEventListener('click', () => openOvByPath(f.path));
+  card.querySelectorAll('.judge .btn').forEach(b =>
+    b.addEventListener('click', () => { setJudge(f.path, b.dataset.j); renderPage(); }));
+  card.querySelector('.note').addEventListener('change', e => setNote(f.path, e.target.value));
+  return card;
+}
+
+/* ===== 判定 ===== */
+function setJudge(path, judge) {
+  const st = state[path] || { judge: 'smoke', note: '' };
+  st.judge = judge;
+  state[path] = st;
+  save();
+}
+function setNote(path, note) {
+  const st = state[path] || { judge: 'smoke', note: '' };
+  st.note = note;
+  state[path] = st;
+  save();
+}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+function refreshStats() {
+  let done = 0, smoke = 0, no = 0, unk = 0;
+  frames.forEach(f => {
+    const st = state[f.path];
+    if (st) { done++; if (st.judge === 'smoke') smoke++; if (st.judge === 'no') no++; if (st.judge === 'unk') unk++; }
+  });
+  document.getElementById('sTotal').textContent = frames.length;
+  document.getElementById('sDone').textContent = done;
+  document.getElementById('sSmoke').textContent = smoke;
+  document.getElementById('sNo').textContent = no;
+  document.getElementById('sUnk').textContent = unk;
+  document.getElementById('sBar').style.width = (frames.length ? (done / frames.length * 100) : 0) + '%';
+}
+
+/* ===== 分页 ===== */
+function renderPager() {
+  const tp = totalPages();
+  const pg = document.getElementById('pager');
+  let h = `<button class="pg" ${page <= 1 ? 'disabled' : ''} onclick="goPage(${page - 1})">‹ 上一页</button>`;
+  for (let i = 1; i <= tp; i++) {
+    h += `<button class="pg ${i === page ? 'on' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  h += `<button class="pg" ${page >= tp ? 'disabled' : ''} onclick="goPage(${page + 1})">下一页 ›</button>`;
+  h += `<span class="pg-info">共 ${filtered.length} 帧 · ${tp} 页</span>`;
+  pg.innerHTML = h;
+}
+function goPage(p) {
+  const tp = totalPages();
+  if (p < 1 || p > tp) return;
+  page = p;
+  renderPage();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ===== 批量判定 ===== */
+function batchPage(judge) {
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+  const todo = slice.filter(f => !state[f.path]);
+  if (!todo.length) { flash('本页已全部复核，无需批量操作'); return; }
+  const label = judge === 'smoke' ? '有烟' : '无烟';
+  if (!confirm(`将本页 ${todo.length} 帧未复核帧标为「${label}」？已复核的帧不受影响。`)) return;
+  todo.forEach(f => setJudge(f.path, judge));
+  renderPage();
+  flash(`已批量标为${label}：${todo.length} 帧`);
+}
+function clearPage() {
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+  const judged = slice.filter(f => state[f.path]);
+  if (!judged.length) { flash('本页没有已复核的帧'); return; }
+  if (!confirm(`清除本页 ${judged.length} 帧的复核结果？`)) return;
+  judged.forEach(f => { delete state[f.path]; });
+  save(); renderPage();
+  flash('已清除本页复核结果');
+}
+function allSmoke() {
+  if (!confirm('将所有帧标为"有烟"？未复核的帧会一并标记。')) return;
+  frames.forEach(f => setJudge(f.path, 'smoke'));
+  renderPage();
+}
+function resetAll() {
+  if (!confirm('清空全部复核结果？此操作不可撤销。')) return;
+  state = {}; localStorage.removeItem(LS_KEY); renderPage();
+}
+
+/* ===== 导出 ===== */
+function exportResult() {
+  const out = frames.map(f => {
+    const st = state[f.path];
+    return { idx: f.idx, dir: f.dir, file: f.file, path: f.path,
+      judge: st ? st.judge : 'unk',          // 未复核默认 unk：绝不误入正样本
+      note: st ? (st.note || '') : '', vlm: f.vlm, fire: f.fire };
+  });
+  const blob = new Blob([JSON.stringify({ frames: out, exportedAt: new Date().toISOString() }, null, 1)],
+    { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'v5_review_result.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  flash('已导出 v5_review_result.json（未复核帧默认 unk，不会误入正样本）');
+}
+function exportCSV() {
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '""');
+  const head = ['idx', 'dir', 'file', 'judge', 'note', 'vlm', 'fire', 'bright'];
+  const rows = frames.map(f => {
+    const st = state[f.path];
+    return [f.idx, f.dir, f.file, st ? st.judge : 'unk', st ? (st.note || '') : '', f.vlm, f.fire, f.bright]
+      .map((v, i) => (i === 1 || i === 2 || i === 4) ? `"${esc(v)}"` : v).join(',');
+  });
+  const csv = '\uFEFF' + [head.join(','), ...rows].join('\n');   // BOM：Excel 中文不乱码
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'v5_review_result.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  flash('已导出 v5_review_result.csv（Excel 可直接打开）');
+}
+
+/* ===== 全屏复核弹层 ===== */
+function openOvByPath(path) {
+  const i = filtered.findIndex(f => f.path === path);
+  if (i < 0) return;
+  ovIdx = i;
+  renderOv();
+  document.getElementById('ov').classList.add('show');
+}
+function curOv() { return filtered[ovIdx]; }
+function closeOv() {
+  document.getElementById('ov').classList.remove('show');
+  renderPage();            // 关闭时刷新卡片状态与排序
+}
+function renderOv() {
+  const f = curOv();
+  if (!f) return;
+  const s = state[f.path] || {};
+  const night = isNight(f);
+  const label = s.judge ? ({ smoke: '✓ 有烟', no: '✗ 无烟', unk: '? 不确定' })[s.judge] : '未复核';
+  document.getElementById('ovImg').src = 'data:image/jpeg;base64,' + f.b64;
+  document.getElementById('ovCap').textContent =
+    `#${String(f.idx).padStart(2, '0')} · ${f.dir}/${f.file} · fire ${f.fire} 次 · 亮度 ${f.bright}${night ? '（夜场）' : ''} · VLM ${f.vlm} · ${label} · ${ovIdx + 1}/${filtered.length}`;
+  ['smoke', 'no', 'unk'].forEach(j => {
+    document.getElementById('ovJ' + j).classList.toggle('on', s.judge === j);
+  });
+  ovResetZoom();
+}
+function ovJudge(judge) {
+  const f = curOv();
+  if (!f) return;
+  setJudge(f.path, judge);
+  // 找下一个未复核帧（循环查找）
+  const n = filtered.length;
+  let next = -1;
+  for (let k = 1; k <= n; k++) {
+    const idx = (ovIdx + k) % n;
+    if (!state[filtered[idx].path]) { next = idx; break; }
+  }
+  if (next >= 0) { ovIdx = next; renderOv(); }
+  else { renderOv(); flash('🎉 当前筛选范围已全部复核完成！'); }
+}
+function ovPrev() { if (!filtered.length) return; ovIdx = (ovIdx - 1 + filtered.length) % filtered.length; renderOv(); }
+function ovNext() { if (!filtered.length) return; ovIdx = (ovIdx + 1) % filtered.length; renderOv(); }
+
+/* 弹层缩放：滚轮以鼠标为中心 + 拖拽平移 + 双击/0 适应 */
+function ovResetZoom() { ovScale = 1; ovTx = 0; ovTy = 0; applyOv(); }
+function applyOv() {
+  const img = document.getElementById('ovImg');
+  img.style.transform = `translate(${ovTx}px, ${ovTy}px) scale(${ovScale})`;
+  document.getElementById('ovZoom').textContent = Math.round(ovScale * 100) + '%';
+}
+function bindOv() {
+  const stage = document.getElementById('ovStage');
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = stage.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const k = e.deltaY < 0 ? 1.25 : 1 / 1.25;
+    const ns = Math.min(12, Math.max(0.5, ovScale * k));
+    const r = ns / ovScale;
+    ovTx = mx - (mx - ovTx) * r;
+    ovTy = my - (my - ovTy) * r;
+    ovScale = ns;
+    applyOv();
+  }, { passive: false });
+  stage.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    ovDrag = { x: e.clientX, y: e.clientY, tx: ovTx, ty: ovTy };
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!ovDrag) return;
+    ovTx = ovDrag.tx + (e.clientX - ovDrag.x);
+    ovTy = ovDrag.ty + (e.clientY - ovDrag.y);
+    applyOv();
+  });
+  window.addEventListener('mouseup', () => { ovDrag = null; });
+  stage.addEventListener('dblclick', () => ovResetZoom());
+}
+
+/* 快捷键（弹层打开时生效） */
+document.addEventListener('keydown', e => {
+  const ov = document.getElementById('ov');
+  if (!ov.classList.contains('show')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  if (e.key === 'Escape') closeOv();
+  else if (e.key === '1') ovJudge('smoke');
+  else if (e.key === '2') ovJudge('no');
+  else if (e.key === '3') ovJudge('unk');
+  else if (e.key === 'ArrowLeft') ovPrev();
+  else if (e.key === 'ArrowRight') ovNext();
+  else if (e.key === '0') ovResetZoom();
+});
+
+/* toast */
+function flash(msg) {
+  const el = document.getElementById('flashMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* 数据加载：外部 json 优先（为 400 帧打底），失败用内嵌兜底（file:// 或未配 nginx 均可运行） */
+fetch('v5review_data.json', { cache: 'no-store' })
+  .then(r => { if (!r.ok) throw new Error('no external data'); return r.json(); })
+  .then(d => { DATA = d; init(); })
+  .catch(() => { DATA = EMBEDDED; init(); });
+</script>
+</body>
+</html>
