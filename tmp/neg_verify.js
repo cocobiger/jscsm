@@ -1,17 +1,18 @@
-// 秸秆 v5 · P3-2a VLM 分类抽检工具
+// 秸秆 v5 · P3-2a VLM 分类抽检工具（5 类 + reflection）
 // 数据源：/video/shujuji/datasets/v5_candidates/neg_classified.json
 // 用法：浏览器打开，每帧三选一（✅正确 / ❌错误 / ❓不确定）
 // 上传后端：/api/review/neg-classify-verify
 //
-// 抽样策略：每类至少 10 帧（pole 抽样 12 / concrete 12 / cloud 12 / building 12 / none 5），共 ~50 帧
+// 抽样策略：每类至少 10 帧（pole 12 / concrete 12 / cloud 12 / building 12 / reflection 12 / none 5），共 ~65 帧
 // 缩略图：nginx /v5_old_imgs/<rel>（按 mtime + 时间戳目录）
 
-const CATS = ['pole', 'concrete', 'cloud', 'building', 'none', 'other'];
+const CATS = ['pole', 'concrete', 'cloud', 'building', 'reflection', 'none', 'other'];
 const COLORS = {
   pole: '#bc8cff',
   concrete: '#d29922',
   cloud: '#58a6ff',
   building: '#3fb950',
+  reflection: '#42b0e8',  // 水面/天空青色
   none: '#7d8590',
   other: '#f85149',
 };

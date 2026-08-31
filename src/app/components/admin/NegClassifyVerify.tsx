@@ -19,10 +19,11 @@ const CAT_COLORS: Record<string, string> = {
   concrete: '#d29922',
   cloud: CYAN,
   building: GREEN,
+  reflection: '#42b0e8',  // 水面 / 天空青色（江面倒影）
   none: GRAY,
   other: RED,
 }
-const CATS = ['pole', 'concrete', 'cloud', 'building', 'none', 'other']
+const CATS = ['pole', 'concrete', 'cloud', 'building', 'reflection', 'none', 'other']
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   ok: { label: '✅ 正确', color: GREEN, bg: 'rgba(74,222,128,0.12)' },
@@ -308,7 +309,7 @@ export function NegClassifyVerify() {
       )}
 
       <div style={{ fontSize: 11, color: '#3a5a70', lineHeight: 1.8 }}>
-        <b style={{ color: '#5a8aaa' }}>说明</b>：本页用于人工复核 <code style={{ color: PURPLE }}>VLM 干扰物分类</code>（pole 电线杆 / cloud 云 / building 建筑 / concrete 水泥地 / none 无干扰 / other 其他）。
+        <b style={{ color: '#5a8aaa' }}>说明</b>：本页用于人工复核 <code style={{ color: PURPLE }}>VLM 干扰物分类</code>（pole 电线杆 / cloud 云 / building 建筑 / concrete 水泥地 / reflection 水面倒影 / none 无干扰 / other 其他）。
         判定结果持久化到后端 <code style={{ color: AMBER }}>straw_neg_reviews</code> 表，导出脚本据此生成训练负样本（ok 帧保留为负样本，no 帧剔除）。
         切换「待审」聚焦未复核帧，快捷键可配 ←/→ 与 1/2/3。
       </div>

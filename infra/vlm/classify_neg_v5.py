@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""P3-2a: 负样本 4 类干扰物 VLM 预分类（2026-09-01）— transformers 路线
+"""P3-2a: 负样本 5 类干扰物 VLM 预分类（2026-09-01 + 2026-09-01 reflection 追加）— transformers 路线
 
 输入: /video/shujuji/datasets/v5_candidates/neg_list.json （359 帧无烟负样本）
 输出: /video/shujuji/datasets/v5_candidates/neg_classified.json
 类别:
-  pole      电线杆/电线塔/通信塔
-  concrete  水泥地/硬化地面/道路/广场/屋顶平台
-  cloud     云彩/云朵/雾霭
-  building  民居/建筑物/房屋/厂房
-  none      画面干净无典型干扰物
-  other     其他干扰物（raw 记录说明）
+  pole       电线杆/电线塔/通信塔
+  concrete   水泥地/硬化地面/道路/广场/屋顶平台
+  cloud      云彩/云朵/雾霭
+  building   民居/建筑物/房屋/厂房
+  reflection 江面/湖泊/水面倒影（平静水面反射的天空与岸物轮廓）
+  none       画面干净无典型干扰物
+  other      其他干扰物（raw 记录说明）
 
 用法: python classify_neg_v5.py [start] [end]（增量断点续跑）
 模型: Qwen2.5-VL-3B-Instruct bf16（/video/llm_infer/model3b）
@@ -23,7 +24,7 @@ from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 NEG_LIST = "/video/shujuji/datasets/v5_candidates/neg_list.json"
 OUT = "/video/shujuji/datasets/v5_candidates/neg_classified.json"
 MODEL_DIR = "/video/llm_infer/model3b"
-VALID = {"pole", "concrete", "cloud", "building", "none", "other"}
+VALID = {"pole", "concrete", "cloud", "building", "reflection", "none", "other"}
 
 PROMPT = (
     "这是一张无人机航拍照片。请判断画面中最明显的干扰物类型（这些都不是烟雾，只是常见背景物）。\n"
@@ -35,7 +36,8 @@ PROMPT = (
     "- none：画面干净，无上述典型干扰物\n"
     "- other：其他干扰物（请注明是什么）\n"
     "如果画面同时有多个干扰物，按明显程度列出最多 2 个，用英文逗号分隔（如 pole,concrete）。\n"
-    "只输出类别代码，不要输出其他文字。"
+    "只输出类别代码，不要输出其他文字。\n"
+    "（注：reflection 江面倒影暂未启用，v6 数据集出现真实水面场景时再开放）"
 )
 
 
