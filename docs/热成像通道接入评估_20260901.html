@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>热成像通道接入评估 · 2026-09-01</title>
+<style>
+:root{--bg:#0e1116;--card:#161b22;--line:#21262d;--ink:#e6edf3;--sub:#7d8590;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+.wrap{max-width:1200px;margin:0 auto;padding:24px 32px}
+h1{font-size:24px;margin:0 0 8px;color:var(--blue)}
+h2{font-size:18px;margin:24px 0 12px;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:15px;margin:18px 0 8px;color:var(--blue)}
+.sub{color:var(--sub);font-size:13px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+th{background:#21262d;color:var(--ink);font-weight:600}
+tr:nth-child(even) td{background:#1c2128}
+.kpi{display:flex;flex-direction:column;padding:14px 18px;background:var(--card);border:1px solid var(--line);border-radius:8px}
+.kpi .v{font-size:28px;font-weight:700;color:var(--blue)}
+.kpi .l{font-size:12px;color:var(--sub);margin-top:4px}
+.tag{display:inline-block;font-size:12px;padding:2px 10px;border-radius:12px;background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.4);margin-right:4px}
+.tag.green{background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.4)}
+.tag.amber{background:rgba(210,153,34,.15);color:var(--amber);border-color:rgba(210,153,34,.4)}
+.tag.red{background:rgba(248,81,73,.15);color:var(--red);border-color:rgba(248,81,73,.4)}
+.tag.gray{background:rgba(125,133,144,.15);color:var(--sub);border-color:rgba(125,133,144,.4)}
+ol,ul{padding-left:20px}li{margin:4px 0}
+code{background:#0d1117;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,Consolas,monospace;color:var(--purple)}
+.note{font-size:12px;color:var(--sub);margin-top:6px}
+.compare{display:flex;gap:12px;align-items:flex-start}
+.compare > div{flex:1}
+.compare img{width:100%;border:1px solid var(--line);border-radius:6px;display:block}
+.compare .lab{font-size:12px;color:var(--sub);margin-top:6px;text-align:center}
+.verdict{background:#1c2128;border-left:3px solid var(--amber);padding:12px 16px;border-radius:4px;margin:16px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>热成像（T 通道）接入评估</h1>
+<p class="sub">秸秆 v5 · 2026-09-01 · DJI M30T 双光照片可行性分析</p>
+
+<div class="grid3">
+  <div class="kpi"><span class="v">5</span><span class="l">双光照片对数（V/T 各 5）</span></div>
+  <div class="kpi"><span class="v">远烟</span><span class="l">本场景以 1km+ 远烟为主</span></div>
+  <div class="kpi"><span class="v">弱</span><span class="l">T 通道对本场景信号评级</span></div>
+</div>
+
+<h2>1. 样本对比（DJI_20260827191659_0004，黄昏）</h2>
+<div class="compare">
+  <div><img src="/v5_photos/0827/DJI_20260827191659_0004_V.jpg" alt="V 通道"><div class="lab">V 通道（可见光）— 含细微远烟带</div></div>
+  <div><img src="/v5_photos/0827/DJI_20260827191659_0004_T.jpg" alt="T 通道"><div class="lab">T 通道（热成像）— 烟信号被云覆盖，看不出</div></div>
+</div>
+<p class="note">该样本拍摄时间 19:16 黄昏，云层丰富，地表热源主要是城市建筑/工业。远景烟柱热信号弱于周边建筑/工业，被平滑淹没。</p>
+
+<h2>2. M30T T 通道特性</h2>
+<table>
+<thead><tr><th>特性</th><th>说明</th><th>对秸秆烟检测的影响</th></tr></thead>
+<tbody>
+<tr><td>分辨率</td><td>640×512（V 是 1920×1080）</td><td><span class="tag red">劣势</span> 远景小目标信息少</td></tr>
+<tr><td>测温范围</td><td>-20°C ~ 150°C（高增益）/ 0~500°C（低增益）</td><td><span class="tag amber">中性</span> 烟柱温度 30~80°C 在量程内</td></tr>
+<tr><td>夜视能力</td><td>无补光依赖热辐射，夜间强</td><td><span class="tag green">优势</span> 夜间烟雾/火光高对比</td></tr>
+<tr><td>白天场景</td><td>建筑/裸地/水面温差大，干扰多</td><td><span class="tag red">劣势</span> 黄昏/白天远烟淹没</td></tr>
+<tr><td>云层穿透</td><td>云本身冷（紫色），覆盖下方热源</td><td><span class="tag red">劣势</span> 本场景多云，烟信号被遮挡</td></tr>
+<tr><td>大烟检测</td><td>火点温度 >500°C，与背景温差 200°C+</td><td><span class="tag green">优势</span> 夜间大火/明火显著</td></tr>
+</tbody>
+</table>
+
+<h2>3. 场景适配分析</h2>
+<table>
+<thead><tr><th>场景</th><th>V 通道</th><th>T 通道</th><th>推荐策略</th></tr></thead>
+<tbody>
+<tr><td>白天 1km+ 远烟（主流场景）</td><td>主检测</td><td>信号弱</td><td><span class="tag gray">仅 V</span></td></tr>
+<tr><td>白天近距离大烟（<500m）</td><td>主检测</td><td>辅助</td><td><span class="tag amber">V + T 互补</span></td></tr>
+<tr><td>夜间大烟（无云遮挡）</td><td>主检测（V 增益低）</td><td>主检测</td><td><span class="tag green">T 主 + V 辅</span></td></tr>
+<tr><td>夜间明火/大烟（>500°C）</td><td>火光可见</td><td>热斑显著</td><td><span class="tag green">T 强信号</span></td></tr>
+<tr><td>黄昏/多云</td><td>云烟混淆</td><td>云遮挡</td><td><span class="tag red">两通道都弱</span></td></tr>
+</tbody>
+</table>
+
+<h2>4. 当前数据现状</h2>
+<ul>
+  <li><strong>DJI 双光照片：5 对</strong>（DJI_20260826/27），存于 <code>/video/shujuji/xunlian/evidence/media/</code></li>
+  <li>V 通道样本：黄昏云层丰富，远景细微烟带（与 v5 真实场景一致）</li>
+  <li>T 通道样本：冷天空 + 城市热斑，看不出明显烟信号</li>
+  <li>司空2 已配 webhook FILE_UPLOAD，可自动同步双光照片到 MinIO</li>
+</ul>
+
+<h2>5. 接入路径设计（如需启用）</h2>
+<ol>
+  <li><strong>数据流</strong>：M30T 双光 → 司空2 (OSD/拍照) → MinIO (<code>tenantResource/special/.../dock_media/</code>) → 我方 MinIO 同步 (<code>infra/vlm/media_sync_v5.py</code>)</li>
+  <li><strong>推理流</strong>：双通道分别 ONNX 推理 → V 通道高分告警 + T 通道热斑辅助验证</li>
+  <li><strong>模型需求</strong>：T 通道专用 YOLO/UNet，需 200+ 张热成像烟样本微调（当前 0 张）</li>
+  <li><strong>存储开销</strong>：每张双光 ~3MB（V 1.7M + T 1.3M），5 对约 15MB</li>
+  <li><strong>开发成本</strong>：T 通道模型采集 + 标注 ~3~5 天，T 推理适配 ~1 天</li>
+</ol>
+
+<h2>6. 结论</h2>
+<div class="verdict">
+  <strong>当前阶段：</strong>不接入 T 通道主检测，仅作 V 通道告警的"夜间/明火"二次验证信号。<br><br>
+  <strong>理由：</strong>
+  <ol>
+    <li>v5 主流场景（白天 1km+ 远烟）T 通道信号弱于 V 通道，接入 ROI 低</li>
+    <li>T 通道训练样本 = 0，需先积累 200+ 张夜间大烟/明火热成像样本</li>
+    <li>双通道分别建模 + 同步推理会增加 straw-engine 1.5~2 倍 GPU 算力开销（当前 3090 已被占 4.9G，剩 19.7G 可用但紧张）</li>
+    <li>v5 训练样本治理（P3-2a/2b）优先级更高，先解决主通道数据再考虑副通道</li>
+  </ol>
+  <strong>触发条件（任一满足即启动接入）：</strong>
+  <ol>
+    <li>夜间大烟/明火告警样本积累 ≥50 张真实 + ≥200 张合成</li>
+    <li>v5 v6 主通道 mAP50 达到 ≥0.6 后投入 T 通道增量训练</li>
+    <li>客户要求 24h 全场景（含夜间明火）覆盖</li>
+  </ol>
+</div>
+
+<h2>7. 待办（P3-2c 后续）</h2>
+<ul>
+  <li>[ ] 标记 DJI 双光照片 → 排除进 v5 训练（视角差异大，T 图对训练负样本无贡献）</li>
+  <li>[ ] 增量同步脚本：<code>media_sync_v5.py</code> 增加 T 通道拉取与归档</li>
+  <li>[ ] T 通道样本库建设：夜间明火 ≥200 张真实 + ≥1000 张合成（推迟到 v5 主线达标后）</li>
+</ul>
+
+<p class="note">参考：docs/秸秆场景过滤评估与排期_20260831.html P3-2c · docs/真机联调SOP.md 待同步更新</p>
+
+</div>
+</body>
+</html>
