@@ -15,6 +15,32 @@ function saveAlertSoundPref(on: boolean) {
   try { localStorage.setItem(ALERT_SOUND_KEY, on ? 'on' : 'off') } catch {}
 }
 
+// T24: 弹窗主筛选/视图态会话保持（tab/等级/关键词/展开行）
+//   独立 key jsc:alert-history-sess，避开 T15 导出筛选面板的 localStorage
+//   sessionStorage（关闭浏览器即清空，不污染下次开机的初始视图）
+//   容错：JSON.parse 失败 / 版本不兼容 → 丢弃旧值，落回默认
+const ALERT_SESS_KEY = 'jsc:alert-history-sess'
+const ALERT_SESS_VER = 1
+type AlertSess = {
+  v: number
+  tab?: 'pending' | 'handled'
+  levelFilter?: number
+  keyword?: string
+  expanded?: string[]   // Set → 序列化为数组
+}
+function loadAlertSess(): AlertSess {
+  try {
+    const raw = sessionStorage.getItem(ALERT_SESS_KEY)
+    if (!raw) return { v: ALERT_SESS_VER }
+    const p = JSON.parse(raw) as AlertSess
+    if (!p || p.v !== ALERT_SESS_VER) return { v: ALERT_SESS_VER }
+    return p
+  } catch { return { v: ALERT_SESS_VER } }
+}
+function saveAlertSess(s: AlertSess) {
+  try { sessionStorage.setItem(ALERT_SESS_KEY, JSON.stringify(s)) } catch {}
+}
+
 const LEVEL_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
   1: { bg: 'rgba(33,150,243,0.1)', border: 'rgba(33,150,243,0.4)', text: '#64b5f6', label: '注意' },
   2: { bg: 'rgba(255,215,64,0.1)', border: 'rgba(255,215,64,0.4)', text: '#ffd740', label: '轻度' },
@@ -124,13 +150,24 @@ function resolveSource(w: WarnRecord): string | null {
 }
 
 export function AlertHistoryModal({ alerts, onClose }: Props) {
-  const [tab, setTab] = useState<'pending' | 'handled'>('pending')
+  // T24: 主筛选/视图态从 sessionStorage 恢复（tab/等级/关键词/展开行）
+  const [tab, setTab] = useState<'pending' | 'handled'>(() => {
+    const s = loadAlertSess()
+    return s.tab === 'handled' ? 'handled' : 'pending'
+  })
   const [records, setRecords] = useState<WarnRecord[]>([])
   const [aggregates, setAggregates] = useState<AggregateWarning[]>([])
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const s = loadAlertSess()
+    return new Set(Array.isArray(s.expanded) ? s.expanded : [])
+  })
   const [loading, setLoading] = useState(true)
-  const [levelFilter, setLevelFilter] = useState(0)
-  const [keyword, setKeyword] = useState('')
+  const [levelFilter, setLevelFilter] = useState<number>(() => {
+    const s = loadAlertSess()
+    const n = Number(s.levelFilter)
+    return Number.isFinite(n) && n >= 0 ? n : 0
+  })
+  const [keyword, setKeyword] = useState<string>(() => loadAlertSess().keyword || '')
   const [busy, setBusy] = useState(false)
   // T10/T11/T12: 轮询竞态守卫 / 操作结果 toast / 「全部标记处理」二次确认
   const seqRef = useRef(0)
@@ -239,6 +276,20 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     const timer = setInterval(() => load(true, true), 10000)  // T23: 第二参数 isPolling=true 启用新告警 diff
     return () => clearInterval(timer)
   }, [load, tab])
+
+  // T24: 4 个主筛选/视图态变化即时写入 sessionStorage（关闭弹窗也保留，再开恢复）
+  //   firstRun ref：跳过 mount 首次执行（避免无变化覆盖初始读到的有效会话）
+  const sessFirstRun = useRef(true)
+  useEffect(() => {
+    if (sessFirstRun.current) { sessFirstRun.current = false; return }
+    saveAlertSess({
+      v: ALERT_SESS_VER,
+      tab,
+      levelFilter,
+      keyword,
+      expanded: [...expanded],
+    })
+  }, [tab, levelFilter, keyword, expanded])
 
   // toast 自动消失
   useEffect(() => {
