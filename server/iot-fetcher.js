@@ -51,7 +51,7 @@ let _tokenExpire = 0       // token 过期时间戳(ms)
 let _store = null
 let _log = null
 let _timer = null
-let _lastRecordIds = new Set()  // 去重：已推送的 recordId
+let _lastRecordIds = new Set()  // 去重：已推送的 recordId（启动时从 iot_record_seen + warnings 历史加载，重启不丢失）
 // 通道 → 地理坐标 / 视频流 映射（启动时从 coll_streams 解析）
 let _channelGeo = {}      // spid -> { lat, lon }
 let _channelStream = {}   // spid -> streamId
@@ -215,6 +215,8 @@ async function fetchOnce() {
         const warning = transformToWarning(rec)
         if (_store) {
           _store.insertWarning(warning)
+          // 入库成功后留痕（DB 持久化，进程重启后不再重拉覆盖 handled 状态）
+          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, ch.channelSipId)
         }
         totalNew++
       }
@@ -729,6 +731,30 @@ function seedIfEmpty() {
   if (_log && IOT.channels.length) _log.info(`[IoT] 首次启动：已种子 ${IOT.channels.length} 条通道到 iot_channels 表`)
 }
 
+// ── T5: 启动时把「已见过的 recordId」加载进内存去重集合 ──
+// 重启后若内存 Set 为空，IoTCloud 最近 20 条会被重新拉取，INSERT OR REPLACE 会把
+// 已标记 handled 的记录打回 pending（"已处理告警复活"）。加载两个来源：
+//   ① iot_record_seen 表（本次及历史运行留痕）
+//   ② warnings 表既有 iot-video-analysis 历史记录（首次部署兼容旧数据）
+// 同时清理 90 天前的留痕，防止去重表无限膨胀。
+function loadSeenIds() {
+  _lastRecordIds = new Set()
+  try {
+    const fromSeen = (_store && typeof _store.iotSeenAll === 'function') ? _store.iotSeenAll() : []
+    const fromWarnings = (_store && typeof _store.getDb === 'function')
+      ? (_store.getDb().prepare("SELECT json_extract(data_json,'$.recordId') rid FROM warnings WHERE warning_type='iot-video-analysis' AND json_extract(data_json,'$.recordId') IS NOT NULL").all().map(r => r.rid).filter(Boolean))
+      : []
+    _lastRecordIds = new Set([...fromSeen, ...fromWarnings])
+    if (_lastRecordIds.size > 0 && _log) _log.info(`[IoT] 去重集加载完成: ${_lastRecordIds.size} 条历史 recordId`)
+  } catch (e) {
+    if (_log) _log.warn(`[IoT] 去重集加载失败(降级为仅内存去重): ${e.message}`)
+    _lastRecordIds = new Set()
+  }
+  if (_store && typeof _store.iotSeenPrune === 'function') {
+    try { _store.iotSeenPrune(90) } catch (e) { if (_log) _log.warn(`[IoT] 去重留痕清理失败: ${e.message}`) }
+  }
+}
+
 // ── 启动 / 停止 ───────────────────────────────────────
 function start(opts = {}) {
   _store = opts.store
@@ -740,6 +766,8 @@ function start(opts = {}) {
     if (ok) {
       // 首次种子迁移（表为空时）
       seedIfEmpty()
+      // T5: 启动即加载历史 recordId 去重集（重启不重复入库、不复活已处理告警）
+      loadSeenIds()
       // 解析通道→视频流地理坐标，并修正历史记录
       const channels = (_store && typeof _store.listIotChannels === 'function')
         ? _store.listIotChannels().filter(c => c.enabled) : []

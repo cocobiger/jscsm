@@ -884,7 +884,8 @@ function ingestRecord(rec) {
   // 预警判断
   const hits = warningEngine.evaluateRecord(rec, history)
   if (hits.length) {
-    for (const h of hits) store.insertWarning({ id: uuidv4(), createdAt: new Date().toISOString(), status: 'pending', ...h })
+    // source='cq_api' 统一入库（历史气体告警无 source 字段；前端按点位/污染物特征推断兼容）
+    for (const h of hits) store.insertWarning({ id: uuidv4(), createdAt: new Date().toISOString(), status: 'pending', source: rec.sourceType || 'cq_api', ...h })
     // 空气质量超标 → 自动短信推送（异步，不阻塞采集主流程；内部受频率限制约束）
     for (const h of hits) {
       dispatchWarningSms(h).catch(e => log.error('短信推送异常: ' + (e.message || e)))

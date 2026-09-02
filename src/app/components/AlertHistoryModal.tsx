@@ -36,6 +36,16 @@ interface WarnRecord {
   warningType: string; warningLabel?: string; reason?: string
   status?: string; handledAt?: string; handledBy?: string
   lat?: number; lon?: number
+  // T1/T2/T3: AI 视频/城运/秸秆类告警字段（后端 data_json 全量展开，历史无 source 时前端按特征推断）
+  source?: string
+  type?: string            // 展示类型（AI 类如 'AI视频分析 · 堆头未覆盖'）
+  channelName?: string
+  deviceName?: string
+  standard?: string        // 限值/阈值描述字符串（AI 类 '阈值 ≥50%'）
+  aiType?: string
+  aiConfidence?: number
+  channelSipId?: string
+  picUrl?: string
 }
 
 // 统一的展示行结构
@@ -44,6 +54,7 @@ interface Row {
   id: string; fullTime: string; sortKey: string
   level: 1 | 2 | 3 | 4; type: string; location: string
   value: string; standard: string; isPlate: boolean
+  sourceKey: string | null  // T3: 来源标识键（SOURCE_META）
   handled: boolean; handledAt?: string; handledBy?: string
   backend: boolean  // 是否后端记录（可持久化处理）
 }
@@ -76,6 +87,24 @@ const LEVEL_FILTERS = [
   { key: 1, label: '注意' },
 ]
 
+// ── T3: 告警来源标识（data_json.source 枚举）──
+const SOURCE_META: Record<string, { icon: string; label: string }> = {
+  cq_api: { icon: '📊', label: '气体监测' },
+  iotcloud: { icon: '📹', label: 'AI 视频分析' },
+  'straw-engine': { icon: '🔥', label: '秸秆检测' },
+  'chengyun-platform': { icon: '🏛️', label: '城运中心' },
+}
+
+// 后端记录无 source（历史气体告警）时按字段特征推断来源
+function resolveSource(w: WarnRecord): string | null {
+  if (w.source && SOURCE_META[w.source]) return w.source
+  // 旧数据推断：带点位名/污染物代码/数值限值 → 气体监测（cq_api）
+  if (w.pointName || w.code || w.standardValue != null) return 'cq_api'
+  // 带 AI 通道/类型/图 → AI 视频分析（iotcloud）
+  if (w.aiType || w.channelSipId || w.picUrl) return 'iotcloud'
+  return null
+}
+
 export function AlertHistoryModal({ alerts, onClose }: Props) {
   const [tab, setTab] = useState<'pending' | 'handled'>('pending')
   const [records, setRecords] = useState<WarnRecord[]>([])
@@ -101,22 +130,30 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   useEffect(() => { load() }, [load])
 
   // 后端预警 → Row
-  const backendRows: Row[] = records.map(w => ({
-    kind: 'row',
-    id: w.id,
-    fullTime: fmtFull(w.createdAt, w.monitorTime),
-    sortKey: w.createdAt || w.monitorTime || '',
-    level: levelOf(w.warningType),
-    type: `${w.name || w.code || ''} ${w.warningLabel || ''}`.trim(),
-    location: w.pointName || '市监测站',
-    value: `${w.value ?? ''}${w.unit ? ' ' + w.unit : ''}`,
-    standard: w.standardValue != null ? `${w.standardValue}${w.unit ? ' ' + w.unit : ''}` : (w.reason || '—'),
-    isPlate: false,
-    handled: w.status === 'handled',
-    handledAt: w.handledAt ? fmtFull(w.handledAt) : undefined,
-    handledBy: w.handledBy,
-    backend: true,
-  }))
+  const backendRows: Row[] = records.map(w => {
+    const src = resolveSource(w)
+    const isGas = src === 'cq_api'
+    return {
+      kind: 'row',
+      id: w.id,
+      fullTime: fmtFull(w.createdAt, w.monitorTime),
+      sortKey: w.createdAt || w.monitorTime || '',
+      level: levelOf(w.warningType),
+      // T1: 类型兼容 AI 视频类（data_json.type 如 'AI视频分析 · 堆头未覆盖'）
+      type: w.type || `${w.name || w.code || ''} ${w.warningLabel || ''}`.trim(),
+      // T1: location 兼容 pointName（气体）/ channelName（AI 视频）；不再统一回退"市监测站"
+      location: w.pointName || w.channelName || w.deviceName || (isGas ? '市监测站' : '未命名点位'),
+      value: `${w.value ?? ''}${w.unit ? ' ' + w.unit : ''}`,
+      // T2: standard 兼容数值 standardValue（气体）与字符串 standard（AI 类 '阈值 ≥50%'）
+      standard: w.standardValue != null ? `${w.standardValue}${w.unit ? ' ' + w.unit : ''}` : (w.standard || w.reason || '—'),
+      isPlate: false,
+      sourceKey: src,
+      handled: w.status === 'handled',
+      handledAt: w.handledAt ? fmtFull(w.handledAt) : undefined,
+      handledBy: w.handledBy,
+      backend: true,
+    }
+  })
 
   // 内存中的非后端告警（AI识别等），用 warn- 前缀去重，避免和后端重复
   const backendIdSet = new Set(records.map(w => `warn-${w.id}`))
@@ -133,6 +170,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
       value: a.value,
       standard: a.standard,
       isPlate: isPlateType(a.type) || isDustAiType(a.type),
+      sourceKey: null,   // 内存告警无 source 字段，不显示来源图标
       handled: false,
       backend: false,
     }))
@@ -381,6 +419,13 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                   borderRadius: 3, opacity: row.handled ? 0.78 : 1, transition: 'all 0.2s',
                 }}>
                   <span style={{ width: 22, height: 22, borderRadius: 3, flexShrink: 0, background: 'rgba(0,50,100,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a5a70', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>{idx + 1}</span>
+                  {row.sourceKey && SOURCE_META[row.sourceKey] && (
+                    <span title={`来源：${SOURCE_META[row.sourceKey].label}`} style={{
+                      width: 24, height: 22, borderRadius: 3, flexShrink: 0,
+                      background: 'rgba(0,80,160,0.18)', border: '1px solid rgba(0,150,220,0.18)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
+                    }}>{SOURCE_META[row.sourceKey].icon}</span>
+                  )}
                   <span style={{ padding: '2px 7px', borderRadius: 2, flexShrink: 0, background: row.handled ? 'rgba(0,230,118,0.15)' : style.border, color: row.handled ? GREEN : style.text, fontSize: 11, fontWeight: 600 }}>{row.handled ? '已处理' : style.label}</span>
                   <span style={{ color: '#5a8aaa', fontSize: 11, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", minWidth: 96 }}>{row.fullTime}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -389,7 +434,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 120 }}>
                     <div style={{ color: row.handled ? GREEN : style.text, fontSize: 12, fontWeight: 600, fontFamily: row.isPlate ? "'JetBrains Mono', monospace" : 'inherit' }}>{row.value}</div>
-                    <div style={{ color: '#3a5a70', fontSize: 11 }}>{row.isPlate ? row.standard : `限值 ${row.standard}`}</div>
+                    <div style={{ color: '#3a5a70', fontSize: 11 }}>{row.isPlate ? row.standard : (/^(阈值|限值)\s/.test(row.standard) ? row.standard : `限值 ${row.standard}`)}</div>
                   </div>
                   {row.handled && row.handledAt && (
                     <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 90 }}>

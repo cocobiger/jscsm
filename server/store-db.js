@@ -75,6 +75,15 @@ function init(dataDir, logger) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_warnings_type ON warnings(warning_type);')
   db.exec('CREATE INDEX IF NOT EXISTS idx_warnings_status ON warnings(status);')
 
+  // IoT 拉取去重留痕（T5：recordId 持久化，进程重启后不重复入库、不覆盖 handled 状态）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS iot_record_seen (
+      record_id      TEXT PRIMARY KEY,
+      channel_sip_id TEXT,
+      first_seen_at  TEXT NOT NULL
+    );
+  `)
+
   // AI 分析推送规则（降噪：通道+AI类型+N小时超M条 → 列表只推1条）
   // 2026-07-10 V2：ai_type 升级为 ai_types 数组；AI 类型由 ai_types 主数据表管理
   db.exec(`
@@ -125,6 +134,20 @@ function init(dataDir, logger) {
   for (const r of migrate.all()) {
     if (r.ai_type) upd.run(JSON.stringify([r.ai_type]), r.id)
   }
+
+  // 系统默认聚合降噪规则（T4，幂等：无同名规则时才插入）：
+  // AI 视频分析（iotcloud）同通道同类 24h ≥5 条 → 折叠为 1 条聚合告警，把 511 条级噪音降到可控量级。
+  // 业务方可后续在后台停用/调整阈值；ai_types 中文值需与 iot-fetcher.js AI_TYPE_MAP 保持一致。
+  try {
+    const hasSys = db.prepare("SELECT COUNT(*) c FROM push_rules WHERE name = 'AI视频24h≥5聚合(系统默认)'").get().c
+    if (!hasSys) {
+      const sysRuleId = require('crypto').randomUUID()
+      const nowStr = new Date().toISOString()
+      const aiVideoTypes = ['堆头未覆盖', '裸土未覆盖', '人员入侵', '车辆违停', '烟火检测', '水位异常', '垃圾堆积']
+      db.prepare('INSERT INTO push_rules (id,name,channel_sip_id,ai_type,ai_types,time_window_hours,threshold,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(sysRuleId, 'AI视频24h≥5聚合(系统默认)', null, aiVideoTypes[0], JSON.stringify(aiVideoTypes), 24, 5, 1, nowStr, nowStr)
+    }
+  } catch (e) { /* push_rules 表未就绪时不 seed，不影响启动 */ }
 
   // 采集日志（原 collect_logs.json，上限 500）
   db.exec(`
@@ -1740,6 +1763,21 @@ function parseWarningTime(s) {
   if (localM) iso = localM[1].replace(' ', 'T') + '+08:00'
   return Date.parse(iso)
 }
+// ── IoT recordId 去重持久化（T5：重启幂等，避免重启后重拉旧记录覆盖 handled 状态）──
+function iotSeenAll() {
+  const rows = db.prepare('SELECT record_id FROM iot_record_seen').all()
+  return rows.map(r => r.record_id)
+}
+function iotMarkSeen(recordId, channelSipId) {
+  if (recordId === null || recordId === undefined || recordId === '') return
+  db.prepare('INSERT OR IGNORE INTO iot_record_seen (record_id, channel_sip_id, first_seen_at) VALUES (?,?,?)')
+    .run(String(recordId), channelSipId || null, new Date().toISOString())
+}
+function iotSeenPrune(days = 90) {
+  const cutoff = new Date(Date.now() - Number(days) * 86400 * 1000).toISOString()
+  return db.prepare('DELETE FROM iot_record_seen WHERE first_seen_at < ?').run(cutoff).changes
+}
+
 function listPushRules() {
   return db.prepare('SELECT * FROM push_rules ORDER BY created_at DESC').all()
     .map(r => ({ ...r, enabled: r.enabled === 1, channelSipId: r.channel_sip_id, aiTypes: parseArr(r.ai_types), timeWindowHours: r.time_window_hours }))
@@ -2193,6 +2231,8 @@ module.exports = {
   createSession, getSession, deleteSession, deleteUserSessions, purgeExpiredSessions,
   // IoT 通道接入
   listIotChannels, countIotChannelsAll, upsertIotChannel, getIotChannel, updateIotChannel, updateIotChannelAiTypes, clearStreamMapping, softDeleteIotChannel,
+  // IoT recordId 去重留痕
+  iotSeenAll, iotMarkSeen, iotSeenPrune,
   // 智治推送回调闭环
   markEventsPushed, recordSmartPushCallback, closeSmartPushHistory, getSmartPushHistory,
   // P2 目标平台
