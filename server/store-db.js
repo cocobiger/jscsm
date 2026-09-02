@@ -135,17 +135,20 @@ function init(dataDir, logger) {
     if (r.ai_type) upd.run(JSON.stringify([r.ai_type]), r.id)
   }
 
-  // 系统默认聚合降噪规则（T4，幂等：无同名规则时才插入）：
-  // AI 视频分析（iotcloud）同通道同类 24h ≥5 条 → 折叠为 1 条聚合告警，把 511 条级噪音降到可控量级。
-  // 业务方可后续在后台停用/调整阈值；ai_types 中文值需与 iot-fetcher.js AI_TYPE_MAP 保持一致。
+  // 系统默认聚合降噪规则（T4，幂等 upsert）：AI 视频/事件类（iotcloud/straw-engine/chengyun）同通道同类 24h ≥5 条
+  // → 折叠为 1 条聚合告警。ai_types 留空数组 = 匹配全部 AI 类型（新接入的类型自动纳入降噪，无需维护清单），
+  // 业务方可在后台停用/调整阈值。
   try {
-    const hasSys = db.prepare("SELECT COUNT(*) c FROM push_rules WHERE name = 'AI视频24h≥5聚合(系统默认)'").get().c
-    if (!hasSys) {
+    const sysRules = db.prepare("SELECT id FROM push_rules WHERE name = 'AI视频24h≥5聚合(系统默认)'").all()
+    const nowStr = new Date().toISOString()
+    if (sysRules.length === 0) {
       const sysRuleId = require('crypto').randomUUID()
-      const nowStr = new Date().toISOString()
-      const aiVideoTypes = ['堆头未覆盖', '裸土未覆盖', '人员入侵', '车辆违停', '烟火检测', '水位异常', '垃圾堆积']
       db.prepare('INSERT INTO push_rules (id,name,channel_sip_id,ai_type,ai_types,time_window_hours,threshold,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-        .run(sysRuleId, 'AI视频24h≥5聚合(系统默认)', null, aiVideoTypes[0], JSON.stringify(aiVideoTypes), 24, 5, 1, nowStr, nowStr)
+        .run(sysRuleId, 'AI视频24h≥5聚合(系统默认)', null, '', '[]', 24, 5, 1, nowStr, nowStr)
+    } else {
+      // 老版本 seed 过「7 类清单」→ 升级为通配全部类型（dust/机场人员入侵 等新类型自动覆盖）
+      db.prepare("UPDATE push_rules SET ai_types = '[]', ai_type = '', threshold = 5, enabled = 1, updated_at = ? WHERE id = ?")
+        .run(nowStr, sysRules[0].id)
     }
   } catch (e) { /* push_rules 表未就绪时不 seed，不影响启动 */ }
 
@@ -1830,7 +1833,10 @@ function queryWarningsAggregated({ limit, lightweight } = {}) {
   const now = Date.now()
   for (const [key, items] of groups) {
     const [cid, ai] = key.split('|')
-    const rule = rules.find(rl => rl.aiTypes.includes(ai) && (rl.channelSipId == null || rl.channelSipId === cid))
+    // 规则优先级：业务方「具体类型」规则 > 系统默认「通配(空 ai_types)」规则（否则通配总抢先命中、自定义阈值失效）
+    const matchByType = (rl) => (rl.channelSipId == null || rl.channelSipId === cid) && rl.aiTypes.includes(ai)
+    const matchWildcard = (rl) => rl.aiTypes.length === 0 && (rl.channelSipId == null || rl.channelSipId === cid)
+    const rule = rules.find(matchByType) || rules.find(matchWildcard)
     if (!rule) { for (const it of items) result.push(it.w); continue }
     const windowMs = rule.timeWindowHours * 3600 * 1000
     const inWindow = items.filter(it => { const t = parseWarningTime(it.created_at); return !isNaN(t) && (now - t) <= windowMs })
