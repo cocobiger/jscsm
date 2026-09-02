@@ -168,6 +168,10 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     return Number.isFinite(n) && n >= 0 ? n : 0
   })
   const [keyword, setKeyword] = useState<string>(() => loadAlertSess().keyword || '')
+  // T22: 分页切片——默认渲染前 50 条，IntersectionObserver 触底 +50（实测 491 行 7.2 FPS → 50 行预计 50+ FPS）
+  const [displayLimit, setDisplayLimit] = useState(50)
+  const listRef = useRef<HTMLDivElement | null>(null)        // T22: 列表容器 ref（IO root + 回顶部用）
+  const listSentinelRef = useRef<HTMLDivElement | null>(null) // T22: IO 触底 sentinel
   const [busy, setBusy] = useState(false)
   // T10/T11/T12: 轮询竞态守卫 / 操作结果 toast / 「全部标记处理」二次确认
   const seqRef = useRef(0)
@@ -375,7 +379,28 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   }
   const pending = allRows.filter(r => !r.handled)
   const handledList = allRows.filter(r => r.handled)
-  const displayList = tab === 'pending' ? pending : handledList
+  // T22: 分页切片——全量在内存，displayList 仅取前 displayLimit 条渲染
+  //   fullList 每次 render 重新构造（pending/handledList 引用变化）→ displayList 重算
+  const fullList = tab === 'pending' ? pending : handledList
+  const displayList = fullList.slice(0, displayLimit)
+
+  // T22: 分页触底 IntersectionObserver
+  //   监听 listSentinelRef（sentinel div 出现即视为滚动到底）→ setDisplayLimit +50
+  //   依赖 fullList.length + displayLimit：列表变化时 IO 重建（sentinel 在新位置才 observe）
+  useEffect(() => {
+    const sentinel = listSentinelRef.current
+    const list = listRef.current
+    if (!sentinel || !list) return
+    const io = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          setDisplayLimit(n => Math.min(n + 50, 10000))  // 上限 10000 防御性
+        }
+      }
+    }, { root: list, rootMargin: '120px 0px' })
+    io.observe(sentinel)
+    return () => io.disconnect()
+  }, [displayLimit, fullList.length])
 
   // 展开/收起聚合行的 drill-down
   const toggleExpand = (id: string) => setExpanded(prev => {
@@ -546,7 +571,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         {/* Toolbar: tabs + filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px 0', borderBottom: '1px solid rgba(0,80,150,0.2)', flexShrink: 0, flexWrap: 'wrap' }}>
           {([['pending', '未处理'], ['handled', '已处理']] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={{
+            <button key={key} onClick={() => { setTab(key); setDisplayLimit(50); if (listRef.current) listRef.current.scrollTop = 0 }} style={{
               padding: '6px 18px', fontSize: 13, borderRadius: '3px 3px 0 0',
               border: `1px solid ${tab === key ? 'rgba(0,170,255,0.3)' : 'transparent'}`,
               borderBottom: tab === key ? '1px solid #030c1e' : '1px solid transparent',
@@ -569,7 +594,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
             {LEVEL_FILTERS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
           </select>
           {/* 搜索 */}
-          <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="搜索类型/点位/数值" style={{
+          <input value={keyword} onChange={e => { setKeyword(e.target.value); setDisplayLimit(50) }} placeholder="搜索类型/点位/数值" style={{
             padding: '5px 10px', width: 160, background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)',
             borderRadius: 3, color: '#c8e6ff', fontSize: 12, outline: 'none', marginBottom: 6,
           }} />
@@ -580,7 +605,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         </div>
 
         {/* List */}
-        <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none', padding: '8px 16px 12px' }}>
+        <div ref={listRef} style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none', padding: '8px 16px 12px' }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: '#3a5a70', fontSize: 13 }}>加载中…</div>
           ) : displayList.length === 0 ? (
@@ -734,6 +759,27 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                 </div>
               )
             })
+          )}
+          {/* T22: 分页触底 sentinel + 状态栏 + 回顶部按钮 */}
+          {fullList.length > 0 && (
+            <>
+              {displayLimit < fullList.length && (
+                <div ref={listSentinelRef} data-testid="t22-load-sentinel" style={{ height: 1, marginTop: 8 }} />
+              )}
+              <div data-testid="t22-pager" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 4px', fontSize: 11, color: '#5a8aaa' }}>
+                <span>
+                  已显示 <span style={{ color: CYAN, fontFamily: "'JetBrains Mono', monospace" }}>{displayList.length}</span> / <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fullList.length}</span> 条
+                  {displayLimit < fullList.length ? ' · 滚动到底自动加载更多' : ' · 全部已加载'}
+                </span>
+                {displayLimit > 50 && (
+                  <button onClick={() => { setDisplayLimit(50); if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                    data-testid="t22-back-top"
+                    style={{ padding: '2px 10px', fontSize: 11, borderRadius: 3, border: '1px solid rgba(0,170,255,0.3)', background: 'rgba(0,170,255,0.08)', color: CYAN, cursor: 'pointer' }}>
+                    ↑ 回到顶部
+                  </button>
+                )}
+              </div>
+            </>
           )}
         </div>
 
