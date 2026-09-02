@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { apiFetch, authFetch } from '../lib/apiFetch'
 import type { AggregateWarning } from '../context/DashboardContext'
@@ -114,20 +114,47 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   const [levelFilter, setLevelFilter] = useState(0)
   const [keyword, setKeyword] = useState('')
   const [busy, setBusy] = useState(false)
+  // T10/T11/T12: 轮询竞态守卫 / 操作结果 toast / 「全部标记处理」二次确认
+  const seqRef = useRef(0)
+  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
+  const [confirmAll, setConfirmAll] = useState(false)
 
-  // 拉后端全量历史（aggregate=1：命中推送规则的同组折叠为聚合告警）
-  const load = useCallback(() => {
-    setLoading(true)
-    authFetch('/api/warnings?limit=500&aggregate=1')
-      .then(r => r.ok ? r.json() : [])
-      .then((d: any[]) => {
-        setRecords(Array.isArray(d) ? d.filter(x => !x.isAggregate) : [])
-        setAggregates(Array.isArray(d) ? d.filter((x: any): x is AggregateWarning => x.isAggregate) : [])
+  // 拉取后端告警（聚合 + 平铺双请求合并）：
+  //  - aggregate=1：命中推送规则的 pending 高频组折叠为聚合行（降噪）
+  //  - 平铺全量：含已处理与气体等非聚合来源；剔除被折叠的成员记录，防与聚合行重复
+  const load = useCallback((silent = false) => {
+    const seq = ++seqRef.current
+    if (!silent) setLoading(true)
+    Promise.all([
+      authFetch('/api/warnings?limit=500&aggregate=1').then(r => (r.ok ? r.json() : [])),
+      authFetch('/api/warnings?limit=500').then(r => (r.ok ? r.json() : [])),
+    ])
+      .then(([aggList, flatList]: [any[], any[]]) => {
+        if (seq !== seqRef.current) return  // 已有更新的请求在途，丢弃过期结果
+        const aggs: AggregateWarning[] = Array.isArray(aggList) ? aggList.filter((x: any): x is AggregateWarning => x.isAggregate) : []
+        const flat: any[] = Array.isArray(flatList) ? flatList : []
+        const memberIds = new Set(aggs.flatMap(a => a.memberIds || []))
+        setAggregates(aggs)
+        setRecords(flat.filter(w => !memberIds.has(w.id)))
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { if (seq === seqRef.current) setLoading(false) })
   }, [])
   useEffect(() => { load() }, [load])
+
+  // T10: 弹窗打开且停在「未处理」tab 时每 10s 静默轮询 → 新告警自动出现、处理状态自愈
+  useEffect(() => {
+    if (tab !== 'pending') return
+    const timer = setInterval(() => load(true), 10000)
+    return () => clearInterval(timer)
+  }, [load, tab])
+
+  // toast 自动消失
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 2800)
+    return () => clearTimeout(t)
+  }, [toast])
 
   // 后端预警 → Row
   const backendRows: Row[] = records.map(w => {
@@ -188,6 +215,8 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   }))
 
   let allRows = [...backendRows, ...memRows, ...aggRows].sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+  // 过滤前未处理总数（「全部标记处理」确认文案用，避免受等级/关键词筛选影响）
+  const rawPending = allRows.filter(r => !r.handled).length
   // 筛选
   if (levelFilter) allRows = allRows.filter(r => r.level === levelFilter)
   if (keyword.trim()) {
@@ -208,34 +237,63 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     return next
   })
 
-  // 聚合告警「标记处理」：把组内全部原始记录标为已处理（方案 X）
+  // 聚合告警「标记处理」：组内全部原始记录置为已处理（T11: 成功后本地移除聚合行，不回拉全量）
   const handleGroup = async (row: AggRow) => {
     setBusy(true)
     try {
-      await authFetch('/api/warnings/handle-group', {
+      const res = await apiFetch<{ ok?: boolean; handled?: number }>('/api/warnings/handle-group', {
         method: 'POST',
         body: JSON.stringify({ memberIds: row.agg.memberIds, handledBy: '值守人员' }),
       })
-      load()
-    } catch { /* 静默 */ }
-    finally { setBusy(false) }
+      // 成员记录本就被折叠、不在 records 中；移除聚合行即可（下一轮轮询后端已置 handled、不再折叠）
+      setAggregates(prev => prev.filter(a => `${a.ruleId}:${a.channelSipId ?? ''}:${a.aiType}` !== row.id))
+      const n = res?.handled ?? row.agg.memberIds.length
+      setToast({ msg: `已处理 ${n} 条聚合告警` })
+    } catch (e: any) {
+      setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
+    } finally { setBusy(false) }
   }
 
-  // 标记处理 / 撤销（后端记录持久化；内存告警仅本地）
+  // 标记处理 / 撤销（T11 乐观更新：后端成功后本地翻转 status，行在未处理/已处理列表间即时迁移）
   const setStatus = async (row: Row, handled: boolean) => {
     if (!row.backend) return  // 内存告警（AI识别）无后端记录，跳过
     setBusy(true)
     try {
-      await apiFetch(`/api/warnings/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status: handled ? 'handled' : 'pending' }) })
-      load()
-    } catch { /* 静默 */ }
-    finally { setBusy(false) }
+      await apiFetch(`/api/warnings/${row.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: handled ? 'handled' : 'pending', handledBy: '值守人员' }),
+      })
+      const nowIso = new Date().toISOString()
+      setRecords(prev => prev.map(w => (w.id === row.id ? {
+        ...w,
+        status: handled ? 'handled' : 'pending',
+        handledAt: handled ? nowIso : undefined,
+        handledBy: handled ? '值守人员' : undefined,
+      } : w)))
+      setToast({ msg: handled ? '已标记处理' : '已撤销处理' })
+    } catch (e: any) {
+      setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
+    } finally { setBusy(false) }
   }
-  const handleAll = async () => {
+
+  // 「全部标记处理」确认后执行（T12 前置 confirm 弹层）
+  const doHandleAll = async () => {
+    setConfirmAll(false)
     setBusy(true)
-    try { await apiFetch('/api/warnings/handle-all', { method: 'POST', body: JSON.stringify({}) }); load() }
-    catch {}
-    finally { setBusy(false) }
+    try {
+      const res = await apiFetch<{ ok?: boolean; handled?: number }>('/api/warnings/handle-all', {
+        method: 'POST',
+        body: JSON.stringify({ handledBy: '值守人员' }),
+      })
+      const nowIso = new Date().toISOString()
+      // 本地乐观更新：pending 全部置 handled + 聚合行清空（后端已全表置 handled）
+      setRecords(prev => prev.map(w => (w.status === 'handled' ? w : { ...w, status: 'handled', handledAt: nowIso, handledBy: '值守人员' })))
+      setAggregates([])
+      const n = res?.handled
+      setToast({ msg: typeof n === 'number' && n > 0 ? `已全部标记处理 ${n} 条` : '已全部标记处理' })
+    } catch (e: any) {
+      setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
+    } finally { setBusy(false) }
   }
 
   // 导出 CSV
@@ -468,14 +526,57 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
             共 {allRows.length} 条　·　处理状态已同步后端，刷新/多端可见
           </span>
           {tab === 'pending' && pending.some(r => r.backend) && (
-            <button disabled={busy} onClick={handleAll} style={{
+            <button disabled={busy} title="将后端全部未处理告警标记为已处理（需二次确认）" onClick={() => setConfirmAll(true)} style={{
               padding: '4px 14px', fontSize: 11, borderRadius: 3,
-              border: '1px solid rgba(0,230,118,0.3)', background: 'rgba(0,230,118,0.08)',
-              color: GREEN, cursor: busy ? 'wait' : 'pointer',
+              border: '1px solid rgba(255,112,67,0.35)', background: 'rgba(255,112,67,0.08)',
+              color: '#ffb27a', cursor: busy ? 'wait' : 'pointer',
             }}>全部标记处理</button>
           )}
         </div>
       </div>
+
+      {/* T12: 「全部标记处理」二次确认弹层（误触保护） */}
+      {confirmAll && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setConfirmAll(false) }}>
+          <div style={{ width: 380, maxWidth: '88vw', background: 'linear-gradient(180deg,#081a36,#050f24)', border: '1px solid rgba(255,112,67,0.45)', borderRadius: 6, padding: '18px 20px 14px', boxShadow: '0 0 40px rgba(255,112,67,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 15 }}>⚠️</span>
+              <span style={{ color: '#ffd740', fontSize: 14, fontWeight: 600 }}>全部标记处理</span>
+            </div>
+            <div style={{ color: '#9ec8e6', fontSize: 12, lineHeight: 1.8, margin: '12px 0 4px' }}>
+              将把后端<b style={{ color: '#ff7043' }}>全部未处理告警</b>（含聚合组与列表外的历史记录）标记为「已处理」并同步各端。
+            </div>
+            <div style={{ color: '#5a7a90', fontSize: 11, marginBottom: 14 }}>
+              当前列表未处理 <span style={{ color: '#ff7043', fontFamily: "'JetBrains Mono', monospace" }}>{rawPending}</span> 条 · 此操作不可批量撤销
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button disabled={busy} onClick={() => setConfirmAll(false)} style={{
+                padding: '5px 16px', fontSize: 12, borderRadius: 3, cursor: busy ? 'wait' : 'pointer',
+                border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,100,180,0.12)', color: '#7ab8e0',
+              }}>取消</button>
+              <button disabled={busy} onClick={doHandleAll} style={{
+                padding: '5px 16px', fontSize: 12, borderRadius: 3, cursor: busy ? 'wait' : 'pointer',
+                border: '1px solid rgba(255,112,67,0.55)', background: 'rgba(255,112,67,0.18)', color: '#ffb27a', fontWeight: 600,
+              }}>确认全部处理</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* T11: 操作结果轻量 toast（成功绿 / 失败红） */}
+      {toast && (
+        <div style={{
+          position: 'fixed', left: '50%', bottom: 44, transform: 'translateX(-50%)', zIndex: 1200,
+          padding: '7px 16px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap',
+          color: toast.err ? '#ffb0b0' : '#8dffce',
+          background: toast.err ? 'rgba(90,15,15,0.92)' : 'rgba(0,55,30,0.92)',
+          border: `1px solid ${toast.err ? 'rgba(255,90,90,0.5)' : 'rgba(0,230,118,0.4)'}`,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
+        }}>
+          {toast.err ? '⚠️ ' : '✅ '}{toast.msg}
+        </div>
+      )}
     </div>
   )
 }
