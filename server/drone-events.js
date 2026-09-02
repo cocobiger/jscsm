@@ -193,4 +193,39 @@ function registerDroneEventsRoutes(app, { store, log }) {
     const rows = db.prepare('SELECT id, event_id, device_sn, dock_sn, status, change_reason, event_time, stream_id, whitelisted, zlm_online, created_at FROM drone_live_events ORDER BY id DESC LIMIT ?').all(limit)
     res.json({ ok: true, count: rows.length, items: rows })
   })
+
+  // ── ⑤ 单机镜像状态/播放地址/机场名（弹窗取流解析用 · 与相机 role 列表解耦）──
+  // 背景：弹窗调度只消费 SSE 事件（自身 drone model），不再依赖 /api/sikong/live-streams 的
+  // dock/drone role 匹配。本端点按 deviceSn 直查：我方 ZLM mirror(sikong_<SN>) 实时在线 +
+  // 播放地址 + 司空设备目录中的机场名（设备目录仅“机场+挂载无人机”，无 role 概念）。
+  // 鉴权：走全局 token 中间件（任意登录用户），与 GET /api/drone-events 同级。
+  app.get('/api/drone-events/stream-status', async (req, res) => {
+    try {
+      const deviceSn = String(req.query.deviceSn || '')
+      const dockSn = String(req.query.dockSn || '')
+      if (!deviceSn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
+      const streamId = `sikong_${deviceSn}`
+      const zlm = require('./zlm.js')
+      const [online, dev] = await Promise.all([
+        zlm.isStreamOnline(streamId).catch(() => false),
+        (async () => {
+          try {
+            const sikong = require('./sikong.js')
+            const j = await sikong.fetchMergedDevices()
+            return j && Array.isArray(j.items) ? j.items : []
+          } catch (e) { return [] }
+        })(),
+      ])
+      // 机场名：设备目录条目 deviceSn===dockSn；兜底：挂载该无人机的机场
+      let dockName = ''
+      for (const d of dev) {
+        if (!dockName && String(d.deviceSn) === dockSn) dockName = String(d.deviceName || '')
+        if (!dockName && d.drone && String(d.drone.droneSn || '') === deviceSn) dockName = String(d.deviceName || '')
+      }
+      const hls = online ? String((zlm.playUrls('jsc', streamId) || {}).hls || '') : ''
+      res.json({ ok: true, deviceSn, dockSn, streamId, online, hls, dockName })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
 }
