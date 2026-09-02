@@ -1,4 +1,7 @@
-// 无人机回传弹窗（T2）无头验收：SSE 广播→弹窗≤2→第3台排队→拉起/替换→收起→提示音开关持久化
+// 无人机回传弹窗 v2 无头验收：SSE 广播→弹窗≤2→满窗折叠最新入队→队列点击拉起(折叠最新打开)→收起→提示音开关持久化
+// v2 语义（dronePopupModel 纯状态机，弃 popupPromote）：
+//   满窗(2)新 LIVE_ON → 折叠「最新打开窗口」入队腾位，新事件上窗（窗仍 2、队 +1）
+//   队列点击 → 满窗时折叠「最新打开窗口」并打开所点项（不再是旧版「替换最旧」）
 // 用法（服务器上执行）: node /tmp/shot_dronepopup.cjs <token>
 const pw = (() => {
   try { return require('/opt/jsc/backend/pdf/node_modules/playwright-core'); }
@@ -99,12 +102,12 @@ async function ingest(deviceSn, dockSn, status) {
     ok('3. 同屏 2 弹窗(上限)', (await winCount()) === 2);
     await shot('1_two_windows');
 
-    // ═══ 4. C 起飞 → 窗口仍 2，进队列 ═══
+    // ═══ 4. C 起飞 → 满窗(2) → 折叠「最新打开」B 入队，C 上窗（窗口仍 2、队列 1）═══
     await ingest(FLIGHTS[2].deviceSn, FLIGHTS[2].dockSn, 'LIVE_ON');
     await page.waitForTimeout(1500);
     ok('4a. 窗口不超 2', (await winCount()) === 2);
     await waitBadge(1);
-    ok('4b. 第3台排队(⏸ 排队 1)', (await queueCount()) === 1);
+    ok('4b. 满窗折叠最新(B)入队(⏸ 排队 1)', (await queueCount()) === 1);
     await shot('2_queue_badge');
 
     // ═══ 5. 展开队列 → 缩略图卡片 ═══
@@ -114,16 +117,16 @@ async function ingest(deviceSn, dockSn, status) {
     ok('5. 队列缩略图卡片', !!qTitle, qTitle || '');
     await shot('3_queue_open');
 
-    // ═══ 6. 点队列卡片拉起 C（窗口满 → 替换最旧 A，A 回队列）═══
+    // ═══ 6. 点队列卡片拉起 B（满窗 → 折叠「最新打开」C 入队，B 上窗）═══
     await clickByTitle('点击拉起播放');
     await page.waitForTimeout(1200);
     ok('6a. 拉起后仍 ≤2 窗口', (await winCount()) === 2);
     await waitBadge(1);
-    // 队列卡片 UI 在 live-streams 无设备名时默认显示 shortSn(dockSn)；此处断言「最旧的 A dock 前缀」进入队列
+    // v2 语义：被折叠的是「最新打开窗口」= C（职教中心机场，dockSn 前缀 8UUXN8P0），不是最旧 A
     const qTitle2 = await queuedCardTitle();
-    const dockA = FLIGHTS[0].dockSn.slice(0, 8); // "8UUXN8N0"
-    ok('6b. 最旧被替换回队列', qTitle2 && qTitle2.includes(dockA), qTitle2 ? qTitle2 : '队列卡片为空');
-    await shot('4_after_promote');
+    const dockC = FLIGHTS[2].dockSn.slice(0, 8); // "8UUXN8P0"
+    ok('6b. 最新打开(C)被折叠回队列', qTitle2 && qTitle2.includes(dockC), qTitle2 ? qTitle2 : '队列卡片为空');
+    await shot('4_after_click_queue');
 
     // ═══ 7. 手动收起一个窗口（×）→ 进队列 ═══
     await clickByTitle('收起至队列');
