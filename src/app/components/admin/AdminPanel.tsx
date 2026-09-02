@@ -252,7 +252,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
           {page === 'workreport' && <WorkReportPage />}
           {page === 'govdata'    && <GovDataPage />}
           {page === 'users'      && <UsersPage currentUserId={user.id} />}
-          {page === 'straw'      && <StrawMonitorPage />}
+          {page === 'straw'      && <StrawMonitorPage user={user} />}
           {page === 'dockguard'  && <DockGuardPage />}
           {page === 'map'        && <MapCenterPage role={user.role} />}
         </div>

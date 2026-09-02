@@ -1886,6 +1886,66 @@ function queryWarningsForExport({ status = 'all', sources, levels, from, to, q, 
   return { rows: out, truncated: out.length >= maxRows }
 }
 
+// ── 秸秆微信推送记录（P3 T19：wechatPush 状态可视化，90 天窗口）──
+// 数据源 = warnings.data_json.wechatPush（strawWorkflow 回写），无独立推送表
+// 状态语义：held=复检把关拦截待复核 / pushed=推送成功 / failed=推送失败 / none=未推送
+function queryStrawPushLogs({ status = 'all', q = '', page = 1, pageSize = 30 } = {}) {
+  const kw = String(q || '').trim().toLowerCase()
+  const where = [
+    "json_extract(data_json, '$.source') = 'straw-engine'",
+    "json_extract(data_json, '$.wechatPush') IS NOT NULL",
+    "created_at > datetime('now', '-90 days')",
+  ]
+  const args = []
+  if (kw) { where.push('(data_json LIKE ? OR data_json LIKE ?)'); const p = `%${kw}%`; args.push(p, p) }
+  const rows = db.prepare(`SELECT data_json FROM warnings WHERE ${where.join(' AND ')} ORDER BY rowid DESC`).all(...args)
+  const out = []
+  for (const r of rows) {
+    const w = JSON.parse(r.data_json)
+    const wp = w.wechatPush || {}
+    const st = wp.held ? 'held' : (wp.pushed === true ? 'pushed' : (wp.pushed === false && wp.reason ? 'failed' : 'none'))
+    if (status !== 'all' && st !== status) continue
+    const createdMs = parseWarningTime(w.createdAt || '')
+    // displayTime：上海本地串（服务器 UTC，+8h 对齐业务时区，与导出一致）
+    const displayTime = Number.isFinite(createdMs)
+      ? new Date(createdMs + 8 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19)
+      : (w.createdAt || '')
+    out.push({
+      id: w.id,
+      createdAt: displayTime,
+      label: w.label || w.aiType || w.warningType || '',
+      aiType: w.aiType || '',
+      aiConfidence: w.aiConfidence ?? null,
+      level: w.level ?? null,
+      location: w.location || w.streamId || '',
+      picUrl: w.picUrl || '',
+      town: wp.town || '',
+      unit: wp.unit || '',
+      state: st,
+      held: !!wp.held,
+      pushed: wp.pushed === true,
+      reason: wp.reason || '',
+      cardUrl: wp.cardUrl || '',
+      webhook: wp.webhook || '',
+      correctedAt: wp.correctedAt || '',
+      correctionOk: wp.correctionOk ?? null,
+      correctionNote: wp.correctionNote || '',
+      correctedBy: wp.correctedBy || '',
+    })
+  }
+  const total = out.length
+  const p = Math.max(1, Number(page) || 1)
+  const ps = Math.min(200, Math.max(5, Number(pageSize) || 30))
+  return { rows: out.slice((p - 1) * ps, p * ps), total, page: p, pageSize: ps }
+}
+// 通用整行保存（读改写 data_json；P3 T19 起供 strawWorkflow/strawCorrection 复用，消除硬编码 DB 路径）
+function saveWarningData(w) {
+  if (!w || !w.id) return false
+  const r = db.prepare('UPDATE warnings SET data_json = ?, status = ?, warning_type = ? WHERE id = ?')
+    .run(JSON.stringify(w), w.status ?? null, w.warningType ?? null, w.id)
+  return r.changes > 0
+}
+
 // ── 告警过滤规则 alert_filter_rules（T6~T7：命中规则 → 从告警列表隐藏）──
 function resolveSourceKey(w) {
   if (!w) return null
@@ -2410,7 +2470,7 @@ module.exports = {
   query, queryRange, distinctPoints, counts, getDb, rowToRecord,
   // 预警
   insertWarning, queryWarnings, getWarning, updateWarningStatus, handleAllWarnings,
-  updateWarningReview, listStrawSamples,
+  updateWarningReview, listStrawSamples, queryStrawPushLogs, saveWarningData,
   importAreaResponsibilities, listAreaResponsibilities, deleteAreaResponsibility, findResponsibility,
   listBoundaries, replaceBoundaries, updateBoundaryTown, listBoundarySnapshots, restoreBoundarySnapshot,
   upsertWarningFromChengyun, setWarningVideoUrl,

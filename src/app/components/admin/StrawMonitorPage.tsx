@@ -5,9 +5,11 @@ import { StrawResultsView } from './StrawResultsView'
 import { StreamPanel } from './StreamPanel'
 import { SikongPanel } from './SikongPanel'
 import { NegClassifyVerify } from './NegClassifyVerify'
+import { PushLogPage } from './PushLogPage'
 import { authFetch } from '../../lib/apiFetch'
+import type { CurrentUser } from '../../lib/auth'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye } from 'lucide-react'
+import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye, Send } from 'lucide-react'
 
 // ── 秸秆焚烧监控 · 独立功能点（无人机视角）──
 // 数据边界：source='straw-engine' 的自研推理告警，与 AI分析存档（IoTCloud）完全隔离
@@ -39,8 +41,12 @@ interface RespRow {
 
 const EMPTY_FORM = { town: '', community: '', unit: '', person: '', phone: '', webhook: '', remark: '' }
 
-export function StrawMonitorPage() {
-  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results' | 'negverify'>('engine')
+interface Props {
+  user: CurrentUser
+}
+
+export function StrawMonitorPage({ user }: Props) {
+  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results' | 'negverify' | 'pushlog'>('engine')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -65,6 +71,7 @@ export function StrawMonitorPage() {
           ['negverify', '抽检标注', ScanEye],
           ['responsibility', '责任映射 / 微信群推送', Landmark],
           ['style', '推送样式', ClipboardList],
+          ['pushlog', '推送记录', Send],
         ] as const).map(([key, label, Icon]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -84,6 +91,7 @@ export function StrawMonitorPage() {
         : tab === 'sikong' ? <SikongPanel />
         : tab === 'negverify' ? <NegClassifyVerify />
         : tab === 'responsibility' ? <ResponsibilityManager />
+        : tab === 'pushlog' ? <PushLogPage user={user} />
         : <PushStyleEditor />}
     </div>
   )

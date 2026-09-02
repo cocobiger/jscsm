@@ -1770,17 +1770,16 @@ async function strawWorkflow(warning, opts = {}) {
       pushInfo.reason = '推送异常: ' + e.message
     }
   }
-  // 回写推送状态到告警
+  // 回写推送状态到告警（复用 store.saveWarningData，消除硬编码 DB 路径 C6）
   try {
     const w = store.getWarning(warning.id)
     if (w) {
       w.wechatPush = pushInfo
-      const { DatabaseSync } = require('node:sqlite')
-      const dbs = new DatabaseSync('/opt/jsc/backend/data/jsc.db')
-      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(w), w.id)
+      store.saveWarningData(w)
     }
   } catch (e) { console.error('[straw-workflow] 回写失败:', e.message) }
   console.log('[straw-workflow]', warning.id, held ? 'HELD' : 'PUSH', JSON.stringify(pushInfo))
+  return pushInfo
 }
 
 // ── 复检误报更正推送：向责任单位微信群追发更正说明（微信群机器人无法撤回，只能追发）──
@@ -1854,6 +1853,42 @@ async function onReviewVerdict(det, verdict, note, reviewer) {
     }
   }
 }
+
+// ── 秸秆微信推送记录查询（P3 T19：wechatPush 状态可视化，90 天窗口只读）──
+// GET 任意登录可读；数据源 warnings.data_json.wechatPush
+app.get('/api/straw/push-logs', (req, res) => {
+  try {
+    const { status, q, page, pageSize } = req.query
+    res.json(store.queryStrawPushLogs({
+      status: String(status || 'all'),
+      q: String(q || ''),
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 30,
+    }))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── 失败/held 推送人工重推（P3 T19：复用 strawWorkflow force；POST 默认 admin；防并发幂等）──
+const pushRetrying = new Set()
+app.post('/api/straw/push-logs/:id/retry', async (req, res) => {
+  const id = req.params.id
+  const w = store.getWarning(id)
+  if (!w) return res.status(404).json({ error: '告警不存在' })
+  if (pushRetrying.has(id)) return res.status(409).json({ error: '该告警正在重推中，请稍候' })
+  pushRetrying.add(id)
+  try {
+    // force=true：跳过 gate=pre 低置信度 held 拦截（人工确认过才重推）
+    const info = await strawWorkflow(w, { force: true, retryBy: req.user ? req.user.username : 'admin' })
+    res.json({ ok: true, warningId: id, wechatPush: info })
+  } catch (e) {
+    console.error('[straw-push-retry]', id, e.message)
+    res.status(500).json({ error: e.message })
+  } finally {
+    pushRetrying.delete(id)
+  }
+})
 
 // ── 复检把关开关配置（straw_review_gate: off/post/pre + 低置信阈值 conf）──
 app.get('/api/straw/review-gate', (req, res) => {
