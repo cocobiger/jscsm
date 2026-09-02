@@ -2245,6 +2245,75 @@ app.post('/api/warnings/handle-group', (req, res) => {
   try { const n = store.handleGroupWarnings(memberIds, handledBy); res.json({ ok: true, handled: n }) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
+
+// ── T14: 告警明细导出 CSV（adminOnly；与 alert_filter_rules 展示降噪解耦，C1）──
+// 参数（均可选）：status=pending|handled|all   source=cq_api,iotcloud,...  level=1,2,3,4
+//                from/to=时间范围（上海语义，ISO 或 'YYYY-MM-DDTHH:mm' 前端 datetime-local）
+//                q=关键词  expand_agg=1 时聚合成员明细一并导出（导出恒为平铺明细，本参数仅兼容语义）
+// 响应：text/csv；头部 X-Warnings-Total / X-Warnings-Truncated 供前端提示
+const SOURCE_LABEL = { cq_api: '气体监测', iotcloud: 'AI视频', 'straw-engine': '秸秆检测', 'chengyun-platform': '城运中心' }
+const LEVEL_LABEL = { 1: '注意', 2: '轻度', 3: '中度', 4: '重度' }
+function csvEscape(v) {
+  const s = v === null || v === undefined ? '' : String(v)
+  return '"' + s.replace(/"/g, '""') + '"'
+}
+// created_at 存储两种格式（UTC ISO 串 / 'YYYY-MM-DD HH:mm:ss' 上海本地无时区）→ 统一转上海可读时间（C7）
+app.get('/api/warnings/export', adminOnly, (req, res) => {
+  try {
+    const { status = 'all', source, level, from, to, q } = req.query
+    const sources = source ? String(source).split(',').map(s => s.trim()).filter(Boolean) : []
+    const levels = level ? String(level).split(',').map(Number).filter(Number.isFinite) : []
+    // from/to 前端 datetime-local（'YYYY-MM-DDTHH:mm'，上海语义）→ 统一转可解析串
+    const normRange = (v) => v ? String(v).replace(' ', 'T') : undefined
+    const { rows, truncated } = store.queryWarningsForExport({
+      status, sources, levels,
+      from: normRange(from), to: normRange(to), q,
+      maxRows: 50000,
+    })
+    // created_at 两种格式统一转上海可读（UTC ISO 串 / 上海本地无时区串）
+    const fmtTime = (w) => {
+      const raw = w.createdAt || w.monitorTime || ''
+      if (!raw) return ''
+      // 无时区标记的 'YYYY-MM-DD HH:mm:ss' → 补 +08:00 再解析（与 parseWarningTime 同口径）
+      let iso = raw
+      if (!/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso)) iso = iso.replace(' ', 'T') + '+08:00'
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return raw
+      return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d)
+    }
+    const head = ['时间', '来源', '类型', '点位', '数值', '限值', '等级', '置信度', '状态', '处理时间', '处理人', '告警ID']
+    const lines = [head.map(csvEscape).join(',')]
+    for (const w of rows) {
+      const src = store.resolveSourceKey(w)
+      const lv = store.exportWarningLevel(w)
+      const conf = (w.aiConfidence !== null && w.aiConfidence !== undefined && w.aiConfidence !== '')
+        ? (Number(w.aiConfidence) > 1 ? Math.round(Number(w.aiConfidence)) + '%' : Math.round(Number(w.aiConfidence) * 100) + '%')
+        : ''
+      lines.push([
+        fmtTime(w),
+        SOURCE_LABEL[src] || src || '—',
+        w.type || [w.name, w.warningLabel].filter(Boolean).join(' ') || '—',
+        w.pointName || w.channelName || w.deviceName || w.location || '—',
+        w.value != null ? String(w.value) + (w.unit ? ' ' + w.unit : '') : '',
+        w.standardValue != null ? String(w.standardValue) + (w.unit ? ' ' + w.unit : '') : (w.standard || w.reason || '—'),
+        LEVEL_LABEL[lv] || '',
+        conf,
+        w.status === 'handled' ? '已处理' : (w.status === 'pending' ? '未处理' : (w.status || '—')),
+        w.handledAt ? fmtTime({ createdAt: w.handledAt }) : '',
+        w.handledBy || '',
+        w.id || '',
+      ].map(csvEscape).join(','))
+    }
+    const csv = '\ufeff' + lines.join('\r\n')   // BOM 防 Excel 乱码
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`告警记录_${new Date().toISOString().slice(0, 10)}.csv`)}`)
+    res.setHeader('X-Warnings-Total', String(rows.length))
+    if (truncated) res.setHeader('X-Warnings-Truncated', '1')
+    res.send(csv)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
 // 接入一条通道（upsert：已软删则复活）
 app.post('/api/iot-channels', adminOnly, (req, res) => {
   const { channelSipId, channelName, deviceSipId, deviceName, streamId, enabled, remark } = req.body || {}

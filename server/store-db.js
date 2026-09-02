@@ -1832,6 +1832,59 @@ function deletePushRule(id) {
   return db.prepare('DELETE FROM push_rules WHERE id = ?').run(id).changes
 }
 
+// ── T14：告警明细导出（CSV 数据源）────────────────────────────
+// 与 alert_filter_rules 展示降噪【完全解耦】：导出=数据带走，不受个人过滤规则影响（C1）。
+// 返回 { rows, truncated }，rows 为原始 data_json 对象（新→旧），供路由层转 CSV。
+// 过滤维度：
+//   status   'pending' | 'handled' | 'all'(默认)
+//   sources  来源键数组（cq_api/iotcloud/straw-engine/chengyun-platform）
+//   levels   等级数字数组（AI 取 w.level；气体由 warningType 推导：cross=3 growth5h/fixed=2）
+//   from/to  created_at 绝对时刻下/上界（已由路由层 parseWarningTime 统一时区，C7）
+//   q        关键词（类型/点位/数值/类型名等子串）
+function exportWarningLevel(w) {
+  if (!w) return 0
+  const n = Number(w.level)
+  if (Number.isFinite(n) && n >= 1 && n <= 4) return n
+  const wt = w.warningType || w.warning_type || ''
+  if (wt === 'cross') return 3
+  if (wt === 'growth5h' || wt === 'fixed') return 2
+  return 1
+}
+function queryWarningsForExport({ status = 'all', sources, levels, from, to, q, maxRows = 50000 } = {}) {
+  const srcArr = Array.isArray(sources) ? sources.filter(Boolean) : []
+  const lvArr = Array.isArray(levels) ? levels.map(Number).filter(n => Number.isFinite(n) && n >= 1 && n <= 4) : []
+  const kw = q ? String(q).trim().toLowerCase() : ''
+  const fromT = from ? parseWarningTime(from) : NaN
+  const toT = to ? parseWarningTime(to) : NaN
+  let sql = 'SELECT data_json FROM warnings'
+  const args = []
+  const where = []
+  if (status === 'pending' || status === 'handled') { where.push('status = ?'); args.push(status) }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ')
+  sql += ' ORDER BY rowid DESC'
+  const rows = db.prepare(sql).all(...args).map(r => JSON.parse(r.data_json))
+  const out = []
+  for (const w of rows) {
+    const src = resolveSourceKey(w)
+    if (srcArr.length > 0 && !srcArr.includes(src)) continue
+    const lv = exportWarningLevel(w)
+    if (lvArr.length > 0 && !lvArr.includes(lv)) continue
+    if (!Number.isNaN(fromT) || !Number.isNaN(toT)) {
+      const t = parseWarningTime(w.createdAt || w.monitorTime || '')
+      if (!Number.isNaN(fromT) && !(t >= fromT)) continue
+      if (!Number.isNaN(toT) && !(t <= toT)) continue
+    }
+    if (kw) {
+      const hay = [w.type, w.name, w.warningLabel, w.pointName, w.channelName, w.deviceName, w.location, w.value, w.aiType, w.code, w.standard, w.reason]
+        .filter(v => v != null).join(' ').toLowerCase()
+      if (!hay.includes(kw)) continue
+    }
+    out.push(w)
+    if (out.length >= maxRows) break   // 护栏：截断（路由返回 X-Warnings-Truncated）
+  }
+  return { rows: out, truncated: out.length >= maxRows }
+}
+
 // ── 告警过滤规则 alert_filter_rules（T6~T7：命中规则 → 从告警列表隐藏）──
 function resolveSourceKey(w) {
   if (!w) return null
@@ -2358,6 +2411,7 @@ module.exports = {
   listAlertFilterRules, getAlertFilterRule, createAlertFilterRule, updateAlertFilterRule, deleteAlertFilterRule,
   resolveSourceKey, alertFilterRuleHit,
   queryWarningsAggregated, handleGroupWarnings, getWarningsByIds, computeAiConfidenceStats,
+  queryWarningsForExport, exportWarningLevel,
   warningTypeDistribution, warningCount, warningTrend, tableCount,
   // 采集日志
   insertCollectLog, queryCollectLogs,
