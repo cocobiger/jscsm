@@ -11,6 +11,7 @@ import { setUnauthorizedHandler, clearToken } from './lib/apiFetch'
 import type { MapTab } from './components/MapView'
 import type { AlertItem } from './components/AlertPanel'
 import { useDisplayScale } from './hooks/useDisplayScale'
+import { DroneLivePopupHost } from './components/DroneLivePopup'
 
 function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => void; layout?: 'default' | 'wide' }) {
   const [activeTab, setActiveTab] = useState<MapTab>('default')
@@ -30,6 +31,7 @@ function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => voi
       style={{
         width: '100%',
         height: '100%',
+        position: 'relative',           // 无人机弹窗等 overlay 以驾驶舱画布为定位基准（随 DisplayScaler 等比缩放）
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -65,6 +67,9 @@ function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => voi
           selectedAlertId={selectedAlert?.id ?? null}
         />
       </div>
+
+      {/* 无人机起飞自动弹窗（T2：≤2 同屏 + 队列 + 30s 自动收起 + 提示音） */}
+      <DroneLivePopupHost />
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }

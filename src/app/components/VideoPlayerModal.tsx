@@ -58,8 +58,8 @@ function GridIcon({ n }: { n: number }) {
 }
 
 function SinglePlayer({
-  url, protocol, primary, djiConfig, onSnapshot,
-}: { url: string; protocol: string; primary: boolean; djiConfig?: DJIWebRTCConfig; onSnapshot?: (dataUri: string) => void }) {
+  url, protocol, primary, djiConfig, onSnapshot, onStatus,
+}: { url: string; protocol: string; primary: boolean; djiConfig?: DJIWebRTCConfig; onSnapshot?: (dataUri: string) => void; onStatus?: (s: PlayStatus) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerRef = useRef<ReturnType<typeof mpegts.createPlayer> | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -68,6 +68,8 @@ function SinglePlayer({
   const snapshotRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapshotDoneRef = useRef(false)
   const [status, setStatus] = useState<PlayStatus>('loading')
+  // 供外部（如无人机弹窗）感知播放状态：playing 时启动 30s 自动收起计时
+  const updateStatus = useCallback((s: PlayStatus) => { setStatus(s); onStatus?.(s) }, [onStatus])
   const [errMsg, setErrMsg] = useState('')
   const [retryNum, setRetryNum] = useState(0)
   const retryNumRef = useRef(0)
@@ -91,19 +93,19 @@ function SinglePlayer({
 
   const scheduleRetry = useCallback((streamUrl: string) => {
     const n = retryNumRef.current
-    if (n >= DELAYS.length) { setStatus('error'); setErrMsg('已重试多次仍无法连接，请检查视频源或稍后重试'); return }
+    if (n >= DELAYS.length) { updateStatus('error'); setErrMsg('已重试多次仍无法连接，请检查视频源或稍后重试'); return }
     retryNumRef.current = n + 1
     setRetryNum(n + 1)
-    setStatus('reconnecting')
+    updateStatus('reconnecting')
     retryRef.current = setTimeout(() => play(streamUrl), DELAYS[n])
   }, [])
 
   const play = useCallback((streamUrl: string) => {
-    if (!streamUrl) { setStatus('no-url'); return }
+    if (!streamUrl) { updateStatus('no-url'); return }
     const el = videoRef.current
     if (!el) return
     destroy()
-    setStatus('loading')
+    updateStatus('loading')
     setErrMsg('')
 
     if (isWebRTC(streamUrl)) {
@@ -115,7 +117,7 @@ function SinglePlayer({
       pc.addTransceiver('audio', { direction: 'recvonly' })
       pc.ontrack = (ev) => { el.srcObject = ev.streams[0]; el.play().catch(() => {}) }
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'connected') setStatus('playing')
+        if (pc.iceConnectionState === 'connected') updateStatus('playing')
         if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') scheduleRetry(streamUrl)
       }
       pc.createOffer().then(offer => {
@@ -128,7 +130,7 @@ function SinglePlayer({
     }
 
     if (isFLV(streamUrl) || protocol === 'hls' && streamUrl.endsWith('.flv')) {
-      if (!mpegts.isSupported()) { setStatus('error'); setErrMsg('浏览器不支持 HTTP-FLV'); return }
+      if (!mpegts.isSupported()) { updateStatus('error'); setErrMsg('浏览器不支持 HTTP-FLV'); return }
       const p = mpegts.createPlayer(
         { type: 'flv', url: streamUrl, isLive: true, cors: true, hasAudio: false, hasVideo: true },
         { enableWorker: false, lazyLoadMaxDuration: 180, seekType: 'range' }
@@ -137,11 +139,11 @@ function SinglePlayer({
       p.attachMediaElement(el)
       p.load(); p.play()?.catch(() => {})
       p.on(mpegts.Events.ERROR, (_: unknown, ed: { type?: string; details?: string } | undefined) => {
-        setStatus('error')
+        updateStatus('error')
         setErrMsg(`${ed?.type ?? '流错误'}：${ed?.details ?? '无法连接，请检查地址与网络'}`)
         scheduleRetry(streamUrl)
       })
-      el.onplaying = () => setStatus('playing')
+      el.onplaying = () => updateStatus('playing')
       return
     }
 
@@ -154,20 +156,20 @@ function SinglePlayer({
       hls.on(Hls.Events.MANIFEST_PARSED, () => { el.play().catch(() => {}) })
       hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean; details?: string }) => {
         if (data.fatal) {
-          setStatus('error')
+          updateStatus('error')
           setErrMsg(data.details ? `HLS错误：${data.details}` : 'HLS流连接失败')
           scheduleRetry(streamUrl)
         }
       })
-      el.onplaying = () => setStatus('playing')
-      el.onwaiting = () => setStatus('loading')
+      el.onplaying = () => updateStatus('playing')
+      el.onwaiting = () => updateStatus('loading')
       return
     }
     // Native (Safari/iOS 原生 HLS, mp4 等)
     el.src = streamUrl
-    el.onplaying = () => setStatus('playing')
-    el.onwaiting = () => setStatus('loading')
-    el.onerror = () => { setStatus('error'); setErrMsg('无法播放，请检查流格式'); scheduleRetry(streamUrl) }
+    el.onplaying = () => updateStatus('playing')
+    el.onwaiting = () => updateStatus('loading')
+    el.onerror = () => { updateStatus('error'); setErrMsg('无法播放，请检查流格式'); scheduleRetry(streamUrl) }
     el.play().catch(() => {})
   }, [destroy, scheduleRetry, protocol])
 
@@ -214,10 +216,10 @@ function SinglePlayer({
     retryNumRef.current = 0
     setRetryNum(0)
     snapshotDoneRef.current = false
-    if (!url && protocol !== 'dji_webrtc') { setStatus('no-url'); return }
+    if (!url && protocol !== 'dji_webrtc') { updateStatus('no-url'); return }
     if (needsTranscode(url, protocol)) {
       // RTSP/ONVIF/GB28181/DJI WebRTC：先请求后端转换为可播放地址
-      setStatus('loading')
+      updateStatus('loading')
       const sid = protocol === 'dji_webrtc' && djiConfig
         ? deriveStreamId(
             djiConfig.parentName
@@ -252,11 +254,11 @@ function SinglePlayer({
             if (m) flvUrl = m[0]
             play(flvUrl)
           } else {
-            setStatus('error')
+            updateStatus('error')
             setErrMsg(res?.error || res?.note || '后端转换失败，请确认已配置 ZLMediaKit')
           }
         })
-        .catch(() => { setStatus('error'); setErrMsg('无法连接后端转换服务') })
+        .catch(() => { updateStatus('error'); setErrMsg('无法连接后端转换服务') })
     } else {
       play(url)
     }
