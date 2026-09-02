@@ -11,7 +11,7 @@ import { setUnauthorizedHandler, clearToken } from './lib/apiFetch'
 import type { MapTab } from './components/MapView'
 import type { AlertItem } from './components/AlertPanel'
 import { useDisplayScale } from './hooks/useDisplayScale'
-import { DroneLivePopupHost } from './components/DroneLivePopup'
+import { DronePopupHost } from './components/drvPopup/DronePopupHost'
 
 function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => void; layout?: 'default' | 'wide' }) {
   const [activeTab, setActiveTab] = useState<MapTab>('default')
@@ -68,8 +68,8 @@ function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => voi
         />
       </div>
 
-      {/* 无人机起飞自动弹窗（T2：≤2 同屏 + 队列 + 30s 自动收起 + 提示音） */}
-      <DroneLivePopupHost />
+      {/* 无人机起飞自动弹窗（v2：纯状态机调度 2 窗+3 队 · 满窗折叠最新腾位 · 队列点击拉起 · 与相机 role 列表解耦） */}
+      <DronePopupHost />
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }

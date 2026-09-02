@@ -1,5 +1,5 @@
 /**
- * 无人机直播事件（弹窗需求 T2）工具库
+ * 无人机直播事件（弹窗 T2 → v2 重写）工具库
  *
  * 数据链（与后端 drone-events.js 对齐）：
  *   dji-openapi webhook LIVE_STATUS_CHANGE → 后端 /api/drone-events/ingest（dockSn 白名单过滤）
@@ -7,19 +7,14 @@
  *
  * 本模块提供：
  *   - DroneLiveEvt 类型（SSE 载荷）
- *   - fetchDroneInfo  按 deviceSn/dockSn 从 /api/sikong/live-streams 解析名称与播放地址（role=drone 过滤）
+ *   - fetchDroneStreamStatus  按 deviceSn 直查 ZLM mirror 在线/播放地址 + 机场名
+ *                             （与 /satellite/camera role 列表解耦，弹窗拥有自有数据源）
  *   - toRelativeMediaUrl  绝对播放地址 → 同源相对路径（nginx /jsc/... 反代 ZLM）
- *   - playAlertChime / unlockAudioOnGesture  弹窗提示音（WebAudio，无音频资源）
- *   - 常量：自动收起 30s、同屏上限 2、队列上限等
+ *   - playAlertChime / unlockAudioOnGesture / loadSoundPref / saveSoundPref  提示音与偏好
+ *
+ * 调度常量与纯状态机见 components/drvPopup/dronePopupModel.ts（唯一来源）。
  */
 import { apiFetch } from './apiFetch'
-
-// ── 产品常量（决策 2/3 落点，集中管理便于后续参数化）──
-export const DRONE_AUTO_HIDE_MS = 30_000    // 决策3：弹窗 30s 自动收起（收进队列非销毁）
-export const DRONE_MAX_WINDOWS = 2          // 决策2：同屏同时弹出上限 2 路
-export const DRONE_MAX_QUEUE = 3            // 队列缩略图上限（超出丢弃最旧）
-export const DRONE_RESOLVE_WAIT_MS = 60_000 // 等待 mirror 接入的最长解析时间
-export const DRONE_RESOLVE_RETRY_MS = 4_000 // 解析重试间隔（zlm-watcher 15s 轮询拉 mirror，需留余量）
 
 // ── SSE 载荷 ──
 export interface DroneLiveEvt {
@@ -38,13 +33,16 @@ export interface DroneLiveEvt {
   whitelisted: number   // 1=白名单命中已广播
 }
 
-// ── 解析结果 ──
-export interface DroneResolved {
-  name: string          // 机场设备名（title）
-  airportName: string
-  droneLabel: string
-  zlmOnline: boolean
-  hls: string           // 相对 HLS 播放地址（''=尚无）
+// ── 单机镜像状态/播放地址（与相机 role 列表解耦）──
+export interface DroneStreamStatus {
+  ok: boolean
+  deviceSn: string
+  dockSn: string
+  streamId: string
+  online: boolean       // ZLM mirror（sikong_<SN>）是否在线
+  hls: string           // 相对 HLS 播放地址（''=尚未接入）
+  dockName: string      // 机场设备名（设备目录按 dockSn/deviceSn 匹配，无 role 概念）
+  error?: string
 }
 
 /** SN 缩短显示 */
@@ -61,30 +59,17 @@ export function toRelativeMediaUrl(abs: string): string {
 }
 
 /**
- * 按 deviceSn/dockSn 解析显示名与播放地址。
- * 来源 /api/sikong/live-streams（聚合 司空设备 + 我方 ZLM mirror 状态/播放地址，实时拉取）。
- * 匹配策略：dock 条目按 sikongSn===dockSn 取名；drone 条目按 droneSn/sikongSn===deviceSn 取流。
+ * 单机取流解析（v2 弹窗专用）：GET /api/drone-events/stream-status?deviceSn=&dockSn=
+ * 后端直连 zlm.isStreamOnline(sikong_<SN>) + 设备目录取名，无 dock/drone role 概念。
+ * 失败返回 null（后端不可达等），调用方用兜底名 + 稍后重试。
  */
-export async function fetchDroneInfo(deviceSn: string, dockSn: string): Promise<DroneResolved | null> {
+export async function fetchDroneStreamStatus(deviceSn: string, dockSn = ''): Promise<DroneStreamStatus | null> {
   try {
-    const d: any = await apiFetch('/api/sikong/live-streams')
-    const items = Array.isArray(d?.items) ? d.items : []
-    const dock = items.find((i: any) => i.role === 'dock' && String(i.sikongSn) === String(dockSn))
-    const drone = items.find((i: any) =>
-      i.role === 'drone' &&
-      (String(i.sikongSn) === String(deviceSn) || String(i.droneSn) === String(deviceSn))
-    )
-    const name = String(dock?.deviceName || drone?.deviceName || '')
-    const hls = toRelativeMediaUrl(drone?.play?.hls || '')
-    return {
-      name: name || `机场 ${shortSn(dockSn)}`,
-      airportName: name,
-      droneLabel: `无人机 ${shortSn(deviceSn)}`,
-      zlmOnline: !!drone?.zlm_online,
-      hls,
-    }
+    const qs = new URLSearchParams({ deviceSn: String(deviceSn) })
+    if (dockSn) qs.set('dockSn', String(dockSn))
+    return await apiFetch<DroneStreamStatus>(`/api/drone-events/stream-status?${qs.toString()}`)
   } catch {
-    return null // 后端不可达等：调用方用兜底名 + 稍后重试
+    return null
   }
 }
 
