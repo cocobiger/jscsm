@@ -3,6 +3,7 @@ import { AlertHistoryModal } from './AlertHistoryModal'
 import { AlertEvidenceModal } from './AlertEvidenceModal'
 import { AlertThumbnail } from './AlertThumbnail'
 import { useDashboard } from '../context/DashboardContext'
+import { fetchUnhandledCount } from '../lib/alertsApi'
 
 export interface AlertItem {
   id: string
@@ -98,7 +99,28 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   const [flashId, setFlashId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [evidenceAlert, setEvidenceAlert] = useState<AlertItem | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)  // T23: 入口角标——后端未处理告警总数
   const { externalAlerts, clearExternalAlerts } = useDashboard()
+
+  // T23: 入口角标——每 15s 拉一次后端未处理总数（聚合 + 平铺去重）；失败静默保持上值
+  //   节奏 15s > 弹窗内 10s 轮询，避免双重请求；alerts:refresh 处置后也会被通知重拉
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      const n = await fetchUnhandledCount()
+      if (!cancelled) setPendingCount(n)
+    }
+    refresh()
+    const t = setInterval(refresh, 15000)
+    // 处置成功事件触发即时重拉（不等到下一次 15s）
+    const onRefresh = () => refresh()
+    window.addEventListener('alerts:refresh', onRefresh as EventListener)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+      window.removeEventListener('alerts:refresh', onRefresh as EventListener)
+    }
+  }, [])
 
   // T16: 处置后轻刷新（alerts:refresh 事件总线）—— 替代原 alerts:reload 整页刷新
   //   payload: { kind: 'group'|'single'|'all', memberIds?: string[], id?: string,
@@ -382,7 +404,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} />
+      <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} badge={pendingCount} />
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         {alerts.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#3a5a70', gap: 8, padding: 20 }}>
@@ -428,7 +450,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   )
 }
 
-function PanelHeader({ color, title, count, onMore }: { color: string; title: string; count?: number; onMore?: () => void }) {
+function PanelHeader({ color, title, count, onMore, badge }: { color: string; title: string; count?: number; onMore?: () => void; badge?: number }) {
   return (
     <div
       className="flex items-center justify-between px-3 shrink-0"
@@ -462,12 +484,29 @@ function PanelHeader({ color, title, count, onMore }: { color: string; title: st
               color: '#ffd740', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 3,
               transition: 'all 0.15s',
+              position: 'relative',  // T23: 角标绝对定位锚点
             }}
           >
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffd740" strokeWidth="2.5">
               <path d="M9 18l6-6-6-6" />
             </svg>
             更多
+            {/* T23: 未处理告警角标（>0 时显示红点+数字，>99 显示 99+） */}
+            {badge !== undefined && badge > 0 && (
+              <span
+                data-testid="alert-pending-badge"
+                style={{
+                  position: 'absolute', top: -7, right: -7,
+                  minWidth: 16, height: 16, lineHeight: '16px',
+                  padding: '0 4px', borderRadius: 8,
+                  background: '#ff4444', color: '#fff',
+                  fontSize: 10, fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  boxShadow: '0 0 6px rgba(255,68,68,0.65)',
+                  pointerEvents: 'none',
+                }}
+              >{badge > 99 ? '99+' : badge}</span>
+            )}
           </button>
         )}
       </div>

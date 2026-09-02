@@ -4,6 +4,16 @@ import { apiFetch, authFetch } from '../lib/apiFetch'
 import type { AggregateWarning } from '../context/DashboardContext'
 import { AlertEvidenceModal } from './AlertEvidenceModal'
 import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
+import { playAlertChime, unlockAudioOnGesture } from '../lib/droneLive'
+
+// T23: 新告警提示音持久化 key（与无人机弹窗 jsc:drone-popup-sound 解耦，独立开关）
+const ALERT_SOUND_KEY = 'jsc:alert-sound'
+function loadAlertSoundPref(): boolean {
+  try { return localStorage.getItem(ALERT_SOUND_KEY) !== 'off' } catch { return true }
+}
+function saveAlertSoundPref(on: boolean) {
+  try { localStorage.setItem(ALERT_SOUND_KEY, on ? 'on' : 'off') } catch {}
+}
 
 const LEVEL_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
   1: { bg: 'rgba(33,150,243,0.1)', border: 'rgba(33,150,243,0.4)', text: '#64b5f6', label: '注意' },
@@ -139,6 +149,12 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   const [evidence, setEvidence] = useState<AlertItem | null>(null)
   // T17: 单行 AI 视频证据大图查看（轻量 viewer）
   const [viewImg, setViewImg] = useState<{ picUrl: string; time: string; type: string; location: string; confidence: number | null } | null>(null)
+  // T23: 新告警提醒（弹窗内轮询 diff + WebAudio 提示音，开关持久化 jsc:alert-sound）
+  const [soundOn, setSoundOn] = useState(loadAlertSoundPref)
+  // T23: 上次轮询拉取的告警 id 集合，用于 diff 新告警；首轮 size=0 不触发（避免初始化误报）
+  const prevIdsRef = useRef<Set<string>>(new Set())
+  // T23: 解锁 AudioContext（首次用户手势后无需再调）；mount 时执行一次
+  useEffect(() => { unlockAudioOnGesture() }, [])
 
   // ── T17: AggregateWarning → AlertItem 适配（聚合行「研判依据」入口复用 AlertEvidenceModal）──
   const aggToAlertItem = (a: AggregateWarning): AlertItem => ({
@@ -166,7 +182,8 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   // 拉取后端告警（聚合 + 平铺双请求合并）：
   //  - aggregate=1：命中推送规则的 pending 高频组折叠为聚合行（降噪）
   //  - 平铺全量：含已处理与气体等非聚合来源；剔除被折叠的成员记录，防与聚合行重复
-  const load = useCallback((silent = false) => {
+  //  - isPolling: true 表示本次为 10s 轮询触发（与 alerts:refresh 触发的 silent load 区分，仅轮询做新告警 diff）
+  const load = useCallback((silent = false, isPolling = false) => {
     const seq = ++seqRef.current
     if (!silent) setLoading(true)
     Promise.all([
@@ -181,9 +198,32 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         setAggregates(aggs)
         setRecords(flat.filter(w => !memberIds.has(w.id)))
         setLoading(false)
+
+        const curIds = new Set<string>()
+        for (const a of aggs) curIds.add(`${a.ruleId}:${a.channelSipId ?? ''}:${a.aiType}`)
+        for (const w of flat) if (w.status !== 'handled') curIds.add(w.id)
+        if (isPolling) {
+          const prev = prevIdsRef.current
+          // prev.size > 0 守卫：避免首次轮询把全部存量当新告警
+          if (prev.size > 0) {
+            const newIds = [...curIds].filter(id => !prev.has(id))
+            if (newIds.length > 0) {
+              const firstAgg = aggs.find(a => newIds.includes(`${a.ruleId}:${a.channelSipId ?? ''}:${a.aiType}`))
+              const firstFlat = flat.find(w => newIds.includes(w.id) && w.status !== 'handled')
+              const summary = firstAgg
+                ? `${firstAgg.channelName || '未命名'} · ${firstAgg.aiType || 'AI'} 频发 +${firstAgg.count}`
+                : firstFlat
+                  ? `${firstFlat.pointName || firstFlat.channelName || firstFlat.deviceName || '新告警'} · ${firstFlat.warningLabel || firstFlat.type || ''}`
+                  : `${newIds.length} 条新告警到达`
+              setToast({ msg: `🔔 ${summary}${newIds.length > 1 ? ` 等 ${newIds.length} 条` : ''}` })
+              if (soundOn) playAlertChime()
+            }
+          }
+        }
+        prevIdsRef.current = curIds  // 每次拉取都更新 prev（首次 mount 也设，后续轮询才有 diff 基线）
       })
       .catch(() => { if (seq === seqRef.current) setLoading(false) })
-  }, [])
+  }, [soundOn])
   useEffect(() => { load() }, [load])
 
   // ── T16/T17: 订阅 alerts:refresh —— 处置后仅静默重拉自身列表（弹窗不关闭、无整页刷新）──
@@ -196,7 +236,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   // T10: 弹窗打开且停在「未处理」tab 时每 10s 静默轮询 → 新告警自动出现、处理状态自愈
   useEffect(() => {
     if (tab !== 'pending') return
-    const timer = setInterval(() => load(true), 10000)
+    const timer = setInterval(() => load(true, true), 10000)  // T23: 第二参数 isPolling=true 启用新告警 diff
     return () => clearInterval(timer)
   }, [load, tab])
 
@@ -431,6 +471,18 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
               未处理 <span style={{ color: '#ff7043', fontFamily: "'JetBrains Mono', monospace" }}>{pending.length}</span>
               　已处理 <span style={{ color: GREEN, fontFamily: "'JetBrains Mono', monospace" }}>{handledList.length}</span>
             </span>
+            {/* T23: 新告警提示音开关（localStorage jsc:alert-sound，默认开） */}
+            <button
+              onClick={() => { const next = !soundOn; setSoundOn(next); saveAlertSoundPref(next); if (next) playAlertChime() }}
+              title={soundOn ? '关闭新告警提示音' : '开启新告警提示音'}
+              style={{
+                width: 28, height: 28, borderRadius: 4,
+                border: `1px solid ${soundOn ? 'rgba(0,230,118,0.3)' : 'rgba(120,140,160,0.3)'}`,
+                background: soundOn ? 'rgba(0,230,118,0.1)' : 'rgba(80,100,120,0.1)',
+                color: soundOn ? GREEN : '#8aa0b0', cursor: 'pointer', fontSize: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >{soundOn ? '🔔' : '🔕'}</button>
             <button onClick={onClose} style={{
               width: 28, height: 28, borderRadius: 4,
               border: '1px solid rgba(255,68,68,0.25)', background: 'rgba(255,68,68,0.1)',

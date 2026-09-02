@@ -1436,7 +1436,7 @@ function insertWarning(w) {
   db.prepare('INSERT OR REPLACE INTO warnings (id, created_at, status, warning_type, data_json) VALUES (?,?,?,?,?)')
     .run(w.id, w.createdAt ?? null, w.status ?? 'pending', w.warningType ?? null, JSON.stringify(w))
 }
-function queryWarnings({ type, excludeType, limit } = {}) {
+function queryWarnings({ type, excludeType, limit, status } = {}) {
   let sql = 'SELECT data_json FROM warnings'
   const args = []
   const where = []
@@ -1451,6 +1451,7 @@ function queryWarnings({ type, excludeType, limit } = {}) {
     const excludes = excludeType.split(',').map(t => t.trim()).filter(Boolean)
     if (excludes.length > 0) { where.push(`warning_type NOT IN (${excludes.map(() => '?').join(',')})`); args.push(...excludes) }
   }
+  if (status) { where.push('status = ?'); args.push(status) }
   if (where.length) sql += ' WHERE ' + where.join(' AND ')
   sql += ' ORDER BY rowid DESC'
   if (limit) { sql += ' LIMIT ?'; args.push(Number(limit)) }

@@ -1134,11 +1134,11 @@ app.get('/api/hourly-pollution', (req, res) => {
 })
 
 app.get('/api/warnings', (req, res) => {
-  const { type, exclude_type, limit, aggregate, lightweight } = req.query
+  const { type, exclude_type, limit, aggregate, lightweight, status } = req.query
   if (aggregate === '1' || aggregate === 'true') {
     return res.json(store.queryWarningsAggregated({ type: type || undefined, limit: Number(limit) || 200, lightweight: lightweight === '1' || lightweight === 'true' }))
   }
-  res.json(store.queryWarnings({ type: type || undefined, excludeType: exclude_type || undefined, limit: Number(limit) || 200 }))
+  res.json(store.queryWarnings({ type: type || undefined, excludeType: exclude_type || undefined, limit: Number(limit) || 200, status: status || undefined }))
 })
 
 // 按 id 批量查询 warning 成员详情（供研判依据弹窗按需拉取，需登录）
