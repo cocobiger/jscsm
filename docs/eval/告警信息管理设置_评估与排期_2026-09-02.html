@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>告警信息管理设置 · 评估与排期（2026-09-02）</title>
+<style>
+  :root {
+    --primary: #0a4a8a;
+    --accent:  #0d6efd;
+    --warn:    #d97706;
+    --danger:  #dc2626;
+    --ok:      #16a34a;
+    --bg:      #f6f8fb;
+    --panel:   #ffffff;
+    --line:    #e2e8f0;
+    --text:    #1f2937;
+    --muted:   #64748b;
+    --shadow:  0 2px 12px rgba(15, 30, 60, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 14px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px 64px; }
+  .header {
+    background: linear-gradient(135deg, #0a4a8a 0%, #0d6efd 100%);
+    color: #fff;
+    padding: 32px 28px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+  }
+  .header h1 { margin: 0 0 8px; font-size: 24px; font-weight: 700; letter-spacing: 0.02em; }
+  .header .subtitle { font-size: 13px; opacity: 0.85; margin-bottom: 16px; }
+  .header .meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; opacity: 0.92; }
+  .header .meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .card {
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 17px;
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 { font-size: 15px; color: var(--text); margin: 18px 0 10px; }
+  .card h4 { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+
+  .emoji-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-p0 { background: #fee2e2; color: #b91c1c; }
+  .tag-p1 { background: #fef3c7; color: #b45309; }
+  .tag-p2 { background: #dbeafe; color: #1e40af; }
+  .tag-ok { background: #dcfce7; color: #166534; }
+  .tag-warn { background: #fef3c7; color: #b45309; }
+  .tag-danger { background: #fee2e2; color: #b91c1c; }
+  .tag-info { background: #e0e7ff; color: #3730a3; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { padding: 8px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; color: var(--text); font-weight: 600; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  td code, th code {
+    background: #f1f5f9; padding: 1px 6px; border-radius: 3px;
+    font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 12px; color: var(--accent);
+  }
+  pre {
+    background: #0f172a; color: #e2e8f0; padding: 12px 16px;
+    border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.55;
+    font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  pre .comment { color: #94a3b8; }
+  pre .kw { color: #c084fc; }
+  pre .str { color: #86efac; }
+
+  .callout {
+    background: #fff7ed;
+    border-left: 4px solid var(--warn);
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+  .callout.danger { background: #fef2f2; border-left-color: var(--danger); }
+  .callout.ok { background: #f0fdf4; border-left-color: var(--ok); }
+  .callout.info { background: #eff6ff; border-left-color: var(--accent); }
+
+  .plan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 12px 0;
+  }
+  .plan-card {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    background: #fafbfc;
+  }
+  .plan-card.featured {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, #eff6ff 0%, #fafbfc 100%);
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
+  }
+  .plan-card h4 { margin: 0 0 8px; color: var(--primary); font-size: 15px; }
+  .plan-card .desc { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+  ul li, ol li { margin-bottom: 4px; }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li::before { content: "☐ "; color: var(--accent); font-weight: bold; }
+  .arrow-list { list-style: none; padding-left: 0; }
+  .arrow-list li::before { content: "→ "; color: var(--primary); font-weight: bold; }
+
+  .decision-table th { background: #fef3c7; }
+  .decision-table td:first-child { font-weight: 600; color: var(--text); }
+
+  .footer-note {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>🚨 告警信息管理设置 · 评估与排期</h1>
+  <div class="subtitle">实时告警「市监测站」误报排查 + 信息过滤需求评估 · Task #76</div>
+  <div class="meta">
+    <span>📅 评估日期：2026-09-02 16:48</span>
+    <span>👤 评估人：Kai 🛠️</span>
+    <span>📦 项目：JSC 生态环境政务驾驶舱</span>
+    <span>🔗 关联 Task：#74/#75 无人机回传弹窗（已落地）</span>
+  </div>
+</div>
+
+<!-- 一、业务诉求 -->
+<div class="card">
+  <h2>① 业务诉求（用户原话拆解）</h2>
+  <div class="callout info">
+    <strong>用户原话：</strong>驾驶舱前端的实时告警信息里有很多来自于市监测站的信息，这些告警信息来源于哪儿？是否为误报？本系统是否应该单独做一个告警信息的管理的设置，以进行信息过滤？请评估这个需求，并进行任务排期。
+  </div>
+  <h3>三个核心问题</h3>
+  <ol>
+    <li><strong>来源：</strong>截图里的"市监测站"告警是从哪条数据链路过来的？</li>
+    <li><strong>误报：</strong>这些告警是真的环境监测事件，还是系统设计缺陷导致显示错乱？</li>
+    <li><strong>过滤：</strong>驾驶舱是否需要新增"告警信息管理设置"功能，让用户主动按维度（来源/位置/置信度/等级）过滤告警？</li>
+  </ol>
+</div>
+
+<!-- 二、截图真相溯源 -->
+<div class="card">
+  <h2>② 截图真相溯源（数据链路梳理）</h2>
+
+  <h3>2.1 截图特征观察</h3>
+  <table>
+    <thead>
+      <tr><th>观察项</th><th>截图实测值</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>未处理 / 已处理</td><td><strong>511</strong> / 0</td></tr>
+      <tr><td>时间范围</td><td>09-01 14:47 ~ 09-02 13:34（约 23 小时）</td></tr>
+      <tr><td>告警来源标签</td><td>14 条 <code>市监测站</code> + 1 条 <code>轻度 聚合 null 检测到秸秆燃烧 频发</code></td></tr>
+      <tr><td>市监测站告警特征</td><td><code>注意(1级)</code> + <code>置信度 37%~90%</code> + <code>限值 —</code></td></tr>
+      <tr><td>聚合告警特征</td><td><code>轻度</code> + <code>聚合</code> 标签 + <code>24h 内 8+ 条 · 共 8 条命中</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>2.2 真实数据链路（3 路写入 <code>warnings</code> 表）</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>来源</th><th>代码模块</th><th>触发频率</th><th><code>pointName</code>/<code>channelName</code></th><th>显示特征</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="emoji-tag tag-info">气体监测</span></td>
+        <td><code>datasources.json</code> → <code>cq_api</code> → <code>warning-engine.js</code></td>
+        <td>每 5 min（300s）</td>
+        <td><strong>周家坝 / 百安坝</strong>（有明确地点）</td>
+        <td><code>PM2.5/PM10/CO</code> + <code>value</code> + <code>standardValue</code>（如「78 μg/m³ 限值70」）</td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-warn">AI 视频分析</span></td>
+        <td><code>iot-fetcher.js</code>（IoTCloud）</td>
+        <td>每 30 s</td>
+        <td><strong>九龙沙场</strong>（<code>spid=56331706881318000004</code>，唯一通道）</td>
+        <td><code>AI视频分析 · 堆头未覆盖</code> + <code>置信度 XX%</code> + <code>阈值 ≥50%</code></td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-ok">秸秆 / 城运</span></td>
+        <td><code>straw-engine</code> + 城运平台</td>
+        <td>事件触发</td>
+        <td>各异</td>
+        <td>各种业务告警（如截图中的「秸秆燃烧 频发」聚合行）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.3 关键发现：截图中的"市监测站"是 AI 视频类，不是气体监测类</h3>
+  <div class="callout danger">
+    <strong>⚠️ 重要真相：</strong>截图里那 14 条 <code>注意(1级)</code> + <code>置信度 XX%</code> + <code>限值 —</code> 的告警，<strong>99% 是来自九龙沙场摄像头的 AI 视频类告警</strong>，不是真正的市监测站气体监测告警！
+  </div>
+
+  <p><strong>证据链：</strong></p>
+  <ol class="arrow-list">
+    <li><code>iot-fetcher.js</code> 第 175 行写入：<code>value: \`置信度 ${Math.round(ai.confidence * 100)}%\`</code>、<code>standard: \`阈值 ≥50%\`</code></li>
+    <li>这正好是截图中显示的「置信度 37%~90%」+「限值 —」格式</li>
+    <li>气体监测类告警的特征是 <code>PM2.5 5小时增长预警</code> + 具体数值（截图中没有这种）</li>
+    <li>「市监测站」其实是 <strong>前端展示 Bug 的回退值</strong>（见下节）</li>
+  </ol>
+</div>
+
+<!-- 三、问题清单 -->
+<div class="card">
+  <h2>③ 问题清单（5 项 Bug/业务问题）</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:8%">编号</th>
+        <th style="width:12%">类型</th>
+        <th style="width:25%">问题描述</th>
+        <th style="width:40%">根因 / 位置</th>
+        <th style="width:15%">影响</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="emoji-tag tag-p0">P0</span></td>
+        <td>前端展示 Bug</td>
+        <td>AI 视频类告警全部显示为「市监测站」，无法区分摄像头/通道</td>
+        <td><code>AlertHistoryModal.tsx:111</code> <code>location: w.pointName || '市监测站'</code> ——AI 类无 <code>pointName</code>（用 <code>channelName</code>）</td>
+        <td><span class="emoji-tag tag-danger">高</span></td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-p0">P0</span></td>
+        <td>前端展示 Bug</td>
+        <td>AI 视频类告警「限值」字段全部显示 <code>—</code></td>
+        <td><code>AlertHistoryModal.tsx:113</code> 用 <code>w.standardValue</code>（数值字段），AI 类存 <code>standard="阈值 ≥50%"</code>（字符串），fallback 到 <code>reason || '—'</code></td>
+        <td><span class="emoji-tag tag-danger">高</span></td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>前端展示 Bug</td>
+        <td>告警列表无来源标识，气体监测 / AI 视频 / 秸秆 / 城运无法区分</td>
+        <td><code>AlertHistoryModal.tsx</code> 整段缺 <code>source</code> 字段渲染；<code>data_json.source</code> 已有 <code>iotcloud / cq_api / chengyun-platform / straw-engine</code> 四种枚举</td>
+        <td><span class="emoji-tag tag-warn">中</span></td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>业务噪音</td>
+        <td>511 条未处理告警，已处理 0；30s 轮询 + 无去重 + 推送规则未启用</td>
+        <td><code>iot-fetcher.js</code> 30s 拉取；<code>store-db.js queryWarningsAggregated</code> 已实现但默认 <code>aggregate=0</code></td>
+        <td><span class="emoji-tag tag-warn">中</span></td>
+      </tr>
+      <tr>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td>数据 Bug</td>
+        <td><code>iot-fetcher._lastRecordIds</code> 是进程内存 Set，<strong>服务重启后清空</strong>，导致重启期间旧告警被重复入库</td>
+        <td><code>iot-fetcher.js:54</code> <code>let _lastRecordIds = new Set()</code> —— 重启幂等性仅靠内存</td>
+        <td><span class="emoji-tag tag-info">低</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>📌 回答用户第 1/2 问：</strong>
+    <ul style="margin: 6px 0;">
+      <li><strong>来源：</strong>截图里「市监测站」不是真正的市监测站，是 AI 视频类告警前端显示 Bug 导致回退</li>
+      <li><strong>是否误报：</strong>告警数据本身有效（来自 IoTCloud 真烟/堆头等 AI 识别），但<strong>展示错乱让用户看起来像误报</strong>，且业务量（30s/次 × 511 条）过高确实需要降噪</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 四、方案对比 -->
+<div class="card">
+  <h2>④ 方案对比（A 最小 / B 标准 / C 完整）</h2>
+
+  <div class="plan-grid">
+    <div class="plan-card">
+      <h4>A 最小方案</h4>
+      <div class="desc">仅修 2 个前端展示 Bug，立竿见影</div>
+      <ul style="font-size:12px;">
+        <li>✅ Bug A：修复 location 字段读取（同时识别 pointName / channelName）</li>
+        <li>✅ Bug B：修复 standard 字段（兼容 AI 类的 standard 字符串）</li>
+        <li>❌ Bug C / D / E 不动</li>
+      </ul>
+      <p><strong>工时：</strong>0.5 人日</p>
+      <p><strong>效果：</strong>用户立刻看到「九龙沙场 · 置信度 70% · 阈值 ≥50%」正确展示</p>
+    </div>
+
+    <div class="plan-card featured">
+      <h4>B 标准方案 ⭐ 推荐</h4>
+      <div class="desc">A + 启用推送规则聚合降噪 + 来源图标</div>
+      <ul style="font-size:12px;">
+        <li>✅ A 全部修复</li>
+        <li>✅ Bug C：4 类来源图标（📊气体 / 📹AI / 🔥秸秆 / 🏛城运）</li>
+        <li>✅ Bug D：默认 <code>aggregate=1</code>，启用已有 <code>queryWarningsAggregated</code> 聚合</li>
+        <li>✅ Bug D 加：iot-fetcher 加 <code>recordId</code> DB 持久化去重</li>
+        <li>❌ Bug E：进程重启幂等性</li>
+      </ul>
+      <p><strong>工时：</strong>2.5 人日</p>
+      <p><strong>效果：</strong>511 条 → 预估 50~80 条聚合；用户可一眼看出告警性质</p>
+    </div>
+
+    <div class="plan-card">
+      <h4>C 完整方案</h4>
+      <div class="desc">B + 新增告警信息管理后台（用户主动配置过滤规则）</div>
+      <ul style="font-size:12px;">
+        <li>✅ B 全部修复</li>
+        <li>✅ 后台新增「告警信息管理」Tab：按 5 维度配置过滤</li>
+        <li>  ① 来源（气体/AI/秸秆/城运，多选）</li>
+        <li>  ② 位置（具体摄像头/监测点）</li>
+        <li>  ③ AI 置信度阈值（≥X% 才入库）</li>
+        <li>  ④ 等级（重度/中度/轻度/注意，多选）</li>
+        <li>  ⑤ 时间窗（如「近 24h 同一通道同类告警≥N 条聚合」）</li>
+        <li>✅ Bug E：进程重启幂等性 + 升级 <code>push_rules</code> 已有方案</li>
+      </ul>
+      <p><strong>工时：</strong>5.5 人日</p>
+      <p><strong>效果：</strong>完全可配置，业务方按需调整</p>
+    </div>
+  </div>
+
+  <div class="callout ok">
+    <strong>📌 我的建议：分两批落地</strong>
+    <ul style="margin: 6px 0;">
+      <li><strong>第一批（P0 + 部分 P1）：方案 A + Bug C/D</strong> —— 1.5 人日，快速解决用户痛点</li>
+      <li><strong>第二批（P2）：方案 C 后台管理</strong> —— 4 人日，业务方按需配置</li>
+      <li>Bug E（去重持久化）可顺手做掉</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 五、任务排期 -->
+<div class="card">
+  <h2>⑤ 任务排期（按 P0/P1/P2 分批审批）</h2>
+
+  <h3>🟥 第一批：展示 Bug 修复 + 来源图标（1.5 人日，建议立即开工）</h3>
+  <table>
+    <thead>
+      <tr><th style="width:8%">ID</th><th style="width:12%">类型</th><th style="width:30%">任务</th><th style="width:30%">改动文件</th><th style="width:20%">验收</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>T1</td>
+        <td><span class="emoji-tag tag-p0">P0</span></td>
+        <td>修复 Bug A：<code>location</code> 字段兼容 <code>channelName</code></td>
+        <td><code>src/app/components/AlertHistoryModal.tsx:111</code></td>
+        <td>AI 类告警显示「九龙沙场」而非「市监测站」</td>
+      </tr>
+      <tr>
+        <td>T2</td>
+        <td><span class="emoji-tag tag-p0">P0</span></td>
+        <td>修复 Bug B：<code>standard</code> 字段兼容 AI 类字符串</td>
+        <td><code>src/app/components/AlertHistoryModal.tsx:113</code></td>
+        <td>AI 类告警显示「阈值 ≥50%」而非「—」</td>
+      </tr>
+      <tr>
+        <td>T3</td>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>来源图标：4 类 source 加图标（📊气体/📹AI/🔥秸秆/🏛城运）</td>
+        <td><code>AlertHistoryModal.tsx</code> + 新增 <code>SOURCE_ICONS</code> 常量</td>
+        <td>列表每条告警前有来源图标，鼠标悬浮显示全名</td>
+      </tr>
+      <tr>
+        <td>T4</td>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>启用推送规则聚合：前端默认 <code>aggregate=1</code></td>
+        <td><code>AlertHistoryModal.tsx:92</code>（已实现查询路径，加默认参数）</td>
+        <td>截图式样：511 条 → 50~80 条聚合</td>
+      </tr>
+      <tr>
+        <td>T5</td>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td><code>iot-fetcher</code> recordId 去重持久化（DB 表 + 启动加载）</td>
+        <td><code>server/iot-fetcher.js</code> + 新建 <code>iot_record_seen</code> 表</td>
+        <td>重启后不重复入库；归档对账数量稳定</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>🟧 第二批：告警信息管理后台（4 人日）</h3>
+  <table>
+    <thead>
+      <tr><th style="width:8%">ID</th><th style="width:12%">类型</th><th style="width:30%">任务</th><th style="width:30%">改动文件</th><th style="width:20%">验收</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>T6</td>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>后端：<code>alert_filter_rules</code> 表 + CRUD API</td>
+        <td><code>server/store-db.js</code> + <code>server/index.js</code></td>
+        <td><code>GET/POST/PATCH/DELETE /api/alert-filters</code></td>
+      </tr>
+      <tr>
+        <td>T7</td>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>查询层：<code>queryWarnings</code> 增加过滤逻辑</td>
+        <td><code>server/store-db.js queryWarnings</code></td>
+        <td>规则匹配项不出现在前端列表</td>
+      </tr>
+      <tr>
+        <td>T8</td>
+        <td><span class="emoji-tag tag-p1">P1</span></td>
+        <td>前端：「告警信息管理」设置页</td>
+        <td><code>src/app/components/admin/AlertFilterPage.tsx</code>（新）</td>
+        <td>5 维度配置 UI，规则即时生效</td>
+      </tr>
+      <tr>
+        <td>T9</td>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td>导航集成：「AI分析存档」Tab 加「告警过滤」子页</td>
+        <td><code>src/app/components/admin/IotArchivePage.tsx</code></td>
+        <td>管理员可进入并保存规则</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>🟨 第三批（可选）：体验打磨</h3>
+  <table>
+    <thead>
+      <tr><th style="width:8%">ID</th><th style="width:12%">类型</th><th style="width:30%">任务</th><th style="width:30%">改动文件</th><th style="width:20%">验收</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>T10</td>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td>弹窗期间自动轮询（每 10s）</td>
+        <td><code>AlertHistoryModal.tsx</code></td>
+        <td>新告警自动出现无需重开</td>
+      </tr>
+      <tr>
+        <td>T11</td>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td>标记处理乐观更新（避免全量重拉）</td>
+        <td><code>AlertHistoryModal.tsx</code></td>
+        <td>单条标记瞬时生效，无 loading 闪烁</td>
+      </tr>
+      <tr>
+        <td>T12</td>
+        <td><span class="emoji-tag tag-p2">P2</span></td>
+        <td>「全部标记处理」加 confirm 弹窗</td>
+        <td><code>AlertHistoryModal.tsx</code></td>
+        <td>误触保护</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>📅 总日历排期（预估）</h3>
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>工时</th><th>起止</th><th>阻塞</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>第一批（T1~T5）</td><td>1.5 人日</td><td>09-03 ~ 09-04</td><td>无</td></tr>
+      <tr><td>第二批（T6~T9）</td><td>4 人日</td><td>09-05 ~ 09-09</td><td>第一批完成</td></tr>
+      <tr><td>第三批（T10~T12）</td><td>2 人日</td><td>09-10 ~ 09-12</td><td>第二批完成（可推迟）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 六、落地步骤 -->
+<div class="card">
+  <h2>⑥ 落地步骤（第一批详细步骤）</h2>
+
+  <h3>Phase 1：代码改动</h3>
+  <ol>
+    <li><strong>本地基线 commit</strong>（避免 Windows 沙箱事故）：<code>git add -A && git commit -m "chore: pre-alert-filter-baseline"</code></li>
+    <li><strong>T1+T2 改 AlertHistoryModal.tsx</strong>：
+      <pre><span class="comment">// T1 修复 location：兼容 pointName / channelName</span>
+location: w.pointName || w.channelName || (w.source === 'cq_api' ? '市监测站' : '未命名通道'),
+
+<span class="comment">// T2 修复 standard：兼容字符串 standard 字段</span>
+standard: w.standardValue != null ? \`${w.standardValue}${w.unit ? ' ' + w.unit : ''}\`
+        : (w.standard || w.reason || '—'),</pre>
+    </li>
+    <li><strong>T3 加 SOURCE_ICONS 常量</strong>：
+      <pre><span class="kw">const</span> SOURCE_ICONS = {
+  cq_api: { icon: <span class="str">'📊'</span>, label: <span class="str">'气体监测'</span>, color: <span class="str">'#3b82f6'</span> },
+  iotcloud: { icon: <span class="str">'📹'</span>, label: <span class="str">'AI 视频分析'</span>, color: <span class="str">'#f59e0b'</span> },
+  <span class="str">'straw-engine'</span>: { icon: <span class="str">'🔥'</span>, label: <span class="str">'秸秆检测'</span>, color: <span class="str">'#ef4444'</span> },
+  <span class="str">'chengyun-platform'</span>: { icon: <span class="str">'🏛'</span>, label: <span class="str">'城运中心'</span>, color: <span class="str">'#8b5cf6'</span> },
+}</pre>
+    </li>
+    <li><strong>T4 默认 aggregate=1</strong>：<code>authFetch('/api/warnings?limit=500&aggregate=1')</code> 已存在，仅确认默认开启</li>
+    <li><strong>T5 新建 iot_record_seen 表</strong>：
+      <pre>CREATE TABLE IF NOT EXISTS iot_record_seen (
+  record_id TEXT PRIMARY KEY,
+  channel_sip_id TEXT,
+  created_at TEXT NOT NULL
+);</pre>
+      <code>iot-fetcher.js</code> 启动时 <code>SELECT record_id FROM iot_record_seen</code> 加载到 <code>_lastRecordIds</code>；每条入库后 <code>INSERT OR IGNORE</code></li>
+  </ol>
+
+  <h3>Phase 2：构建部署</h3>
+  <ol>
+    <li>本地 <code>pnpm typecheck</code>（硬门禁）+ <code>pnpm build</code></li>
+    <li>备份远端：<code>cp -r /opt/jsc/frontend /video/backups/jsc_frontend_0903_alertfilter</code></li>
+    <li><code>scp dist/* root@111.10.220.226:/opt/jsc/frontend/</code>（正斜杠）</li>
+    <li>后端改动需重启：<code>systemctl restart jsc-backend</code></li>
+  </ol>
+
+  <h3>Phase 3：headless 无头验收</h3>
+  <ol>
+    <li>复用 <code>infra/shot_dronepopup.cjs</code> 栈（chromium-1228 + page.route 拦 amap）</li>
+    <li>登录管理员 → 进入告警列表 → 验证：
+      <ul>
+        <li>AI 类告警显示「九龙沙场 · 置信度 70% · 阈值 ≥50%」</li>
+        <li>每条前有来源图标（📹AI）</li>
+        <li>聚合行格式正确（同堆堆 24h 内 X 条 共 Y 条命中）</li>
+        <li>重启后端 + iot-fetcher，旧 recordId 不重复入库</li>
+      </ul>
+    </li>
+    <li>对比 DB <code>warnings</code> 表 <code>SELECT COUNT(*) WHERE status='pending'</code>：511 → 预计 ≤100</li>
+  </ol>
+</div>
+
+<!-- 七、冲突排查 -->
+<div class="card">
+  <h2>⑦ 冲突排查 / 风险评估</h2>
+
+  <table>
+    <thead>
+      <tr><th style="width:20%">风险点</th><th style="width:30%">冲突 / 影响</th><th style="width:30%">缓解措施</th><th style="width:20%">等级</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>前端 location 字段兼容可能改到「市监测站」展示</td>
+        <td>周家坝/百安坝正常显示，但「AI 类有 channelName=九龙沙场」也可能改成别的值</td>
+        <td>回退策略 <code>(w.source === 'cq_api') ? '市监测站' : '未命名通道'</code>，区分来源</td>
+        <td><span class="emoji-tag tag-warn">中</span></td>
+      </tr>
+      <tr>
+        <td>T4 默认 aggregate=1 可能影响其他依赖</td>
+        <td>其他页（如驾驶舱 P2 弹窗、Top 榜单）若拉 <code>/api/warnings</code> 默认 <code>aggregate=0</code>，需同步升级</td>
+        <td>Grep 所有 <code>/api/warnings</code> 调用方，逐个评估是否需要聚合视图</td>
+        <td><span class="emoji-tag tag-warn">中</span></td>
+      </tr>
+      <tr>
+        <td>T5 新表 <code>iot_record_seen</code> 与 <code>_lastRecordIds</code> 内存态不一致</td>
+        <td>进程运行时新加 recordId 写 DB，但 <code>_lastRecordIds</code> Set 在内存；崩溃时可能丢少量</td>
+        <td>加 try/catch 失败回退到内存 + 日志告警；不影响业务</td>
+        <td><span class="emoji-tag tag-info">低</span></td>
+      </tr>
+      <tr>
+        <td>推送规则聚合后聚合行与原始记录「标记处理」联动</td>
+        <td>标记一条聚合 = 该组命中的全部原始记录标记 handled（设计已通过 grilling）</td>
+        <td>沿用已有方案 X（<code>/api/warnings/handle-group</code> 接口已实现）</td>
+        <td><span class="emoji-tag tag-ok">已解</span></td>
+      </tr>
+      <tr>
+        <td>Windows 沙箱事故（git 写操作后 src/ 消失）</td>
+        <td>本会话已复发 2 次</td>
+        <td><strong>大编辑/提交前先 commit 基线</strong>，勿依赖未跟踪文件</td>
+        <td><span class="emoji-tag tag-warn">中</span></td>
+      </tr>
+      <tr>
+        <td>typecheck 硬门禁</td>
+        <td>AlertHistoryModal.tsx 历史遗留类型错误可能被激活</td>
+        <td>本地 <code>node node_modules/typescript/bin/tsc --noEmit</code> 必须通过</td>
+        <td><span class="emoji-tag tag-ok">流程</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 八、风险回滚 -->
+<div class="card">
+  <h2>⑧ 风险回滚方案</h2>
+
+  <h3>8.1 文件级回滚（按惯例）</h3>
+  <ol>
+    <li><strong>前端回滚</strong>：<code>scp /video/backups/jsc_frontend_0903_alertfilter/{index.html,assets/*} root@111.10.220.226:/opt/jsc/frontend/</code></li>
+    <li><strong>后端回滚</strong>：<code>git checkout HEAD~1 -- server/index.js server/store-db.js server/iot-fetcher.js</code> + <code>scp</code> + <code>systemctl restart jsc-backend</code></li>
+    <li><strong>DB 回滚</strong>：<code>iot_record_seen</code> 表 DROP 无副作用（仅去重辅助）；<code>warnings</code> 表不动（脏数据由 handle-all 一次性清理）</li>
+  </ol>
+
+  <h3>8.2 数据回滚</h3>
+  <ul>
+    <li><strong>告警脏数据</strong>：若 AI 类 pointName 误改导致显示异常，<code>UPDATE warnings SET data_json = json_set(data_json, '$.location', '九龙沙场') WHERE json_extract(data_json, '$.source') = 'iotcloud'</code></li>
+    <li><strong>推送规则误启用</strong>：<code>UPDATE push_rules SET enabled = 0 WHERE id</code>（已有表，未启用过则空）</li>
+  </ul>
+
+  <h3>8.3 已知风险缓解</h3>
+  <div class="callout">
+    <ul style="margin: 6px 0;">
+      <li>⚠️ <strong>Windows 沙箱事故</strong>：本会话已复发 2 次，每次都是 git 写操作后 src/ 树"消失"<strong>> 大编辑前先 commit 基线</strong></li>
+      <li>⚠️ <strong>前端打包</strong>：<code>pnpm build</code> 可能需要 <code>node node_modules/vite/bin/vite.js build</code>（pnpm PATH 缺失）</li>
+      <li>⚠️ <strong>nginx 双配置</strong>：仅前端改动不需要改 nginx；若加新 API endpoint 则两文件（uav-sites + skymonitor.conf）都要加 location</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 九、决策点 -->
+<div class="card">
+  <h2>⑨ 决策点（用户拍板）</h2>
+  <table class="decision-table">
+    <thead>
+      <tr><th style="width:8%">#</th><th style="width:30%">决策点</th><th style="width:30%">建议</th><th style="width:32%">原因</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>D1</td>
+        <td>方案选择：A 最小 / B 标准 / C 完整</td>
+        <td><strong>B 标准（推荐）</strong></td>
+        <td>Bug A/B/C 解决用户痛点 + 启用推送规则把 511 条降到 50~80 条，2.5 人日即可</td>
+      </tr>
+      <tr>
+        <td>D2</td>
+        <td>告警信息管理后台：是否新增（C 完整方案）</td>
+        <td><strong>是</strong>，第二批 4 人日</td>
+        <td>业务方按 5 维度主动配置，比硬编码更灵活，符合「业务规则优先」原则</td>
+      </tr>
+      <tr>
+        <td>D3</td>
+        <td>第一批开工时机</td>
+        <td><strong>立即开工</strong></td>
+        <td>Bug A/B 是显示问题，对外影响大；511 条噪音持续困扰值守人员</td>
+      </tr>
+      <tr>
+        <td>D4</td>
+        <td>AI 视频告警入库的最低置信度</td>
+        <td><strong>保持 ≥50%（现状）</strong>，但加可配置项</td>
+        <td>当前阈值合理；后台管理可调，无需预先调整</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <strong>📌 我的最终建议：</strong>
+    <ol style="margin: 6px 0;">
+      <li>拍板 <strong>D1=B</strong> + <strong>D2=是</strong>（两批连续）</li>
+      <li>立即开工第一批（T1~T5），预计 09-04 完成</li>
+      <li>第二批（T6~T9）排到 09-05 ~ 09-09（4 人日）</li>
+      <li>第三批（T10~T12）体验优化按需排期</li>
+    </ol>
+  </div>
+</div>
+
+<!-- 十、结论 -->
+<div class="card">
+  <h2>⑩ 结论与下一步</h2>
+
+  <h3>📌 一句话结论</h3>
+  <div class="callout ok">
+    <strong>截图里"市监测站"+"置信度 XX%" + "限值 —" 不是误报，而是 AI 视频类告警前端展示 Bug（location 字段读错、standard 字段读错），同时缺少来源标识与推送规则聚合，导致 511 条噪音干扰。建议按 B 标准方案分两批落地（1.5d + 4d），先解决展示错乱，再建设后台管理。</strong>
+  </div>
+
+  <h3>📌 回答用户三个问题</h3>
+  <ol>
+    <li><strong>来源？</strong>截图里的"市监测站"实际是 AI 视频类告警（九龙沙场摄像头）的前端显示 Bug；真正的市监测站（气体监测）是另一个链路（datasources.json 周家坝/百安坝），有明确 value + standardValue。</li>
+    <li><strong>误报？</strong>不是误报。告警数据本身有效（IoTCloud 真实 AI 识别），但展示错乱 + 业务量过高（511 条）让用户误以为是误报。</li>
+    <li><strong>管理设置？</strong>建议做。按 B+C 分两批：先修 Bug + 启用聚合（1.5 人日），后建后台管理（4 人日，5 维度可配置）。</li>
+  </ol>
+
+  <h3>📌 排期与日历</h3>
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>工时</th><th>预计完成日</th><th>阻塞项</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>第一批（T1~T5）</td><td>1.5 人日</td><td>09-04</td><td>无</td></tr>
+      <tr><td>第二批（T6~T9）</td><td>4 人日</td><td>09-09</td><td>第一批完成</td></tr>
+      <tr><td>第三批（T10~T12）</td><td>2 人日</td><td>09-12（可推迟）</td><td>第二批完成</td></tr>
+    </tbody>
+  </table>
+
+  <h3>📌 待用户决策</h3>
+  <ul>
+    <li>🟡 <strong>D1</strong>：方案选择 A / B / C</li>
+    <li>🟡 <strong>D2</strong>：是否新增告警信息管理后台</li>
+    <li>🟡 <strong>D3</strong>：是否立即开工第一批</li>
+    <li>🟡 <strong>D4</strong>：AI 视频置信度阈值（保持 50% 或调整）</li>
+  </ul>
+
+  <div class="callout">
+    <strong>🎯 用户可立即下达的指令：</strong>
+    <ul style="margin: 6px 0;">
+      <li>「按 B 方案开工第一批」 → T1~T5 启动</li>
+      <li>「继续第二批」 → T6~T9 启动</li>
+      <li>「A 方案开工」 → 仅 T1+T2 启动</li>
+      <li>「调整 D4 阈值到 X%」 → iot-fetcher.js 改动</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer-note">
+  📄 评估文档 v1 · 2026-09-02 16:48 · Kai 🛠️ · 关联 Task #76
+</div>
+
+</div>
+</body>
+</html>
