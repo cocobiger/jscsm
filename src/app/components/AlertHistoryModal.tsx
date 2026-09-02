@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { apiFetch, authFetch } from '../lib/apiFetch'
 import type { AggregateWarning } from '../context/DashboardContext'
+import { AlertEvidenceModal } from './AlertEvidenceModal'
+import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
 
 const LEVEL_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
   1: { bg: 'rgba(33,150,243,0.1)', border: 'rgba(33,150,243,0.4)', text: '#64b5f6', label: '注意' },
@@ -46,6 +48,8 @@ interface WarnRecord {
   aiConfidence?: number
   channelSipId?: string
   picUrl?: string
+  // T18: 误报归因（后端 data_json.review 平铺；兼容旧秸秆复检字符串语义；旧记录无此字段）
+  review?: { verdict?: 'valid' | 'false' | 'miss'; note?: string; by?: string; at?: string } | string
 }
 
 // 统一的展示行结构
@@ -57,6 +61,10 @@ interface Row {
   sourceKey: string | null  // T3: 来源标识键（SOURCE_META）
   handled: boolean; handledAt?: string; handledBy?: string
   backend: boolean  // 是否后端记录（可持久化处理）
+  // T17: AI 视频单行证据大图查看（带图记录透传）
+  picUrl?: string; aiType?: string; aiConfidence?: number
+  // T18: 误报归因徽标（对象或秸秆复检字符串语义）
+  review?: { verdict?: 'valid' | 'false' | 'miss'; note?: string; by?: string; at?: string } | string
 }
 
 // 聚合告警行（命中推送规则后折叠为 1 条）
@@ -127,6 +135,33 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   const [expSources, setExpSources] = useState<string[]>([])
   const [expStatus, setExpStatus] = useState<'all' | 'pending' | 'handled'>('all')
   const [expLevels, setExpLevels] = useState<number[]>([])
+  // T17: 聚合行「研判依据」弹窗（agg → AlertItem 适配后复用 AlertEvidenceModal）
+  const [evidence, setEvidence] = useState<AlertItem | null>(null)
+  // T17: 单行 AI 视频证据大图查看（轻量 viewer）
+  const [viewImg, setViewImg] = useState<{ picUrl: string; time: string; type: string; location: string; confidence: number | null } | null>(null)
+
+  // ── T17: AggregateWarning → AlertItem 适配（聚合行「研判依据」入口复用 AlertEvidenceModal）──
+  const aggToAlertItem = (a: AggregateWarning): AlertItem => ({
+    id: `${a.ruleId}:${a.channelSipId ?? ''}:${a.aiType}`,
+    time: a.latestTime,
+    fullTime: fmtFull(a.latestTime),
+    location: a.channelName || '未命名点位',
+    type: `${a.aiType} 频发聚合`,
+    value: `${a.count}+ 条`,
+    standard: `${a.windowHours}h 时间窗`,
+    level: (a.maxLevel as 1 | 2 | 3 | 4) || 1,
+    lat: 0, lon: 0,
+    isAggregate: true,
+    ruleId: a.ruleId,
+    ruleName: `${a.channelName || ''} ${a.aiType} 推送规则`.trim() || '聚合推送规则',
+    aggregateAiType: a.aiType,
+    windowHours: a.windowHours,
+    count: a.count,
+    maxLevel: a.maxLevel,
+    latestTime: a.latestTime,
+    memberIds: a.memberIds,
+    status: 'pending',
+  })
 
   // 拉取后端告警（聚合 + 平铺双请求合并）：
   //  - aggregate=1：命中推送规则的 pending 高频组折叠为聚合行（降噪）
@@ -150,6 +185,13 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
       .catch(() => { if (seq === seqRef.current) setLoading(false) })
   }, [])
   useEffect(() => { load() }, [load])
+
+  // ── T16/T17: 订阅 alerts:refresh —— 处置后仅静默重拉自身列表（弹窗不关闭、无整页刷新）──
+  useEffect(() => {
+    const onRefresh = () => load(true)
+    window.addEventListener('alerts:refresh', onRefresh as EventListener)
+    return () => window.removeEventListener('alerts:refresh', onRefresh as EventListener)
+  }, [load])
 
   // T10: 弹窗打开且停在「未处理」tab 时每 10s 静默轮询 → 新告警自动出现、处理状态自愈
   useEffect(() => {
@@ -188,6 +230,11 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
       handledAt: w.handledAt ? fmtFull(w.handledAt) : undefined,
       handledBy: w.handledBy,
       backend: true,
+      // T17/T18: AI 视频证据图 + 误报归因（平铺透传，判空兼容旧记录）
+      picUrl: w.picUrl,
+      aiType: w.aiType,
+      aiConfidence: w.aiConfidence,
+      review: w.review || undefined,
     }
   })
 
@@ -264,6 +311,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   }
 
   // 标记处理 / 撤销（T11 乐观更新：后端成功后本地翻转 status，行在未处理/已处理列表间即时迁移）
+  // T16: 派发 refresh（single）让驾驶舱单条卡片同步；撤销传 status:'pending' 恢复
   const setStatus = async (row: Row, handled: boolean) => {
     if (!row.backend) return  // 内存告警（AI识别）无后端记录，跳过
     setBusy(true)
@@ -280,6 +328,9 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         handledBy: handled ? '值守人员' : undefined,
       } : w)))
       setToast({ msg: handled ? '已标记处理' : '已撤销处理' })
+      window.dispatchEvent(new CustomEvent('alerts:refresh', {
+        detail: { kind: 'single', id: row.id, status: handled ? 'handled' : 'pending' },
+      }))
     } catch (e: any) {
       setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
     } finally { setBusy(false) }
@@ -300,6 +351,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
       setAggregates([])
       const n = res?.handled
       setToast({ msg: typeof n === 'number' && n > 0 ? `已全部标记处理 ${n} 条` : '已全部标记处理' })
+      window.dispatchEvent(new CustomEvent('alerts:refresh', { detail: { kind: 'all', status: 'handled' } }))
     } catch (e: any) {
       setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
     } finally { setBusy(false) }
@@ -466,6 +518,12 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                           border: '1px solid rgba(0,230,118,0.35)', background: 'rgba(0,230,118,0.1)', color: GREEN,
                           cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap',
                         }}>标记处理</button>
+                        {/* T17: 聚合行「研判依据」→ 复用 AlertEvidenceModal（可查看成员证据并有效/误报处置） */}
+                        <button onClick={() => setEvidence(aggToAlertItem(a))} title="查看窗口内全部原始记录，支持有效/误报归因处置" style={{
+                          padding: '4px 12px', fontSize: 11, borderRadius: 3,
+                          border: '1px solid rgba(167,139,250,0.45)', background: 'rgba(124,58,237,0.14)', color: '#a78bfa',
+                          cursor: 'pointer', whiteSpace: 'nowrap',
+                        }}>🔍 研判依据</button>
                         <button onClick={() => toggleExpand(row.id)} style={{
                           padding: '4px 10px', fontSize: 11, borderRadius: 3,
                           border: '1px solid rgba(0,150,220,0.25)', background: 'rgba(0,100,180,0.1)', color: '#5a8aaa',
@@ -519,7 +577,22 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                   <span style={{ padding: '2px 7px', borderRadius: 2, flexShrink: 0, background: row.handled ? 'rgba(0,230,118,0.15)' : style.border, color: row.handled ? GREEN : style.text, fontSize: 11, fontWeight: 600 }}>{row.handled ? '已处理' : style.label}</span>
                   <span style={{ color: '#5a8aaa', fontSize: 11, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", minWidth: 96 }}>{row.fullTime}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 500 }}>{row.type}{!row.backend && <span style={{ color: '#3a5a70', fontSize: 10, marginLeft: 6 }}>AI</span>}</div>
+                    <div style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {row.type}
+                      {!row.backend && <span style={{ color: '#3a5a70', fontSize: 10 }}>AI</span>}
+                      {/* T18: 误报归因徽标（仅已处理行；对象 {verdict,note} 与秸秆复检字符串 'true'/'false'/'miss' 均兼容） */}
+                      {row.handled && (() => {
+                        const badge = reviewBadgeOf(row.review)
+                        if (!badge) return null
+                        const s = reviewBadgeStyle(badge.kind)
+                        return (
+                          <span title={badge.title} style={{
+                            padding: '0 5px', fontSize: 10, borderRadius: 2, whiteSpace: 'nowrap',
+                            border: `1px solid ${s.border}`, background: s.bg, color: s.color,
+                          }}>{badge.text}</span>
+                        )
+                      })()}
+                    </div>
                     <div style={{ color: '#5a8aaa', fontSize: 11 }}>{row.location}</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 120 }}>
@@ -532,16 +605,29 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                       <div style={{ color: GREEN, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>{row.handledAt}</div>
                     </div>
                   )}
-                  {row.backend ? (
-                    <button disabled={busy} onClick={() => setStatus(row, !row.handled)} style={{
-                      padding: '4px 12px', fontSize: 11, borderRadius: 3, flexShrink: 0,
-                      border: `1px solid ${row.handled ? 'rgba(0,150,220,0.25)' : 'rgba(0,230,118,0.35)'}`,
-                      background: row.handled ? 'rgba(0,100,180,0.1)' : 'rgba(0,230,118,0.1)',
-                      color: row.handled ? '#5a8aaa' : GREEN, cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap',
-                    }}>{row.handled ? '撤销处理' : '标记处理'}</button>
-                  ) : (
-                    <span style={{ flexShrink: 0, fontSize: 10, color: '#3a5a70', minWidth: 64, textAlign: 'center' }}>非采集类</span>
-                  )}
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {/* T17: AI 视频/秸秆类带图记录（含已处理）支持证据大图查看 */}
+                    {row.picUrl && (
+                      <button onClick={() => setViewImg({
+                        picUrl: row.picUrl!, time: row.fullTime, type: row.type,
+                        location: row.location, confidence: row.aiConfidence ?? null,
+                      })} title="查看该条告警的现场证据大图" style={{
+                        padding: '4px 10px', fontSize: 11, borderRadius: 3,
+                        border: '1px solid rgba(0,170,255,0.3)', background: 'rgba(0,170,255,0.1)', color: CYAN,
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}>证据</button>
+                    )}
+                    {row.backend ? (
+                      <button disabled={busy} onClick={() => setStatus(row, !row.handled)} style={{
+                        padding: '4px 12px', fontSize: 11, borderRadius: 3, flexShrink: 0,
+                        border: `1px solid ${row.handled ? 'rgba(0,150,220,0.25)' : 'rgba(0,230,118,0.35)'}`,
+                        background: row.handled ? 'rgba(0,100,180,0.1)' : 'rgba(0,230,118,0.1)',
+                        color: row.handled ? '#5a8aaa' : GREEN, cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                      }}>{row.handled ? '撤销处理' : '标记处理'}</button>
+                    ) : (
+                      <span style={{ flexShrink: 0, fontSize: 10, color: '#3a5a70', minWidth: 64, textAlign: 'center' }}>非采集类</span>
+                    )}
+                  </div>
                 </div>
               )
             })
@@ -712,6 +798,55 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
         }}>
           {toast.err ? '⚠️ ' : '✅ '}{toast.msg}
+        </div>
+      )}
+
+      {/* T17: 聚合行「研判依据」→ AlertEvidenceModal（zIndex 2000 天然盖过本弹窗 1000；处置后不关闭、经 alerts:refresh 同步） */}
+      {evidence && (
+        <AlertEvidenceModal
+          alert={evidence}
+          onClose={() => setEvidence(null)}
+        />
+      )}
+
+      {/* T17: 单行 AI 视频证据大图查看（轻量 viewer，替代外链新窗口） */}
+      {viewImg && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1500, background: 'rgba(2,6,16,0.9)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setViewImg(null)}>
+          <div style={{ width: 720, maxWidth: '92vw', background: 'linear-gradient(180deg,#081a36,#050f24)', border: '1px solid rgba(0,170,255,0.3)', borderRadius: 6, overflow: 'hidden', boxShadow: '0 0 50px rgba(0,120,255,0.18)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(0,150,220,0.2)', background: 'rgba(0,170,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  📷 {viewImg.type} · {viewImg.location}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                {viewImg.confidence != null && (
+                  <span style={{ color: '#ffd740', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+                    置信度 {(viewImg.confidence * 100).toFixed(0)}%
+                  </span>
+                )}
+                <span style={{ color: '#5a8aaa', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{viewImg.time}</span>
+                <button onClick={() => setViewImg(null)} style={{
+                  width: 26, height: 26, borderRadius: 4, cursor: 'pointer', fontSize: 13,
+                  border: '1px solid rgba(120,160,200,0.25)', background: 'transparent', color: '#5a7a90',
+                }}>✕</button>
+              </div>
+            </div>
+            <div style={{ background: '#020a18', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, maxHeight: '72vh' }}>
+              <img
+                src={`/api/iot-image?url=${encodeURIComponent(viewImg.picUrl)}`}
+                alt={viewImg.type}
+                style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).onerror = null
+                  e.currentTarget.src = ''
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

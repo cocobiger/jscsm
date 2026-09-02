@@ -2239,10 +2239,12 @@ app.delete('/api/alert-filters/:id', adminOnly, (req, res) => {
   res.json({ ok: true, deleted: c })
 })
 // 批量标记聚合组（聚合告警"标记处理"，需登录即可）
+// T18: body 可选 verdict/note 写入 data_json.review（误报归因持久化）
 app.post('/api/warnings/handle-group', (req, res) => {
-  const { memberIds, handledBy } = req.body || {}
+  const { memberIds, handledBy, verdict, note } = req.body || {}
   if (!Array.isArray(memberIds) || memberIds.length === 0) return res.status(400).json({ error: 'memberIds 必填且为非空数组' })
-  try { const n = store.handleGroupWarnings(memberIds, handledBy); res.json({ ok: true, handled: n }) }
+  const review = (verdict || note) ? { verdict, note, by: handledBy || '值守人员' } : null
+  try { const n = store.handleGroupWarnings(memberIds, handledBy, review); res.json({ ok: true, handled: n }) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 

@@ -2095,7 +2095,7 @@ function computeAiConfidenceStats(events) {
 }
 
 // 批量标记一组原始记录为已处理（聚合告警"标记处理"用）
-function handleGroupWarnings(memberIds, handledBy) {
+function handleGroupWarnings(memberIds, handledBy, review) {
   const now = new Date().toISOString()
   const upd = db.prepare('UPDATE warnings SET status = ?, data_json = ? WHERE id = ?')
   db.exec('BEGIN')
@@ -2105,6 +2105,15 @@ function handleGroupWarnings(memberIds, handledBy) {
       const w = getWarning(id)
       if (!w || w.status === 'handled') continue
       w.status = 'handled'; w.handledAt = now; w.handledBy = handledBy || '值守人员'
+      // T18: 误报归因持久化（review={verdict,note,by,at}）—— 向后兼容，无 review 时不写
+      if (review && (review.verdict || review.note)) {
+        w.review = {
+          verdict: review.verdict || 'valid',
+          note: review.note || '',
+          by: review.by || handledBy || '值守人员',
+          at: now,
+        }
+      }
       upd.run('handled', JSON.stringify(w), id)
       n++
     }

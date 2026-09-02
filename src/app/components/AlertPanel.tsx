@@ -100,12 +100,41 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   const [evidenceAlert, setEvidenceAlert] = useState<AlertItem | null>(null)
   const { externalAlerts, clearExternalAlerts } = useDashboard()
 
-  // 处置后刷新（AlertEvidenceModal 处置成功派发 alerts:reload）
+  // T16: 处置后轻刷新（alerts:refresh 事件总线）—— 替代原 alerts:reload 整页刷新
+  //   payload: { kind: 'group'|'single'|'all', memberIds?: string[], id?: string,
+  //              status?: 'handled'|'pending', verdict?: string, note?: string }
+  //   局部更新 alerts 状态而非 location.reload，弹窗/选中态/轮询保留
   useEffect(() => {
-    const onReload = () => window.location.reload()
-    window.addEventListener('alerts:reload', onReload)
-    return () => window.removeEventListener('alerts:reload', onReload)
-  }, [])
+    const onRefresh = (ev: Event) => {
+      const e = ev as CustomEvent<{ kind?: string; memberIds?: string[]; id?: string; status?: 'handled' | 'pending'; verdict?: string; note?: string }>
+      const detail = e.detail || {}
+      const next = detail.status === 'pending' ? 'pending' : 'handled'  // 默认置 handled；撤销传 pending
+      if (detail.kind === 'group' && Array.isArray(detail.memberIds)) {
+        const set = new Set(detail.memberIds)
+        setAlerts(prev => prev.map(a => {
+          if (a.isAggregate && a.memberIds?.some(id => set.has(id))) {
+            return { ...a, status: next }
+          }
+          // 单条记录若在 group 的 memberIds 中也视为已处置
+          if (!a.isAggregate && set.has(a.id)) {
+            return { ...a, status: next }
+          }
+          return a
+        }))
+        if (evidenceAlert && evidenceAlert.memberIds?.some(id => set.has(id))) {
+          setEvidenceAlert(null)
+        }
+      } else if (detail.kind === 'single' && detail.id) {
+        setAlerts(prev => prev.map(a => a.id === detail.id ? { ...a, status: next } : a))
+        if (evidenceAlert?.id === detail.id) setEvidenceAlert(null)
+      } else if (detail.kind === 'all') {
+        setAlerts(prev => prev.map(a => ({ ...a, status: 'handled' })))
+        setEvidenceAlert(null)
+      }
+    }
+    window.addEventListener('alerts:refresh', onRefresh as EventListener)
+    return () => window.removeEventListener('alerts:refresh', onRefresh as EventListener)
+  }, [evidenceAlert])
 
   // Merge externally pushed alerts (from admin / MQTT / 采集预警) into the list
   useEffect(() => {
