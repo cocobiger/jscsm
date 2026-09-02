@@ -60,7 +60,7 @@ function djiStreamId(cfg) {
 
 // ── 角色权限矩阵 ──────────────────────────────────────────────
 // 公开（无需登录）：登录接口 + 短信平台机器回调（靠 IP 白名单保障）
-const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check'])
+const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check', '/api/drone-events/ingest'])
 // 任意登录用户（含访客）可用的写操作：视频播放、登出、改自己密码
 const ANY_USER_WRITES = new Set([
   '/api/auth/logout', '/api/auth/me', '/api/auth/change-password',
@@ -1750,10 +1750,19 @@ async function strawWorkflow(warning, opts = {}) {
         : { msgtype: 'markdown', markdown: { content } }
       const wr = await fetch(resp.webhook, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+        body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
       }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
-      pushInfo.pushed = wr.errcode === 0
-      pushInfo.reason = wr.errcode === 0 ? '推送成功' : `推送失败(${wr.errmsg || wr.errcode})`
+      // wechat-bridge 特例: wechatauto 1.2.0 verify=True 在微信 4.1.12 上误报失败
+      // (消息实际已写入 DB 但 quick_send verify 回读对比失败)。webhook 指向 :18888
+      // 且 errcode=-1+errmsg 含 verify/target= 视为推送成功(2026-08-31 验证)。
+      const isBridge1 = resp.webhook && /:18888(\/|$|\?)/.test(resp.webhook)
+      const isVerifyFP1 = isBridge1 && wr.errcode === -1 && wr.errmsg && /verify|target=/.test(wr.errmsg)
+      pushInfo.pushed = wr.errcode === 0 || isVerifyFP1
+      pushInfo.reason = wr.errcode === 0
+        ? '推送成功'
+        : isVerifyFP1
+          ? '推送成功(wechatauto verify 误报已忽略)'
+          : `推送失败(${wr.errmsg || wr.errcode})`
       pushInfo.cardUrl = cardUrl
       pushInfo.webhook = resp.webhook.replace(/key=.*$/, 'key=***')
     } catch (e) {
@@ -1798,9 +1807,12 @@ async function strawCorrection(warning, note, reviewer) {
       const r = await fetch(resp.webhook, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ msgtype: 'markdown', markdown: { content } }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
-      ok = r.errcode === 0
+      // wechat-bridge verify 误报特例(同 1755-1763 注释)
+      const isBridge2 = resp.webhook && /:18888(\/|$|\?)/.test(resp.webhook)
+      const isVerifyFP2 = isBridge2 && r.errcode === -1 && r.errmsg && /verify|target=/.test(r.errmsg)
+      ok = r.errcode === 0 || isVerifyFP2
       failReason = ok ? '' : `推送失败(${r.errmsg || r.errcode})`
       if (!ok) console.error('[straw-correction] 更正推送失败:', r.errmsg || r.errcode)
     } catch (e) { failReason = '推送异常: ' + e.message }
@@ -1896,6 +1908,42 @@ app.get('/api/straw-engine/snapshot', async (req, res) => {
     res.json(await r.json())
   } catch (e) {
     res.status(500).json({ error: e.message })
+  }
+})
+
+// ── dock-guard 机场人员检测（布防配置 + 健康状态，驾驶舱「机场布防」页数据源）──
+const DOCK_GUARD_URL = () => process.env.DOCK_GUARD_URL || 'http://127.0.0.1:7210'
+app.get('/api/dock-guard/status', async (req, res) => {
+  try {
+    const r = await fetch(DOCK_GUARD_URL() + '/health', { signal: AbortSignal.timeout(5 * 1000) })
+    if (!r.ok) return res.status(r.status).json({ error: 'dock-guard health ' + r.status })
+    res.json(await r.json())
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+app.get('/api/dock-guard/config', async (req, res) => {
+  try {
+    const r = await fetch(DOCK_GUARD_URL() + '/api/config', { signal: AbortSignal.timeout(5 * 1000) })
+    if (!r.ok) return res.status(r.status).json({ error: 'dock-guard config ' + r.status })
+    res.json(await r.json())
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+app.put('/api/dock-guard/config', async (req, res) => {
+  try {
+    const r = await fetch(DOCK_GUARD_URL() + '/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body || {}),
+      signal: AbortSignal.timeout(8 * 1000),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) return res.status(r.status).json(data)
+    res.json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
   }
 })
 
@@ -3299,6 +3347,12 @@ app.listen(PORT, () => {
     sikong.registerSikongRoutes(app)
     log.info('司空2 对接模块已启动（/api/sikong/*）')
   } catch (e) { log.error('司空2 对接模块启动失败: ' + e.message) }
+  // 无人机直播事件链路（T1：webhook 事件落库 + dockSn 白名单过滤 + SSE 广播，弹窗需求前置）
+  try {
+    const droneEvents = require('./drone-events.js')
+    droneEvents.registerDroneEventsRoutes(app, { store, log })
+    log.info('无人机直播事件模块已启动（/api/drone-events/*，dockSn 白名单 + SSE）')
+  } catch (e) { log.error('无人机直播事件模块启动失败: ' + e.message) }
   log.info(`数据库: ${path.join(DATA_DIR, 'jsc.db')}（视频流/点位/数据源/采集/预警等已全部入库）`)
   // 行政边界初始化：表空则从 geojson seed，然后注入内存索引（支持后台热更新/回滚）
   try {
