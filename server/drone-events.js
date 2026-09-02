@@ -162,9 +162,13 @@ function registerDroneEventsRoutes(app, { store, log }) {
     res.write(': connected\n\n')
     const client = { res, alive: true }
     clients.add(client)
+    // 心跳：必须发「数据帧」而非注释行（缺陷②修复 2026-09-03）—— 注释行 `: ping` 到达浏览器
+    // 不触发任何事件，前端 45s 看门狗无法喂狗会把健康空闲连接误判半死强重建；
+    // 数据帧 `data: {...}` 触发 onmessage（type!=drone-live 被忽略但刷新存活时间），
+    // 同时任意字节都刷新 nginx/代理保活窗口，一举两得。
     const hb = setInterval(() => {
       if (!client.alive) { clearInterval(hb); return }
-      try { res.write(': ping\n\n') } catch (e) { client.alive = false }
+      try { res.write('data: {"type":"ping"}\n\n') } catch (e) { client.alive = false }
     }, KEEPALIVE_MS)
     req.on('close', () => {
       client.alive = false

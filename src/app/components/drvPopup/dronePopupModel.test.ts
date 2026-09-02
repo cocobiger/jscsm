@@ -67,6 +67,17 @@ describe('liveOn 上窗', () => {
     expect(r.state).toBe(s0)
   })
 
+  it('缺陷①回归：zlm_online=0（ZLM mirror 未接入）的 LIVE_ON 同样上窗且 phase=resolving', () => {
+    // 18:00 真机实证：ingest 入库瞬间 mirror 拉流代理 ~9s 后才建立 → 真实事件 zlm_online 恒=0。
+    // 回灌/广播不得因 zlm=0 丢弃；条目 zlmOnline=false 上窗，由 host 解析轮询等 mirror 就绪回写。
+    const r = liveOn(emptyState(), evt('A', 'DOCK1', { zlm_online: 0 }), now0)
+    expect(r.placed).toBe('window')
+    expect(r.state.windows).toHaveLength(1)
+    expect(r.state.windows[0].zlmOnline).toBe(false)
+    expect(r.state.windows[0].phase).toBe('resolving')
+    expect(r.state.windows[0].url).toBe('')
+  })
+
   it('决策 D2：满窗队未满 → 折叠「最新打开窗口」入队，新事件上窗', () => {
     const s0 = addMany(emptyState(), ['A', 'B'])       // 窗满 [A,B]
     const r = liveOn(s0, evt('C'), now0)

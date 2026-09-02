@@ -133,7 +133,12 @@ export function DronePopupHost() {
     })
   }, [])
 
-  // ── 挂载：音频手势解锁 + 回灌在飞（silent；limit=80 取每机最新 LIVE_ON&zlm_online=1）──
+  // ── 挂载：音频手势解锁 + 回灌在飞（silent；limit=80 取每机最新 LIVE_ON）──
+  // 缺陷①修复（2026-09-03）：去掉 zlm_online===1 硬过滤 —— ingest 入库瞬间 ZLM mirror 尚未被
+  // dji-openapi 拉流代理接入（实证：事件 18:10:32 vs addStreamProxy 18:10:41，约 9s 后才上线），
+  // 真实事件 zlm_online 恒=0，硬过滤导致回灌恒空、刷新页面在飞无人机永不弹窗。
+  // 去掉过滤后条目以 zlmOnline=false 上窗（phase=resolving），由 4s 解析轮询等 mirror 就绪
+  // 回写 url/ready —— 与 SSE 实时事件路径完全一致。
   useEffect(() => {
     if (!enabled) return
     unlockAudioOnGesture()
@@ -144,7 +149,7 @@ export function DronePopupHost() {
         const latest = new Map<string, any>()
         for (const r of d.items) if (r?.device_sn && !latest.has(r.device_sn)) latest.set(r.device_sn, r)
         const rows = [...latest.values()]
-          .filter(r => String(r.whitelisted) === '1' && String(r.status).startsWith('LIVE_ON') && Number(r.zlm_online) === 1)
+          .filter(r => String(r.whitelisted) === '1' && String(r.status).startsWith('LIVE_ON'))
           .sort((a, b) => (Date.parse(a.event_time || '') || 0) - (Date.parse(b.event_time || '') || 0))
           .slice(-(DRONE_WINDOW_MAX + DRONE_QUEUE_MAX))
         for (const row of rows) {
@@ -154,7 +159,7 @@ export function DronePopupHost() {
             dockSn: String(row.dock_sn || ''),
             streamId: row.stream_id || `sikong_${row.device_sn}`,
             ts: isNaN(t) ? Date.now() : t,
-            zlm_online: 1,
+            zlm_online: Number(row.zlm_online) || 0,   // 如实传递：0=待解析，不伪造在线
           })
           if (r2.state !== stateRef.current) commit(r2.state)
         }
@@ -176,37 +181,94 @@ export function DronePopupHost() {
     }
   }, [enabled, scanResolve])
 
-  // ── SSE 订阅（?token= 鉴权；断线 8s 手动重建）──
+  // ── SSE 订阅（?token= 鉴权；加固版：数据帧心跳喂狗 + 45s 看门狗强重建 + 退避重连 + 前台兜底）──
+  // 缺陷②修复（2026-09-03）：旧实现只处理 onerror 的 CLOSED 分支，无法感知三类断连 ——
+  //   ① 代理/nginx 静默丢连接（TCP 半死，不触发 error、write 仍"成功"）；
+  //   ② 后端重启后浏览器对已结束响应不自动重连；
+  //   ③ 后台标签页被系统节流，恢复后事件流已断。
+  // 依赖：服务端心跳必须是「数据帧」（data: {"type":"ping"}）而非注释行 —— 注释行不触发
+  // 浏览器任何事件，无法喂狗；数据帧到达 onmessage（type!=drone-live 时忽略但刷新存活时间）。
   useEffect(() => {
     if (!enabled) return
     const token = getToken()
     if (!token) return
+
+    const PING_TIMEOUT_MS = 45_000   // 超过该时长未收到任何服务端数据帧 → 判定半死
+    const WATCHDOG_TICK_MS = 5_000   // 看门狗节拍（< 心跳 25s 余量充足）
+    const MAX_BACKOFF_MS = 30_000    // 重连退避上限（初次 1s，翻倍封顶）
+
     let es: EventSource | null = null
     let retryTimer: number | null = null
+    let watchdog: number | null = null
+    let backoff = 1_000
+    let lastActivity = Date.now()    // 共享：onmessage/onopen 刷新，看门狗与前台兜底读取
+
+    const stopWatchdog = () => { if (watchdog) { clearInterval(watchdog); watchdog = null } }
+
+    const scheduleReconnect = () => {
+      if (retryTimer) return
+      retryTimer = window.setTimeout(() => { retryTimer = null; connect() }, backoff)
+      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
+    }
+
     const connect = () => {
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
+      stopWatchdog()
       try { es?.close() } catch {}
       es = new EventSource(`/api/drone-events/stream?token=${encodeURIComponent(token)}`)
+      lastActivity = Date.now()
+
+      // 任何数据帧（含服务端 ping 心跳）→ 刷新存活时间
       es.onmessage = (m) => {
+        lastActivity = Date.now()
         try {
           const evt = JSON.parse(m.data) as DroneLiveEvt
-          if (!evt || evt.type !== 'drone-live' || !evt.deviceSn) return
+          if (!evt || evt.type !== 'drone-live' || !evt.deviceSn) return   // ping/无关帧：仅喂狗
           if (Number(evt.on) === 1) handleLiveOn(evt, false)
           else handleLiveOff(String(evt.deviceSn))
-        } catch { /* 心跳/注释行等忽略 */ }
+        } catch { /* 非 JSON 帧忽略（喂狗已发生） */ }
       }
+      es.onopen = () => { lastActivity = Date.now(); backoff = 1_000 }
       es.onerror = () => {
-        // readyState CLOSED（如 401）后浏览器不再自动重连 → 稍后手动重建
+        // CONNECTING：浏览器对瞬时断网自动重连，无需干预（看门狗兜半死）
+        // CLOSED（401 / 服务端已结束响应 / 后端重启）：浏览器不再自动重连 → 退避手动重建
         if (es && es.readyState === EventSource.CLOSED) {
           try { es.close() } catch {}
           es = null
-          retryTimer = window.setTimeout(connect, 8000)
+          stopWatchdog()
+          scheduleReconnect()
         }
       }
+
+      // 看门狗：静默半死（代理丢连接）无任何 error，只能靠「长时间无数据帧」探测
+      watchdog = window.setInterval(() => {
+        if (!es) return
+        if (Date.now() - lastActivity > PING_TIMEOUT_MS) {
+          console.warn('[drone-popup] SSE 看门狗触发：45s 无服务端数据，强重建')
+          try { es.close() } catch {}
+          es = null
+          stopWatchdog()
+          scheduleReconnect()
+        }
+      }, WATCHDOG_TICK_MS)
     }
+
+    // 前台兜底：切回可见时连接不在 OPEN 或已静止超时 → 立即重建（复位退避，最及时）
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!es || es.readyState !== EventSource.OPEN || Date.now() - lastActivity > PING_TIMEOUT_MS) {
+        backoff = 1_000
+        connect()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
     connect()
     return () => {
-      try { es?.close() } catch {}
+      document.removeEventListener('visibilitychange', onVisibility)
       if (retryTimer) clearTimeout(retryTimer)
+      stopWatchdog()
+      try { es?.close() } catch {}
     }
   }, [enabled, handleLiveOn, handleLiveOff])
 
