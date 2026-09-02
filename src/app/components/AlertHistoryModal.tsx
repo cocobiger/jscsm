@@ -118,6 +118,15 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   const seqRef = useRef(0)
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
+  // T15: 导出面板（时间范围/来源/状态/等级 多条件 → 服务端 /api/warnings/export）
+  const [showExport, setShowExport] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [expRange, setExpRange] = useState<'all' | '7d' | '30d' | 'custom'>('all')
+  const [expFrom, setExpFrom] = useState('')
+  const [expTo, setExpTo] = useState('')
+  const [expSources, setExpSources] = useState<string[]>([])
+  const [expStatus, setExpStatus] = useState<'all' | 'pending' | 'handled'>('all')
+  const [expLevels, setExpLevels] = useState<number[]>([])
 
   // 拉取后端告警（聚合 + 平铺双请求合并）：
   //  - aggregate=1：命中推送规则的 pending 高频组折叠为聚合行（降噪）
@@ -296,22 +305,45 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     } finally { setBusy(false) }
   }
 
-  // 导出 CSV
-  const exportCsv = () => {
-    const head = ['时间', '等级', '类型', '点位', '数值', '标准/限值', '状态', '处理时间']
-    const lvLabel = (l: number) => LEVEL_COLORS[l]?.label || ''
-    const rows = allRows.map(r => {
-      if (r.kind === 'aggregate') {
-        return [r.fullTime, lvLabel(r.level), `${r.agg.channelName} 检测到 ${r.agg.aiType} 频发（聚合 ${r.agg.count} 条）`, `${r.agg.windowHours}h 时间窗`, '', '', '未处理', '']
+  // T15: 导出 CSV（改调服务端 /api/warnings/export：可全量、按时间/来源/状态/等级过滤）
+  const doExport = async () => {
+    setExporting(true)
+    try {
+      const params = new URLSearchParams()
+      if (expStatus !== 'all') params.set('status', expStatus)
+      if (expSources.length) params.set('source', expSources.join(','))
+      if (expLevels.length) params.set('level', expLevels.join(','))
+      // 时间范围：全部 / 近7天 / 近30天 / 自定义（from 为空不传，服务端 to 可单边）
+      if (expRange === '7d') params.set('from', new Date(Date.now() - 7 * 864e5).toISOString())
+      else if (expRange === '30d') params.set('from', new Date(Date.now() - 30 * 864e5).toISOString())
+      else if (expRange === 'custom') {
+        if (expFrom) params.set('from', new Date(expFrom).toISOString())
+        if (expTo) params.set('to', new Date(expTo).toISOString())
       }
-      return [r.fullTime, lvLabel(r.level), r.type, r.location, r.value, r.standard, r.handled ? '已处理' : '未处理', r.handledAt || '']
-    })
-    const csv = [head, ...rows].map(cols => cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })  // BOM 防 Excel 乱码
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `告警记录_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click(); URL.revokeObjectURL(url)
+      if (keyword.trim()) params.set('q', keyword.trim())
+      const resp = await authFetch(`/api/warnings/export?${params.toString()}`)
+      if (!resp.ok) {
+        let msg = `导出失败 (HTTP ${resp.status})`
+        try { const j = await resp.json(); if (j?.error) msg = j.error } catch {}
+        setToast({ msg, err: true })
+        return
+      }
+      const total = Number(resp.headers.get('X-Warnings-Total') || '0')
+      const truncated = resp.headers.get('X-Warnings-Truncated') === '1'
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `告警记录_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      setShowExport(false)
+      setToast({ msg: truncated ? `已导出前 ${total} 条（结果超 5 万，已截断，请缩小时间范围）` : `已导出 ${total} 条告警明细` })
+    } catch (e: any) {
+      setToast({ msg: `导出失败：${e?.error || '网络错误'}`, err: true })
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -386,7 +418,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
             padding: '5px 10px', width: 160, background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)',
             borderRadius: 3, color: '#c8e6ff', fontSize: 12, outline: 'none', marginBottom: 6,
           }} />
-          <button onClick={exportCsv} style={{
+          <button onClick={() => setShowExport(true)} title="按时间范围/来源/状态/等级导出明细 CSV（可全量）" style={{
             padding: '5px 12px', fontSize: 12, borderRadius: 3, marginBottom: 6,
             border: '1px solid rgba(0,170,255,0.3)', background: 'rgba(0,170,255,0.08)', color: CYAN, cursor: 'pointer',
           }}>导出CSV</button>
@@ -534,6 +566,111 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {/* T15: 导出设置面板（服务端流式导出：时间范围 / 来源 / 状态 / 等级） */}
+      {showExport && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget && !exporting) setShowExport(false) }}>
+          <div style={{ width: 460, maxWidth: '90vw', background: 'linear-gradient(180deg,#081a36,#050f24)', border: '1px solid rgba(0,170,255,0.35)', borderRadius: 6, padding: '16px 20px 14px', boxShadow: '0 0 40px rgba(0,120,255,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 15 }}>📤</span>
+                <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>导出告警明细 CSV</span>
+              </div>
+              <button disabled={exporting} onClick={() => setShowExport(false)} style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid rgba(120,160,200,0.25)', background: 'transparent', color: '#5a7a90', cursor: exporting ? 'wait' : 'pointer', fontSize: 12 }}>✕</button>
+            </div>
+            <div style={{ color: '#5a7a90', fontSize: 11, marginBottom: 12 }}>服务端全量导出（上限 5 万行）· 聚合组自动展开为成员明细 · 不受展示过滤规则影响</div>
+
+            {/* 时间范围 */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: '#7ab8e0', fontSize: 11, marginBottom: 4 }}>时间范围</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {([['all', '全部'], ['7d', '近7天'], ['30d', '近30天'], ['custom', '自定义']] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setExpRange(key)} style={{
+                    padding: '3px 12px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+                    border: `1px solid ${expRange === key ? 'rgba(0,170,255,0.55)' : 'rgba(0,100,180,0.25)'}`,
+                    background: expRange === key ? 'rgba(0,170,255,0.16)' : 'rgba(0,80,160,0.08)',
+                    color: expRange === key ? CYAN : '#5a8aaa',
+                  }}>{label}</button>
+                ))}
+              </div>
+              {expRange === 'custom' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <input type="datetime-local" value={expFrom} onChange={e => setExpFrom(e.target.value)} style={{ padding: '4px 6px', background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff', fontSize: 11, outline: 'none', colorScheme: 'dark' }} />
+                  <span style={{ color: '#3a5a70', fontSize: 11 }}>至</span>
+                  <input type="datetime-local" value={expTo} onChange={e => setExpTo(e.target.value)} style={{ padding: '4px 6px', background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff', fontSize: 11, outline: 'none', colorScheme: 'dark' }} />
+                </div>
+              )}
+            </div>
+
+            {/* 来源 */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: '#7ab8e0', fontSize: 11, marginBottom: 4 }}>
+                来源 <span style={{ color: '#3a5a70', fontSize: 10 }}>（不选 = 全部）</span>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {Object.entries(SOURCE_META).map(([key, meta]) => {
+                  const on = expSources.includes(key)
+                  return (
+                    <button key={key} onClick={() => setExpSources(prev => on ? prev.filter(s => s !== key) : [...prev, key])} style={{
+                      padding: '3px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+                      border: `1px solid ${on ? 'rgba(0,230,118,0.5)' : 'rgba(0,100,180,0.25)'}`,
+                      background: on ? 'rgba(0,230,118,0.12)' : 'rgba(0,80,160,0.08)',
+                      color: on ? GREEN : '#5a8aaa',
+                    }}>{meta.icon} {meta.label}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 状态 + 等级 */}
+            <div style={{ display: 'flex', gap: 18, marginBottom: 14 }}>
+              <div>
+                <div style={{ color: '#7ab8e0', fontSize: 11, marginBottom: 4 }}>处理状态</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([['all', '全部'], ['pending', '未处理'], ['handled', '已处理']] as const).map(([key, label]) => (
+                    <button key={key} onClick={() => setExpStatus(key)} style={{
+                      padding: '3px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+                      border: `1px solid ${expStatus === key ? 'rgba(0,170,255,0.55)' : 'rgba(0,100,180,0.25)'}`,
+                      background: expStatus === key ? 'rgba(0,170,255,0.16)' : 'rgba(0,80,160,0.08)',
+                      color: expStatus === key ? CYAN : '#5a8aaa',
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ color: '#7ab8e0', fontSize: 11, marginBottom: 4 }}>
+                  等级 <span style={{ color: '#3a5a70', fontSize: 10 }}>（不选 = 全部）</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {LEVEL_FILTERS.slice(1).map(f => {
+                    const on = expLevels.includes(f.key)
+                    return (
+                      <button key={f.key} onClick={() => setExpLevels(prev => on ? prev.filter(l => l !== f.key) : [...prev, f.key])} style={{
+                        padding: '3px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+                        border: `1px solid ${on ? 'rgba(255,180,90,0.55)' : 'rgba(0,100,180,0.25)'}`,
+                        background: on ? 'rgba(255,170,60,0.14)' : 'rgba(0,80,160,0.08)',
+                        color: on ? '#ffb27a' : '#5a8aaa',
+                      }}>{f.label}</button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button disabled={exporting} onClick={() => setShowExport(false)} style={{
+                padding: '5px 16px', fontSize: 12, borderRadius: 3, cursor: exporting ? 'wait' : 'pointer',
+                border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,100,180,0.12)', color: '#7ab8e0',
+              }}>取消</button>
+              <button disabled={exporting} onClick={doExport} style={{
+                padding: '5px 18px', fontSize: 12, borderRadius: 3, cursor: exporting ? 'wait' : 'pointer',
+                border: '1px solid rgba(0,170,255,0.6)', background: 'rgba(0,170,255,0.2)', color: '#b8e6ff', fontWeight: 600,
+              }}>{exporting ? '导出中…' : '开始导出'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* T12: 「全部标记处理」二次确认弹层（误触保护） */}
       {confirmAll && (
