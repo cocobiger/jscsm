@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { apiFetch, authFetch } from '../../lib/apiFetch'
 import { roleAtLeast, type CurrentUser } from '../../lib/auth'
 import { IotChannelManage } from './IotChannelManage'
+import { AlertFilterPage } from './AlertFilterPage'
 import { AI_ANALYSIS_TYPES as DEFAULT_AI_TYPES, type PushRule } from '../../context/DashboardContext'
 
 const CYAN = '#00aaff'
@@ -75,7 +76,7 @@ export function IotArchivePage({ user }: Props) {
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10
   const [jump, setJump] = useState('')
-  const [tab, setTab] = useState<'archive' | 'channels' | 'rules'>('archive')
+  const [tab, setTab] = useState<'archive' | 'channels' | 'rules' | 'filter'>('archive')
   const isAdmin = roleAtLeast(user.role, 'admin')
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 3000) }
@@ -203,8 +204,8 @@ export function IotArchivePage({ user }: Props) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 20, overflow: 'hidden' }}>
       {/* 子标签：存档记录 / 通道接入（仅 admin） */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexShrink: 0 }}>
-        {([['archive', '存档记录'], ...(isAdmin ? [['channels', '通道接入'], ['rules', '事件研判逻辑']] : [])] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key as 'archive' | 'channels' | 'rules')} style={{
+        {([['archive', '存档记录'], ...(isAdmin ? [['channels', '通道接入'], ['rules', '事件研判逻辑'], ['filter', '告警过滤']] : [])] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key as 'archive' | 'channels' | 'rules' | 'filter')} style={{
             padding: '6px 18px', fontSize: 13, borderRadius: 3,
             border: `1px solid ${tab === key ? 'rgba(0,170,255,0.35)' : 'rgba(0,120,200,0.2)'}`,
             background: tab === key ? 'rgba(0,170,255,0.1)' : 'transparent',
@@ -370,7 +371,9 @@ export function IotArchivePage({ user }: Props) {
       </div>
       </>
       ) : (
-        tab === 'channels' ? <IotChannelManage user={user} /> : <PushRulePanel user={user} />
+        tab === 'channels' ? <IotChannelManage user={user} />
+          : tab === 'filter' ? <AlertFilterPage />
+          : <PushRulePanel user={user} />
       )}
     </div>
   )

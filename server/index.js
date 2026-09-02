@@ -2210,6 +2210,34 @@ app.delete('/api/push-rules/:id', adminOnly, (req, res) => {
   const c = store.deletePushRule(req.params.id)
   res.json({ ok: true, deleted: c })
 })
+
+// ── 告警过滤规则（T6~T8：5 维度条件 → 命中即隐藏，即时生效）──
+app.get('/api/alert-filters', adminOnly, (req, res) => {
+  try { res.json(store.listAlertFilterRules()) } catch (e) { res.status(500).json({ error: e.message }) }
+})
+app.post('/api/alert-filters', adminOnly, (req, res) => {
+  const b = req.body || {}
+  if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: '规则名称必填' })
+  try {
+    res.json(store.createAlertFilterRule({
+      name: b.name, sources: b.sources, locations: b.locations,
+      min_confidence: b.minConfidence, severities: b.severities, remark: b.remark, enabled: b.enabled,
+    }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+app.patch('/api/alert-filters/:id', adminOnly, (req, res) => {
+  const b = req.body || {}
+  const r = store.updateAlertFilterRule(req.params.id, {
+    name: b.name, sources: b.sources, locations: b.locations,
+    minConfidence: b.minConfidence, severities: b.severities, remark: b.remark, enabled: b.enabled,
+  })
+  if (!r) return res.status(404).json({ error: '未找到规则' })
+  res.json(r)
+})
+app.delete('/api/alert-filters/:id', adminOnly, (req, res) => {
+  const c = store.deleteAlertFilterRule(req.params.id)
+  res.json({ ok: true, deleted: c })
+})
 // 批量标记聚合组（聚合告警"标记处理"，需登录即可）
 app.post('/api/warnings/handle-group', (req, res) => {
   const { memberIds, handledBy } = req.body || {}

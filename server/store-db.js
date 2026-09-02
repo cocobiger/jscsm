@@ -101,6 +101,27 @@ function init(dataDir, logger) {
     );
   `)
 
+  // 告警过滤规则（T6：5 维度条件 → 命中即从告警列表隐藏；与 push_rules 聚合互补）
+  //   sources        来源多选：cq_api / iotcloud / straw-engine / chengyun-platform（空数组=不限）
+  //   locations      位置关键字（channelName/pointName/deviceName/location 子串匹配，空数组=不限）
+  //   min_confidence AI 置信度下限（1-100）：aiConfidence(0-1) 换算百分数 < 该值即命中「低置信度隐藏」
+  //   severities     等级多选：JSON 数字数组 [1注意,2轻度,3中度,4重度]（空数组=不限）
+  // 规则内各已设置维度 AND，规则间 OR（命中任意一条 enabled 规则即隐藏）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_filter_rules (
+      id             TEXT PRIMARY KEY,
+      name           TEXT NOT NULL,
+      enabled        INTEGER NOT NULL DEFAULT 1,
+      sources        TEXT NOT NULL DEFAULT '[]',
+      locations      TEXT NOT NULL DEFAULT '[]',
+      min_confidence INTEGER,
+      severities     TEXT NOT NULL DEFAULT '[]',
+      remark         TEXT NOT NULL DEFAULT '',
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    );
+  `)
+
   // AI 类型主数据（可后台自由增删；name 作匹配键，与 rules/warnings 用字符串精确匹配）
   db.exec(`
     CREATE TABLE IF NOT EXISTS ai_types (
@@ -1433,7 +1454,8 @@ function queryWarnings({ type, excludeType, limit } = {}) {
   if (where.length) sql += ' WHERE ' + where.join(' AND ')
   sql += ' ORDER BY rowid DESC'
   if (limit) { sql += ' LIMIT ?'; args.push(Number(limit)) }
-  return db.prepare(sql).all(...args).map(r => JSON.parse(r.data_json))
+  // T7：命中告警过滤规则（enabled alert_filter_rules）的记录从列表剔除，不出现在前端
+  return db.prepare(sql).all(...args).map(r => JSON.parse(r.data_json)).filter(w => !alertFilterRuleHit(w))
 }
 function getWarning(id) {
   const row = db.prepare('SELECT data_json FROM warnings WHERE id = ?').get(id)
@@ -1810,24 +1832,132 @@ function deletePushRule(id) {
   return db.prepare('DELETE FROM push_rules WHERE id = ?').run(id).changes
 }
 
+// ── 告警过滤规则 alert_filter_rules（T6~T7：命中规则 → 从告警列表隐藏）──
+function resolveSourceKey(w) {
+  if (!w) return null
+  if (w.source) return w.source
+  // 旧数据无 source 时按字段特征推断（与前端 resolveSource 一致）
+  if (w.pointName || w.code || w.standardValue != null) return 'cq_api'
+  if (w.aiType || w.channelSipId || w.picUrl) return 'iotcloud'
+  return null
+}
+function listAlertFilterRules() {
+  return db.prepare('SELECT * FROM alert_filter_rules ORDER BY created_at DESC').all()
+    .map(r => ({
+      id: r.id, name: r.name, enabled: r.enabled === 1,
+      sources: parseArr(r.sources), locations: parseArr(r.locations),
+      minConfidence: r.min_confidence, severities: parseArr(r.severities),
+      remark: r.remark || '', createdAt: r.created_at, updatedAt: r.updated_at,
+    }))
+}
+function getAlertFilterRule(id) {
+  const r = db.prepare('SELECT * FROM alert_filter_rules WHERE id = ?').get(id)
+  return r ? {
+    id: r.id, name: r.name, enabled: r.enabled === 1,
+    sources: parseArr(r.sources), locations: parseArr(r.locations),
+    minConfidence: r.min_confidence, severities: parseArr(r.severities),
+    remark: r.remark || '', createdAt: r.created_at, updatedAt: r.updated_at,
+  } : null
+}
+function createAlertFilterRule({ name, sources, locations, min_confidence, severities, remark, enabled }) {
+  const id = require('crypto').randomUUID()
+  const now = new Date().toISOString()
+  const normSources = Array.isArray(sources) ? sources.filter(s => typeof s === 'string') : []
+  const normLocs = Array.isArray(locations) ? locations.filter(s => typeof s === 'string' && s.trim()) : []
+  const normSevs = Array.isArray(severities) ? severities.map(Number).filter(n => Number.isFinite(n) && n >= 1 && n <= 4) : []
+  let conf = null
+  if (min_confidence !== null && min_confidence !== undefined && min_confidence !== '') {
+    const c = Number(min_confidence)
+    conf = Number.isFinite(c) ? Math.max(0, Math.min(100, Math.round(c))) : null
+  }
+  db.prepare('INSERT INTO alert_filter_rules (id,name,enabled,sources,locations,min_confidence,severities,remark,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(id, String(name).trim() || '未命名规则', enabled === false ? 0 : 1,
+      JSON.stringify(normSources), JSON.stringify(normLocs), conf, JSON.stringify(normSevs),
+      remark || '', now, now)
+  return getAlertFilterRule(id)
+}
+function updateAlertFilterRule(id, patch) {
+  const cur = getAlertFilterRule(id)
+  if (!cur) return null
+  const now = new Date().toISOString()
+  // 兼容两套字段名（PATCH body 走 minConfidence；路由层曾以 min_confidence 透传）
+  const p = { ...patch }
+  if (p.minConfidence === undefined && p.min_confidence !== undefined) p.minConfidence = p.min_confidence
+  const name = p.name !== undefined ? String(p.name).trim() || '未命名规则' : cur.name
+  const enabled = p.enabled !== undefined ? (p.enabled ? 1 : 0) : (cur.enabled ? 1 : 0)
+  const sources = Array.isArray(p.sources) ? p.sources.filter(s => typeof s === 'string') : cur.sources
+  const locations = Array.isArray(p.locations) ? p.locations.filter(s => typeof s === 'string' && s.trim()) : cur.locations
+  const severities = Array.isArray(p.severities)
+    ? p.severities.map(Number).filter(n => Number.isFinite(n) && n >= 1 && n <= 4)
+    : cur.severities
+  let conf = cur.minConfidence
+  if (p.minConfidence !== undefined) {
+    if (p.minConfidence === null || p.minConfidence === '') conf = null
+    else { const c = Number(p.minConfidence); conf = Number.isFinite(c) ? Math.max(0, Math.min(100, Math.round(c))) : null }
+  }
+  db.prepare('UPDATE alert_filter_rules SET name=?, enabled=?, sources=?, locations=?, min_confidence=?, severities=?, remark=?, updated_at=? WHERE id=?')
+    .run(name, enabled, JSON.stringify(sources), JSON.stringify(locations), conf, JSON.stringify(severities),
+      p.remark !== undefined ? (p.remark || '') : (cur.remark || ''), now, id)
+  return getAlertFilterRule(id)
+}
+function deleteAlertFilterRule(id) {
+  return db.prepare('DELETE FROM alert_filter_rules WHERE id = ?').run(id).changes
+}
+// 命中判定：某条告警 data_json 是否被任一 enabled 过滤规则命中（命中 → 从列表隐藏）
+function alertFilterRuleHit(w) {
+  if (!w) return false
+  const rules = db.prepare('SELECT sources, locations, min_confidence, severities FROM alert_filter_rules WHERE enabled = 1').all()
+  if (rules.length === 0) return false
+  const src = resolveSourceKey(w)
+  // 位置匹配串：AI 类 channelName/deviceName/location；气体 pointName；秸秆 location 多为坐标串（不参与关键字匹配）
+  const locStr = [w.channelName, w.deviceName, w.pointName, w.location].filter(Boolean).join(' ').toLowerCase()
+  const confPct = (() => {
+    if (w.aiConfidence === null || w.aiConfidence === undefined || w.aiConfidence === '') return null
+    const c = Number(w.aiConfidence)
+    if (!Number.isFinite(c)) return null
+    return c > 1 ? c : c * 100   // 兼容 0-1 与 0-100 两种存量
+  })()
+  const lv = Number(w.level)
+  for (const r of rules) {
+    const sources = parseArr(r.sources)
+    if (sources.length > 0 && !sources.includes(src)) continue
+    const locations = parseArr(r.locations)
+    if (locations.length > 0) {
+      const hit = locations.some(k => k && locStr.includes(String(k).toLowerCase()))
+      if (!hit) continue
+    }
+    if (r.min_confidence !== null && r.min_confidence !== undefined) {
+      if (confPct === null || !(confPct < r.min_confidence)) continue   // 无置信度或未低于阈值 → 不命中
+    }
+    const sevs = parseArr(r.severities).map(Number)
+    if (sevs.length > 0) {
+      if (!lv || !sevs.includes(lv)) continue
+    }
+    return true
+  }
+  return false
+}
+
 // 聚合后的告警列表（供 /api/warnings?aggregate=1）：按规则把高频同组折叠成1条
 // lightweight=true 时聚合对象不返回 members（供实时轮询降低 payload），点详情时用 by-ids 按需拉取
 function queryWarningsAggregated({ limit, lightweight } = {}) {
   const rawRows = db.prepare(
     "SELECT id, created_at, data_json FROM warnings WHERE status='pending' AND json_extract(data_json,'$.source') IN ('iotcloud','chengyun-platform','straw-engine')"
   ).all()
+  // T7：先应用告警过滤规则（命中即隐藏，不参与后续聚合），再走聚合折叠
+  const kept = rawRows.map(r => ({ id: r.id, created_at: r.created_at, w: JSON.parse(r.data_json) }))
+    .filter(x => !alertFilterRuleHit(x.w))
   const rules = listPushRules().filter(r => r.enabled)
   if (rules.length === 0) {
-    return rawRows.map(r => JSON.parse(r.data_json)).slice(0, Number(limit) || 200)
+    return kept.map(x => x.w).slice(0, Number(limit) || 200)
   }
   const groups = new Map()
-  for (const r of rawRows) {
-    const w = JSON.parse(r.data_json)
+  for (const { id, created_at, w } of kept) {
     const cid = w.channelSipId || null
     const ai = w.aiType || '(未知)'
     const key = cid + '|' + ai
     if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push({ id: r.id, created_at: r.created_at, w })
+    groups.get(key).push({ id, created_at, w })
   }
   const result = []
   const now = Date.now()
@@ -2224,6 +2354,9 @@ module.exports = {
   // AI 类型主数据 + 推送规则
   listAiTypes, createAiType, deleteAiType,
   listPushRules, getPushRule, createPushRule, updatePushRule, deletePushRule,
+  // 告警过滤规则
+  listAlertFilterRules, getAlertFilterRule, createAlertFilterRule, updateAlertFilterRule, deleteAlertFilterRule,
+  resolveSourceKey, alertFilterRuleHit,
   queryWarningsAggregated, handleGroupWarnings, getWarningsByIds, computeAiConfidenceStats,
   warningTypeDistribution, warningCount, warningTrend, tableCount,
   // 采集日志
