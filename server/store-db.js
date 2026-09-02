@@ -2118,7 +2118,8 @@ function getWarningsByIds(ids) {
   const placeholders = capped.map(() => '?').join(',')
   return db.prepare(`SELECT data_json FROM warnings WHERE id IN (${placeholders})`).all(...capped)
     .map(r => JSON.parse(r.data_json))
-    .map(w => ({ id: w.id, picUrl: w.picUrl || '', createdAt: w.createdAt, level: w.level, aiConfidence: w.aiConfidence, channelName: w.channelName, aiType: w.aiType }))
+    // P2 补丁：补 status/review —— 研判依据弹窗「已处置 n/N」「组归因徽标」依赖成员状态，缺则恒不渲染
+    .map(w => ({ id: w.id, picUrl: w.picUrl || '', createdAt: w.createdAt, level: w.level, aiConfidence: w.aiConfidence, channelName: w.channelName, aiType: w.aiType, status: w.status, review: w.review }))
 }
 
 // 汇总一次推送/结案涉及的全部 AI 置信度样本 → { min, max, avg, count }

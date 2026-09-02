@@ -213,6 +213,8 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     ruleName: `${a.channelName || ''} ${a.aiType} 推送规则`.trim() || '聚合推送规则',
     aggregateAiType: a.aiType,
     windowHours: a.windowHours,
+    // P2 补丁: 补 threshold —— 后端聚合对象带出，缺则研判依据摘要「阈值」恒显示 0 条
+    threshold: a.threshold,
     count: a.count,
     maxLevel: a.maxLevel,
     latestTime: a.latestTime,
@@ -421,6 +423,10 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
       setAggregates(prev => prev.filter(a => `${a.ruleId}:${a.channelSipId ?? ''}:${a.aiType}` !== row.id))
       const n = res?.handled ?? row.agg.memberIds.length
       setToast({ msg: `已处理 ${n} 条聚合告警` })
+      // P2 补丁: 聚合行处置后派发 refresh（group）—— AlertPanel 聚合卡片/顶栏角标/其他订阅方即时同步
+      window.dispatchEvent(new CustomEvent('alerts:refresh', {
+        detail: { kind: 'group', memberIds: row.agg.memberIds },
+      }))
     } catch (e: any) {
       setToast({ msg: `操作失败：${e?.error || '网络错误'}`, err: true })
     } finally { setBusy(false) }

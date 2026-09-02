@@ -88,6 +88,7 @@ export interface AggregateWarning {
   aiType: string
   channelName: string
   windowHours: number           // 命中的规则时间窗（前端展示用）
+  threshold: number             // 命中的规则阈值（研判依据弹窗摘要展示用；后端 queryWarningsAggregated 带出）
   count: number                 // 窗口内命中条数
   maxLevel: number              // 组内最高等级
   latestTime: string            // 组内最新记录时间

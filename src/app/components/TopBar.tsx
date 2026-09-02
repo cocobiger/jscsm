@@ -81,8 +81,9 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
     }
     loadStraw()
     const t = setInterval(loadStraw, 30 * 1000)
-    window.addEventListener('alerts:reload', loadStraw)
-    return () => { clearInterval(t); window.removeEventListener('alerts:reload', loadStraw) }
+    // P2 补丁: 原监听 'alerts:reload'（旧整页刷新事件，无派发方=死监听）→ 'alerts:refresh'，处置后顶栏角标即时更新
+    window.addEventListener('alerts:refresh', loadStraw)
+    return () => { clearInterval(t); window.removeEventListener('alerts:refresh', loadStraw) }
   }, [])
 
   const pad = (n: number) => String(n).padStart(2, '0')
