@@ -3552,7 +3552,7 @@ app.listen(PORT, () => {
   // 无人机直播事件链路（T1：webhook 事件落库 + dockSn 白名单过滤 + SSE 广播，弹窗需求前置）
   try {
     const droneEvents = require('./drone-events.js')
-    droneEvents.registerDroneEventsRoutes(app, { store, log })
+    droneEvents.registerDroneEventsRoutes(app, { store, log, adminOnly })
     log.info('无人机直播事件模块已启动（/api/drone-events/*，dockSn 白名单 + SSE）')
   } catch (e) { log.error('无人机直播事件模块启动失败: ' + e.message) }
   log.info(`数据库: ${path.join(DATA_DIR, 'jsc.db')}（视频流/点位/数据源/采集/预警等已全部入库）`)

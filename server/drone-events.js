@@ -24,7 +24,7 @@ const KEEPALIVE_MS = 25000
 
 module.exports = { registerDroneEventsRoutes, BRIDGE_KEY }
 
-function registerDroneEventsRoutes(app, { store, log }) {
+function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
   const db = store.getDb()
   db.exec(`
     CREATE TABLE IF NOT EXISTS drone_live_events (
@@ -230,6 +230,70 @@ function registerDroneEventsRoutes(app, { store, log }) {
       res.json({ ok: true, deviceSn, dockSn, streamId, online, hls, dockName })
     } catch (e) {
       res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // ── ⑥ 模拟起飞测试（T4 回归工具 · adminOnly，绝不入 PUBLIC_PATHS）──
+  // 目的：无需真机即可在浏览器复现"一组真机起飞"。事件走与真实 dji-openapi webhook 完全
+  // 相同的 ingestEvent() 链路（幂等 / 白名单过滤 / 落库 / SSE 广播），因此弹窗调度、刷新回灌
+  // （缺陷①修复后场景：zlm_online 恒 0 → resolving→60s timeout）、SSE 断线重连（缺陷②）全部可测。
+  // 防污染约定：模拟 deviceSn 强制 SIM_ 前缀；event_id 统一 SIM_ 前缀 + raw_json 含 sim:true；
+  // 剧本强制 ON/OFF 成对；off-all 端点一键补 OFF 广播并删除 SIM_ 历史行。
+  app.post('/api/drone-events/simulate', adminOnly, async (req, res) => {
+    try {
+      const b = (req.body && typeof req.body === 'object') ? req.body : {}
+      const deviceSn = String(b.deviceSn || '').trim()
+      const dockSn = String(b.dockSn || '').trim()
+      if (!deviceSn || !dockSn) return res.status(400).json({ ok: false, error: '缺 deviceSn/dockSn' })
+      if (!/^SIM_/.test(deviceSn)) return res.status(400).json({ ok: false, error: '模拟 deviceSn 必须以 SIM_ 开头（防误触真实 SN）' })
+      const on = b.on === true || b.on === 1 || b.on === '1' || b.on === 'true'
+      const status = on ? 'LIVE_ON' : 'LIVE_OFF'
+      const reason = on ? 'SIMULATED_TAKEOFF' : 'SIMULATED_LANDING'
+      const nowMs = Date.now()
+      const body = {
+        eventId: `SIM_${nowMs}_${deviceSn}`,
+        deviceSn, dockSn, status, changeReason: reason, eventTime: nowMs,
+        data: { deviceSn, dockSn, status, changeReason: reason, timestamp: nowMs, sim: true },
+      }
+      const out = await ingestEvent(body)
+      log.info(`[drone-events][SIM] ${status} ${deviceSn} dock=${dockSn} → ${out.ok ? (out.duplicated ? 'dup(忽略)' : 'broadcast=' + (out.broadcast ? 'Y' : 'N')) : out.error}`)
+      res.json({ ok: true, ...out })
+    } catch (e) {
+      log.error(`[drone-events][SIM] simulate 失败: ${e.message}`)
+      res.status(500).json({ ok: false, error: e.message })
+    }
+  })
+
+  // 一键全部停止：所有"最新事件为 SIM_ LIVE_ON"的模拟机补发 LIVE_OFF（广播收弹窗+落库），
+  // 并删除 SIM_ 历史行（防残留 ON 导致下次刷新回灌出假弹窗）。
+  app.post('/api/drone-events/simulate/off-all', adminOnly, async (req, res) => {
+    try {
+      const rows = db.prepare(`
+        SELECT e.device_sn AS device_sn, e.dock_sn AS dock_sn
+        FROM drone_live_events e
+        WHERE e.event_id LIKE 'SIM_%'
+          AND e.id = (SELECT MAX(id) FROM drone_live_events x
+                      WHERE x.device_sn = e.device_sn AND x.event_id LIKE 'SIM_%')
+          AND e.status LIKE 'LIVE_ON%'
+      `).all()
+      let offCount = 0
+      for (const r of rows) {
+        const nowMs = Date.now()
+        const body = {
+          eventId: `SIM_OFFALL_${nowMs}_${r.device_sn}`,
+          deviceSn: r.device_sn, dockSn: r.dock_sn, status: 'LIVE_OFF',
+          changeReason: 'SIMULATED_LANDING', eventTime: nowMs,
+          data: { deviceSn: r.device_sn, dockSn: r.dock_sn, status: 'LIVE_OFF', changeReason: 'SIMULATED_LANDING', timestamp: nowMs, sim: true },
+        }
+        const out = await ingestEvent(body)
+        if (out && out.ok && !out.duplicated) offCount++
+      }
+      const del = db.prepare("DELETE FROM drone_live_events WHERE event_id LIKE 'SIM_%'").run()
+      log.info(`[drone-events][SIM] off-all: 补 OFF ${offCount} 台，清理 SIM_ 历史 ${Number(del.changes)} 行`)
+      res.json({ ok: true, offCount, deleted: Number(del.changes) })
+    } catch (e) {
+      log.error(`[drone-events][SIM] off-all 失败: ${e.message}`)
+      res.status(500).json({ ok: false, error: e.message })
     }
   })
 }

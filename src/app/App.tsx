@@ -6,14 +6,15 @@ import { RightPanel } from './components/RightPanel'
 import { AdminPanel } from './components/admin/AdminPanel'
 import { LoginPage } from './components/LoginPage'
 import { DashboardProvider, useDashboard } from './context/DashboardContext'
-import { fetchMe, logout as doLogout, type CurrentUser } from './lib/auth'
+import { fetchMe, logout as doLogout, roleAtLeast, type CurrentUser } from './lib/auth'
 import { setUnauthorizedHandler, clearToken } from './lib/apiFetch'
 import type { MapTab } from './components/MapView'
 import type { AlertItem } from './components/AlertPanel'
 import { useDisplayScale } from './hooks/useDisplayScale'
 import { DronePopupHost } from './components/drvPopup/DronePopupHost'
+import { DroneSimPanel } from './components/drvPopup/DroneSimPanel'
 
-function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => void; layout?: 'default' | 'wide' }) {
+function Dashboard({ onOpenAdmin, canSim = false, layout = 'default' }: { onOpenAdmin: () => void; canSim?: boolean; layout?: 'default' | 'wide' }) {
   const [activeTab, setActiveTab] = useState<MapTab>('default')
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null)
   const { externalAlerts } = useDashboard()
@@ -100,6 +101,8 @@ function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => voi
 
       {/* 无人机起飞自动弹窗（v2：纯状态机调度 2 窗+3 队 · 满窗折叠最新腾位 · 队列点击拉起 · 与相机 role 列表解耦） */}
       <DronePopupHost />
+      {/* 无人机起飞模拟测试（T4 回归工具 · 仅 admin 可见 · 左下角） */}
+      {canSim && <DroneSimPanel />}
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -165,7 +168,7 @@ export default function App() {
         <AdminPanel onClose={() => setShowAdmin(false)} user={user} onLogout={handleLogout} />
       ) : (
         <DisplayScaler display={display}>
-          <Dashboard onOpenAdmin={() => setShowAdmin(true)} layout={display.layout} />
+          <Dashboard onOpenAdmin={() => setShowAdmin(true)} canSim={roleAtLeast(user.role, 'admin')} layout={display.layout} />
         </DisplayScaler>
       )}
     </DashboardProvider>
