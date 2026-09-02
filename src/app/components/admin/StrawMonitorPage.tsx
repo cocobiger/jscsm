@@ -283,6 +283,11 @@ const DEFAULT_STYLE = {
   fields: ['district', 'unit', 'person', 'confidence', 'coord', 'map'],
   footer: '【万州区生态环境局】请及时处置并反馈',
   msgTitle: '🚨 秸秆焚烧告警 · {town}',
+  // T20：markdown 尾部可选追加（卡片渲染失败自动降级 markdown 时同样生效）
+  msgFooter: '',                    // 落款行（纯文本，追加在消息末尾）
+  reviewLinkBase: '',               // 复核直达链接前缀（默认 http://PUBLIC_HOST:81/jsc/）
+  appendReviewLink: true,           // 是否在消息尾追加「复核直达」链接
+  fallbackToMarkdown: true,         // news 卡片渲染失败/禁用时降级 markdown 仍推送
 }
 
 function PushStyleEditor() {
@@ -428,6 +433,32 @@ function PushStyleEditor() {
         <input value={style.footer || ''} onChange={e => set('footer', e.target.value)} placeholder="如：请及时处置并反馈" style={inputStyle} />
       </div>
 
+      {/* T20 消息高级选项：落款 / 复核直达 / 降级策略 */}
+      <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Send size={14} strokeWidth={1.75} />消息高级选项（markdown / 降级通道）
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ color: '#5a8aaa', fontSize: 12, width: 130 }}>消息尾部落款</span>
+          <input value={style.msgFooter || ''} onChange={e => set('msgFooter', e.target.value)} placeholder="如：请及时处置并反馈（markdown 尾行，可留空）" style={{ ...inputStyle, flex: 1 }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ color: '#5a8aaa', fontSize: 12, width: 130 }}>复核链接地址</span>
+          <input value={style.reviewLinkBase || ''} onChange={e => set('reviewLinkBase', e.target.value)} placeholder="留空=驾驶舱默认地址（http://外网IP:81/jsc/）" style={{ ...inputStyle, flex: 1 }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#7ab8e0', fontSize: 12 }}>
+            <input type="checkbox" checked={style.appendReviewLink !== false} onChange={e => set('appendReviewLink', e.target.checked)} style={{ cursor: 'pointer' }} />
+            消息尾追加「复核直达」链接
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#7ab8e0', fontSize: 12 }}>
+            <input type="checkbox" checked={style.fallbackToMarkdown !== false} onChange={e => set('fallbackToMarkdown', e.target.checked)} style={{ cursor: 'pointer' }} />
+            news 卡片失败自动降级 markdown
+          </label>
+        </div>
+        <div style={{ fontSize: 11, color: '#3a5a70' }}>复核直达：消息尾自动追加「🔎 复核直达 · 告警ID」链接（{`?openAlert=`}），打开驾驶舱自动定位该告警。取消勾选仅去链接，不影响卡片推送。</div>
+      </div>
+
       {/* 预览 */}
       <div style={{ ...card }}>
         <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -463,6 +494,11 @@ function PushStyleEditor() {
             {style.footer && (
               <div style={{ padding: '8px 16px', color: '#7f9bb8', fontSize: 11 }}>{style.footer}</div>
             )}
+            {/* T20 预览：markdown 尾行（msgFooter + 复核直达），与真实推送一致 */}
+            <div style={{ borderTop: `1px dashed ${style.border || '#2a4a70'}55`, padding: '8px 16px 4px', color: '#7f9bb8', fontSize: 11, lineHeight: 1.8 }}>
+              {style.msgFooter && <div>{style.msgFooter}</div>}
+              {style.appendReviewLink !== false && <div style={{ color: '#37c8ff' }}>🔎 复核直达 · JSC20260903xxxx（打开驾驶舱定位）</div>}
+            </div>
           </div>
         </div>
       </div>

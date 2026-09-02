@@ -1733,9 +1733,26 @@ async function strawWorkflow(warning, opts = {}) {
         cardUrl = cr && cr.ok ? cr.cardUrl : ''
       } catch (e) { console.error('[straw-workflow] 卡片渲染失败:', e.message) }
       // 2. 推送企业微信群（markdown，可靠；news 带卡片图增强）
-      const style = store.kvGet('straw_push_style', null) || {}
+      // P3 T20：style 与默认合并（补全新增字段）；标题模板支持 {id}/{unit}/{district}/{conf}；
+      //   底部可追加 msgFooter 落款 + 复核直达链接（appendReviewLink）；news 卡片渲染失败自动降级 markdown
+      const style = { ...DEFAULT_PUSH_STYLE, ...(store.kvGet('straw_push_style', null) || {}) }
+      const publicBase = (process.env.STRAW_PUSH_BASE || '').trim() || `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81/jsc/`
+      const reviewBase = (style.reviewLinkBase || '').trim() || publicBase
+      const reviewUrl = `${reviewBase.replace(/\/+$/, '')}/?openAlert=${encodeURIComponent(warning.id)}`
       const link = `https://map.qq.com/?pt=${lat},${lon}`
-      const titleTpl = (style.msgTitle || '🚨 秸秆焚烧告警 · {town}').replace('{town}', town.name || '').replace('{label}', warning.label || '')
+      const tpl = (s = '') => {
+        const l = String(warning.label || '').toLowerCase()
+        const emoji = l.includes('fire') || l.includes('火') ? '🔥' : l.includes('smoke') || l.includes('烟') ? '💨' : '🚨'
+        return String(s).replace('{emoji}', emoji).replace('{town}', town.name || '')
+          .replace('{label}', warning.label || '').replace('{id}', warning.id || '')
+          .replace('{unit}', resp.unit || '').replace('{district}', '万州区')
+          .replace('{conf}', `${((warning.aiConfidence || 0) * 100).toFixed(1)}%`)
+      }
+      // 消息标题模板 = msgTitle（缺省回退硬编码默认，勿引 titleTemplate——那是卡片图模板，含 {emoji} 由渲染端处理）
+      const titleTpl = tpl(style.msgTitle || '🚨 秸秆焚烧告警 · {town}')
+      const tailLines = []
+      if (style.msgFooter) tailLines.push(`> ${style.msgFooter}`)
+      if (style.appendReviewLink !== false) tailLines.push(`> [🔎 复核直达 · ${warning.id}](${reviewUrl})`)
       const content = [
         `**${titleTpl}**`,
         `> 行政区划：万州区 · ${town.name}`,
@@ -1745,9 +1762,13 @@ async function strawWorkflow(warning, opts = {}) {
         personTip,
         `> 坐标：${lat}, ${lon}`,
         `>[点击查看地图](${link})`,
-      ].join('\n')
-      const body = cardUrl
-        ? { msgtype: 'news', news: { articles: [{ title: titleTpl, description: `责任单位：${resp.unit} · 置信度 ${((warning.aiConfidence || 0) * 100).toFixed(1)}%${personN > 0 ? ` · 附近有人(${personN})` : ''}`, picurl: `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81${cardUrl}`, url: link }] } }
+        ...tailLines,
+      ].filter(Boolean).join('\n')
+      // news 卡片仅在渲染成功(cardUrl)且未禁用时用；渲染失败/禁用 → 降级 markdown（无图纯文本仍可达）
+      const newsDesc = `责任单位：${resp.unit} · 置信度 ${((warning.aiConfidence || 0) * 100).toFixed(1)}%${personN > 0 ? ` · 附近有人(${personN})` : ''} · 复核直达 ${reviewUrl}`
+      const useNews = !!cardUrl && style.fallbackToMarkdown !== false
+      const body = useNews
+        ? { msgtype: 'news', news: { articles: [{ title: titleTpl, description: newsDesc, picurl: `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81${cardUrl}`, url: link }] } }
         : { msgtype: 'markdown', markdown: { content } }
       const wr = await fetch(resp.webhook, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1822,9 +1843,8 @@ async function strawCorrection(warning, note, reviewer) {
     const w = store.getWarning(warning.id)
     if (w) {
       w.wechatPush = { ...(w.wechatPush || {}), correctedAt: new Date().toISOString(), correctionNote: note || '', correctedBy: reviewer || '', correctionOk: ok, correctionReason: failReason }
-      const { DatabaseSync } = require('node:sqlite')
-      const dbs = new DatabaseSync('/opt/jsc/backend/data/jsc.db')
-      dbs.prepare('UPDATE warnings SET data_json = ? WHERE id = ?').run(JSON.stringify(w), w.id)
+      // 复用 store.saveWarningData（消除硬编码 DB 路径 C6/T20——T19 commit 遗漏此处）
+      store.saveWarningData(w)
     }
   } catch (e) { console.error('[straw-correction] 回写失败:', e.message) }
   console.log('[straw-correction]', warning.id, 'ok=' + ok, failReason || '')
@@ -2055,6 +2075,9 @@ app.get('/api/straw/area-responsibility', (req, res) => {
 })
 
 // ── 秸秆微信群推送样式配置（主题色/标题模板/字段/落款）──
+// P3 T20 扩展：msgTitle 模板变量 {town}{label}{id}{unit}{district}{conf}；
+//   appendReviewLink（默认 true，消息尾追加复核直达链接，base 见 reviewLinkBase）
+//   msgFooter（可选落款行）/ fallbackToMarkdown（默认 true：卡片渲染失败降级 markdown 仍推送）
 const DEFAULT_PUSH_STYLE = {
   accent: '#37c8ff',
   bg: '#101e33',
@@ -2063,6 +2086,10 @@ const DEFAULT_PUSH_STYLE = {
   titleTemplate: '{emoji} {label}告警 · {town}',
   fields: ['district', 'unit', 'person', 'confidence', 'coord', 'map'],
   footer: '【万州区生态环境局】请及时处置并反馈',
+  appendReviewLink: true,
+  reviewLinkBase: '',
+  msgFooter: '',
+  fallbackToMarkdown: true,
 }
 app.get('/api/straw/push-style', (req, res) => {
   res.json(store.kvGet('straw_push_style', DEFAULT_PUSH_STYLE))

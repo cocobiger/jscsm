@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TopBar } from './components/TopBar'
 import { LeftPanel } from './components/LeftPanel'
 import { CenterPanel } from './components/CenterPanel'
 import { RightPanel } from './components/RightPanel'
 import { AdminPanel } from './components/admin/AdminPanel'
 import { LoginPage } from './components/LoginPage'
-import { DashboardProvider } from './context/DashboardContext'
+import { DashboardProvider, useDashboard } from './context/DashboardContext'
 import { fetchMe, logout as doLogout, type CurrentUser } from './lib/auth'
 import { setUnauthorizedHandler, clearToken } from './lib/apiFetch'
 import type { MapTab } from './components/MapView'
@@ -16,10 +16,40 @@ import { DronePopupHost } from './components/drvPopup/DronePopupHost'
 function Dashboard({ onOpenAdmin, layout = 'default' }: { onOpenAdmin: () => void; layout?: 'default' | 'wide' }) {
   const [activeTab, setActiveTab] = useState<MapTab>('default')
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null)
+  const { externalAlerts } = useDashboard()
 
   const handleAlertSelect = (alert: AlertItem) => {
     setSelectedAlert(prev => prev?.id === alert.id ? null : alert)
   }
+
+  // T20 复核直达 deep-link：微信卡片携带 ?openAlert=<warning.id> 进入驾驶舱 →
+  //   自动在右侧列表匹配（单条 id 或聚合组 memberIds）→ 地图定位 + 列表高亮选中。
+  //   告警同步为 10s 轮询，首轮最长等 10s（500ms×20）；消费后清 URL 防刷新重复。
+  const alertsRef = useRef(externalAlerts)
+  alertsRef.current = externalAlerts
+  const deepLinkDone = useRef(false)
+  useEffect(() => {
+    if (deepLinkDone.current) return
+    const openAlertId = new URLSearchParams(location.search).get('openAlert')
+    if (!openAlertId) return
+    const findAlert = () => {
+      const list = alertsRef.current
+      return list.find(a => a.id === openAlertId || (a.isAggregate && a.memberIds?.includes(openAlertId))) || null
+    }
+    const consume = (a: AlertItem) => {
+      deepLinkDone.current = true
+      setSelectedAlert(a)
+      history.replaceState(null, '', location.pathname) // 清 ?openAlert=，防 F5 重复定位
+    }
+    const hit = findAlert()
+    if (hit) { consume(hit); return }
+    const timer = setInterval(() => {
+      const a = findAlert()
+      if (a) { clearInterval(timer); consume(a) }
+    }, 500)
+    setTimeout(() => clearInterval(timer), 10000) // 超时未匹配（列表外旧告警）静默放弃
+    return () => clearInterval(timer)
+  }, [])
 
   // 超宽屏(layout='wide')：侧栏用百分比(随更宽画布自适应加宽)，地图占更多横向空间
   const gridCols = layout === 'wide'
