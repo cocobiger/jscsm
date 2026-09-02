@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>告警管理·第四批体验打磨 · 评估与排期（2026-09-02）</title>
+<style>
+  :root {
+    --primary: #0a4a8a;
+    --accent:  #0d6efd;
+    --warn:    #d97706;
+    --danger:  #dc2626;
+    --ok:      #16a34a;
+    --purple:  #7c3aed;
+    --bg:      #f6f8fb;
+    --panel:   #ffffff;
+    --line:    #e2e8f0;
+    --text:    #1f2937;
+    --muted:   #64748b;
+    --shadow:  0 2px 12px rgba(15, 30, 60, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 14px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px 64px; }
+  .header {
+    background: linear-gradient(135deg, #0a4a8a 0%, #0d6efd 100%);
+    color: #fff;
+    padding: 32px 28px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+  }
+  .header h1 { margin: 0 0 8px; font-size: 24px; font-weight: 700; letter-spacing: 0.02em; }
+  .header .subtitle { font-size: 13px; opacity: 0.85; margin-bottom: 16px; }
+  .header .meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; opacity: 0.92; }
+  .header .meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .card {
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 17px;
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 { font-size: 15px; color: var(--text); margin: 18px 0 10px; }
+  .card h4 { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+
+  .emoji-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-p0 { background: #fee2e2; color: #b91c1c; }
+  .tag-p1 { background: #fef3c7; color: #b45309; }
+  .tag-p2 { background: #dbeafe; color: #1e40af; }
+  .tag-ok { background: #dcfce7; color: #166534; }
+  .tag-warn { background: #fef3c7; color: #b45309; }
+  .tag-danger { background: #fee2e2; color: #b91c1c; }
+  .tag-info { background: #e0e7ff; color: #3730a3; }
+  .tag-purple { background: #ede9fe; color: #6d28d9; }
+
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+  th {
+    background: #eef3fa; color: var(--primary);
+    text-align: left; padding: 8px 10px;
+    border: 1px solid var(--line);
+    font-weight: 600; white-space: nowrap;
+  }
+  td { padding: 7px 10px; border: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: #fafcff; }
+  .mono { font-family: Consolas, "JetBrains Mono", monospace; font-size: 12px; color: #0f4c81; }
+  code, .code {
+    font-family: Consolas, "JetBrains Mono", monospace;
+    background: #eef3fa; color: #0f4c81;
+    padding: 1px 6px; border-radius: 3px; font-size: 12.5px;
+  }
+  .note {
+    background: #fffbeb; border-left: 3px solid var(--warn);
+    padding: 10px 14px; margin: 10px 0; border-radius: 0 4px 4px 0; font-size: 13px;
+  }
+  .good {
+    background: #f0fdf4; border-left: 3px solid var(--ok);
+    padding: 10px 14px; margin: 10px 0; border-radius: 0 4px 4px 0; font-size: 13px;
+  }
+  .risk {
+    background: #fef2f2; border-left: 3px solid var(--danger);
+    padding: 10px 14px; margin: 10px 0; border-radius: 0 4px 4px 0; font-size: 13px;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 8px 0; }
+  .steps > li {
+    counter-increment: step; position: relative;
+    padding: 8px 0 8px 34px; border-bottom: 1px dashed var(--line);
+  }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 8px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .file-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .file-chip {
+    background: #eef3fa; border: 1px solid var(--line);
+    border-radius: 4px; padding: 2px 8px;
+    font-family: Consolas, monospace; font-size: 12px; color: var(--primary);
+  }
+  .verdict-box {
+    display: flex; gap: 12px; margin: 12px 0;
+  }
+  .verdict {
+    flex: 1; border: 1px solid var(--line); border-radius: 6px;
+    padding: 12px 14px; background: #fbfdff;
+  }
+  .verdict .v-title { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
+  .verdict .v-desc { font-size: 12.5px; color: var(--muted); }
+  .badge-rec {
+    display: inline-block; background: var(--ok); color: #fff;
+    font-size: 10px; font-weight: 700; border-radius: 3px;
+    padding: 1px 6px; margin-left: 6px; vertical-align: 1px;
+  }
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .toc a {
+    display: inline-block; padding: 4px 12px; background: #fff;
+    border: 1px solid var(--line); border-radius: 20px;
+    color: var(--primary); font-size: 12.5px; text-decoration: none;
+  }
+  .toc a:hover { background: #eef3fa; }
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 10px 0 14px; }
+  .cmp-item { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fbfdff; }
+  .cmp-item .c-t { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .cmp-item .c-b { font-size: 12px; color: var(--muted); }
+  .cmp-item.rec { border-color: var(--ok); background: #f6fef8; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>📋 告警管理 · 第四批体验打磨 — 评估与排期</h1>
+    <div class="subtitle">结合前三批已落地功能（T1~T12），对「微信卡片优化 / 批量导出筛选 / 研判依据详情联动 / 其他体验」做方案对比与分步实施评估，待拍板后分批开工</div>
+    <div class="meta">
+      <span>📅 2026-09-02</span>
+      <span>📍 JSC 生态环境政务驾驶舱</span>
+      <span>🧱 前置：T1~T12 三批已完成并上线</span>
+      <span>🔄 本批：评估 → 拍板 → 分批实施</span>
+    </div>
+  </div>
+
+  <div class="toc">
+    <a href="#s1">① 背景与基线</a>
+    <a href="#s2">② 现状缺口盘点</a>
+    <a href="#s3">③ 方案对比与推荐</a>
+    <a href="#s4">④ 详细落地步骤</a>
+    <a href="#s5">⑤ 冲突排查与依赖</a>
+    <a href="#s6">⑥ 风险与回滚</a>
+    <a href="#s7">⑦ 拍板点与结论</a>
+  </div>
+
+  <!-- ============ 1 背景 ============ -->
+  <div class="card" id="s1">
+    <h2>① 背景：前三批已把告警做成什么（本批的地基）</h2>
+    <p>告警信息管理三批（2026-09-02 当日完成）已上线，驾驶舱告警从「展示错位 / 511 条噪音 / 0 持久化」升级为：</p>
+    <table>
+      <tr><th>批次</th><th>已落地能力</th><th>对应代码（可复用为第四批地基）</th></tr>
+      <tr><td rowspan="4">第一批<br/>T1~T5 展示修复</td><td>location/standard/来源字段正确展示（4 来源图标 📊📹🔥🏛️）</td><td class="mono">AlertHistoryModal.tsx → SOURCE_META / resolveSource()</td></tr>
+      <tr><td>智能聚合：24h 窗口 ≥5 条折叠为聚合行，具体类型优先于通配规则</td><td class="mono">store-db.js → queryWarningsAggregated()</td></tr>
+      <tr><td>iotcloud 去重持久化（iot_record_seen，重启免重复告警）</td><td class="mono">store-db.js + iot-fetcher.js</td></tr>
+      <tr><td>历史积压清理方案 A（仅清窗口外旧数据）</td><td class="mono">/video/backups/jsc_warnings_cleanup_0902.db</td></tr>
+      <tr><td rowspan="2">第二批<br/>T6~T9 管理后台</td><td>alert_filter_rules 5 维过滤（来源/点位/置信度/等级/名称）＋ CRUD 管理页</td><td class="mono">AlertFilterPage.tsx + store-db.js alertFilterRuleHit()</td></tr>
+      <tr><td>过滤先于聚合，规则间 OR、规则内 AND，字段缺失即不命中</td><td class="mono">server/index.js GET/POST/PATCH/DELETE /api/alert-filters</td></tr>
+      <tr><td rowspan="3">第三批<br/>T10~T12 弹窗体验</td><td>未处理 tab 10s 静默轮询（竞态守卫 seqRef）</td><td class="mono">AlertHistoryModal.tsx</td></tr>
+      <tr><td>标记处理乐观更新（627ms 往返无闪烁）</td><td class="mono">setStatus / handleGroup / doHandleAll</td></tr>
+      <tr><td>「全部标记处理」二次确认（zIndex 1100 弹层）＋ 双请求合并 load（修复已处理 tab 恒空）</td><td class="mono">/api/warnings?aggregate=1 + 平铺全量</td></tr>
+    </table>
+    <div class="note">⚠️ 本批评估的三大方向（微信卡片 / 导出 / 研判联动）并非新修功能，而是对上述已落地功能做<b>体验闭环补全</b>：告警能"看到/过滤/处理"了，但还差「导出带走 / 推送出去 / 证据查清 / 误报留痕」四件事。</div>
+  </div>
+
+  <!-- ============ 2 现状缺口 ============ -->
+  <div class="card" id="s2">
+    <h2>② 现状缺口盘点（代码级证据）</h2>
+
+    <h3>2.1 批量导出：有雏形，但有 5 个硬缺口</h3>
+    <table>
+      <tr><th>#</th><th>缺口</th><th>代码证据</th><th>影响</th></tr>
+      <tr><td>E1</td><td><b>500 条截断</b>：接口 limit=500，导出最多拿到 500 平铺行，更早的已处理历史导不出</td><td class="mono">load() 两路都 ?limit=500；/api/warnings 无分页游标</td><td>导出报表不完整，无法追溯</td></tr>
+      <tr><td>E2</td><td><b>无时间范围筛选</b>：只能靠 limit 往前截，不能导"8 月一整月"</td><td class="mono">后端仅 type/exclude_type/limit/aggregate/lightweight 参数</td><td>周报/月报场景不可用</td></tr>
+      <tr><td>E3</td><td><b>导出列缺来源与置信度</b>：8 列无来源标识，Excel 里分不清气体/AI/秸秆/城运</td><td class="mono">exportCsv() head 数组</td><td>下游统计需要手工补来源</td></tr>
+      <tr><td>E4</td><td><b>聚合行只导 1 行摘要</b>（"…频发（聚合 N 条）"），明细证据无法随导带走</td><td class="mono">exportCsv() aggregate 分支</td><td>聚合组的单条证据无法进报表</td></tr>
+      <tr><td>E5</td><td><b>导出语义随 tab 变化不明确</b>：无论停哪个 tab 都导"筛选后全状态"，且筛选只有等级+关键词</td><td class="mono">exportCsv 直接消费 allRows（已过筛选）</td><td>值守人员困惑"导的到底是哪些"</td></tr>
+    </table>
+    <div class="good">✅ 已有基础可复用：BOM 防乱码、CSV 转义、导出按钮位置、keyword/levelFilter 前端筛选状态。</div>
+
+    <h3>2.2 微信卡片：只有「秸秆一条链」，且缺状态回看与直达</h3>
+    <table>
+      <tr><th>#</th><th>缺口</th><th>代码证据</th><th>影响</th></tr>
+      <tr><td>W1</td><td><b>推送覆盖窄</b>：仅秸秆告警有推送链（责任反查→gate 复检→PIL 卡片→企微群→误报更正），气体/AI 视频/城运三类告警无任何推送</td><td class="mono">server/index.js strawWorkflow() 1695~1784</td><td>非秸秆事件到不了街道办/值守手机</td></tr>
+      <tr><td>W2</td><td><b>推送状态不可视</b>：wechatPush（pushed/held/失败原因/cardUrl/更正）埋在 data_json，后台与驾驶舱都查不到"这条推没推成功"</td><td class="mono">strawWorkflow 回写 w.wechatPush</td><td>推送失败无人知晓，形成静默丢告警</td></tr>
+      <tr><td>W3</td><td><b>消息无「复查直达」入口</b>：只有地图坐标链接，无法从微信群一键回驾驶舱/复检页核对这条告警</td><td class="mono">link = map.qq.com/?pt=…</td><td>收到消息还得手动开系统翻找</td></tr>
+      <tr><td>W4</td><td><b>失败无重试、文案不可配粒度粗</b>：推送失败仅记录 reason；msgTitle/字段模板仅有 straw_push_style 少量可配</td><td class="mono">kvGet('straw_push_style')</td><td>网络抖动丢消息、不同街道办想要不同模板做不到</td></tr>
+    </table>
+    <div class="note">⚠️ W1 若要扩展为"四来源通用推送订阅"，是<b>新功能级</b>工作量（新表+管理页+触发钩子+群映射+推送队列），本批建议只做 W2~W4 秸秆链打磨，W1 单独立项评估（见 ③ 方案 C 对比）。</div>
+
+    <h3>2.3 研判依据详情联动：驾驶舱有、告警记录弹窗没有，且处置刷新是"整页硬刷新"</h3>
+    <table>
+      <tr><th>#</th><th>缺口</th><th>代码证据</th><th>影响</th></tr>
+      <tr><td>J1</td><td><b>入口不对齐</b>：驾驶舱聚合卡有紫色「详情」→ AlertEvidenceModal（研判依据+证据网格+有效/误报处置）；但告警记录弹窗（AlertHistoryModal）内聚合行只能"展开缩略图"，无研判依据入口、不能有效/误报分流</td><td class="mono">AlertPanel.tsx:215 详情按钮 vs AlertHistoryModal.tsx 聚合分支仅 toggleExpand</td><td>值守在弹窗里处置时失去研判上下文，两个界面能力分裂</td></tr>
+      <tr><td>J2</td><td><b>整页硬刷新</b>：处置成功后派发 alerts:reload，AlertPanel 监听后 window.location.reload() 整页闪断（轮询、选中态、其他弹窗全丢）</td><td class="mono">AlertPanel.tsx:104~108</td><td>大屏闪烁、操作被打断；AlertHistoryModal 一旦复用同一事件会"处置完弹窗直接消失"</td></tr>
+      <tr><td>J3</td><td><b>误报归因未持久化</b>：研判弹窗"误报·标记"的归因只出现在本地提示文字（window.prompt），实际只调 handle-group 置 handled，未写 verdict/note</td><td class="mono">AlertEvidenceModal.tsx handleGroup() 81~93</td><td>"哪些 AI 类型常误报、归因是什么"无数据可统计，无法反哺模型/规则调优</td></tr>
+      <tr><td>J4</td><td><b>单行告警无证据查看</b>：未聚合的 AI 视频告警有图但点不开大图/置信度详情；已处理 tab 记录同样不可回看</td><td class="mono">AlertHistoryModal 单行分支无详情动作</td><td>复核历史单条告警要翻原系统</td></tr>
+    </table>
+    <div class="good">✅ 可复用资产：AlertEvidenceModal 已是成熟组件（zIndex 2000 / 摘要区 / EvidenceGrid 共享网格 / 处置区）；EvidenceGrid 已支持 loading/no_events 态。</div>
+  </div>
+
+  <!-- ============ 3 方案对比 ============ -->
+  <div class="card" id="s3">
+    <h2>③ 方案对比与推荐（每方向给 A/B/C）</h2>
+
+    <h3>方向一：批量导出增强</h3>
+    <div class="verdict-box">
+      <div class="verdict">
+        <div class="v-title">A · 前端补齐筛选 + 后端流式导出 <span class="badge-rec">推荐</span></div>
+        <div class="v-desc">新增 <code>GET /api/warnings/export</code>（status/source/level/from/to/q），服务端按条件全量查（上限 50k）直接写 CSV 响应；前端筛选栏加时间范围＋来源，导出走新接口。<b>彻底解决 E1/E2/E3</b>，E4 聚合明细用"勾选展开明细"缓解。改动可控（1 接口 + 1 页面）。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">B · 仅前端修（不动后端）</div>
+        <div class="v-desc">把 limit 提到 5000、列补来源、导出当前筛选。1~2 小时能交付，但 E1 换汤不换药（5k 也截断）、E2 无解——导出仍是"近 N 条"而非"某时间段"。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">C · 分页式列表大重构 + 导出</div>
+        <div class="v-desc">列表改服务端分页（cursor/页码）再叠加导出。工程量大、与 10s 轮询/聚合折叠/乐观更新纠缠，收益主要落在浏览而非导出。第四批不建议，留作远期列表优化独立课题。</div>
+      </div>
+    </div>
+    <p><b>推荐 A</b>：导出是"数据带走"场景，服务端全量是唯一正确解；前端筛选补齐时间范围能让"导出 = 我看到的筛选结果"，语义闭环。</p>
+
+    <h3>方向二：研判依据详情联动</h3>
+    <div class="verdict-box">
+      <div class="verdict">
+        <div class="v-title">A · 事件总线轻刷新 + 弹窗互通 + 归因持久化 <span class="badge-rec">推荐</span></div>
+        <div class="v-desc">把 alerts:reload 整页刷新改为 <code>alerts:refresh</code> 局部刷新事件（AlertPanel 与 AlertHistoryModal 各自订阅并 reload 自身）；告警记录弹窗聚合行加「研判依据」入口复用 AlertEvidenceModal；handle-group 支持可选 <code>verdict/note</code> 写回 data_json（J3 持久化）。同时解决 J1/J2/J3，J4 顺带做单行证据查看。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">B · 只加入口，不动刷新与归因</div>
+        <div class="v-desc">仅把「研判依据」按钮接进告警记录弹窗。半天交付、风险最低，但处置完仍是整页 reload（弹窗被关）、误报归因仍旧丢失——体验只补一半。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">C · 双弹窗合并大重构</div>
+        <div class="v-desc">把 AlertHistoryModal 与 AlertEvidenceModal 合成一个"告警工作台"（列表+详情分栏）。体验最完整，但要动 DashboardContext 告警数据流与两个既有组件的 props 契约，回归面大，超出"体验打磨"范畴。</div>
+      </div>
+    </div>
+    <p><b>推荐 A</b>：J2 的整页刷新本质是"用 reload 偷懒做状态同步"，现在有了 10s 轮询与乐观更新，完全可以用局部刷新替代——这是本次打磨里<b>技术债收益最高</b>的一笔。</p>
+
+    <h3>方向三：微信卡片优化</h3>
+    <div class="verdict-box">
+      <div class="verdict">
+        <div class="v-title">A · 秸秆链打磨：状态可视化 + 复查直达 + 失败重试 <span class="badge-rec">推荐</span></div>
+        <div class="v-desc">W2 推送状态页（后台加 Tab 展示 wechatPush 成功/held/失败/更正）；W3 markdown 内容加"驾驶舱/复检页直达"入口；W4 失败自动重试 1 次 + 模板可配项扩展。纯后端+一个管理页，不碰既有推送主流程语义。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">B · 在 A 基础上 + 四来源通用推送订阅</div>
+        <div class="v-desc">新增 alert_push_channel 表＋"推送订阅"管理页＋ingest 触发 hook，让气体/AI 视频/城运告警也能按规则推企微群。价值大但是<b>新功能级</b>：涉及 4 来源数据结构差异（AI 视频无行政坐标、城运有自身回调）、群映射、频率抑制（防 AI 高频刷屏）、与 alert_filter_rules 的交互语义，需单独评估排期。</div>
+      </div>
+      <div class="verdict">
+        <div class="v-title">C · 暂缓微信方向</div>
+        <div class="v-desc">本批只做导出与研判联动，微信推送打磨放到秸秆复检链路（straw-engine）下一轮一起做。若当前微信群推送稳定、无人反馈，可接受。</div>
+      </div>
+    </div>
+    <p><b>推荐 A，B 需另拍板</b>：W2（推送状态可视化）优先级最高——任何推送系统"静默失败"都是运维事故源。W3/W4 属低成本高感知。B 的通用订阅建议单独出一份评估（涉及业务规则确认：谁可以收到什么告警），不夹带在本批。</p>
+
+    <h3>方向四："等" —— 其他体验打磨候选（P4，可选并入）</h3>
+    <table>
+      <tr><th>候选</th><th>痛点</th><th>难度</th><th>备注</th></tr>
+      <tr><td>已处理 tab 大数据渲染</td><td>500 条 DOM 全量渲染滚动卡顿</td><td class="tag-p2">低-中</td><td>前端切片/虚拟列表，只渲染可视区</td></tr>
+      <tr><td>驾驶舱入口角标同步</td><td>顶部"告警记录"按钮无未处理数，值守不知道有新告警</td><td class="tag-ok">低</td><td>复用 DashboardContext 预警计数</td></tr>
+      <tr><td>新告警到达提醒</td><td>10s 轮询静默无声，新告警来了无感知（尤其非聚焦时）</td><td class="tag-ok">低</td><td>toast + 可选提示音，localStorage 开关（遵循既有 jsc: 前缀约定）</td></tr>
+      <tr><td>会话态保持</td><td>关弹窗丢失 tab/筛选/关键词</td><td class="tag-ok">低</td><td>sessionStorage 保存</td></tr>
+      <tr><td>来源列显性化</td><td>来源目前只是行首小图标，无筛选 chip</td><td class="tag-p2">低-中</td><td>与 E3 导出列一并做，筛选 chip 复用于导出</td></tr>
+    </table>
+  </div>
+
+  <!-- ============ 4 详细落地步骤 ============ -->
+  <div class="card" id="s4">
+    <h2>④ 详细落地步骤（任务级排期，延续 T 编号从 T13 起）</h2>
+    <p>建议开工顺序 <b>P1 导出 → P2 研判联动 → P3 微信卡片 → P4 细节</b>（先数据带走、再处置闭环、后外部触达，各自可独立验收上线，互不阻塞）。</p>
+
+    <h3>🅿️ P1 · 批量导出增强（预计 1 批：T13~T15）</h3>
+    <table>
+      <tr><th>任务</th><th>内容</th><th>涉及文件</th><th>验收口径</th></tr>
+      <tr>
+        <td><span class="tag-info">T13</span> source 归一化修补</td>
+        <td>把前端 resolveSource() 的推断规则后端化：一次性 SQL/JS 迁移，将历史 warnings 按特征（pointName/code→cq_api；aiType/channelSipId/picUrl→iotcloud；已有 source 保留）补写 <code>data_json.source</code>，使来源成为<b>可服务端过滤的稳定字段</b>（前端推断逻辑仅保留兼容兜底）</td>
+        <td>新脚本 <span class="mono">server/migrate-warning-source.js</span>（走 scp→远端执行）；<span class="mono">AlertHistoryModal.tsx</span> resolveSource 降级</td>
+        <td>DB 内 source 空值率趋 0；抽样 50 条与前端推断一致</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T14</span> 服务端导出接口</td>
+        <td><code>GET /api/warnings/export</code>（adminOnly）：参数 <code>status / source / level / from / to / q / expand_agg</code>，SQL 过滤（created_at 区间用本地时区语义）+ 聚合组明细可选打平；CSV 流式写响应（Content-Disposition 中文文件名），上限 5 万行护栏；列含 时间/来源/类型/点位/数值/限值/等级/置信度/状态/处理时间/处理人/告警ID</td>
+        <td><span class="mono">server/index.js</span>（路由段）＋ <span class="mono">server/store-db.js</span>（queryWarnings 扩展 opts）</td>
+        <td>HTTP 实测：8 月全量导出行数=库内匹配行数（>500 验证）；Excel 打开无乱码</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T15</span> 前端导出面板升级</td>
+        <td>筛选栏加：时间范围（近7天/30天/自定义，datetime-local）＋ 来源 chip 多选（复用 SOURCE_META）＋ 状态（未处理/已处理/全部）；「导出CSV」改为调 T14 接口（loading 态 + 行数提示）；导出列与接口一致；聚合明细导出勾选项（默认摘要行）</td>
+        <td><span class="mono">AlertHistoryModal.tsx</span></td>
+        <td>UI 验收截图：选"8月+AI视频+已处理"导出，文件行数与筛选统计一致</td>
+      </tr>
+    </table>
+
+    <h3>🅿️ P2 · 研判依据详情联动（预计 1 批：T16~T18）</h3>
+    <table>
+      <tr><th>任务</th><th>内容</th><th>涉及文件</th><th>验收口径</th></tr>
+      <tr>
+        <td><span class="tag-info">T16</span> 事件总线轻刷新</td>
+        <td>新增 <code>alerts:refresh</code> 事件（带 payload <code>{scope?: 'panel'|'history'}</code>）：AlertPanel 处置后改为触发 refresh 并自身 reload 告警（不再 location.reload）；AlertHistoryModal 订阅后仅 reload 自身列表。旧 alerts:reload 保留兼容或一并替换（搜索全部引用，仅 AlertPanel.tsx:105 一处 + AlertEvidenceModal.tsx:93 派发）</td>
+        <td><span class="mono">AlertPanel.tsx</span> <span class="mono">AlertEvidenceModal.tsx</span> <span class="mono">AlertHistoryModal.tsx</span></td>
+        <td>处置后页面不闪断、弹窗保持打开、列表即时变化；连点 3 次处置无整页刷新</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T17</span> 弹窗聚合行接研判依据 + 单行证据查看</td>
+        <td>AlertHistoryModal 聚合行加「研判依据」按钮 → 将 agg 适配为 AlertItem 形状后复用 AlertEvidenceModal（zIndex 2000 在 1000 之上天然可用）；单行（含已处理）AI 视频告警支持证据大图查看（新轻量 viewer 或复用 EvidenceGrid 单图）；处置后触发 T16 的 refresh</td>
+        <td><span class="mono">AlertHistoryModal.tsx</span>（引入 AlertEvidenceModal；AggregateWarning→AlertItem 适配函数）</td>
+        <td>headless 截图：聚合行"研判依据"可开、可有效/误报、处置后弹窗不消失、驾驶舱聚合卡同步消失</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T18</span> 误报归因持久化</td>
+        <td>handle-group 请求体扩展可选 <code>verdict: 'valid'|'false' | note</code>；后端写入 <code>data_json.review = {verdict, note, by, at}</code>（对组内全部成员）；AlertEvidenceModal 误报标记改为携带归因（沿用其 prompt 候选词，去掉原生 prompt 改自定义小弹层更顺）；列表行/研判弹窗展示归因徽标；T14 导出列可含归因</td>
+        <td><span class="mono">server/index.js</span>（handle-group 路由）<span class="mono">server/store-db.js</span> <span class="mono">AlertEvidenceModal.tsx</span> <span class="mono">AlertHistoryModal.tsx</span></td>
+        <td>标记误报后查库 review 字段存在；统计页可按归因聚合（可选后续）</td>
+      </tr>
+    </table>
+    <div class="note">⚠️ T18 涉及数据结构追加，务必先备份 db 再上线；旧记录无 review 字段需前端判空兼容。</div>
+
+    <h3>🅿️ P3 · 微信卡片优化（预计 1 批：T19~T21，可整批跳过）</h3>
+    <table>
+      <tr><th>任务</th><th>内容</th><th>涉及文件</th><th>验收口径</th></tr>
+      <tr>
+        <td><span class="tag-info">T19</span> 推送状态可视化页</td>
+        <td>管理后台新增「推送记录」Tab：查秸秆告警 wechatPush（时间/街道办/责任单位/状态 pushed|held|失败原因/更正状态），失败红标可一键重推（复用 strawWorkflow force）；只读 90 天窗口</td>
+        <td><span class="mono">IotArchivePage.tsx</span>（挂 Tab）+ 新 <span class="mono">PushLogPage.tsx</span>；<span class="mono">server/index.js</span>（查询+重推路由）</td>
+        <td>推送记录页与真实 wechatPush 数据一致；失败项重推后状态翻转</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T20</span> 复查直达 + 模板扩展</td>
+        <td>markdown/news 内容加"复核直达"：秸秆告警附带复检页/驾驶舱链接（秸秆走既有 review 页 http://…:81/jsc/… 或外网复检入口）；文案字段模板按街道办可配（straw_push_style 扩展 title/mention 后缀）；news 卡片渲染失败自动降级 markdown（已有逻辑强化为可配开关）</td>
+        <td><span class="mono">server/index.js</span> strawWorkflow 段 1735~1751；<span class="mono">store-db.js</span> 样式默认值</td>
+        <td>推送截图：含直达链接；错误注入渲染失败时降级 markdown 且推送仍成功</td>
+      </tr>
+      <tr>
+        <td><span class="tag-info">T21</span> 推送失败重试</td>
+        <td>企微/bridge 非 2xx 或 errcode≠0（排除已知 verify 误报特例）自动重试 1 次（间隔 5s），仍失败才落失败态并可人工重推（T19）</td>
+        <td><span class="mono">server/index.js</span> strawWorkflow 推送段</td>
+        <td>mock webhook 500 时日志显示重试 1 次后失败、页面可重推</td>
+      </tr>
+    </table>
+
+    <h3>🅿️ P4 · 细节打磨（可选并入各批或单列 1 批 T22~T24）</h3>
+    <table>
+      <tr><th>任务</th><th>内容</th><th>备注</th></tr>
+      <tr><td><span class="tag-p2">T22</span> 列表渲染优化</td><td>已处理 tab 分页切片或虚拟滚动（每页 100 / 触底加载），配合 T14 服务端能力可按需翻页</td><td>若 500 条当前无卡顿反馈可降级为分页切片</td></tr>
+      <tr><td><span class="tag-p2">T23</span> 入口角标 + 新告警提醒</td><td>驾驶舱「告警记录」按钮加未处理数字角标（实时）；弹窗内新告警到达 toast；提示音可选（localStorage jsc:alert-sound）</td><td>角标数据源与弹窗 count 一致</td></tr>
+      <tr><td><span class="tag-p2">T24</span> 会话态保持</td><td>tab/筛选/关键词/展开态存 sessionStorage，重开弹窗恢复</td><td>与 T15 筛选面板互不冲突</td></tr>
+    </table>
+  </div>
+
+  <!-- ============ 5 冲突排查 ============ -->
+  <div class="card" id="s5">
+    <h2>⑤ 冲突排查与依赖（按已实施代码逐条核对）</h2>
+    <table>
+      <tr><th>#</th><th>冲突点</th><th>分析结论 / 处理方式</th></tr>
+      <tr><td>C1</td><td>导出 vs alert_filter_rules 5 维过滤</td><td>过滤规则语义是"驾驶舱<b>展示</b>降噪"，导出是"数据<b>带走</b>"——导出不应悄悄应用个人过滤规则（否则报表缺行），导出条件由用户在导出面板显式选。结论：T14 服务端过滤与 alertFilterRuleHit 完全解耦，文档注明差异。</td></tr>
+      <tr><td>C2</td><td>source 归一化 vs 现有"前端推断"兼容逻辑</td><td>resolveSource() 仍保留作兜底（防漏网），T13 修补后以 data_json.source 为准——两处规则必须同一份（建议后端常量导出，避免二次漂移）。</td></tr>
+      <tr><td>C3</td><td>alerts:refresh 改造 vs 10s 轮询竞态守卫</td><td>AlertHistoryModal 已有 seqRef 丢弃过期响应，refresh 触发 load() 会自然被守卫保护；AlertPanel 侧需确认自身没有同类竞态（走查其 externalAlerts/selectedAlertId 状态）。</td></tr>
+      <tr><td>C4</td><td>弹窗内复用 AlertEvidenceModal 的 zIndex / 双层滚动</td><td>AlertEvidenceModal zIndex=2000 天然盖住告警记录弹窗(1000)；其容器 flex 居中不阻塞父弹窗；处置完成后由 refresh 事件驱动父列表更新，无需关闭父弹窗。需验证 confirm/toast(z1100/1200) 不遮挡子弹窗按钮。</td></tr>
+      <tr><td>C5</td><td>handle-group 扩展 verdict 字段 vs 既有调用方</td><td>现行调用点 3 处：AlertHistoryModal.handleGroup（聚合标记）、AlertEvidenceModal.handleGroup(valid/false)、路由 handle-all。verdict 为可选字段，向后兼容；handle-all 不带 verdict 不落 review，语义保持"批量清空"。</td></tr>
+      <tr><td>C6</td><td>wechatPush 回写硬编码 DB 路径</td><td>strawWorkflow 直接用 <code>new DatabaseSync('/opt/jsc/backend/data/jsc.db')</code>——本地开发无此路径会抛错（已有 try/catch 仅日志不阻断，容错 OK），T19~T21 改动时顺带改为复用 store 实例，消除硬编码。</td></tr>
+      <tr><td>C7</td><td>导出时间范围的时区语义</td><td>created_at 存 UTC ISO 串，T14 的 from/to 需按 Asia/Shanghai 转换（沿用 warningTrend 的 +8h 处理），否则 8 月报表会差 8 小时边界。</td></tr>
+      <tr><td>C8</td><td>T10 轮询与"已处理 tab"数据量</td><td>双请求每 10s 各拉 500 条，若 T22 引入服务端分页需同步改轮询策略（保持"pending 只拉未处理+聚合"，handled 按需翻页），避免每 10s 全量 1000 行解析。</td></tr>
+    </table>
+  </div>
+
+  <!-- ============ 6 风险回滚 ============ -->
+  <div class="card" id="s6">
+    <h2>⑥ 风险与回滚</h2>
+    <table>
+      <tr><th>风险</th><th>等级</th><th>缓解 / 回滚</th></tr>
+      <tr><td>T13 source 归一化批量写库（历史记录修改）</td><td><span class="tag-warn">中</span></td><td>先备份 db 至 /video/backups/（遵循既有 jsc-* 命名：jsc_p4_sourcefix_0902.db）；脚本可重复执行幂等（仅补空 source）；跑完抽样对账再继续。</td></tr>
+      <tr><td>T16 事件总线改造影响处置刷新链路</td><td><span class="tag-warn">中</span></td><td>小步提交：先加 alerts:refresh 事件与订阅，灰度 AlertPanel 单点切换，headless 验证处置后列表变化且无整页刷新；保留 reload 兜底开关（kv 或常量）可秒回。</td></tr>
+      <tr><td>T18 review 字段写入失败/旧记录兼容</td><td><span class="tag-p2">低-中</span></td><td>字段只追加不改既有 status/handledAt；前端全部判空；写失败不阻断标记处理主流程（先置 handled 成功再写 review，review 失败打日志）。</td></tr>
+      <tr><td>T19~T21 触碰 strawWorkflow 主干（真机联调成本高）</td><td><span class="tag-warn">中</span></td><td>推送改动默认关闭可配（kv 开关），先 mock webhook 验证再真群试推 1 条；重推/更正路由全部要求 adminOnly + 幂等。</td></tr>
+      <tr><td>导出大结果集拖垮后端</td><td><span class="tag-p2">低</span></td><td>上限 5 万行 + 超限提示改用时间缩小；SQL 走索引列（created_at），导出接口超时 30s 兜底。</td></tr>
+      <tr><td>多批次连续上线引入回归（前三批刚稳）</td><td><span class="tag-p2">低</span></td><td>沿用既有流程：git commit + push → tar 单文件部署 → 逐资源 curl 200 核验 → headless 截图验收 → /video/backups 留档 → 每批独立验收通过再开下一批。</td></tr>
+    </table>
+    <div class="risk">🔴 运维铁律提醒：所有批次的数据库备份与大数据写入一律走 <b>/video</b>（数据盘），禁系统盘、禁 ESXi 快照；回滚走 jsc-rollback 文件级；数据库结构变更前先 commit 基线再动手。</div>
+  </div>
+
+  <!-- ============ 7 结论 ============ -->
+  <div class="card" id="s7">
+    <h2>⑦ 拍板点与结论</h2>
+    <h3>建议实施范围（推荐组合）</h3>
+    <table>
+      <tr><th>批次</th><th>内容</th><th>估算交互面</th><th>建议</th></tr>
+      <tr><td><b>P1</b> T13~T15</td><td>导出增强（source 归一化 + 服务端导出 + 前端时间/来源筛选）</td><td>1 脚本 + 2 文件</td><td><span class="tag-ok">✅ 先开工</span> 值守日报/月报刚需</td></tr>
+      <tr><td><b>P2</b> T16~T18</td><td>研判依据联动（事件总线 + 弹窗互通 + 归因持久化）</td><td>3 组件 + 2 路由</td><td><span class="tag-ok">✅ 次开工</span> 技术债收益最高</td></tr>
+      <tr><td><b>P3</b> T19~T21</td><td>微信卡片优化（推送状态页 + 直达链接 + 重试）</td><td>1 新页 + 1 路由段</td><td><span class="tag-p2">🟡 可并入/可单独</span> 若企微群无人反馈可顺延</td></tr>
+      <tr><td><b>P4</b> T22~T24</td><td>细节打磨（列表渲染 / 角标提醒 / 会话态）</td><td>1~2 组件</td><td><span class="tag-p2">🟢 灵活并入</span></td></tr>
+    </table>
+
+    <h3>需要你拍板的 4 个决策点</h3>
+    <table>
+      <tr><th>#</th><th>决策点</th><th>选项</th></tr>
+      <tr><td>D1</td><td>开工范围</td><td>A) 四批全做（P1→P2→P3→P4 顺序开工，推荐）<br/>B) 只做 P1+P2（导出+研判，本次最小闭环）<br/>C) P1+P2+P3（暂缓细节）</td></tr>
+      <tr><td>D2</td><td>误报归因持久化 T18 是否纳入</td><td>A) 纳入（推荐：数据可反哺模型/规则调优）<br/>B) 暂缓（只做入口与刷新，最小改动）</td></tr>
+      <tr><td>D3</td><td>微信方向</td><td>A) 本次只做 P3 秸秆链打磨（推荐）<br/>B) 通用四来源推送订阅另立评估后再做<br/>C) 本批完全跳过微信</td></tr>
+      <tr><td>D4</td><td>P4 细节</td><td>A) 全部并入（角标+提醒+会话态+渲染）<br/>B) 只做角标与新告警提醒<br/>C) 跳过</td></tr>
+    </table>
+
+    <div class="good">
+      🎯 <b>结论</b>：第四批是"体验闭环补全"而非新功能堆叠——导出解决"数据带不走"（E1~E5 五个缺口一次封口），研判联动解决"处置上下文分裂 + 整页硬刷新 + 误报不落库"（J1~J4），微信打磨解决"推送静默失败不可见"（W2~W4）。三者都建立在 T1~T12 已落地的组件/接口之上，改动面收敛、每批可独立验收上线。确认 D1~D4 后即可按 P1 开工。
+    </div>
+  </div>
+
+  <div class="foot">
+    JSC 生态环境政务驾驶舱 · 告警管理第四批体验打磨评估 · 2026-09-02 · 评估文档与代码走查基于 T1~T12 上线后主分支
+  </div>
+</div>
+</body>
+</html>
