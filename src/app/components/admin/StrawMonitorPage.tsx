@@ -288,6 +288,10 @@ const DEFAULT_STYLE = {
   reviewLinkBase: '',               // 复核直达链接前缀（默认 http://PUBLIC_HOST:81/jsc/）
   appendReviewLink: true,           // 是否在消息尾追加「复核直达」链接
   fallbackToMarkdown: true,         // news 卡片渲染失败/禁用时降级 markdown 仍推送
+  // T21：推送失败自动重试（webhook 返回失败/超时自动重发；默认关闭）
+  autoRetry: false,                 // 失败自动重试开关
+  retryTimes: 1,                    // 重试次数
+  retryDelayMs: 5000,               // 重试间隔（毫秒）
 }
 
 function PushStyleEditor() {
@@ -436,7 +440,7 @@ function PushStyleEditor() {
       {/* T20 消息高级选项：落款 / 复核直达 / 降级策略 */}
       <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ color: '#7ab8e0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Send size={14} strokeWidth={1.75} />消息高级选项（markdown / 降级通道）
+          <Send size={14} strokeWidth={1.75} />消息高级选项（markdown / 降级 / 重试）
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#5a8aaa', fontSize: 12, width: 130 }}>消息尾部落款</span>
@@ -457,6 +461,27 @@ function PushStyleEditor() {
           </label>
         </div>
         <div style={{ fontSize: 11, color: '#3a5a70' }}>复核直达：消息尾自动追加「🔎 复核直达 · 告警ID」链接（{`?openAlert=`}），打开驾驶舱自动定位该告警。取消勾选仅去链接，不影响卡片推送。</div>
+        {/* T21 推送失败自动重试 */}
+        <div style={{ borderTop: '1px dashed rgba(0,150,220,0.2)', paddingTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#7ab8e0', fontSize: 12 }}>
+            <input type="checkbox" checked={style.autoRetry === true} onChange={e => set('autoRetry', e.target.checked)} style={{ cursor: 'pointer' }} />
+            推送失败自动重试
+          </label>
+          {style.autoRetry === true && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5a8aaa' }}>
+              重试
+              <input type="number" min={1} max={5} value={Number(style.retryTimes) || 1}
+                onChange={e => set('retryTimes', Math.max(1, Math.min(5, Number(e.target.value) || 1)))}
+                style={{ ...inputStyle, width: 52 }} />
+              次 · 间隔
+              <input type="number" min={1} max={60} value={Math.round((Number(style.retryDelayMs) || 5000) / 1000)}
+                onChange={e => set('retryDelayMs', Math.max(1, Math.min(60, Number(e.target.value) || 5)) * 1000)}
+                style={{ ...inputStyle, width: 52 }} />
+              秒
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: '#3a5a70' }}>失败重试：webhook 返回失败或请求超时时自动重发（默认关闭，主推与复核更正均生效）。全部重试仍失败才最终落失败态，推送记录会标注重试次数。</div>
       </div>
 
       {/* 预览 */}

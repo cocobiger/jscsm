@@ -1692,6 +1692,36 @@ app.get('/api/straw-samples', (req, res) => {
   res.json(store.listStrawSamples({ verdict: req.query.verdict || undefined, limit: Number(req.query.limit) || 200 }))
 })
 
+// ── 企微/微信桥 webhook 推送统一收口（P3 T21：失败自动重试）──
+// 返回 { ok, errcode, errmsg, isVerifyFP, attempts }
+// 成功判定：errcode===0；或 wechat-bridge(:18888) errcode=-1 + errmsg 含 verify/target=
+//   （wechatauto 1.2.0 verify=True 在微信 4.1.12 误报失败，消息实际已入 DB——2026-08-31 验证）
+// 失败重试：retries>0 时按 retryDelayMs 间隔自动重发（默认 1 次 / 5s），仍失败返回最后一次结果
+async function sendWechatPush(webhook, body, { retries = 0, retryDelayMs = 5000, timeout = 30000, label = '' } = {}) {
+  const isBridge = /:18888(\/|$|\?)/.test(webhook)
+  // 尝试总次数 = 首次 + 重试次数（retries=0 → 1 次；retries=1 → 2 次）。⚠️ 勿写成 max(1,n)+1（会把 0 也变 2 次）
+  const total = Math.max(1, (Number(retries) || 0) + 1)
+  let last = { errcode: -1, errmsg: '未发送' }
+  for (let i = 1; i <= total; i++) {
+    let r
+    try {
+      const resp = await fetch(webhook, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), signal: AbortSignal.timeout(timeout),
+      })
+      try { r = await resp.json() } catch { r = { errcode: -1, errmsg: `HTTP ${resp.status} 非 JSON 响应` } }
+    } catch (e) { r = { errcode: -1, errmsg: (e && e.message) || String(e) } }
+    last = r
+    const isVerifyFP = isBridge && r.errcode === -1 && r.errmsg && /verify|target=/.test(r.errmsg)
+    if (r.errcode === 0 || isVerifyFP) return { ok: true, errcode: r.errcode, errmsg: r.errmsg || '', isVerifyFP, attempts: i }
+    if (i < total) {
+      console.log(`[push-retry] ${label || webhook.replace(/key=.*$/, 'key=***')} 第 ${i} 次失败(${r.errmsg || r.errcode})，${retryDelayMs}ms 后重试`)
+      await new Promise(res => setTimeout(res, retryDelayMs))
+    }
+  }
+  return { ok: false, errcode: last.errcode, errmsg: last.errmsg, isVerifyFP: false, attempts: total }
+}
+
 // ── 秸秆告警后处理工作流：责任反查 → 复检把关(gate) → 卡片渲染 → 微信群推送 ──
 // gate=pre：低置信度(aiConfidence<阈值) 告警先 held 不推，等人工复核通过后由 onReviewVerdict 释放推送
 // gate=post/off：照常先推后检；复检误报时由 strawCorrection 追发更正推送
@@ -1770,21 +1800,22 @@ async function strawWorkflow(warning, opts = {}) {
       const body = useNews
         ? { msgtype: 'news', news: { articles: [{ title: titleTpl, description: newsDesc, picurl: `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81${cardUrl}`, url: link }] } }
         : { msgtype: 'markdown', markdown: { content } }
-      const wr = await fetch(resp.webhook, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
-      }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
-      // wechat-bridge 特例: wechatauto 1.2.0 verify=True 在微信 4.1.12 上误报失败
-      // (消息实际已写入 DB 但 quick_send verify 回读对比失败)。webhook 指向 :18888
-      // 且 errcode=-1+errmsg 含 verify/target= 视为推送成功(2026-08-31 验证)。
-      const isBridge1 = resp.webhook && /:18888(\/|$|\?)/.test(resp.webhook)
-      const isVerifyFP1 = isBridge1 && wr.errcode === -1 && wr.errmsg && /verify|target=/.test(wr.errmsg)
-      pushInfo.pushed = wr.errcode === 0 || isVerifyFP1
-      pushInfo.reason = wr.errcode === 0
-        ? '推送成功'
-        : isVerifyFP1
-          ? '推送成功(wechatauto verify 误报已忽略)'
-          : `推送失败(${wr.errmsg || wr.errcode})`
+      // 3. 推送（P3 T21：autoRetry 开启时失败自动重试 retryTimes 次 / retryDelayMs 间隔；
+      //    verify 误报特例已收口到 sendWechatPush，reason 标注重试次数便于推送页可视化）
+      const autoRetry = style.autoRetry === true
+      const wr = await sendWechatPush(resp.webhook, body, {
+        retries: autoRetry ? (Number(style.retryTimes) || 1) : 0,
+        retryDelayMs: (Number(style.retryDelayMs) || 5000),
+        label: `straw ${warning.id}`,
+      })
+      pushInfo.pushed = wr.ok
+      pushInfo.reason = wr.ok
+        ? (wr.isVerifyFP
+            ? '推送成功(wechatauto verify 误报已忽略)'
+            : wr.attempts > 1 ? `推送成功(重试${wr.attempts - 1}次)` : '推送成功')
+        : (wr.attempts > 1
+            ? `推送失败(已重试${wr.attempts - 1}次仍失败: ${wr.errmsg || wr.errcode})`
+            : `推送失败(${wr.errmsg || wr.errcode})`)
       pushInfo.cardUrl = cardUrl
       pushInfo.webhook = resp.webhook.replace(/key=.*$/, 'key=***')
     } catch (e) {
@@ -1825,17 +1856,22 @@ async function strawCorrection(warning, note, reviewer) {
       `> 原告警：${warning.location || warning.streamId || ''} · 置信度 ${((warning.aiConfidence || 0) * 100).toFixed(1)}%`,
     ].filter(Boolean).join('\n')
     try {
-      const r = await fetch(resp.webhook, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ msgtype: 'markdown', markdown: { content } }),
-        signal: AbortSignal.timeout(30000),
-      }).then(r => r.json()).catch(e => ({ errcode: -1, errmsg: e.message }))
-      // wechat-bridge verify 误报特例(同 1755-1763 注释)
-      const isBridge2 = resp.webhook && /:18888(\/|$|\?)/.test(resp.webhook)
-      const isVerifyFP2 = isBridge2 && r.errcode === -1 && r.errmsg && /verify|target=/.test(r.errmsg)
-      ok = r.errcode === 0 || isVerifyFP2
-      failReason = ok ? '' : `推送失败(${r.errmsg || r.errcode})`
-      if (!ok) console.error('[straw-correction] 更正推送失败:', r.errmsg || r.errcode)
+      // P3 T21：更正推送同样支持 autoRetry（与主推同一收口函数）
+      const style = { ...DEFAULT_PUSH_STYLE, ...(store.kvGet('straw_push_style', null) || {}) }
+      const r = await sendWechatPush(resp.webhook,
+        { msgtype: 'markdown', markdown: { content } },
+        {
+          retries: style.autoRetry === true ? (Number(style.retryTimes) || 1) : 0,
+          retryDelayMs: (Number(style.retryDelayMs) || 5000),
+          label: `correction ${warning.id}`,
+        })
+      ok = r.ok
+      failReason = r.ok
+        ? ''
+        : (r.attempts > 1
+            ? `推送失败(已重试${r.attempts - 1}次仍失败: ${r.errmsg || r.errcode})`
+            : `推送失败(${r.errmsg || r.errcode})`)
+      if (!ok) console.error('[straw-correction] 更正推送失败:', failReason)
     } catch (e) { failReason = '推送异常: ' + e.message }
   }
   // 回写更正状态（无论成败都留痕）
@@ -2090,6 +2126,10 @@ const DEFAULT_PUSH_STYLE = {
   reviewLinkBase: '',
   msgFooter: '',
   fallbackToMarkdown: true,
+  // P3 T21：推送失败自动重试（webhook 返回失败/超时自动重发；默认关闭）
+  autoRetry: false,             // 失败自动重试开关（true 开启）
+  retryTimes: 1,                // 重试次数
+  retryDelayMs: 5000,           // 重试间隔（毫秒）
 }
 app.get('/api/straw/push-style', (req, res) => {
   res.json(store.kvGet('straw_push_style', DEFAULT_PUSH_STYLE))
