@@ -412,26 +412,53 @@ function validatePicUrl(picUrl) {
   }
 }
 
-// 拉取图片源站字节（公网 IP → 局域网 IP 改写，与 proxyImage 一致）
+// ── 图片源站候选解析（2026-09-03 双源回退）──
+// 上游 9/2 19:32 起 picUrl host 从 :5001(nginx 静态免认证) 切到 :6882(认证网关，裸请求返回 HTTP 200 包裹的 JSON 401)；
+// 实测同路径 :5001 HIT 200 → 遇 6882 网关形态时先试 :5001，失败再回退 :6882 原样（保留真实状态码供留痕/跟踪上游）。
+function sourceCandidates(picUrl) {
+  const purl = new URL(picUrl)
+  // JSC 服务器内部无法访问公网 IP（111.10.220.226），改写为局域网 IP（172.16.8.11）
+  const host = purl.hostname === '111.10.220.226' ? '172.16.8.11' : purl.hostname
+  const path = purl.pathname + purl.search
+  const is6882 = host === '172.16.8.11' && (String(purl.port) === '6882')
+  if (is6882) {
+    return [
+      { hostname: host, port: 5001, path, tag: '5001' },   // 首选：nginx 静态免认证
+      { hostname: host, port: 6882, path, tag: '6882' },   // 回退：认证网关原样（401 留痕，防 5001 无副本的新图）
+    ]
+  }
+  return [{ hostname: host, port: purl.port || 80, path, tag: 'origin' }]
+}
+
+// 拉取图片源站字节（遍历候选：5001 优先 → 6882 回退；非 200 或 content-type 非 image/* 视为该源失败）
 function fetchImageBytes(picUrl) {
   return new Promise((resolve, reject) => {
-    try {
-      const purl = new URL(picUrl)
-      const targetHost = purl.hostname === '111.10.220.226' ? '172.16.8.11' : purl.hostname
-      const req = http.get({
-        hostname: targetHost,
-        port: purl.port || 80,
-        path: purl.pathname + purl.search,
-        timeout: 15000,
-      }, (proxyRes) => {
-        if (proxyRes.statusCode !== 200) { proxyRes.resume(); return reject(new Error('源站 ' + proxyRes.statusCode)) }
+    let cands
+    try { cands = sourceCandidates(picUrl) } catch (e) { return reject(e) }
+    const attempt = (i, errs) => {
+      if (i >= cands.length) {
+        console.error(`[img-proxy] 6882/5001 双源均失败 url=${picUrl} (${errs.join('; ')})`)
+        return reject(new Error('双源均失败: ' + errs.join('; ')))
+      }
+      const c = cands[i]
+      let settled = false
+      const fail = (reason) => { if (settled) return; settled = true; attempt(i + 1, errs.concat(reason)) }
+      const req = http.get({ hostname: c.hostname, port: c.port, path: c.path, timeout: 15000 }, (proxyRes) => {
+        // 6882 网关对任意路径返回 HTTP 200 + application/json {"code":401} → 需按 content-type 判图，非 image/* 视为失败
+        const ct = String(proxyRes.headers['content-type'] || '').toLowerCase()
+        if (proxyRes.statusCode !== 200 || !ct.startsWith('image/')) {
+          proxyRes.resume()
+          return fail(`${c.tag}:${proxyRes.statusCode} ${ct || 'no-ct'}`)
+        }
+        settled = true
         const chunks = []
-        proxyRes.on('data', c => chunks.push(c))
+        proxyRes.on('data', d => chunks.push(d))
         proxyRes.on('end', () => resolve(Buffer.concat(chunks)))
       })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
-    } catch (e) { reject(e) }
+      req.on('error', (e) => fail(`${c.tag}:ERR ${e.code || e.message}`))
+      req.on('timeout', () => { req.destroy(); fail(`${c.tag}:timeout`) })
+    }
+    attempt(0, [])
   })
 }
 
@@ -488,38 +515,43 @@ async function proxyImage(req, res) {
     return res.end(cached.buf)
   }
 
-  try {
-    const purl = new URL(picUrl)
-    // JSC 服务器内部无法访问公网 IP（111.10.220.226），改写为局域网 IP（172.16.8.11）
-    const targetHost = purl.hostname === '111.10.220.226' ? '172.16.8.11' : purl.hostname
-    const proxyReq = http.get({
-      hostname: targetHost,
-      port: purl.port || 80,
-      path: purl.pathname + purl.search,
-      timeout: 15000,
-    }, (proxyRes) => {
-      if (proxyRes.statusCode !== 200) {
+  let cands
+  try { cands = sourceCandidates(picUrl) } catch (e) { return res.status(400).send('Invalid URL') }
+
+  // 遍历候选源（5001 优先 → 6882 回退）：首个「200 且 content-type 为 image/*」的源即转发成功
+  const attempt = (i, errs) => {
+    if (i >= cands.length) {
+      console.error(`[img-proxy] 6882/5001 双源均失败 url=${picUrl} (${errs.join('; ')})`)
+      return res.status(502).send('Image source error: ' + errs.join('; '))
+    }
+    const c = cands[i]
+    let settled = false
+    const fail = (reason) => { if (settled) return; settled = true; attempt(i + 1, errs.concat(reason)) }
+    const proxyReq = http.get({ hostname: c.hostname, port: c.port, path: c.path, timeout: 15000 }, (proxyRes) => {
+      // 6882 网关对任意路径返回 HTTP 200 + application/json {"code":401} → 按 content-type 判图，非 image/* 视为该源失败
+      const ct = String(proxyRes.headers['content-type'] || '').toLowerCase()
+      if (proxyRes.statusCode !== 200 || !ct.startsWith('image/')) {
         proxyRes.resume() // 丢弃错误响应体
-        return res.status(proxyRes.statusCode || 502).send('Image source error')
+        return fail(`${c.tag}:${proxyRes.statusCode} ${ct || 'no-ct'}`)
       }
+      settled = true
       const contentType = proxyRes.headers['content-type'] || 'image/jpeg'
       res.setHeader('Cache-Control', 'public, max-age=86400')
       res.setHeader('Content-Type', contentType)
       res.setHeader('X-Cache', 'MISS')
+      res.setHeader('X-Img-Source', c.tag) // 联调观察：图实际取自 5001 静态 / 6882 网关 / origin
       // 边转发边收集字节，结束后再写入缓存
       const chunks = []
-      proxyRes.on('data', (c) => { chunks.push(c); res.write(c) })
+      proxyRes.on('data', (d) => { chunks.push(d); res.write(d) })
       proxyRes.on('end', () => {
         try { _cacheSet(picUrl, Buffer.concat(chunks), contentType) } catch {}
         res.end()
       })
     })
-
-    proxyReq.on('error', () => res.status(502).send('Image proxy error'))
-    proxyReq.on('timeout', () => { proxyRes.destroy(); res.status(504).send('Image timeout') })
-  } catch (e) {
-    res.status(500).send('Proxy failed')
+    proxyReq.on('error', (e) => fail(`${c.tag}:ERR ${e.code || e.message}`))
+    proxyReq.on('timeout', () => { proxyReq.destroy(); fail(`${c.tag}:timeout`) })
   }
+  attempt(0, [])
 }
 
 // ── API 路由注册 ─────────────────────────────────────

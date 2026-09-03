@@ -18,20 +18,36 @@ interface Props {
 export function AlertThumbnail({ src, alt = '', onClick, fallback, borderColor = 'rgba(0,150,220,0.4)', badge, width = 72, height = 48 }: Props) {
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
+  // 降级阶段：thumb 失败 → true 时退回 /api/iot-image 原图代理重试（2026-09-03 图片源 6882 网关修复）
+  const [useOriginal, setUseOriginal] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
 
   // src 变化时重置状态（列表复用时避免旧图残留）
-  useEffect(() => { setLoaded(false); setErrored(false) }, [src])
+  useEffect(() => { setLoaded(false); setErrored(false); setUseOriginal(false) }, [src])
 
   // 缩略图加速：/api/iot-image 原图代理 → /api/thumb 缩放+webp 压缩（72×48 显示不再加载 ~1MB 原图）
+  // 2026-09-03 修复①：picUrl 为相对路径（/api/evidence/... 本地证据图）时被误包成 iot-image 代理，
+  //   后端 validatePicUrl 对非 http(s) URL 抛 Invalid URL → 400；此处解码后还原为本地直链，勿 rewrite。
+  // 修复②：thumb 502/400（如 6882 认证网关 401 上游）→ 降级重试 /api/iot-image 原图一次，再失败才占位。
   const thumbSrc = useMemo(() => {
     if (!src) return src
     const m = src.match(/\/api\/iot-image\?url=([^&]+)/)
-    if (m) return '/api/thumb?url=' + m[1] + '&w=200'
-    return src
-  }, [src])
+    if (!m) return src   // 非代理形态（含 /api/evidence/xxx 原生直链）：原样
+    let inner: string | null = null
+    try { inner = decodeURIComponent(m[1]) } catch { inner = m[1] }
+    // 内层是本地相对路径（被上游/后端原样透传的相对 picUrl）→ 还原直链，不再套代理
+    if (inner && !/^https?:\/\//i.test(inner)) return inner
+    if (useOriginal) return src   // 降级：直接请求原图代理（跳过 thumb 缩放）
+    return '/api/thumb?url=' + m[1] + '&w=200'
+  }, [src, useOriginal])
 
   const showImg = !!thumbSrc && !errored
+
+  // thumb 失败 → 切原图重试一次；原图也失败/直链失败 → 占位
+  const handleError = () => {
+    if (!useOriginal && thumbSrc && thumbSrc.startsWith('/api/thumb?')) { setUseOriginal(true); return }
+    setErrored(true)
+  }
 
   return (
     <div
@@ -73,7 +89,7 @@ export function AlertThumbnail({ src, alt = '', onClick, fallback, borderColor =
           loading="lazy"
           decoding="async"
           onLoad={() => setLoaded(true)}
-          onError={() => setErrored(true)}
+          onError={handleError}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
             opacity: loaded ? 1 : 0, transition: 'opacity 0.35s ease',

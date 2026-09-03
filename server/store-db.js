@@ -2052,6 +2052,16 @@ function alertFilterRuleHit(w) {
   return false
 }
 
+// 2026-09-03 聚合选图加固：判定 picUrl 是否为 6882 认证网关形态
+//（上游 9/2 19:32 起切换，无凭据裸拉返回 401/非图；配 iot-fetcher 5001 回退仍可加载，但历史 5001 成员更健康优先展示）
+function is6882GatewayPic(picUrl) {
+  if (!picUrl || typeof picUrl !== 'string') return false
+  try {
+    const p = new URL(picUrl)
+    return String(p.port) === '6882' && ['172.16.8.11', '111.10.220.226'].includes(p.hostname)
+  } catch { return false }
+}
+
 // 聚合后的告警列表（供 /api/warnings?aggregate=1）：按规则把高频同组折叠成1条
 // lightweight=true 时聚合对象不返回 members（供实时轮询降低 payload），点详情时用 by-ids 按需拉取
 function queryWarningsAggregated({ limit, lightweight } = {}) {
@@ -2096,7 +2106,13 @@ function queryWarningsAggregated({ limit, lightweight } = {}) {
       status: allHandled ? 'handled' : (inWindow.some(it => (it.w && it.w.status) === 'handled') ? 'partial' : 'pending'),
       memberIds: inWindow.map(it => it.id),
       // 轻量级轮询也附带一张预览图（取组内首条含 picUrl 的成员），让前端聚合卡片能显示真实图片
-      previewPicUrl: (inWindow.find(it => it.w && it.w.picUrl)?.w.picUrl) || null,
+      // 2026-09-03 D 加固：跳过 6882 认证网关形态死链（上游 9/2 19:32 切换后新图多为此形态）取首个健康成员；
+      //   全组无健康图则退回首条含图成员（iotsource 后端 5001 回退仍可能救活），不再因首条死链整组挂图。
+      previewPicUrl: (() => {
+        const withPic = inWindow.filter(it => it.w && it.w.picUrl)
+        if (withPic.length === 0) return null
+        return (withPic.find(it => !is6882GatewayPic(it.w.picUrl)) || withPic[0]).w.picUrl
+      })(),
     }
     if (!lightweight) {
       agg.members = inWindow.map(it => ({ id: it.id, picUrl: it.w.picUrl, createdAt: it.w.createdAt, level: it.w.level, aiConfidence: it.w.aiConfidence, channelName: it.w.channelName }))
