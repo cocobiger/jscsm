@@ -29,6 +29,7 @@ const mediaWatch = require(path.join(__dirname, 'lib', 'media-watcher.js'))(conf
   onEvent: (ev) => pushEvent(ev),
   archivePhotos: true,
 })
+const qualityLock = require(path.join(__dirname, 'lib', 'live-quality-lock.js'))(config)
 
 const state = {
   startedAt: new Date().toISOString(),
@@ -174,7 +175,9 @@ const server = http.createServer(async (req, res) => {
         let body = null
         try { body = JSON.parse(String(raw)) } catch (e) {}
         const d = body && (body.data || body)
-        const sn = d?.droneSn || d?.deviceSn || d?.dockSn || d?.sn || ''
+        // 顶层字段优先（真实司空事件体：deviceSn/dockSn/eventId/eventTime 在顶层，data 内是 status/changeReason）
+        const top = body || {}
+        const sn = top.deviceSn || top.droneSn || d?.droneSn || d?.deviceSn || d?.dockSn || d?.sn || ''
         pushEvent({
           ts: new Date().toISOString(),
           type: cls.eventType || null,
@@ -185,6 +188,44 @@ const server = http.createServer(async (req, res) => {
         })
         if (cls.type === 'live') {
           console.log(`[webhook] 直播状态变更 sn=${sn} detail=${cls.detail}`)
+          // 弹窗需求 T1：转发驾驶舱后端（落库 + dockSn 白名单过滤 + SSE 广播）
+          try {
+            const dk = (top && top.data) || {}
+            const bridgeBody = {
+              eventId: top?.eventId || null,
+              eventType: 'LIVE_STATUS_CHANGE',
+              eventTime: top?.eventTime || null,
+              deviceSn: top?.deviceSn || top?.droneSn || dk.deviceSn || dk.droneSn || '',
+              dockSn: top?.dockSn || dk.dockSn || '',
+              data: { status: dk.status || '', changeReason: dk.changeReason || '' },
+            }
+            if (bridgeBody.deviceSn && bridgeBody.dockSn) {
+              fetch('http://127.0.0.1:7170/api/drone-events/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-drone-bridge-key': 'jsc-drone-bridge-2026' },
+                body: JSON.stringify(bridgeBody),
+                signal: AbortSignal.timeout(5000),
+              }).then(r => r.json()).then(j => {
+                if (!j || !j.ok) return console.warn('[webhook] 转发未成功:', JSON.stringify(j).slice(0, 120))
+                if (j.duplicated) console.log(`[webhook] 转发幂等忽略 event=${bridgeBody.eventId}`)
+                else if (j.whitelisted === false) console.log(`[webhook] 已转发(白名单外仅审计) ${bridgeBody.deviceSn} dock=${bridgeBody.dockSn}`)
+                else console.log(`[webhook] 已转发驾驶舱后端并广播 ${bridgeBody.deviceSn} ${dk.status || ''}`)
+              }).catch(e => console.warn('[webhook] 转发失败:', e.message))
+            } else {
+              console.warn(`[webhook] 缺 deviceSn/dockSn 不转发 sn=${sn} dock=${d?.dockSn || ''}`)
+            }
+          } catch (e) { console.warn('[webhook] 转发异常:', e.message) }
+          // P0 源流定档：直播开启(LIVE_ON) → 自动锁定 1080P(HIGH_DEFINITION=3)，fire-and-forget 不阻塞 webhook 200
+          try {
+            const dk2 = (top && top.data) || {}
+            if (String(dk2.status || '').toUpperCase() === 'LIVE_ON') {
+              const ddock = top?.dockSn || dk2.dockSn || ''
+              const ddev = top?.deviceSn || top?.droneSn || dk2.deviceSn || dk2.droneSn || ''
+              if (ddock && ddev) {
+                qualityLock.tryLock(ddock, ddev).catch((e) => console.warn('[qualityLock] 异常:', e.message))
+              }
+            }
+          } catch (e) { console.warn('[qualityLock] 触发失败:', e.message) }
         } else if (cls.type === 'task' || cls.type === 'media') {
           console.log(`[webhook] ${cls.eventType} sn=${sn} detail=${cls.detail}`)
         }
@@ -225,6 +266,11 @@ const server = http.createServer(async (req, res) => {
     // 司空 ZLM 直播流监视状态
     if (req.method === 'GET' && url.pathname === '/api/zlm-watch') {
       return send(res, 200, { ok: true, ...zlmWatch.status() })
+    }
+
+    // P0 源流定档状态（最近尝试 + 配置）
+    if (req.method === 'GET' && url.pathname === '/api/live-quality') {
+      return send(res, 200, { ok: true, ...qualityLock.status() })
     }
 
     // 司空媒体归档（MinIO 挂载目录扫描：任务照片/视频/录制/OSD 记录；按时间倒序分页）
