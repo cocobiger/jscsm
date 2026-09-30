@@ -1,0 +1,22 @@
+[Unit]
+Description=JSC Straw Engine (秸秆焚烧视频检测 · 安装于 /data/HBJSC/straw-engine)
+After=network.target
+
+[Service]
+Environment=TZ=Asia/Shanghai
+Environment=STRAW_ENGINE_CONFIG=/data/HBJSC/straw-engine/config/config.json
+Environment=STRAW_INTERNAL_SECRET_FILE=/data/HBJSC/backend/.internal-secret
+Type=simple
+User=root
+WorkingDirectory=/data/HBJSC/straw-engine/app
+# ↓ 让 onnxruntime-gpu 找到 pip 装的 CUDA 库。
+#   ORT 的 libonnxruntime_providers_cuda.so **没有 RUNPATH**，pip 装的 nvidia/*/lib 不在默认搜索路径，
+#   否则报 "libcublasLt.so.12: cannot open shared object file" → **静默回退 CPU**（available_providers 仍会列出 CUDA，极具迷惑性）。
+#   路径随 venv 的 python 版本变化（3.10 → 3.11/3.12 时要同步改），或用 ort.preload_dlls() 替代。
+Environment=LD_LIBRARY_PATH=/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/cufft/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/cuda_runtime/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/curand/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/nvjitlink/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/cudnn/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib:/data/HBJSC/straw-engine/venv/lib/python3.10/site-packages/nvidia/cublas/lib
+ExecStart=/data/HBJSC/straw-engine/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 7200 --log-level warning
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
