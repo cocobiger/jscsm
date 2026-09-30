@@ -91,7 +91,7 @@
   <tr><td>GPU 驱动</td><td>无 <code>nvidia-smi</code>、无内核模块、无 <code>/dev/nvidia*</code>；<b>nouveau 已加载且未黑名单</b></td><td><span class="badge bad">缺</span></td></tr>
   <tr><td>内核编译前置</td><td>headers <code>/usr/src/linux-headers-5.15.0-194-generic</code> 在；<code>gcc</code>✅ <code>make</code>✅；<code>dkms</code>❌</td><td><span class="badge warn">基本齐</span></td></tr>
   <tr><td><b>Secure Boot</b></td><td><b>UEFI + SecureBoot efivar = 1（已启用）</b></td><td><span class="badge bad">障碍</span></td></tr>
-  <tr><td>apt 驱动源</td><td>可装：<code>nvidia-driver-545/580/595(-server/-open)</code>…；<code>ubuntu-drivers</code> 推荐 545</td><td><span class="badge ok">可装</span></td></tr>
+  <tr><td>apt 驱动源</td><td>可装 390~610；<b>关键看「模块由谁提供」</b>：<code>linux-modules-nvidia-*</code>=Canonical <b>预签名</b>（可用于 Secure Boot 开启）／<code>nvidia-dkms-*</code>=现场编译<b>无签名</b>。<br>实测该内核（5.15.0-194）有预签名模块的：<b>580 / 595 / 610</b>（含 -server/-open 变体）；<b>545 只有 DKMS</b> ⚠️</td><td><span class="badge ok">可装</span></td></tr>
   <tr><td>Python</td><td>系统 3.10.12；straw venv 3.10.12（39 包 / 423 MB）</td><td><span class="badge ok">可以</span></td></tr>
   <tr><td>训练依赖</td><td><b>无 torch、无 ultralytics</b>；<code>onnxruntime 1.23.2</code> 是 <b>CPU 版</b></td><td><span class="badge bad">缺</span></td></tr>
   <tr><td>VLM / LLM 服务</td><td>无 ollama / llama-server / vLLM；<b>无 docker</b>（<code>docker.io</code> 可装，candidate 29.1.3）</td><td><span class="badge bad">缺</span></td></tr>
@@ -109,15 +109,34 @@
 <b>为什么必须</b>：训练离不开 CUDA；且引擎侧 <code>onnxruntime</code> 目前只有 CPU provider ——
 历史实测 GPU 上 2×2 切片推理 <b>134 ms</b>，CPU 会慢一个数量级，实时性直接不达标。
 <br><b>怎么做（按 Secure Boot 分两条路）</b>：
-<pre># 路线 A（推荐，Secure Boot 保持开启）：用 Ubuntu「预签名」模块包
-apt install nvidia-driver-545                # 官方源会一并装 linux-modules-nvidia-545-5.15.0-194-generic（Canonical 已签名）
-# 若 apt 只给了 DKMS 变体（会要求签名）→ 转路线 B
+<pre># 路线 A（推荐）：用 Ubuntu「预签名」模块包，Secure Boot 保持开启
+#   ⚠️ 必须选「由 linux-modules-nvidia-* 提供」的驱动版本（= Canonical 已签名）
+#   实测本内核 5.15.0-194-generic 有预签名模块的：580 / 595 / 610（含 -server / -open）
+#   ❌ 545 只有 nvidia-dkms-545（现场编译、无签名）→ Secure Boot 开启时加载失败
+apt install nvidia-driver-580                 # 服务器/无人值守场景也可用 nvidia-driver-580-server
+apt install nvidia-dkms-580                   # 不需要
 
-# 路线 B：关闭 Secure Boot（在 ESXi 的 VM 设置里取消 EFI secure boot）后走 DKMS
-apt install nvidia-driver-545 dkms</pre>
+# 路线 B：先关 Secure Boot（在 ESXi 的 VM 设置里取消 EFI secure boot），再用 DKMS
+apt install nvidia-driver-545 dkms            # 关掉 SB 后 DKMS 才能加载</pre>
+<b>怎么判断该选哪个版本（一条命令）</b>：
+<pre>ubuntu-drivers list | grep nvidia
+#   nvidia-driver-580-open  (kernel modules provided by linux-modules-nvidia-580-open-generic)  ← ✅ 预签名
+#   nvidia-driver-545       (kernel modules provided by nvidia-dkms-545)                        ← ❌ 无签名
+# 「provided by linux-modules-nvidia-*」= 可保留 Secure Boot；「provided by nvidia-dkms-*」= 必须先关 SB</pre>
+<b>路线 A / B 对比（一次说清）</b>
+<table style="margin:10px 0">
+  <tr><th style="width:120px">维度</th><th>A · 预签名包（不动 Secure Boot）</th><th>B · 关掉 Secure Boot + DKMS</th></tr>
+  <tr><td>做什么</td><td><code>apt install nvidia-driver-580</code>（模块由 <code>linux-modules-nvidia-580-generic</code> 提供）</td><td>ESXi 里 VM 设置取消 Secure Boot → <code>apt install nvidia-driver-545 dkms</code></td></tr>
+  <tr><td>为什么能加载</td><td>模块<b>已被 Canonical 签名</b>，且该密钥在 UEFI 信任库里 → 固件放行</td><td>Secure Boot 关了 → <b>不再校验签名</b>，任何 .ko 都能加载</td></tr>
+  <tr><td>优点</td><td>不动固件设置；<b>不用进 ESXi 改配置</b>；安全等级不降</td><td><b>一劳永逸</b>：以后任何 DKMS 模块（不只 nvidia）都能加载，不受内核升级影响</td></tr>
+  <tr><td>缺点 / 风险</td><td>① 必须选<b>有预签名模块的版本</b>（本机 545 就没有，只有 580/595/610）；② 内核升级后要确保同步装上匹配的 <code>linux-modules-nvidia-*</code> 包，否则重启后驱动失效</td><td>① 降低该 VM 的启动安全（可加载未签名内核模块）；② <b>需要在 ESXi 侧操作</b>（改 VM 设置 + 关机重启）；③ 这是个"永久改配置"的动作</td></tr>
+  <tr><td>本机可行性</td><td><span class="badge ok">✅ 可行</span>（实测 <code>linux-modules-nvidia-580-5.15.0-194-generic</code> = <code>5.15.0-194.204+1</code>，正好匹配当前内核）</td><td><span class="badge ok">✅ 可行</span>（但需你在 ESXi 点几下）</td></tr>
+  <tr><td>推荐</td><td colspan="2"><b>先走 A</b>（本机已验证可行，不用动 ESXi）；仅当 A 出问题（如某个 580 变体仍拉 DKMS）再退 B</td></tr>
+</table>
 <b>三个风险点</b>：① Secure Boot 拒签 → <code>modprobe nvidia</code> 失败；② <b>需重启</b>（服务中断约 2 分钟）；
 ③ PCI 直通下驱动初始化失败（<code>RmInitAdapter failed</code>）虽少见但要留后路（可 <code>apt purge</code> 回滚 + 退回 CPU 推理）。
-<br><b>驱动版本建议</b>：<code>nvidia-driver-545</code>（ubuntu-drivers 推荐）或 <code>580</code>；<b>不必装完整 CUDA Toolkit</b>（PyTorch 轮子自带 CUDA 运行时）。
+<br><b>驱动版本建议</b>：<code>nvidia-driver-580</code>（或 595/610）—— <b>不选 545</b>（只有 DKMS，与 Secure Boot 冲突）；
+<b>不必装完整 CUDA Toolkit</b>（PyTorch 轮子自带 CUDA 运行时）。
 </div>
 
 <h3>2.2 训练依赖（torch + ultralytics）—— <span class="badge ok">简单但要避坑</span></h3>
@@ -187,7 +206,7 @@ python3 pull_frames_v5.py --plan ... --interval 2 --out /data/video/shujuji/data
 
   <tr><td rowspan="4"><b>P0</b><br>环境就绪</td>
       <td><b>T1</b></td><td>前置固化：确认 Secure Boot 路线（预签名包 / 关 SB）、<b>备份并留回滚</b>、约定停机窗口、记录 <code>lspci</code> 与当前驱动状态</td><td>—</td><td>1</td><td>—</td></tr>
-  <tr><td><b>T2</b></td><td><b>装 nvidia 驱动 + 重启</b>：apt 装 545（或 580）+ 黑名单 nouveau → 重启 → <code>nvidia-smi</code></td><td>T1、<b>停机批准</b></td><td>2</td><td><code>nvidia-smi</code> 正常</td></tr>
+  <tr><td><b>T2</b></td><td><b>装 nvidia 驱动 + 重启</b>：<code>apt install nvidia-driver-580</code>（预签名，保 SB）或先关 SB 走 DKMS + 黑名单 nouveau → 重启 → <code>nvidia-smi</code></td><td>T1、<b>停机批准</b></td><td>2</td><td><code>nvidia-smi</code> 正常</td></tr>
   <tr><td><b>T3</b></td><td>建独立 <code>train-venv</code> + <b>torch(cu124)</b> + ultralytics + opencv 等</td><td>T2</td><td>2</td><td><code>torch.cuda.is_available()==True</code></td></tr>
   <tr><td><b>T4</b></td><td>（可选）引擎侧换 <code>onnxruntime-gpu</code> + 重启 + 推理耗时对比</td><td>T2</td><td>1–2</td><td>GPU provider 生效、延迟下降</td></tr>
 
@@ -250,7 +269,7 @@ python3 pull_frames_v5.py --plan ... --interval 2 --out /data/video/shujuji/data
 <h2>6 · 需要你决策的 3 件事</h2>
 <table>
   <tr><th style="width:52px">#</th><th>决策点</th><th>选项</th></tr>
-  <tr><td>1</td><td><b>Secure Boot 怎么办</b></td><td><b>A</b> 优先试 Ubuntu 预签名包（不动 SB）／<b>B</b> 直接关 Secure Boot（在 ESXi 的 VM 设置里，最省事）</td></tr>
+  <tr><td>1</td><td><b>Secure Boot 怎么办</b><br><span class="muted">实测：本机 A 路线可行（580/595/610 有匹配内核的预签名模块；545 只有 DKMS）</span></td><td><b>A</b> 用 <code>nvidia-driver-580</code> 预签名包（<b>推荐</b>，不动 Secure Boot、不进 ESXi）／<b>B</b> 在 ESXi 关 Secure Boot 后走 DKMS（一劳永逸，但改固件配置）</td></tr>
   <tr><td>2</td><td><b>停机窗口</b></td><td>T2 需重启一次（约 2 分钟）。目前引擎空管线、影响面小 —— 随时可以，还是约到低峰？</td></tr>
   <tr><td>3</td><td><b>VLM 部署形态</b></td><td><b>A</b> ollama（简单、有历史脚本，<b>推荐</b>）／<b>B</b> vLLM（吞吐高但需编译 flash-attn，风险高）</td></tr>
 </table>
