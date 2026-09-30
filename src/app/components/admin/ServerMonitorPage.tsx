@@ -92,7 +92,7 @@ export function ServerMonitorPage() {
             ))}
           </div>
 
-          <div style={card} style={{ ...card, marginBottom: 14 }}>
+          <div style={{ ...card, marginBottom: 14 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: CK.cyan, letterSpacing: 1 }}>磁盘使用</h3>
             {(state?.disks || []).map(d => (
               <div key={d.mount} style={{ marginBottom: 10 }}>
@@ -103,7 +103,7 @@ export function ServerMonitorPage() {
                   </span>
                 </div>
                 <div style={barBg}>
-                  <div style={{ width: `${Math.min(d.pct, 100)}%`, background: barColor(d.pct), height: '100%', borderRadius: 3, height: 6 }} />
+                  <div style={{ width: `${Math.min(d.pct, 100)}%`, background: barColor(d.pct), borderRadius: 3, height: 6 }} />
                 </div>
               </div>
             ))}

@@ -76,6 +76,8 @@ export function createLeafletMap(el: HTMLElement, options: MapViewOptions): MapH
   L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
 
   const markers: L.Marker[] = []
+  /** 轨迹线集合（无人机飞行轨迹等） */
+  const polylines: L.Polyline[] = []
   /** 标记坐标 [lat, lng] 集合，供 fitView 计算范围 */
   const markerLatLngs: [number, number][] = []
   let popup: L.Popup | null = null
@@ -112,6 +114,24 @@ export function createLeafletMap(el: HTMLElement, options: MapViewOptions): MapH
       markers.forEach(m => m.remove())
       markers.length = 0
       markerLatLngs.length = 0
+    },
+
+    addPolyline(latlngs, opts = {}) {
+      if (!Array.isArray(latlngs) || latlngs.length < 2) return
+      const pl = L.polyline(latlngs.map(p => [p[0], p[1]] as [number, number]), {
+        color: opts.color || '#00e5ff',
+        weight: opts.weight ?? 3,
+        dashArray: opts.dashArray,
+        opacity: opts.opacity ?? 0.85,
+        interactive: false,
+      })
+      pl.addTo(map)
+      polylines.push(pl)
+    },
+
+    clearPolylines() {
+      polylines.forEach(p => p.remove())
+      polylines.length = 0
     },
 
     openInfoWindow(html, lon, lat) {

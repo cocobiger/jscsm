@@ -280,7 +280,6 @@ function PyramidChart({ levels }: { levels: PyramidLevel[] }) {
   const H = 118
   const cx = W / 2
   const n = Math.max(levels.length, 1)
-  const layerH = (H - 6) / n
   const topW = 26
   const botW = W - 8
   const widthAt = (t: number) => topW + (botW - topW) * t // t: 0(顶)→1(底)

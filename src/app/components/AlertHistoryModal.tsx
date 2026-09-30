@@ -5,6 +5,7 @@ import type { AggregateWarning } from '../context/DashboardContext'
 import { AlertEvidenceModal } from './AlertEvidenceModal'
 import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
 import { playAlertChime, unlockAudioOnGesture } from '../lib/droneLive'
+import { evidenceImgUrl } from '../lib/evidenceImage'
 
 // T23: 新告警提示音持久化 key（与无人机弹窗 jsc:drone-popup-sound 解耦，独立开关）
 const ALERT_SOUND_KEY = 'jsc:alert-sound'
@@ -671,7 +672,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                           <div key={m.id} style={{ borderRadius: 3, overflow: 'hidden', border: '1px solid rgba(0,120,200,0.2)', background: '#020a18' }}>
                             <div style={{ width: '100%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {m.picUrl ? (
-                                <img src={`/api/iot-image?url=${encodeURIComponent(m.picUrl)}`} alt={a.aiType} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                <img src={evidenceImgUrl(m.picUrl) || undefined} alt={a.aiType} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                               ) : <span style={{ color: '#2a4a60', fontSize: 9 }}>无图</span>}
                             </div>
@@ -991,7 +992,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
             </div>
             <div style={{ background: '#020a18', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, maxHeight: '72vh' }}>
               <img
-                src={`/api/iot-image?url=${encodeURIComponent(viewImg.picUrl)}`}
+                src={evidenceImgUrl(viewImg.picUrl) || undefined}
                 alt={viewImg.type}
                 style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain' }}
                 onError={(e) => {

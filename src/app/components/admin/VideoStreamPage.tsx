@@ -2,6 +2,8 @@ import { authFetch } from '../../lib/apiFetch'
 import { useState, useEffect } from 'react'
 import { useDashboard, VIDEO_GROUPS, GROUP_COLORS, STREAM_CATEGORIES } from '../../context/DashboardContext'
 import type { VideoStream, VideoGroup, GB28181Config, DJIWebRTCConfig } from '../../context/DashboardContext'
+import { MediaServerPage } from './MediaServerPage'
+import { fetchMe, roleAtLeast } from '../../lib/auth'
 
 // 表单中的分类三态：'' = 未分类（全域态势可见）；'气环境' / '水环境' = 对应驾驶舱
 const CATEGORIES = ['', ...STREAM_CATEGORIES] as const
@@ -304,6 +306,9 @@ function DJIWebRTCForm({ cfg, onChange }: {
 
 export function VideoStreamPage() {
   const { videoStreams, addStream, updateStream, deleteStream } = useDashboard()
+  const [subTab, setSubTab] = useState<'streams' | 'media'>('streams')
+  const [isAdmin, setIsAdmin] = useState(false)
+  useEffect(() => { fetchMe().then(u => setIsAdmin(roleAtLeast(u?.role, 'admin'))).catch(() => {}) }, [])
   const [form, setForm] = useState<StreamForm>(EMPTY)
   const [editId, setEditId] = useState<string | null>(null)
   const [filterGroup, setFilterGroup] = useState<VideoGroup | 'all'>('all')
@@ -328,6 +333,51 @@ export function VideoStreamPage() {
   }
 
   const filtered = filterGroup === 'all' ? videoStreams : videoStreams.filter(s => s.group === filterGroup)
+
+  // 2026-09-15 新增：视频流配置导出（CSV）—— 便于离线核对流配置
+  //   · 导出范围 = 当前筛选结果（与页面所见一致）
+  //   · 流地址原样导出（含 RTSP 账号密码，核对必需）；GB28181 密码字段不导出
+  const exportCsv = () => {
+    const head = [
+      '序号', '名称', '位置', '分组', '分类', '协议', '流地址', '纬度', '经度',
+      '状态', '探测结果', '缩略图',
+      'GB28181(SIP服务/端口/服务ID/设备ID/传输)', 'DJI WebRTC(分享链接/机场名/父级/分辨率)', '流ID',
+    ]
+    const rows = filtered.map((s, i) => {
+      const h = health[s.id]
+      const probe = h
+        ? (h.reachable === true ? '可达' : h.reachable === false ? '不可达' : '未知') + (h.lastCheckedAt ? `（${fmtAgo(h.lastCheckedAt)}）` : '')
+        : '未探测'
+      const gb = s.gb28181Config
+      const gbStr = gb
+        ? [gb.sipServer, gb.sipPort, gb.sipServerId, gb.deviceId, gb.transport]
+          .filter(v => v !== undefined && v !== null && v !== '').join(' / ')
+        : ''
+      const dji = s.djiWebRTCConfig
+      const djiStr = dji
+        ? [dji.shareUrl, dji.airportName, dji.parentName,
+          (dji.width && dji.height) ? `${dji.width}x${dji.height}` : '']
+          .filter(v => v !== undefined && v !== null && v !== '').join(' / ')
+        : ''
+      return [
+        String(i + 1), s.name, s.location, s.group, s.category || '未分类', s.protocol, s.url,
+        s.lat === '' ? '' : String(s.lat), s.lon === '' ? '' : String(s.lon),
+        s.offline ? '离线' : '在线', probe, s.thumbnail ? '有' : '无',
+        gbStr, djiStr, s.id,
+      ]
+    })
+    const csv = [head, ...rows]
+      .map(cols => cols.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\r\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `视频流配置_${filterGroup === 'all' ? '全部' : filterGroup}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const isGB = form.protocol === 'gb28281'
   const isDji = form.protocol === 'dji_webrtc'
   const gb = form.gb28181Config ?? EMPTY_GB28181
@@ -384,7 +434,26 @@ export function VideoStreamPage() {
   }, {})
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* 子 Tab：视频流 / 流媒体服务器（后者仅 admin 可见） */}
+      <div style={{ display: 'flex', gap: 4, padding: '10px 20px 0', flexShrink: 0, borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
+        <button onClick={() => setSubTab('streams')} style={{
+          padding: '6px 16px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${subTab === 'streams' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: subTab === 'streams' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: subTab === 'streams' ? CYAN : '#5a8aaa',
+        }}>视频流</button>
+        {isAdmin && (
+          <button onClick={() => setSubTab('media')} style={{
+            padding: '6px 16px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+            border: `1px solid ${subTab === 'media' ? CYAN : 'transparent'}`, borderBottom: 'none',
+            background: subTab === 'media' ? 'rgba(0,170,255,0.10)' : 'transparent',
+            color: subTab === 'media' ? CYAN : '#5a8aaa',
+          }}>流媒体服务器</button>
+        )}
+      </div>
+      {subTab === 'streams' ? (
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* Left: list */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Toolbar */}
@@ -403,6 +472,11 @@ export function VideoStreamPage() {
               </button>
             ))}
           </div>
+          <button
+            onClick={exportCsv}
+            title="导出当前筛选范围的视频流配置为 CSV（含流地址，可能含账号密码，请妥善保管）"
+            style={{ padding: '6px 16px', fontSize: 12, borderRadius: 3, border: `1px solid ${CYAN}55`, background: `${CYAN}18`, color: CYAN, cursor: 'pointer' }}
+          >导出 CSV（{filtered.length} 路）</button>
           <button
             onClick={() => { setForm(EMPTY); setEditId(null); setShowForm(true) }}
             style={{ padding: '6px 16px', fontSize: 12, borderRadius: 3, border: `1px solid ${GREEN}55`, background: `${GREEN}18`, color: GREEN, cursor: 'pointer' }}
@@ -716,6 +790,10 @@ export function VideoStreamPage() {
             }}>取消</button>
           </div>
         </div>
+      )}
+      </div>
+      ) : (
+        <MediaServerPage />
       )}
     </div>
   )

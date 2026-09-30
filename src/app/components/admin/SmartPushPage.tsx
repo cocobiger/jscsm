@@ -3,6 +3,8 @@ import { apiFetch, authFetch } from '../../lib/apiFetch'
 import BlockEditor from './BlockEditor'
 import { Block, BlockType, WORKREPORT_VARS, newBlock, shouldOpenBlockEditor } from './reportBlocks'
 import { EvidenceGrid, type EvidenceItem, type EvidenceType } from '../EvidenceGrid'
+import { MqttPage } from './MqttPage'
+import { AlertFormatPage } from './AlertFormatPage'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -464,6 +466,7 @@ const btnStyle = (color: string, ghost = false): React.CSSProperties => ({
 const SECTION_BG = 'rgba(0,15,40,0.5)'
 
 export function SmartPushPage() {
+  const [outerTab, setOuterTab] = useState<'push' | 'mqtt' | 'alert'>('push')
   const [tab, setTab] = useState<Tab>('platforms')
   const [advanced, setAdvanced] = useState(false)
 
@@ -478,6 +481,25 @@ export function SmartPushPage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* 外层子 Tab：智治推送 / 告警接入
+          2026-09-14 整改 #3.1：MQTT 已弃用（配置长期未接通，UI 显示"未连接"对值班是干扰），
+          入口移除；如需恢复，取消下方注释即可（MqttPage 组件与 DashboardContext 逻辑均保留）。 */}
+      <div style={{ display: 'flex', gap: 4, padding: '10px 24px 0', flexShrink: 0, borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
+        <button onClick={() => setOuterTab('push')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${outerTab === 'push' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: outerTab === 'push' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: outerTab === 'push' ? CYAN : '#5a8aaa',
+        }}>智治推送</button>
+        <button onClick={() => setOuterTab('alert')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${outerTab === 'alert' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: outerTab === 'alert' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: outerTab === 'alert' ? CYAN : '#5a8aaa',
+        }}>告警接入</button>
+      </div>
+      {outerTab === 'push' ? (
+      <>
       {/* Header */}
       <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -527,6 +549,12 @@ export function SmartPushPage() {
         {tab === 'history' && <HistoryTab />}
         {tab === 'templates' && <ReportTemplatesTab />}
       </div>
+      </>
+      ) : outerTab === 'mqtt' ? (
+        <MqttPage />
+      ) : (
+        <AlertFormatPage />
+      )}
     </div>
   )
 }

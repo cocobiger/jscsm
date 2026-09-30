@@ -8,6 +8,8 @@ const RED = '#ff4444'
 
 // ── 点位类型 ────────────────────────────────────────────────
 // 注：camera 类点位由视频流同步自动维护，不在本页手动录入
+// 注：uav 类点位仅用于在地图上手工补点；驾驶舱 KPI「无人机」已改取司空2 设备台账
+//     （2026-09-16，/api/sikong/devices 的 droneCount）—— 本页数量不再影响 KPI，见页内提示条。
 const POINT_TYPES = ['air', 'water', 'watermon', 'uav', 'alert'] as const
 type PointType = typeof POINT_TYPES[number]
 const TYPE_LABELS: Record<string, string> = {
@@ -247,6 +249,21 @@ export function MapPointManage() {
           <button onClick={openAdd} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 3, border: `1px solid ${GREEN}55`, background: `${GREEN}18`, color: GREEN, cursor: 'pointer' }}>+ 添加点位</button>
         </div>
 
+        {/* 与 KPI 的关系说明（2026-09-16）
+            为什么必须写清：驾驶舱统计条「无人机 N 架」过去取本页的 uav 点位 → 恒 0；
+            现已改取司空2 设备台账（/api/sikong/devices 的 droneCount）。保留本类型只为在地图上手工补点，
+            避免后人误以为改这里的数量能影响 KPI。 */}
+        <div style={{
+          margin: '10px 20px 0', padding: '8px 12px', flexShrink: 0,
+          background: 'rgba(255,215,64,0.07)', border: '1px solid rgba(255,215,64,0.28)',
+          borderRadius: 4, color: '#d8c98a', fontSize: 11.5, lineHeight: 1.7,
+        }}>
+          <b>⚠️ 本页的「无人机机场」点位只影响地图图标，不再参与驾驶舱 KPI。</b>
+          统计条「无人机 N 架」与「无人机机场 N 座」已改为取<b>司空2 设备台账</b>
+          （<code style={{ color: '#9ad6f0' }}>/api/sikong/devices</code>，由 dji-openapi 从司空同步，15s 刷新）。
+          所以：<b>在这里增删 uav 点位不会改变统计条数字</b>；若要调整机场/无人机数量，请在司空2 平台侧增删设备。
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
@@ -377,7 +394,7 @@ const coordInputStyle: React.CSSProperties = {
   fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', boxSizing: 'border-box',
 }
 
-function filterBtn(key: string, active: boolean): React.CSSProperties {
+function filterBtn(_key: string, active: boolean): React.CSSProperties {
   return {
     padding: '4px 10px', fontSize: 11, borderRadius: 3,
     border: `1px solid ${active ? CYAN : 'rgba(0,150,220,0.2)'}`,

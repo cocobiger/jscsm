@@ -49,6 +49,10 @@ export interface MapHandle {
   addMarker(opts: MapMarkerOptions): void
   /** 移除全部标记（重绘前调用） */
   clearMarkers(): void
+  /** 添加一条轨迹线（无人机飞行轨迹等），latlngs 为 [lat,lng] 序列 */
+  addPolyline(latlngs: [number, number][], opts?: { color?: string; weight?: number; dashArray?: string; opacity?: number }): void
+  /** 移除全部轨迹线（重绘前调用） */
+  clearPolylines(): void
   /** 打开信息窗（等价引擎的 setContent + open） */
   openInfoWindow(html: string, lon: number, lat: number): void
   closeInfoWindow(): void

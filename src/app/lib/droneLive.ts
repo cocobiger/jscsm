@@ -15,35 +15,16 @@
  * 调度常量与纯状态机见 components/drvPopup/dronePopupModel.ts（唯一来源）。
  */
 import { apiFetch } from './apiFetch'
+// 接口契约统一出处（P2 · 2026-09-14）：类型定义集中在 api-types.ts，此处仅再导出以兼容既有引用
+import type { DroneLiveEvent, DroneStreamStatus } from './api-types'
+import { checkShape, DRONE_STREAM_REQUIRED } from './api-types'
+export type { DroneStreamStatus, DroneLiveEvent }
 
 // ── SSE 载荷 ──
-export interface DroneLiveEvt {
-  type: 'drone-live'
-  id: number
-  on: number            // 1=LIVE_ON / 0=LIVE_OFF
-  eventId: string
-  deviceSn: string      // 无人机 SN（回传画面源）
-  dockSn: string        // 机场 SN（dock）
-  streamId: string      // sikong_<deviceSn>（我方 ZLM mirror）
-  status: string        // LIVE_ON / LIVE_OFF
-  changeReason?: string
-  eventTime: string
-  ts: number            // 服务器入库时间戳（ms）
-  zlm_online: number    // 我方 ZLM mirror 是否已在线
-  whitelisted: number   // 1=白名单命中已广播
-}
+// ── SSE 载荷（类型定义见 api-types.ts，此处保留别名以免破坏既有引用）──
+export type DroneLiveEvt = DroneLiveEvent
 
-// ── 单机镜像状态/播放地址（与相机 role 列表解耦）──
-export interface DroneStreamStatus {
-  ok: boolean
-  deviceSn: string
-  dockSn: string
-  streamId: string
-  online: boolean       // ZLM mirror（sikong_<SN>）是否在线
-  hls: string           // 相对 HLS 播放地址（''=尚未接入）
-  dockName: string      // 机场设备名（设备目录按 dockSn/deviceSn 匹配，无 role 概念）
-  error?: string
-}
+// ── 单机镜像状态/播放地址：类型见 api-types.ts（含 flv/bboxFlv）──
 
 /** SN 缩短显示 */
 export function shortSn(sn: string): string {
@@ -67,7 +48,9 @@ export async function fetchDroneStreamStatus(deviceSn: string, dockSn = ''): Pro
   try {
     const qs = new URLSearchParams({ deviceSn: String(deviceSn) })
     if (dockSn) qs.set('dockSn', String(dockSn))
-    return await apiFetch<DroneStreamStatus>(`/api/drone-events/stream-status?${qs.toString()}`)
+    const info = await apiFetch<DroneStreamStatus>(`/api/drone-events/stream-status?${qs.toString()}`)
+    checkShape(info, DRONE_STREAM_REQUIRED, 'drone-events/stream-status')
+    return info
   } catch {
     return null
   }

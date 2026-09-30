@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { authFetch } from '../lib/apiFetch'
+import { fetchMe, roleAtLeast } from '../lib/auth'
 import { EvidenceGrid } from './EvidenceGrid'
 import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
+import { StrawLiveModal } from './StrawLiveModal'
 
 interface MemberWarning {
   id: string
   picUrl: string
   createdAt: string
+  firstSeenAt?: string  // G4': 完整首见时间（取证帧时间对齐）
   level: number
   aiConfidence: number
   channelName: string
@@ -54,10 +57,17 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
   const [error, setError] = useState('')
   const [handling, setHandling] = useState(false)
   const [handleMsg, setHandleMsg] = useState('')
+  // P1（2026-09-14）：处置权限——operator 及以上可处置；viewer 只读（防大屏误操作污染样本库）
+  const [canDispose, setCanDispose] = useState(true)
+  // P2（2026-09-14）：带框直播弹窗（straw 告警现场复核）
+  const [liveOpen, setLiveOpen] = useState(false)
   // T18: 误报归因自定义弹层状态
   const [falseOpen, setFalseOpen] = useState(false)
   const [falseCategory, setFalseCategory] = useState('晨雾')
   const [falseNote, setFalseNote] = useState('')
+  // G4': 高清取证帧（dock_media 1080p/4K 自动取证 → /api/forensics/nearest）
+  const [forensics, setForensics] = useState<null | { url: string; ts: string; deltaSec: number; tier: string }>(null)
+  const [, setForensicsLoading] = useState(false)
   // 真实总数（用于「前 X / 共 Y」与省略提示；取 memberIds 长度，与后端命中数一致）
   const totalMembers = alert.memberIds?.length || 0
 
@@ -88,6 +98,39 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
   }, [alert.memberIds])
 
   useEffect(() => { load() }, [load])
+
+  // P1：加载当前用户角色，operator 以下禁用处置按钮
+  useEffect(() => {
+    let cancelled = false
+    fetchMe().then(u => { if (!cancelled) setCanDispose(roleAtLeast(u?.role, 'operator')) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // G4': 高清取证帧加载（秸秆源告警才有取证意义；取组内最新成员时间对齐取证帧）
+  useEffect(() => {
+    const straw = members.find(m => (m.aiType || '').includes('秸秆') || (m.aiType || '').includes('straw'))
+    const latest = members[0]
+    const ts = latest?.firstSeenAt || latest?.createdAt
+    if (!straw || !ts) { setForensics(null); return }
+    let cancelled = false
+    setForensicsLoading(true)
+    authFetch(`/api/forensics/nearest?ts=${encodeURIComponent(ts)}&win=900`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return
+        if (data?.ok && data.nearest) {
+          setForensics({
+            url: data.nearest.url,
+            ts: data.nearest.ts,
+            deltaSec: data.nearest.deltaSec,
+            tier: data.nearest.obj.includes('_V.') ? '4K' : '1080P',
+          })
+        } else setForensics(null)
+      })
+      .catch(() => { if (!cancelled) setForensics(null) })
+      .finally(() => { if (!cancelled) setForensicsLoading(false) })
+    return () => { cancelled = true }
+  }, [members])
 
   // ── 处置：有效转处置 / 误报（带归因）──
   // T18: verdict/note 透传后端写 data_json.review；归因走自定义弹层
@@ -200,6 +243,27 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
 
         {/* 成员证据网格（复用共享 EvidenceGrid 组件） */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
+          {/* G4': 高清取证帧卡片（dock_media 1080p/4K 自动取证） */}
+          {forensics && (
+            <div style={{
+              marginBottom: 14, border: '1px solid rgba(31,185,106,0.35)', borderRadius: 6,
+              background: 'rgba(14,143,74,0.10)', overflow: 'hidden',
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', borderBottom: '1px solid rgba(31,185,106,0.2)',
+                background: 'rgba(14,143,74,0.14)',
+              }}>
+                <span style={{ color: '#4ade80', fontSize: 12, fontWeight: 700 }}>
+                  🎯 高清取证帧 <span style={{ color: '#7ab8e0', fontWeight: 500 }}>（{forensics.tier} · 时间差 {forensics.deltaSec}s · {forensics.ts}）</span>
+                </span>
+                <a href={forensics.url} target="_blank" rel="noreferrer"
+                   style={{ color: '#7ab8e0', fontSize: 11, textDecoration: 'none' }}>新窗口打开 ↗</a>
+              </div>
+              <img src={forensics.url} alt="高清取证"
+                   style={{ width: '100%', maxHeight: 360, objectFit: 'contain', background: '#000', display: 'block' }} />
+            </div>
+          )}
           <EvidenceGrid
             evidences={members.map(m => ({
               id: m.id,
@@ -224,6 +288,18 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ color: '#7ab8e0', fontSize: 12, fontWeight: 700 }}>处置操作</span>
+            {/* P2：straw 告警 → 带框直播（现场复核） */}
+            {(alert.source === 'straw-engine' || (alert.aggregateAiType || alert.aiType || '').includes('秸秆')) && alert.aggregateChannelSipId && (
+              <button
+                type="button"
+                onClick={() => setLiveOpen(true)}
+                style={{
+                  padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  border: '1px solid rgba(255,60,60,0.45)', borderRadius: 4,
+                  background: 'rgba(255,60,60,0.12)', color: '#ff9b9b',
+                }}
+              >📺 带框直播</button>
+            )}
             {allHandled ? (
               <>
                 <span style={{ color: '#4ade80', fontSize: 13, fontWeight: 700 }}>✓ 已处置（{handledCount}/{totalMembers}）</span>
@@ -244,25 +320,27 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
               <>
                 <button
                   type="button"
-                  disabled={handling}
-                  onClick={handleGroupValid}
+                  disabled={!canDispose || handling}
+                  onClick={() => { if (!canDispose) return; if (window.confirm('确认将该组标记为有效告警并转处置？')) handleGroupValid() }}
                   style={{
-                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: handling ? 'wait' : 'pointer',
+                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: (!canDispose || handling) ? 'not-allowed' : 'pointer',
                     border: 'none', borderRadius: 4, color: '#fff',
-                    background: handling ? '#3a5a70' : 'linear-gradient(90deg, #0e8f4a, #1fb96a)',
-                    boxShadow: '0 2px 8px rgba(31,185,106,0.3)',
+                    background: (!canDispose || handling) ? '#3a5a70' : 'linear-gradient(90deg, #0e8f4a, #1fb96a)',
+                    boxShadow: canDispose ? '0 2px 8px rgba(31,185,106,0.3)' : 'none',
                   }}
                 >✅ 有效 · 转处置</button>
                 <button
                   type="button"
-                  disabled={handling}
-                  onClick={openFalsePanel}
+                  disabled={!canDispose || handling}
+                  onClick={() => { if (!canDispose) return; openFalsePanel() }}
                   style={{
-                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: handling ? 'wait' : 'pointer',
+                    padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: (!canDispose || handling) ? 'not-allowed' : 'pointer',
                     border: '1px solid rgba(255,170,60,0.4)', borderRadius: 4,
                     background: 'rgba(255,170,60,0.12)', color: '#ffb74d',
+                    opacity: canDispose ? 1 : 0.5,
                   }}
                 >❌ 误报 · 标记</button>
+                {!canDispose && <span style={{ color: '#5a8aaa', fontSize: 11 }}>当前账号无处置权限（需 operator）</span>}
               </>
             )}
             {handleMsg && <span style={{ color: handleMsg.startsWith('✓') ? '#4ade80' : '#ff7043', fontSize: 12 }}>{handleMsg}</span>}
@@ -321,6 +399,15 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
             </div>
           </div>
         </div>
+      )}
+      {/* P2：带框直播弹窗（straw 告警现场复核；zIndex 2400 盖过本弹窗 2000） */}
+      {liveOpen && alert.aggregateChannelSipId && (
+        <StrawLiveModal
+          deviceSn={alert.aggregateChannelSipId.replace(/^sikong_/, '')}
+          title={alert.location}
+          sub={alert.aggregateAiType || alert.aiType || undefined}
+          onClose={() => setLiveOpen(false)}
+        />
       )}
     </div>
   )

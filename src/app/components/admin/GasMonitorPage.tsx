@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { apiFetch } from '../../lib/apiFetch'
+
 import { getApiKey } from '../../lib/apiFetch'
 
 // 带 API Key 的原始 fetch（保留 Response 供 .ok 判断）
@@ -212,7 +212,6 @@ export function GasMonitorPage() {
       }),
     }).then(r => r.json()).then(() => { flash('已恢复默认阈值'); loadRules() }).catch(() => flash('重置失败'))
   }
-
 
   const handleSave = async () => {
     if (!form.source_name) { flash('请填写数据源名称'); return }

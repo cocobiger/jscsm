@@ -3,17 +3,9 @@ import { CK, alpha } from '../../lib/cockpitTheme'
 import { authFetch } from '../../lib/apiFetch'
 import { ImgViewer, useCanvasZoom } from './ImgViewer'
 
-interface Detection {
-  id: number
-  stream_id?: string
-  ts?: string
-  frame_path?: string
-  boxes?: { cls: number; conf: number; x1: number; y1: number; x2: number; y2: number }[]
-  label?: string
-  source?: string
-  max_conf?: number
-  review_status?: string
-}
+// 接口契约统一出处（P2 · 2026-09-14）
+import type { DetectionRow as Detection, ReviewListResp } from '../../lib/api-types'
+import { checkShape, DETECTION_LIST_REQUIRED } from '../../lib/api-types'
 
 const card = { background: 'rgba(0,20,50,0.4)', border: `1px solid rgba(0,150,220,0.15)`, borderRadius: 6, padding: '14px 16px' }
 const btn = (bg: string, color: string, border: string): React.CSSProperties => ({
@@ -176,6 +168,8 @@ export function ServerReviewPage() {
   const [fSource, setFSource] = useState('')
   const [fMinConf, setFMinConf] = useState('')
   const [fSort, setFSort] = useState('ts')
+  // 2026-09-26：只显示「推送被 gate 拦下（held）」的帧 —— 这些审完会自动补推
+  const [fHeld, setFHeld] = useState(false)
   // P0 新增：撤销上一步 / 已处理✓角标 / 快捷键帮助
   const [lastAction, setLastAction] = useState<{ id: number; label: string } | null>(null)
   const [doneIds, setDoneIds] = useState<Set<number>>(new Set())
@@ -193,8 +187,10 @@ export function ServerReviewPage() {
       if (fSource) params.set('source', fSource)
       if (fMinConf) params.set('min_conf', fMinConf)
       if (fSort) params.set('sort', fSort)
+      if (fHeld) params.set('held', '1')
       const r = await fetch(`/api/review/list?${params}`)
-      const d = await r.json()
+      const d: ReviewListResp = await r.json()
+      checkShape(d, DETECTION_LIST_REQUIRED, 'review/list')
       if (d.ok) {
         if (targetPage === 1) setRows(d.rows || [])
         else setRows(prev => [...prev, ...(d.rows || [])])
@@ -207,7 +203,7 @@ export function ServerReviewPage() {
       if (sd.ok) setStats(sd)
     } catch {}
     setLoading(false)
-  }, [status, fSource, fMinConf, fSort])
+  }, [status, fSource, fMinConf, fSort, fHeld])
 
   useEffect(() => { setPage(1); load(status, 1) }, [load])
 
@@ -384,6 +380,17 @@ export function ServerReviewPage() {
       {/* 过滤器（一行，弱化次要） */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center', opacity: 0.85 }}>
         <span style={{ fontSize: 11, color: CK.textFaint }}>筛选:</span>
+        {/* 2026-09-26：被 gate 拦下的（held）—— 审完会自动释放推送，优先级最高 */}
+        <button onClick={() => { setFHeld(v => !v); setSelected(new Set()); setPage(1); setFocusIdx(null) }}
+          title="只显示推送被复检闸门拦下、等复核通过后自动补推的帧"
+          style={{
+            background: fHeld ? 'rgba(255,215,64,0.2)' : 'rgba(0,20,50,0.5)',
+            color: fHeld ? '#ffd740' : CK.textSub,
+            border: `1px solid ${fHeld ? 'rgba(255,215,64,0.5)' : alpha(CK.borderSoft, 0.6)}`,
+            padding: '5px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
+          }}>
+          {fHeld ? '✓ ' : ''}仅待复核推送
+        </button>
         <select value={fSource} onChange={e => { setFSource(e.target.value); setSelected(new Set()) }}
           style={{ background: 'rgba(0,20,50,0.5)', color: CK.textMain, border: `1px solid ${alpha(CK.borderSoft, 0.6)}`, padding: '5px 8px', borderRadius: 4, fontSize: 12 }}>
           <option value="">全部来源</option>

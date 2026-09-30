@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
-import { Shield, Save, RotateCcw, CircleDot, AlertTriangle } from 'lucide-react'
+import { Shield, Save, CircleDot, AlertTriangle } from 'lucide-react'
 
 // ── 机场布防配置页（dock-guard 服务）：人员检测 ROI / 时段 / 阈值 / 实时状态 ──
 

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { readStrawNav, clearStrawNav } from '../../lib/nav'
 import { authFetch } from '../../lib/apiFetch'
-import { Brain, Camera, Image as ImageIcon } from 'lucide-react'
+import { Brain, Camera, Image as ImageIcon, Radio, ArrowUp } from 'lucide-react'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -8,10 +9,18 @@ const AMBER = '#ffd740'
 const ORANGE = '#ff7043'
 const RED = '#ff4444'
 
-interface EngineStatus {
-  engine: { ok: boolean; model_version?: string; model_path?: string; workers: Record<string, { running: boolean; detects: number; alerts: number; last_label: string; last_conf: number; last_ms: number }> } | null
-  metrics: { version: string; workers: number; total_detects: number; total_alerts: number; per_stream: Record<string, { detects: number; alerts: number; last_label: string; last_conf: number; infer_ms: number; report_latency_ms: number; last_report_ok: boolean }> } | null
-  sampleStats: { true: number; false: number; miss: number }
+// 接口契约统一出处（P2 · 2026-09-14）：本页与 StrawLivePage 曾各写一份 EngineStatus，一份对一份错
+import type { StrawEngineStatus as EngineStatus } from '../../lib/api-types'
+import { checkShape, STRAW_ENGINE_STATUS_REQUIRED } from '../../lib/api-types'
+
+/** 司空机场（含 OSD 网络流量字段） */
+interface SikongDockFlow {
+  deviceSn: string
+  deviceName: string
+  latitude: number
+  longitude: number
+  osd?: { rate?: number; droneInDock?: number; droneCapacityPercent?: number; childSn?: string; remainUpload?: number | null; recentFiles?: { name: string; time: string; lens: string }[] } | null
+  drone?: { droneSn?: string; droneName?: string } | null
 }
 
 const card: React.CSSProperties = {
@@ -33,12 +42,18 @@ export function StrawEnginePage() {
   const [data, setData] = useState<EngineStatus | null>(null)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
+  const [docks, setDocks] = useState<SikongDockFlow[]>([])
 
   const load = useCallback(() => {
     authFetch('/api/straw-engine/status')
       .then(r => r.json())
-      .then((d: EngineStatus) => { setData(d); setErr(''); setLoading(false) })
+      .then((d: EngineStatus) => { checkShape(d, STRAW_ENGINE_STATUS_REQUIRED, 'straw-engine/status'); setData(d); setErr(''); setLoading(false) })
       .catch(() => { setErr('推理引擎状态获取失败'); setLoading(false) })
+    // 机场网络流量（复用 /api/sikong/devices 的 OSD 实时 rate）
+    authFetch('/api/sikong/devices')
+      .then(r => r.json())
+      .then(d => Array.isArray(d?.items) && setDocks(d.items))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -143,8 +158,8 @@ export function StrawEnginePage() {
                         <tr key={sid}>
                           <td style={td}>{sid}</td>
                           <td style={{ ...td, color: statusColor(s.running !== false) }}>{s.running !== false ? '运行中' : '停止'}</td>
-                          <td style={td}>{s.detects}</td>
-                          <td style={{ ...td, color: s.alerts > 0 ? ORANGE : '#5a8aaa' }}>{s.alerts}</td>
+                          <td style={td}>{s.detects || 0}</td>
+                          <td style={{ ...td, color: (s.alerts || 0) > 0 ? ORANGE : '#5a8aaa' }}>{s.alerts || 0}</td>
                           <td style={{ ...td, color: s.last_label === 'fire' ? RED : s.last_label === 'smoke' ? AMBER : '#5a8aaa' }}>
                             {s.last_label || '-'}
                           </td>
@@ -157,6 +172,74 @@ export function StrawEnginePage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+
+          {/* 机场网络流量（实时速率，规避移动专线拥堵） */}
+          <div style={card}>
+            <div style={{ fontSize: 13, color: '#7ab8e0', fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Radio size={14} strokeWidth={1.75} />机场网络流量
+              <span style={{ fontSize: 11, color: '#5a8aaa', fontWeight: 400 }}>实时网络速率 · 数据源 /api/sikong/devices · 10s 刷新</span>
+            </div>
+            {docks.length === 0 ? (
+              <div style={{ color: '#5a8aaa', fontSize: 12 }}>司空设备同步中…</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                {docks.map(dk => {
+                  const o = dk.osd || {}
+                  const rate = typeof o.rate === 'number' ? o.rate : null
+                  const inDock = o.droneInDock === 1
+                  const kbps = rate ?? 0
+                  // 速率分级：>1000KB/s 高位（跑数据） / >200 中位 / 其他低位
+                  const rateColor = kbps > 1000 ? RED : kbps > 200 ? AMBER : GREEN
+                  const rateTier = kbps > 1000 ? '高流量' : kbps > 200 ? '正常' : '低/空闲'
+                  return (
+                    <div key={dk.deviceSn} style={{ background: 'rgba(4,14,35,0.6)', border: `1px solid ${kbps > 1000 ? 'rgba(255,68,68,0.4)' : 'rgba(0,80,150,0.25)'}`, borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 700 }}>{dk.deviceName}</span>
+                        <span style={{ fontSize: 10, padding: '1px 8px', borderRadius: 8, background: inDock ? 'rgba(74,222,128,0.15)' : 'rgba(255,183,77,0.15)', color: inDock ? GREEN : AMBER }}>
+                          {inDock ? '● 待命' : '▲ 飞行中'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <ArrowUp size={13} strokeWidth={2} color={rateColor} />
+                        <span style={{ color: rateColor, fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
+                          {rate != null ? (rate / 1024).toFixed(2) : '—'}
+                        </span>
+                        <span style={{ color: '#5a8aaa', fontSize: 11 }}>Mbps</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: rateColor }}>{rateTier}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#5a8aaa', marginTop: 4, fontFamily: 'JetBrains Mono, monospace' }}>
+                        {rate != null ? `${kbps.toFixed(0)} KB/s` : '—'} · 电量 {o.droneCapacityPercent ?? '—'}%
+                        <span style={{ marginLeft: 8 }}>{dk.drone?.droneName || '—'}</span>
+                        {o.remainUpload != null && (
+                          <span style={{
+                            marginLeft: 8, padding: '1px 7px', borderRadius: 8,
+                            background: o.remainUpload > 0 ? 'rgba(255,183,77,0.15)' : 'rgba(74,222,128,0.15)',
+                            color: o.remainUpload > 0 ? AMBER : GREEN,
+                          }}>
+                            待上传 {o.remainUpload}
+                          </span>
+                        )}
+                      </div>
+                      {(o.recentFiles && o.recentFiles.length > 0) && (
+                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(0,80,150,0.15)' }}>
+                          <div style={{ fontSize: 10, color: '#5a8aaa', marginBottom: 3 }}>最近上传</div>
+                          {o.recentFiles.map((f, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 10, fontFamily: 'JetBrains Mono, monospace', padding: '1px 0' }}>
+                              <span style={{ flexShrink: 0, fontSize: 9, padding: '0 5px', borderRadius: 4, background: f.lens === 'V' ? 'rgba(171,71,188,0.15)' : f.lens === 'S' ? 'rgba(0,170,255,0.15)' : 'rgba(255,183,77,0.15)', color: f.lens === 'V' ? '#ab47bc' : f.lens === 'S' ? CYAN : AMBER }}>
+                                {f.lens || '—'}
+                              </span>
+                              <span style={{ color: '#9ad6f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
+                              <span style={{ flexShrink: 0, color: '#3a5568' }}>{String(f.time || '').slice(5, 16)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -186,7 +269,9 @@ export function StrawReviewBoard() {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(() => {
-    authFetch('/api/warnings?limit=20')
+    // P4：limit 20 → 100 —— 原 20 条窗口下 straw 告警常被当天的堆头/气体告警挤出，
+    //   导致工作台列表为空、驾驶舱「治理详情」跳转过来无法定位目标记录。
+    authFetch('/api/warnings?limit=100')
       .then((r) => r.json())
       .then((d: any) => {
         const arr = Array.isArray(d) ? d : (d.list || d.data || [])
@@ -200,6 +285,25 @@ export function StrawReviewBoard() {
     const t = setInterval(load, 15000)
     return () => clearInterval(t)
   }, [load])
+
+  // P4：领取驾驶舱「治理详情」发起的导航 —— 数据就绪后定位并选中该聚合组的原始告警
+  const navDoneRef = useRef(false)
+  useEffect(() => {
+    if (navDoneRef.current || list.length === 0) return
+    const nav = readStrawNav()
+    if (!nav) return
+    navDoneRef.current = true
+    const ids = nav.warningIds || []
+    const target = ids.length
+      ? list.find((w: any) => ids.includes(String(w.id)))
+      : list.find((w: any) => nav.latestTime && String(w.createdAt || '').includes(String(nav.latestTime).slice(5, 19)))
+    clearStrawNav()
+    if (!target) return
+    open(target)
+    setTimeout(() => {
+      document.querySelector(`[data-straw-id="${CSS.escape(String(target.id))}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 160)
+  }, [list])
 
   const open = async (w: any) => {
     setPicked(w)
@@ -258,7 +362,7 @@ export function StrawReviewBoard() {
             </thead>
             <tbody>
               {list.map((w) => (
-                <tr key={w.id}>
+                <tr key={w.id} data-straw-id={String(w.id)}>
                   <td style={td}>{String(w.id).slice(0, 28)}…</td>
                   <td style={td}>{w.time || w.createdAt?.slice(11, 19) || '-'}</td>
                   <td style={td}>{w.label || w.aiType || '-'}</td>

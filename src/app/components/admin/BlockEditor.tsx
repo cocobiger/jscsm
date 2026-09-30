@@ -1,6 +1,6 @@
 // 智治推送 · 工作报表区块编辑器（非技术友好）
 // 选区块 → 填表单（标题/文字/变量） → 拖拽排序 → 实时预览 → 保存 / 预览真实 PDF
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { apiFetch, authFetch } from '../../lib/apiFetch'

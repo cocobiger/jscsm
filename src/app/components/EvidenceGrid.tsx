@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { evidenceImgUrl } from '../lib/evidenceImage'
 
 // 单条关联证据（来自 warnings 表经 memberIds 反查）
 export interface EvidenceItem {
@@ -58,7 +59,7 @@ export function EvidenceGrid({ evidences, evidenceType, message, loading, compac
       {evidences.map((m, idx) => {
         const mLevel = m.level || 1
         const mColor = LEVEL_COLORS[mLevel] || '#64b6f6'
-        const imgUrl = m.picUrl ? `/api/iot-image?url=${encodeURIComponent(m.picUrl)}` : null
+        const imgUrl = evidenceImgUrl(m.picUrl)
         return (
           <div
             key={m.id || idx}

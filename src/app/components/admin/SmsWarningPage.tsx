@@ -442,9 +442,9 @@ export function SmsWarningPage() {
             {/* 历史分页 */}
             {history.length > HISTORY_PAGE_SIZE && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-                <button onClick={() => setHistPage(p => Math.max(1, p - 1))} disabled={safeHistPage <= 1} style={btn(CYAN, 'sm')}>‹ 上一页</button>
+                <button onClick={() => setHistPage(p => Math.max(1, p - 1))} disabled={safeHistPage <= 1} style={btn(CYAN)}>‹ 上一页</button>
                 <span style={{ color: '#7ab8e0', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>第 {safeHistPage} / {histTotalPages} 页</span>
-                <button onClick={() => setHistPage(p => Math.min(histTotalPages, p + 1))} disabled={safeHistPage >= histTotalPages} style={btn(CYAN, 'sm')}>下一页 ›</button>
+                <button onClick={() => setHistPage(p => Math.min(histTotalPages, p + 1))} disabled={safeHistPage >= histTotalPages} style={btn(CYAN)}>下一页 ›</button>
                 <span style={{ color: '#3a5a70', fontSize: 11, marginLeft: 'auto' }}>每页 {HISTORY_PAGE_SIZE} 条</span>
               </div>
             )}

@@ -2,7 +2,11 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import mqtt from 'mqtt'
 import type { MqttClient } from 'mqtt'
 import type { AlertItem } from '../components/AlertPanel'
-import { apiFetch, getApiKey, authFetch } from '../lib/apiFetch'
+import { apiFetch, authFetch, getToken } from '../lib/apiFetch'
+import { evidenceImgUrl } from '../lib/evidenceImage'
+import { playAlertChime, loadSoundPref } from '../lib/droneLive'
+import type { SikongDevice, SikongDevicesResp, StationRow, EnterpriseRow } from '../lib/api-types'
+import { checkShape, SIKONG_DEVICES_REQUIRED } from '../lib/api-types'
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -303,6 +307,28 @@ interface DashboardCtx {
   // Map points (大气站/水质站/污染源/告警/无人机/流域)
   mapPoints: MapPoint[]
 
+  // 司空2 设备台账（全局单例轮询，15s）
+  // 来源：/api/sikong/devices（dji-openapi 聚合）。MapView 地图机场标注与 CenterPanel KPI 共用这一份，
+  // 避免两处各轮询一次同一接口。2026-09-16：KPI「无人机」由人工点位改为本台账 droneCount。
+  sikongDevices: SikongDevice[]           // items（每项是一个机场，无人机在其 drone 字段）
+  dockCount: number                       // 机场数（座）
+  droneCount: number                      // 配对无人机数（架）—— KPI「无人机」取此值
+  droneUnpaired: number                   // 有机场无无人机（异常，正常 0）
+  flyingCount: number                     // 在飞无人机数（副指标；口径见 server/sikong.js + lib/sikongStatus.ts）
+  dockedCount: number                     // 机场内待命
+  osdMissingCount: number                 // 遥测未推送（不得计入待命）
+  sikongAvailable: boolean                // false = 司空链路不可达且超宽限期 → KPI 必须显示「—」而非 0
+
+  // ── 统计条其余 4 项的「单一出处」+ 可达性（2026-09-16）──
+  // 统一规则：接口不可达且超宽限期 → *Available=false → 统计条显示「—」（**不是 0**）。
+  // 为什么放 Context：原先 /api/stations 被 CenterPanel 与 MapView 各轮询一次；下钻也需要列表。
+  stations: StationRow[]                  // 监测站台帐（10s）
+  stationsAvailable: boolean
+  enterprises: EnterpriseRow[]            // 重点企业台帐（30s）
+  enterprisesAvailable: boolean
+  streamsAvailable: boolean               // /api/streams 可达性（摄像头 KPI）
+  mapPointsAvailable: boolean             // /api/map-points 可达性（水质点位 KPI）
+
   // MQTT
   mqttConfig: MqttConfig
   setMqttConfig: (cfg: MqttConfig) => void
@@ -354,6 +380,32 @@ export function useDashboard() {
   return c
 }
 
+/** 轮询可达性宽限期：链路抖动时沿用上次成功态，避免统计条在「4」与「—」之间闪变 */
+const AVAIL_GRACE_MS = 5 * 60 * 1000
+
+/**
+ * 轮询可达性 hook（单一出处，2026-09-16）
+ *
+ * 语义：接口成功 → available=true；失败超过宽限期 → available=false（UI 显示「—」，**不是 0**）。
+ * 为什么抽成一处：统计条 5 项都要这套语义，禁止各写一份——否则会出现
+ * 「无人机显示 —、摄像头显示 0」这种同页面不一致。
+ *
+ * ⚠️ 返回 `[available, mark]` 而不是对象：`mark` 是 useCallback 稳定引用，
+ *   可直接当 useEffect 依赖（effect 只在挂载时跑一次）。
+ *   早期版本返回 `{ available, markOk, markFail }` 新对象 → 依赖每渲染都变
+ *   → 定时器被反复重建 + 每次渲染都发请求（请求风暴），且降级判定被拖慢。**勿回退。**
+ */
+function useAvailability(): [boolean, (ok: boolean) => void] {
+  const [available, setAvailable] = useState(false)
+  const lastOkRef = useRef<number | null>(null)
+  const mark = useCallback((ok: boolean) => {
+    if (ok) { lastOkRef.current = Date.now(); setAvailable(true); return }
+    const t = lastOkRef.current
+    if (t === null || Date.now() - t >= AVAIL_GRACE_MS) setAvailable(false)   // 宽限期内保持上次态
+  }, [])
+  return [available, mark]
+}
+
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [videoStreams, setVideoStreamsRaw] = useState<VideoStream[]>([])
   const [mapPoints, setMapPointsRaw] = useState<MapPoint[]>([])
@@ -371,6 +423,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [mqttLastMsg, setMqttLastMsg] = useState<string | null>(null)
   const [pushedCount, setPushedCount] = useState(0)
   const [dataLog, setDataLog] = useState<DataLogEntry[]>([])
+  // ── 司空2 设备台账（全局单例，15s；KPI 与地图共用）──
+  const [sikongDevices, setSikongDevices] = useState<SikongDevice[]>([])
+  const [sikongCounts, setSikongCounts] = useState({ dockCount: 0, droneCount: 0, droneUnpaired: 0, flyingCount: 0, dockedCount: 0, osdMissingCount: 0 })
+  const [sikongAvailable, markSikong] = useAvailability()
+  // ── 统计条其余 4 项的单一出处（原先 /api/stations 被 CenterPanel 与 MapView 各轮询一次）──
+  const [stations, setStations] = useState<StationRow[]>([])
+  const [enterprises, setEnterprises] = useState<EnterpriseRow[]>([])
+  const [stationsAvailable, markStations] = useAvailability()
+  const [enterprisesAvailable, markEnterprises] = useAvailability()
+  const [streamsAvailable, markStreams] = useAvailability()
+  const [mapPointsAvailable, markMapPoints] = useAvailability()
   const simulTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mqttClientRef = useRef<MqttClient | null>(null)
 
@@ -381,24 +444,83 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   // Poll backend every 10s so all clients stay in sync
   useEffect(() => {
     const sync = () => authFetch('/api/streams')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data)) setVideoStreamsRaw(data) })
-      .catch(() => {})
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then(data => { if (Array.isArray(data)) { setVideoStreamsRaw(data); markStreams(true) } })
+      .catch(() => markStreams(false))
     sync()
     const t = setInterval(sync, 10000)
     return () => clearInterval(t)
-  }, [])
+  }, [markStreams])
 
   // Poll map points every 10s
   useEffect(() => {
     const sync = () => authFetch('/api/map-points')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data)) setMapPointsRaw(data) })
-      .catch(() => {})
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then(data => { if (Array.isArray(data)) { setMapPointsRaw(data); markMapPoints(true) } })
+      .catch(() => markMapPoints(false))
     sync()
     const t = setInterval(sync, 10000)
     return () => clearInterval(t)
-  }, [])
+  }, [markMapPoints])
+
+  // ── 监测站台帐（全局单例，10s）──
+  // 原先 CenterPanel（取数量）与 MapView（取列表）各轮询一次同一接口 → 统一到此处
+  useEffect(() => {
+    const sync = () => authFetch('/api/stations')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((data: unknown) => { if (Array.isArray(data)) { setStations(data as StationRow[]); markStations(true) } })
+      .catch(() => markStations(false))
+    sync()
+    const t = setInterval(sync, 10000)
+    return () => clearInterval(t)
+  }, [markStations])
+
+  // ── 重点企业台帐（全局单例，30s；与原 CenterPanel 节奏一致）──
+  // 原先只在 CenterPanel 内 fetch 后丢弃原始列表（只留聚合）→ 下钻需要明细，故提到此处保留
+  useEffect(() => {
+    const sync = () => authFetch('/api/enterprises')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((data: unknown) => { if (Array.isArray(data)) { setEnterprises(data as EnterpriseRow[]); markEnterprises(true) } })
+      .catch(() => markEnterprises(false))
+    sync()
+    const t = setInterval(sync, 30000)
+    return () => clearInterval(t)
+  }, [markEnterprises])
+
+  // ── 司空2 设备台账（全局单例轮询，15s；与 MapView 原节奏一致，改由 Context 统一持有）──
+  // 降级策略（重要）：链路失败时**不得把 0 当成"没有无人机"**——
+  //   宽限期（5min）内沿用上次成功值（KPI 不闪变），超宽限才置 sikongAvailable=false，
+  //   由 CenterPanel 显示「—」，明确区分"未知"与"0 架"。
+  useEffect(() => {
+    const sync = () => authFetch('/api/sikong/devices')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() as Promise<SikongDevicesResp> })
+      .then((d) => {
+        if (!d?.ok || !Array.isArray(d.items)) throw new Error('unexpected shape')
+        checkShape(d, SIKONG_DEVICES_REQUIRED, 'sikong/devices')
+        // 上游降级必须当成失败：否则后端在 dji-openapi 不可达时返回「0 台机场」，
+        // 会被读成"司空没有无人机"（真实含义是"链路断了，数量未知"）。
+        if (d.upstreamOk === false) throw new Error('司空链路(dji-openapi:17810)不可达')
+        const counts = {
+          dockCount: d.dockCount ?? d.items.length,
+          // 兜底：后端未返回 droneCount 时按契约自行统计（每项是机场，无人机在其 drone 字段）
+          droneCount: d.droneCount ?? d.items.filter(i => i.drone && i.drone.droneSn).length,
+          droneUnpaired: d.droneUnpaired ?? 0,
+          flyingCount: d.flyingCount ?? 0,
+          dockedCount: d.dockedCount ?? 0,
+          osdMissingCount: d.osdMissingCount ?? 0,
+        }
+        setSikongDevices(d.items)
+        setSikongCounts(counts)
+        markSikong(true)
+      })
+      .catch(() => {
+        // 失败不清空数据（保留上次成功值）；是否转「—」由 useAvailability 的宽限期决定
+        markSikong(false)
+      })
+    sync()
+    const t = setInterval(sync, 15000)
+    return () => clearInterval(t)
+  }, [markSikong])
 
   // 轮询后端预警，把市监测站采集触发的预警推送到前端实时告警
   const seenWarningIds = useRef<Set<string>>(new Set())
@@ -434,8 +556,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           value: `${w.count || 0} 条`,
           standard: `阈值 ${w.threshold || 0} 条`,
           level: (Math.min(Math.max(w.maxLevel || 1, 1), 4)) as 1 | 2 | 3 | 4,
-          lat: 30.84,
-          lon: 108.40,
           isAggregate: true,
           ruleId: w.ruleId,
           ruleName: w.ruleName,
@@ -448,7 +568,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           latestTime: w.latestTime,
           memberIds: w.memberIds,
           // 聚合卡片预览图：后端 lightweight 输出中已附带 previewPicUrl
-          imageUrl: w.previewPicUrl ? `/api/iot-image?url=${encodeURIComponent(w.previewPicUrl)}` : undefined,
+          imageUrl: evidenceImgUrl(w.previewPicUrl) || undefined,
+          // P0：来源 / 置信度范围 / 首条坐标（straw 组副标题展示专业信息）
+          source: w.source,
+          confidenceMin: w.confidenceMin,
+          confidenceMax: w.confidenceMax,
+          confidenceAvg: w.confidenceAvg,
+          lat: typeof w.lat === 'number' ? w.lat : 30.84,
+          lon: typeof w.lon === 'number' ? w.lon : 108.40,
         }
       }
       // IoT 视频分析类告警：透传图片和 AI 字段
@@ -464,18 +591,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         level: w.level || levelOf(w.warningType),
         lat: typeof w.lat === 'number' ? w.lat : 30.84,
         lon: typeof w.lon === 'number' ? w.lon : 108.40,
+        source: w.source,
       }
       // IoT 视频分析扩展字段
       if (isIotVideo) {
-        base.imageUrl = w.picUrl ? `/api/iot-image?url=${encodeURIComponent(w.picUrl)}` : undefined
+        base.imageUrl = evidenceImgUrl(w.picUrl) || undefined
         base.aiType = w.aiType
         base.aiConfidence = w.aiConfidence
         if (!base.type.startsWith('AI视频')) base.type = `AI视频分析 · ${w.aiType || '未知'}`
       }
       return base
     }
-    const pushOne = (w: any) => {
+    const pushOne = (w: any, silent = false) => {
       const item = toAlert(w)
+      // 整改 #1.3：提示音全局化 —— 首次见到该 id 且非首屏回灌时响铃（受用户声音偏好控制）
+      const isNew = !seenWarningIds.current.has(item.id)
       seenWarningIds.current.add(item.id)
       setExternalAlerts(prev => {
         // 聚合告警：若已存在同 id，更新内容（count/latestTime 可能变化）；单条：去重
@@ -488,6 +618,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         return [item, ...prev].slice(0, 50)
       })
       setPushedCount(n => n + 1)
+      if (isNew && !silent && loadSoundPref()) { try { playAlertChime() } catch { /* 浏览器自动播放策略可能拦截 */ } }
     }
     const sync = () => authFetch('/api/warnings?limit=100&aggregate=1&lightweight=1')
       .then(r => r.ok ? r.json() : null)
@@ -495,10 +626,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         if (!Array.isArray(data)) return
         if (!warningsInitialized.current) {
           warningsInitialized.current = true
-          // 首次加载：回灌最近 10 条历史预警（旧→新顺序推，保证最新的在最前）
-          const recent = data.slice(0, 10).reverse()
-          for (const w of recent) pushOne(w)
-          // 比这 10 条更早的也标记为已见，避免后续被当成新增
+          // 整改 #2.2：首屏回灌 10 → 30 条（聚合接口只返 pending，天然"未处置优先"）；静默不响铃
+          const recent = data.slice(0, 30).reverse()
+          for (const w of recent) pushOne(w, true)
+          // 比这 30 条更早的也标记为已见，避免后续被当成新增
           data.forEach(w => { const id = w.isAggregate ? `agg-${w.ruleId}-${w.channelSipId || 'all'}-${w.aiType}` : w.id; if (id) seenWarningIds.current.add(id) })
           return
         }
@@ -514,8 +645,30 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {})
     sync()
-    const t = setInterval(sync, 10000)
-    return () => clearInterval(t)
+    // 整改 #2.1：SSE 实时推送为主（入库即达，延迟 <1s），轮询降级为 60s 兜底
+    //   —— 兜底理由：SSE 断线/被反向代理缓冲时功能不退化
+    const t = setInterval(sync, 60000)
+    let es: EventSource | null = null
+    let lastSseSync = 0
+    try {
+      const token = getToken()
+      if (typeof EventSource !== 'undefined' && token) {
+        es = new EventSource(`/api/warnings/stream?token=${encodeURIComponent(token)}`)
+        es.onmessage = (ev: MessageEvent) => {
+          try {
+            const d = JSON.parse(ev.data)
+            // 收到告警 → 立即拉最新聚合视图（而非直接插原始告警：避免"聚合卡 + 单条卡"重复）
+            // 节流 1s：爆发期高频告警不产生请求风暴
+            if (d?.type === 'warning') {
+              const now = Date.now()
+              if (now - lastSseSync >= 1000) { lastSseSync = now; sync() }
+            }
+          } catch { /* ping / 非 JSON 帧忽略 */ }
+        }
+        // onerror 交给 EventSource 自带重连；兜底轮询同步生效
+      }
+    } catch { /* EventSource 不可用 → 纯轮询模式 */ }
+    return () => { clearInterval(t); try { es?.close() } catch { /* noop */ } }
   }, [])
 
   // 轮询 IoT 视频分析通道实时触发状态（每 10s），驱动地图摄像头图标告警
@@ -768,6 +921,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={{
       videoStreams, setVideoStreams, addStream, updateStream, deleteStream,
       mapPoints,
+      sikongDevices, dockCount: sikongCounts.dockCount, droneCount: sikongCounts.droneCount,
+      droneUnpaired: sikongCounts.droneUnpaired, flyingCount: sikongCounts.flyingCount,
+      dockedCount: sikongCounts.dockedCount, osdMissingCount: sikongCounts.osdMissingCount,
+      sikongAvailable,
+      stations, stationsAvailable,
+      enterprises, enterprisesAvailable,
+      streamsAvailable, mapPointsAvailable,
       mqttConfig, setMqttConfig, mqttStatus, simulateMqttConnect, simulateMqttDisconnect,
       alertFormatConfig, setAlertFormatConfig,
       externalAlerts, pushAlert, pushAlertDirect, clearExternalAlerts,

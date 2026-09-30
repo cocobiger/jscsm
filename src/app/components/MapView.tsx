@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { useDashboard } from '../context/DashboardContext'
 import type { VideoStream } from '../context/DashboardContext'
+import type { SikongDevice } from '../lib/api-types'
+import { droneDockState, DOCK_STATE_LABEL } from '../lib/sikongStatus'
 import { renderMarkerIcon } from '../lib/mapIcons'
 import { VideoPlayerModal } from './VideoPlayerModal'
 import { initMap } from '../lib/mapAdapter'
@@ -14,17 +16,10 @@ export type MapTab = 'default' | 'air' | 'water'
 /** P1 场景聚焦：与 MapTab 正交，在任意驾驶舱视图之上再做一层点位过滤 */
 export type MapScene = 'none' | 'dust' | 'straw'
 
-/** 司空2 机场（dji-openapi 聚合：设备 + OSD 实时遥测） */
-interface SikongDock {
-  id: string
-  deviceSn: string
-  deviceName: string
-  latitude: number
-  longitude: number
-  height?: number | null
-  drone?: { droneSn?: string; droneName?: string } | null
-  osd?: Record<string, unknown> | null
-}
+/** 司空2 机场（dji-openapi 聚合：设备 + OSD 实时遥测）
+ *  2026-09-16：类型与数据源统一到 Context（`useDashboard().sikongDevices`）+ lib/api-types.ts，
+ *  本组件不再自行轮询 /api/sikong/devices（原与 CenterPanel 重复请求同一接口）。 */
+type SikongDock = SikongDevice
 
 interface Props {
   activeTab: MapTab
@@ -54,15 +49,20 @@ const MARKER_CSS = `
 `
 
 export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = null }: Props) {
-  const { videoStreams, mapPoints, externalAlerts, iotAlertingStreamIds, iotChannelStatus } = useDashboard()
+  const { videoStreams, mapPoints, externalAlerts, iotAlertingStreamIds, iotChannelStatus, sikongDevices, stations } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapHandle | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
-  const [stations, setStations] = useState<Array<{ id: string; name: string; stationName: string; lon: number; lat: number }>>([])
+  // 监测站台帐由 Context 全局单例提供（2026-09-16：原本组件与 CenterPanel 各轮询一次 /api/stations）
   const [iconCfg, setIconCfg] = useState<Record<string, { icon: string; color: string }>>({})
-  // 司空2 机场（实时 OSD 遥测：电量/风速/温度/GPS数；来自 dji-openapi 数据贯通）
-  const [sikongDocks, setSikongDocks] = useState<SikongDock[]>([])
+  // 司空2 机场（实时 OSD 遥测：电量/风速/温度/GPS数）
+  // 2026-09-16：数据由 Context 全局单例提供（原为本地 useState + 本组件自行 15s 轮询）
+  const sikongDocks: SikongDock[] = sikongDevices
+  // 无人机飞行轨迹（deviceSn -> [{lat,lon,ts},...]，供大地图轨迹线）
+  const [droneTrails, setDroneTrails] = useState<Record<string, { lat: number; lon: number; ts: number }[]>>({})
+  // 司空2 预设航线（/api/sikong/routes，大地图叠加预设航线）
+  const [sikongRoutes, setSikongRoutes] = useState<{ id: string; routeName: string; dockSn: string; points: [number, number][] }[]>([])
   // 双击视频图标直接推流播放
   const [playStream, setPlayStream] = useState<VideoStream | null>(null)
   // 记录打开视频弹窗前的地图位置（关闭弹窗后恢复）
@@ -72,14 +72,6 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
   // 首次加载后自动调整视野，确保所有点位（含南端道路监控）都在可视区域内
   const hasFittedRef = useRef(false)
 
-  // 加载监测站点位（来自后端数据源配置，10秒轮询保持同步）
-  useEffect(() => {
-    const load = () => authFetch('/api/stations').then(r => r.json()).then(d => Array.isArray(d) && setStations(d)).catch(() => {})
-    load()
-    const t = setInterval(load, 10000)
-    return () => clearInterval(t)
-  }, [])
-
   // 加载图标配置（点位类型/视频流分组 → 图标+颜色）
   useEffect(() => {
     const load = () => authFetch('/api/icon-config').then(r => r.json()).then(d => d && typeof d === 'object' && setIconCfg(d)).catch(() => {})
@@ -88,9 +80,13 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
     return () => clearInterval(t)
   }, [])
 
-  // 加载司空2 机场（15s 轮询，OSD 实时遥测）
+  // 无人机飞行轨迹（/trails）+ 预设航线（/routes）
+  // 司空机场设备本身不再在这里拉取（已提到 DashboardContext 全局单例）
   useEffect(() => {
-    const load = () => authFetch('/api/sikong/devices').then(r => r.json()).then(d => Array.isArray(d?.items) && setSikongDocks(d.items)).catch(() => {})
+    const load = () => {
+      authFetch('/api/drone-events/trails').then(r => r.json()).then(d => d?.ok && d.trails && setDroneTrails(d.trails)).catch(() => {})
+      authFetch('/api/sikong/routes').then(r => r.json()).then(d => d?.ok && Array.isArray(d.routes) && setSikongRoutes(d.routes)).catch(() => {})
+    }
     load()
     const t = setInterval(load, 15000)
     return () => clearInterval(t)
@@ -169,6 +165,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
 
     // 清空旧标记（适配层统一管理）
     map.clearMarkers()
+    map.clearPolylines()
 
     const addM = (lon: number, lat: number, html: string, info: { title: string; lines: string[] }) => {
       map.addMarker({
@@ -244,7 +241,7 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
 
     // 市监测站 🏠（来自后端数据源配置的经纬度）— 点击实时拉取最近采集数据；气环境+全域显示
     if (showGeneral && activeTab !== 'water') {
-      stations.forEach(st => { track(); const stName = st.stationName || st.name; const tl = tlPoint(stName); if (tl) {
+      stations.forEach(st => { track(); const stName = st.stationName || st.name || st.id; const tl = tlPoint(stName); if (tl) {
         // 时间轴回放：同步历史数据，无需异步拉取
         addM(st.lon, st.lat, renderMarkerIcon('home', aqiColor(tl.aqi), stName, { alert: matchAlert(st.lat, st.lon, stName) }), {
         title: `${stName} · 回放`,
@@ -392,8 +389,11 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
       if (typeof dk.latitude !== 'number' || typeof dk.longitude !== 'number') return
       track()
       const o = dk.osd || null
+      // 在飞判定走单一出处（lib/sikongStatus.ts），与设备清单弹窗的头部角标同口径
+      const dockSt = droneDockState(o)
+      const flying = dockSt === 'flying'   // T2 触发可视化：飞行中标记醒目化
       const osdLines: string[] = o ? [
-        `无人机状态: ${o.droneInDock === 1 ? '机场内待命' : '飞行中'}`,
+        `无人机状态: ${DOCK_STATE_LABEL[dockSt]}`,
         `无人机电量: ${str(o.droneCapacityPercent, '—')}%`,
         `风速&nbsp;&nbsp;&nbsp;&nbsp;: ${str(o.windspeed, '—')} m/s`,
         `温度&nbsp;&nbsp;&nbsp;&nbsp;: ${str(o.temperature, '—')} ℃`,
@@ -402,8 +402,12 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
         `GPS卫星&nbsp;&nbsp;: ${str(o.gpsNumber, '—')} 颗`,
         `供电电压&nbsp;&nbsp;: ${str(o.electricSupplyVoltage, '—')} V`,
       ] : ['遥测&nbsp;&nbsp;&nbsp;&nbsp;: 暂无（等待 OSD 推送）']
-      addM(dk.longitude, dk.latitude, icon('uav', dk.deviceName, { icon: 'plane', color: '#ab47bc' }, { pulse: true }), {
-        title: `${dk.deviceName} · 司空机场`,
+      addM(dk.longitude, dk.latitude,
+        flying
+          ? icon('uav', `${dk.deviceName} · 飞行中`, { icon: 'plane', color: '#00e676' }, { pulse: true, alert: true })
+          : icon('uav', dk.deviceName, { icon: 'plane', color: '#ab47bc' }, { pulse: true }),
+        {
+        title: `${dk.deviceName} · 司空机场${flying ? '（飞行中）' : ''}`,
         lines: [
           `机场 SN&nbsp;&nbsp;: ${dk.deviceSn}`,
           `无人机&nbsp;&nbsp;&nbsp;&nbsp;: ${dk.drone?.droneName || '—'}`,
@@ -413,7 +417,47 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
         ],
       })
     })
-  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts, timeline, sikongDocks])
+
+    // 司空2 预设航线（/api/sikong/routes，4 机场不同颜色虚线，先画预设航线再画实际轨迹，预设航线在下层）
+    const DOCK_ROUTE_COLOR: Record<string, string> = {
+      '8UUXN5500A07D1': '#ab47bc',   // 经开区 紫
+      '8UUXN7G00A0FDP': '#4ade80',   // 环保局 绿
+      '8UUXN8N00A0LS7': '#00aaff',   // 三峡大学 蓝
+      '8UUXN8P00A0LZ4': '#ffb300',   // 职教中心 橙
+    }
+    sikongRoutes.forEach(rt => {
+      if (!Array.isArray(rt.points) || rt.points.length < 2) return
+      const color = DOCK_ROUTE_COLOR[rt.dockSn] || '#5a8aaa'
+      map.addPolyline(rt.points.map(p => [p[0], p[1]] as [number, number]), { color, weight: 2, opacity: 0.55, dashArray: '3 5' })
+    })
+
+    // 无人机飞行轨迹线（/api/drone-events/trails 累积的位置点连成线，先画线再画位置点，线在点下）
+    Object.entries(droneTrails).forEach(([_sn, pts]) => {
+      if (!Array.isArray(pts) || pts.length < 2) return
+      const latlngs = pts.map(p => [p.lat, p.lon] as [number, number])
+      map.addPolyline(latlngs, { color: '#00e5ff', weight: 3, opacity: 0.7, dashArray: '6 6' })
+    })
+
+    // 无人机实时坐标（飞行中：drone.latitude/longitude 由 OSD deviceType=1 帧回填；在仓无坐标不渲染）
+    sikongDocks.forEach(dk => {
+      const dr = dk.drone
+      if (!dr || typeof dr.latitude !== 'number' || typeof dr.longitude !== 'number') return
+      track()
+      const inDock = droneDockState(dk.osd) === 'docked'
+      const h = typeof dr.height === 'number' ? dr.height.toFixed(1) : '—'
+      addM(dr.longitude, dr.latitude, icon('drone', dr.droneName || '无人机', { icon: 'plane', color: '#00e5ff' }, { pulse: true }), {
+        title: `${dr.droneName || '无人机'} · 飞行实时位置`,
+        lines: [
+          `所属机场&nbsp;: ${dk.deviceName}`,
+          `无人机 SN : ${dr.droneSn || '—'}`,
+          `高度&nbsp;&nbsp;&nbsp;&nbsp;: ${h} m`,
+          `状态&nbsp;&nbsp;&nbsp;&nbsp;: ${inDock ? '机场内' : '飞行中'}`,
+          `坐标&nbsp;&nbsp;&nbsp;&nbsp;: ${dr.latitude.toFixed(6)}, ${dr.longitude.toFixed(6)}`,
+          `更新时间&nbsp;: ${dr.osdTs ? new Date(dr.osdTs).toLocaleTimeString('zh-CN') : '—'}`,
+        ],
+      })
+    })
+  }, [mapReady, activeTab, scene, videoStreams, mapPoints, stations, iconCfg, externalAlerts, timeline, sikongDocks, droneTrails, sikongRoutes])
 
   // Pan to selected alert
   useEffect(() => {

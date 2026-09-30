@@ -85,6 +85,8 @@ export function createAmapMap(el: HTMLElement, options: MapViewOptions): MapHand
 
   /** 收集当前标记，供 clearMarkers 统一移除 */
   const markers: any[] = []
+  /** 收集当前轨迹线，供 clearPolylines 统一移除 */
+  const polylines: any[] = []
 
   const wrapEvent = (e: any, cb?: (ev: MapEvent) => void) =>
     cb?.({ stopPropagation: () => e.originEvent?.stopPropagation() })
@@ -109,6 +111,26 @@ export function createAmapMap(el: HTMLElement, options: MapViewOptions): MapHand
       if (markers.length > 0) {
         map.remove(markers)
         markers.length = 0
+      }
+    },
+
+    addPolyline(latlngs, opts = {}) {
+      if (!Array.isArray(latlngs) || latlngs.length < 2) return
+      const pl = new AMap.Polyline({
+        path: latlngs.map(p => [p[1], p[0]]), // [lng, lat]
+        strokeColor: opts.color || '#00e5ff',
+        strokeWeight: opts.weight ?? 3,
+        strokeOpacity: opts.opacity ?? 0.85,
+        lineStyle: opts.dashArray ? 'dashed' : 'solid',
+      })
+      map.add(pl)
+      polylines.push(pl)
+    },
+
+    clearPolylines() {
+      if (polylines.length > 0) {
+        map.remove(polylines)
+        polylines.length = 0
       }
     },
 

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useDashboard } from '../../context/DashboardContext'
+import { ServerMonitorPage } from './ServerMonitorPage'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -42,6 +44,7 @@ function StatCard({ label, value, sub, color = CYAN }: { label: string; value: s
 
 export function OverviewPage() {
   const { status, mqttConfig, videoStreams, dataLog, clearLog, simulateMqttConnect, simulateMqttDisconnect } = useDashboard()
+  const [subTab, setSubTab] = useState<'overview' | 'server'>('overview')
 
   const streamsByGroup = videoStreams.reduce<Record<string, number>>((acc, s) => {
     acc[s.group] = (acc[s.group] ?? 0) + 1
@@ -50,6 +53,23 @@ export function OverviewPage() {
 
   return (
     <div style={{ padding: '24px 28px', overflowY: 'auto', height: '100%', scrollbarWidth: 'none' }}>
+      {/* 子 Tab：总览 / 服务器监控 */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
+        <button onClick={() => setSubTab('overview')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${subTab === 'overview' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: subTab === 'overview' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: subTab === 'overview' ? CYAN : '#5a8aaa',
+        }}>总览</button>
+        <button onClick={() => setSubTab('server')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${subTab === 'server' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: subTab === 'server' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: subTab === 'server' ? CYAN : '#5a8aaa',
+        }}>服务器监控</button>
+      </div>
+      {subTab === 'overview' ? (
+      <>
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ color: '#c8e6ff', fontSize: 18, fontWeight: 600, marginBottom: 4 }}>系统概览</h2>
         <p style={{ color: '#3a5a70', fontSize: 13 }}>各数据通道连接状态与接入量统计</p>
@@ -59,7 +79,7 @@ export function OverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         <StatCard label="视频流总数" value={status.streamCount} sub={`${status.onlineStreams} 路在线`} color={CYAN} />
         <StatCard label="已推送告警" value={status.pushedAlerts} sub="累计推送" color={RED} />
-        <StatCard label="MQTT消息" value={status.mqttMessageCount} sub="累计接收" color={GREEN} />
+        <StatCard label="MQTT消息（已停用）" value={status.mqttMessageCount} sub="累计接收" color={GREEN} />
         <StatCard label="数据日志" value={dataLog.length} sub="最近200条" color={PURPLE} />
       </div>
 
@@ -70,6 +90,7 @@ export function OverviewPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>MQTT Broker</span>
+              <span style={{ color: '#5a8aaa', fontSize: 11, padding: '1px 7px', borderRadius: 3, border: '1px solid rgba(107,135,168,0.4)' }}>已停用</span>
               {status.mqtt === 'disconnected' && (
                 <span
                   title={'未连接可能原因：① Broker 服务未启动 ② brokerUrl 配置错误 ③ 网络/防火墙不通 ④ 账号密码错误。\n排查步骤：确认服务→核对 MQTT 配置页→点击"模拟连接"验证。'}
@@ -171,6 +192,10 @@ export function OverviewPage() {
       </div>
 
       <style>{`@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.3} }`}</style>
+      </>
+      ) : (
+        <ServerMonitorPage />
+      )}
     </div>
   )
 }

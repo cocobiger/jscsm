@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../../lib/apiFetch'
 import { Camera, Image as ImageIcon, BarChart3 } from 'lucide-react'
 import { ImgViewer, useCanvasZoom } from './ImgViewer'
+// 接口契约统一出处（P2 · 2026-09-14）
+import type { StrawResultsResp } from '../../lib/api-types'
+import { checkShape, DETECTION_LIST_REQUIRED } from '../../lib/api-types'
 
 // ── 检测结果统一视图（三合一：全量检测 + 推送状态 + 复检状态 + 内嵌复检工作台）──
 // 数据源：/api/straw/results（主表 straw_detections；推送状态按 warning_id 精确关联，老数据时间窗回退）
@@ -110,6 +113,16 @@ function reviewBadge(s?: string) {
   if (s === 'false') return { text: '误报', color: RED, bg: 'rgba(255,68,68,0.12)' }
   if (s === 'uncertain') return { text: '稍后处理', color: AMBER, bg: 'rgba(255,183,77,0.12)' }
   return { text: '待复检', color: '#5a8aaa', bg: 'rgba(90,138,170,0.08)' }
+}
+
+// 来源徽标（straw_detections.source）：alert 检出告警 / low 检出低分 / picall 截图 / random 随机抽帧
+function sourceBadge(s?: string) {
+  if (s === 'alert') return { text: '检出告警', color: CYAN, bg: 'rgba(0,170,255,0.14)' }
+  if (s === 'low') return { text: '检出低分', color: AMBER, bg: 'rgba(255,183,77,0.14)' }
+  if (s === 'picall') return { text: '截图', color: '#4fc3f7', bg: 'rgba(79,195,247,0.14)' }
+  if (s === 'picall_random') return { text: '随机·无检出', color: '#7a8a9a', bg: 'rgba(122,138,154,0.14)' }
+  if (s === 'random') return { text: '随机抽帧', color: '#7a8a9a', bg: 'rgba(122,138,154,0.14)' }
+  return null
 }
 
 // P2 场景徽标（scene 标签 + exclude 不纳入判例）
@@ -227,13 +240,22 @@ export function StrawResultsView() {
       if (fExcluded) params.set('exclude', '1')         // P2：只看"不纳入判例"
       if (fSort) params.set('sort', fSort)              // 批次2：排序
       const r = await authFetch(`/api/straw/results?${params}`)
-      const d = await r.json()
+      const d: StrawResultsResp = await r.json()
+      checkShape(d, DETECTION_LIST_REQUIRED, 'straw/results')
       if (d.ok) { setRows(d.rows || []); setTotal(d.total || 0); setStats(d.stats || null); setActiveId(null) }
     } catch {}
     setLoading(false)
   }, [fStatus, fPush, fLabel, fSource, fMinConf, fMaxConf, fStream, fScene, fExcluded, fSort])
 
   useEffect(() => { setPage(1); load(1) }, [load])
+
+  // 判定后列表归位：处于状态筛选视图（如「待复检」）时，该帧已不属于当前子集 → 即时重拉让它消失
+  // （与「批量不纳入判例」同一套处理逻辑；未筛选「全部」时保留行内徽标，不打断浏览）
+  const reflowAfterJudge = (delay = 0) => {
+    if (!fStatus) return
+    if (delay > 0) setTimeout(() => load(page), delay)
+    else load(page)
+  }
 
   // ── 复检操作（行内 + 弹层共用）──
   // 本地同步单行状态 + stats 计数（避免整页刷新闪烁）
@@ -268,6 +290,8 @@ export function StrawResultsView() {
       // 第 3 批联动：该帧关联告警（held 待复核 / 已推送）时，判定后异步联动推送 → 延迟刷新取最新推送状态
       if (prev?.push && (prev.push.status === 'held' || prev.push.status === 'pushed' || prev.push.warning_id)) {
         setTimeout(() => load(page), 1800)
+      } else {
+        reflowAfterJudge()   // 筛选视图下判定后即时消失（与批量操作一致）
       }
       return true
     } catch { flash('提交失败'); return false }
@@ -303,6 +327,9 @@ export function StrawResultsView() {
       }
       flash(`批量 ${okCount}/${ids.length} 条 → ${status === 'true' ? '真烟' : status === 'false' ? '误报' : '稍后处理'}`)
       setSel(new Set())
+      // 与「批量不纳入判例」一致：操作后重拉当前页
+      // 筛选视图（如「待复检」）下这批帧已判定 → 即时消失；「全部」视图下保留并淡化，便于核对/撤销
+      load(page)
     } catch { flash('批量提交失败') }
   }
 
@@ -320,6 +347,7 @@ export function StrawResultsView() {
         setRows(prev => prev.map(x => (ids.includes(x.id) ? { ...x, exclude: exclude ? 1 : 0 } : x)))
         flash(`批量${exclude ? '标记不纳入判例' : '恢复纳入判例'} ${d.changed}/${ids.length} 条`)
         setSel(new Set())
+        load(page)   // 默认列表已过滤 exclude=1，重拉当前页让这批帧即时消失/回归
       } else flash(d.error || '操作失败')
     } catch { flash('操作失败') }
   }
@@ -349,6 +377,7 @@ export function StrawResultsView() {
       syncRow(id, { review_status: 'pending', reviewer: '', reviewed_at: undefined, note: '' })
       bumpStats(prev?.review_status, 'pending')
       flash(`#${id} 已撤销 → 待复检`)
+      reflowAfterJudge()   // 在「真烟/误报」等筛选视图下撤销后即时消失
     } catch { flash('撤销失败') }
   }
 
@@ -370,6 +399,7 @@ export function StrawResultsView() {
       syncRow(id, { boxes, label, max_conf: maxConf, review_status: 'true', reviewer: me?.username || prev?.reviewer || '', reviewed_at: nowLocal() })
       bumpStats(prev?.review_status, 'true')
       flash(`#${id} 画框已保存（${boxes.length} 框）→ 真烟`)
+      reflowAfterJudge(300)   // 画框补标后（筛选视图下）延迟重拉，先让「已保存」提示走完
       return true
     } catch { flash('保存失败'); return false }
   }
@@ -605,132 +635,93 @@ export function StrawResultsView() {
         </div>
       )}
 
-      {/* 表格 */}
-      <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+      {/* 全选本页（卡片化后表头没了，这里常驻提供全选入口） */}
+      {!loading && rows.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <button onClick={selAllPage}
+            style={{ ...tinyBtn('rgba(0,170,255,0.14)', CYAN, 'rgba(0,170,255,0.4)'), padding: '4px 12px', fontSize: 12 }}>
+            {rows.every(r => sel.has(r.id)) ? '取消全选' : '全选本页'}
+          </button>
+          {sel.size > 0 && <span style={{ fontSize: 11, color: '#5a8aaa' }}>已选 {sel.size} 条</span>}
+        </div>
+      )}
+
+      {/* 卡片缩略图网格 */}
+      <div style={{ ...card, padding: 12, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: 30, textAlign: 'center', color: '#5a8aaa', fontSize: 12 }}>加载中...</div>
         ) : rows.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#3a5a70', fontSize: 12 }}>暂无检测记录</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={{ ...th, width: 34 }}>
-                    <input type="checkbox"
-                      checked={rows.length > 0 && rows.every(r => sel.has(r.id))}
-                      onChange={selAllPage}
-                      title="全选/取消本页"
-                      style={{ cursor: 'pointer', accentColor: CYAN }} />
-                  </th>
-                  {['时间', '流', '场景', '类别', '置信度', '框', '推送状态', '复检状态', '坐标', '快捷复检'].map(h => (
-                    <th key={h} style={th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(r => {
-                  const pb = pushBadge(r.push)
-                  const rb = reviewBadge(r.review_status)
-                  const hasFire = (r.boxes || []).some(b => b.cls === 1)
-                  const hasSmoke = (r.boxes || []).some(b => b.cls === 0)
-                  const clsCol = hasFire ? RED : hasSmoke ? CYAN : AMBER
-                  const done = isDone(r)
-                  const hl = activeId === r.id
-                  return (
-                    <tr key={r.id} id={`straw-row-${r.id}`}
-                      style={{
-                        opacity: done && fStatus === '' ? 0.62 : 1,
-                        cursor: 'default',
-                        ...(hl ? { background: 'rgba(0,120,220,0.16)', boxShadow: 'inset 2px 0 0 ' + CYAN } : {}),
-                      }}>
-                      <td style={{ ...td, width: 34 }}>
-                        <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggleSel(r.id)}
-                          style={{ cursor: 'pointer', accentColor: CYAN }} />
-                      </td>
-                      <td style={{ ...td, ...mono, fontSize: 11, whiteSpace: 'nowrap' }}>
-                        {r.ts ? r.ts.slice(5, 19) : '-'}
-                      </td>
-                      <td style={{ ...td, ...mono, fontSize: 10, maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#7ab8e0' }}>
-                        {r.stream_id || '-'}
-                      </td>
-                      {/* P2：场景徽标（机场期/模拟流/夜间/白天/城区 + 不纳入判例） */}
-                      <td style={td}>
-                        {(() => {
-                          const sb = sceneBadge(r.scene, r.exclude)
-                          if (!sb) return <span style={{ fontSize: 10, color: '#3a5a70' }}>—</span>
-                          return (
-                            <span style={{
-                              display: 'inline-block', padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 600,
-                              color: sb.color, background: sb.bg, whiteSpace: 'nowrap',
-                            }}>{sb.text}</span>
-                          )
-                        })()}
-                      </td>
-                      <td style={{ ...td }}>
-                        <span style={{ color: clsCol, fontWeight: 700, fontSize: 11 }}>
-                          {r.label || '-'}
-                        </span>
-                        {(r.boxes || []).length > 0 && (
-                          <span style={{ fontSize: 10, color: '#5a8aaa', marginLeft: 4 }}>
-                            {(r.boxes || []).map(b => clsName(b.cls)).join('/')}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...td, ...mono, fontSize: 11 }}>
-                        <span style={{ color: (r.max_conf || 0) >= 0.5 ? GREEN : (r.max_conf || 0) >= 0.3 ? AMBER : '#5a8aaa' }}>
-                          {r.max_conf ? ((r.max_conf) * 100).toFixed(1) + '%' : '-'}
-                        </span>
-                      </td>
-                      <td style={{ ...td, ...mono, fontSize: 11, color: '#5a8aaa' }}>{(r.boxes || []).length}</td>
-                      <td style={td}>
-                        <span style={{
-                          display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 11, fontWeight: 600,
-                          color: pb.color, background: pb.bg,
-                          ...(r.push?.status === 'failed' && r.push?.reason ? { cursor: 'help' } : {}),
-                        }} title={r.push?.status === 'failed' ? (r.push.reason || '') : r.push?.status === 'held' ? (r.push.reason || '低置信度待复核') : r.push?.status === 'pushed' ? `告警 ${r.push.warning_id || ''} · ${r.push.town || ''} ${r.push.unit || ''}${r.push.correctedAt ? ' · 已更正' : ''}` : ''}>
-                          {pb.text}
-                        </span>
-                      </td>
-                      <td style={td}>
-                        <span style={{
-                          display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 11, fontWeight: 600,
-                          color: rb.color, background: rb.bg,
-                        }}>
-                          {rb.text}
-                          {r.push?.review && r.review_status !== r.push.review && (
-                            <span style={{ marginLeft: 4, fontSize: 10, color: ORANGE }} title={`告警复核: ${r.push.review === 'true' ? '真警' : r.push.review === 'false' ? '误报' : r.push.review === 'miss' ? '漏报' : r.push.review}${r.push.reviewReason ? ' · ' + r.push.reviewReason : ''}`}>
-                              *{r.push.review === 'true' ? '真警' : r.push.review === 'false' ? '误报' : r.push.review === 'miss' ? '漏报' : r.push.review}
-                            </span>
-                          )}
-                        </span>
-                        {r.reviewer && (
-                          <div style={{ fontSize: 10, color: '#3a6a8a', marginTop: 2 }}>by {r.reviewer}</div>
-                        )}
-                      </td>
-                      <td style={{ ...td, ...mono, fontSize: 10, color: '#5a8aaa', whiteSpace: 'nowrap' }}>
-                        {typeof r.lat === 'number' && typeof r.lng === 'number' ? `${r.lat.toFixed(3)}, ${r.lng.toFixed(3)}` : '-'}
-                      </td>
-                      <td style={td}>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
-                          <button onClick={() => setFocus(r)} style={tinyBtn('rgba(0,80,180,0.15)', '#7ab8e0', 'rgba(0,150,220,0.4)')}>查看</button>
-                          <button onClick={() => applyReview(r.id, 'true')} disabled={r.review_status === 'true'}
-                            style={{ ...tinyBtn('rgba(74,222,128,0.12)', r.review_status === 'true' ? '#2e6b45' : GREEN, 'rgba(74,222,128,0.35)'), opacity: r.review_status === 'true' ? 0.45 : 1 }}>真烟</button>
-                          <button onClick={() => applyReview(r.id, 'false')} disabled={r.review_status === 'false'}
-                            style={{ ...tinyBtn('rgba(255,68,68,0.12)', r.review_status === 'false' ? '#6b2e2e' : RED, 'rgba(255,68,68,0.35)'), opacity: r.review_status === 'false' ? 0.45 : 1 }}>误报</button>
-                          <button onClick={() => applyReview(r.id, 'uncertain')} disabled={r.review_status === 'uncertain'}
-                            style={{ ...tinyBtn('rgba(255,183,77,0.12)', r.review_status === 'uncertain' ? '#6b5a2e' : AMBER, 'rgba(255,183,77,0.35)'), opacity: r.review_status === 'uncertain' ? 0.45 : 1 }}>稍后</button>
-                          {done && (
-                            <button onClick={() => undoReview(r.id)} title="撤销该条复核 → 待复检"
-                              style={tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)')}>↩</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: 2 }}>
+            {rows.map(r => {
+              const pb = pushBadge(r.push)
+              const rb = reviewBadge(r.review_status)
+              const hasFire = (r.boxes || []).some(b => b.cls === 1)
+              const hasSmoke = (r.boxes || []).some(b => b.cls === 0)
+              const clsCol = hasFire ? RED : hasSmoke ? CYAN : AMBER
+              const done = isDone(r)
+              const hl = activeId === r.id
+              const sb = sceneBadge(r.scene, r.exclude)
+              return (
+                <div key={r.id} id={`straw-row-${r.id}`}
+                  style={{
+                    background: '#04101f', border: hl ? '1px solid ' + CYAN : '1px solid rgba(0,150,220,0.15)',
+                    borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                    opacity: done && fStatus === '' ? 0.62 : 1, cursor: 'default',
+                    ...(hl ? { boxShadow: '0 0 0 1px ' + CYAN } : {}),
+                  }}>
+                  {/* 缩略图（点击开详情）+ 勾选框 */}
+                  <div style={{ position: 'relative', background: '#000', cursor: 'zoom-in' }} onClick={() => setFocus(r)}>
+                    {r.frame_path ? (
+                      <img src={srcOf(r.frame_path, 320)} alt="" loading="lazy"
+                        style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ width: '100%', aspectRatio: '4/3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a5a70', fontSize: 12 }}>无图</div>
+                    )}
+                    <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggleSel(r.id)}
+                      onClick={e => e.stopPropagation()}
+                      style={{ position: 'absolute', top: 6, left: 6, cursor: 'pointer', accentColor: CYAN, width: 16, height: 16 }} />
+                    {r.exclude === 1 && (
+                      <span style={{ position: 'absolute', top: 4, right: 6, fontSize: 13, color: RED }}>⛔</span>
+                    )}
+                  </div>
+                  {/* 信息区 */}
+                  <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ color: clsCol, fontWeight: 700, fontSize: 12 }}>{r.label || '-'}</span>
+                      {sb && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, color: sb.color, background: sb.bg }}>{sb.text}</span>}
+                    </div>
+                    <div style={{ ...mono, fontSize: 10, color: '#5a8aaa', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span>{r.ts ? r.ts.slice(5, 16) : '-'}</span>
+                      {(() => { const srcB = sourceBadge(r.source); return srcB ? <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, color: srcB.color, background: srcB.bg }}>{srcB.text}</span> : null })()}
+                      <span>· conf {r.max_conf ? (r.max_conf * 100).toFixed(0) + '%' : '-'}</span>
+                    </div>
+                    <div style={{ ...mono, fontSize: 9, color: '#7ab8e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.stream_id}>
+                      {r.stream_id || '-'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, color: pb.color, background: pb.bg }}>{pb.text}</span>
+                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, color: rb.color, background: rb.bg }}>{rb.text}</span>
+                    </div>
+                  </div>
+                  {/* 复检按钮区 */}
+                  <div style={{ display: 'flex', gap: 4, padding: '6px 8px', borderTop: '1px solid rgba(0,150,220,0.1)' }}>
+                    <button onClick={() => setFocus(r)} style={{ ...tinyBtn('rgba(0,80,180,0.15)', '#7ab8e0', 'rgba(0,150,220,0.4)'), flex: 1, padding: '4px 0', fontSize: 11 }}>查看</button>
+                    <button onClick={() => applyReview(r.id, 'true')} disabled={r.review_status === 'true'}
+                      style={{ ...tinyBtn('rgba(74,222,128,0.12)', r.review_status === 'true' ? '#2e6b45' : GREEN, 'rgba(74,222,128,0.35)'), flex: 1, padding: '4px 0', fontSize: 11, opacity: r.review_status === 'true' ? 0.45 : 1 }}>真烟</button>
+                    <button onClick={() => applyReview(r.id, 'false')} disabled={r.review_status === 'false'}
+                      style={{ ...tinyBtn('rgba(255,68,68,0.12)', r.review_status === 'false' ? '#6b2e2e' : RED, 'rgba(255,68,68,0.35)'), flex: 1, padding: '4px 0', fontSize: 11, opacity: r.review_status === 'false' ? 0.45 : 1 }}>误报</button>
+                    <button onClick={() => applyReview(r.id, 'uncertain')} disabled={r.review_status === 'uncertain'}
+                      style={{ ...tinyBtn('rgba(255,183,77,0.12)', r.review_status === 'uncertain' ? '#6b5a2e' : AMBER, 'rgba(255,183,77,0.35)'), flex: 1, padding: '4px 0', fontSize: 11, opacity: r.review_status === 'uncertain' ? 0.45 : 1 }}>稍后</button>
+                    {done && (
+                      <button onClick={() => undoReview(r.id)} title="撤销该条复核"
+                        style={{ ...tinyBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), padding: '4px 8px', fontSize: 11 }}>↩</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -801,7 +792,7 @@ export function StrawResultsView() {
                 body: JSON.stringify({ ids: [focus.id], exclude }),
               })
               const d = await r.json()
-              if (d.ok) { syncRow(focus.id, { exclude: exclude ? 1 : 0 }); flash(exclude ? '已标记不纳入判例（导出重训将剔除）' : '已恢复纳入判例') }
+              if (d.ok) { syncRow(focus.id, { exclude: exclude ? 1 : 0 }); flash(exclude ? '已标记不纳入判例（导出重训将剔除）' : '已恢复纳入判例'); load(page) }
               else flash(d.error || '操作失败')
             } catch { flash('操作失败') }
           }}

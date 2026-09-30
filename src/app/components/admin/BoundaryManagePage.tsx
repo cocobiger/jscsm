@@ -8,7 +8,6 @@ const CYAN = '#00aaff'
 const GREEN = '#4ade80'
 const RED = '#ff4444'
 const AMBER = '#ffb74d'
-const ORANGE = '#ff7043'
 
 const card: React.CSSProperties = {
   background: 'rgba(4,14,35,0.7)',
@@ -431,7 +430,7 @@ function BoundaryMapEditor({ onChanged }: { onChanged: () => void }) {
     setBusy(true)
     try {
       const latlngs = vertexMarkers.current.map((m: any) => m.getLatLng())
-      const ring = latlngs.map((ll: any) => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))])
+      const ring: [number, number][] = latlngs.map((ll: any) => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))] as [number, number])
       if (ring.length < 3) { setStatus('顶点数不足，无法保存'); setBusy(false); return }
       const closed = [...ring, ring[0]]
       const r = await authFetch(`/api/straw/boundary/${encodeURIComponent(selected)}`, {

@@ -5,23 +5,8 @@ import { authFetch } from '../../lib/apiFetch'
 // ── 算法调参：自研推理引擎参数优化（注册表驱动，多算法可扩展）──
 // 数据边界：自研算法（source='straw-engine'）参数调优；IoTCloud 通道分析见「AI分析存档」
 
-interface ParamDef {
-  type: string
-  range?: [number, number]
-  step?: number
-  options?: number[]
-  default: number
-  label: string
-  group: string
-  desc?: string
-}
-interface AlgDef {
-  name: string
-  aiType: string
-  desc?: string
-  params: Record<string, ParamDef>
-  fitness?: Record<string, number>
-}
+// 接口契约统一出处（P2 · 2026-09-14）：ParamDef / AlgDef 均在 api-types.ts 定义，避免各页各写一份
+import type { TuneAlgorithm as AlgDef, TuneParamDef as ParamDef } from '../../lib/api-types'
 interface TrialRow {
   fitness: number
   recall: number
@@ -232,7 +217,7 @@ export function TunePage() {
                 {task.running ? '运行中…' : '▶ 启动调参'}
               </button>
               {task.running && <button onClick={stopPoll} style={btn('rgba(0,20,50,0.4)', CK.textDim, alpha(CK.border, 0.3))}>停止刷新</button>}
-              <span style={{ color: CK.textFaint }}>评估集 {t?.out?.evalStats?.nTrue ?? alg.evalSet ? '' : ''}· 网格约 8min / optuna 约 15min / 单点秒级</span>
+              <span style={{ color: CK.textFaint }}>评估集 <b style={{ color: CK.textDim, ...mono }}>{alg.evalSet || '未配置'}</b>{t?.out?.evalStats ? `（${t.out.evalStats.nTrue} 真烟 + ${t.out.evalStats.nFalse} 无烟）` : ''} · 网格约 8min / optuna 约 15min / 单点秒级</span>
             </div>
           </div>
 

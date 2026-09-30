@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
-import { Satellite, Zap, FolderArchive } from 'lucide-react'
+import { Satellite, Zap, FolderArchive, Shield } from 'lucide-react'
+import { DockGuardPage } from './DockGuardPage'
+import { roleAtLeast, type CurrentUser } from '../../lib/auth'
 
 // ── 司空2 设备面板（数据贯通可视化：机场 OSD 状态 + 司空事件 + 媒体归档）──
 
@@ -120,7 +122,7 @@ function healthLight(ok: boolean | null | undefined, label: string, detail: stri
   )
 }
 
-export function SikongPanel() {
+export function SikongPanel({ user }: { user?: CurrentUser }) {
   const [health, setHealth] = useState<any>(null)
   const [docks, setDocks] = useState<Dock[]>([])
   const [events, setEvents] = useState<SkEvent[]>([])
@@ -134,7 +136,7 @@ export function SikongPanel() {
   const [mediaDate, setMediaDate] = useState('')
   const [mediaQuery, setMediaQuery] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
-  const [subTab, setSubTab] = useState<'docks' | 'events' | 'media'>('docks')
+  const [subTab, setSubTab] = useState<'docks' | 'events' | 'media' | 'guard'>('docks')
   const [play, setPlay] = useState<{ url: string; name: string; size: number } | null>(null)
   const [playLoading, setPlayLoading] = useState(false)
   const [playError, setPlayError] = useState('')
@@ -226,7 +228,7 @@ export function SikongPanel() {
           setPlayError(d?.error || '签名失败')
         }
       })
-      .catch(e => setPlayError('播放地址获取失败'))
+      .catch(() => setPlayError('播放地址获取失败'))
       .finally(() => setPlayLoading(false))
   }, [])
 
@@ -269,6 +271,7 @@ export function SikongPanel() {
           ['docks', `机场状态 (${docks.length})`, Satellite],
           ['events', `司空事件 (${events.length})`, Zap],
           ['media', `媒体归档 (${Object.values(mediaByKind).reduce((a, b) => a + b, 0)})`, FolderArchive],
+          ...(roleAtLeast(user?.role, 'admin') ? [['guard', '机场布防', Shield] as const] : []),
         ] as const).map(([key, label, Icon]) => (
           <button key={key} onClick={() => setSubTab(key)} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -302,6 +305,16 @@ export function SikongPanel() {
                   <span style={{ color: '#5a8aaa' }}>环境温 / 湿度</span><span style={{ color: '#9ad6f0' }}>{o.envTemperature ?? '—'}℃ · {o.humidity ?? '—'}%</span>
                   <span style={{ color: '#5a8aaa' }}>GPS / 供电</span><span style={{ color: '#9ad6f0' }}>{o.gpsNumber ?? '—'} 颗 · {o.electricSupplyVoltage ?? '—'}V</span>
                   <span style={{ color: '#5a8aaa' }}>坐标</span><span style={{ color: '#9ad6f0' }}>{dk.latitude.toFixed(4)}, {dk.longitude.toFixed(4)}</span>
+                  <span style={{ color: '#5a8aaa' }}>待上传</span>
+                  <span style={{ color: (o.remainUpload ?? 0) > 0 ? AMBER : GREEN }}>
+                    {o.remainUpload != null ? `${o.remainUpload} 个文件` : '—'}
+                  </span>
+                  {o.recentFiles && o.recentFiles.length > 0 && (
+                    <>
+                      <span style={{ color: '#5a8aaa' }}>最近上传</span>
+                      <span style={{ color: '#9ad6f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.recentFiles[0].name}>{o.recentFiles[0].name}</span>
+                    </>
+                  )}
                 </div>
               </div>
             )
@@ -469,6 +482,9 @@ export function SikongPanel() {
           )}
         </>
       )}
+
+      {/* 机场布防（人员入侵检测 · 仅 admin 可见，原一级菜单降级为子 Tab） */}
+      {subTab === 'guard' && <DockGuardPage />}
 
       {/* 媒体在线播放模态框（训练可用性预审） */}
       {(play || playLoading || playError) && (

@@ -24,13 +24,13 @@ export function RightPanel({ activeTab = 'default', onSelectAlert, selectedAlert
         borderLeft: '1px solid rgba(0, 150, 220, 0.15)',
       }}
     >
-      {/* Alert panel */}
-      <div style={{ flex: '0 0 18%', minHeight: 0, borderBottom: '1px solid rgba(0,150,220,0.12)' }}>
+      {/* Alert panel（P3 大屏化：18% → 30%，实时告警区从 ~138px 增到 ~230px，值班大屏可一眼看多 3 条） */}
+      <div style={{ flex: '0 0 30%', minHeight: 0, borderBottom: '1px solid rgba(0,150,220,0.12)' }}>
         <AlertPanel onSelectAlert={onSelectAlert} selectedAlertId={selectedAlertId} />
       </div>
 
-      {/* Video carousel */}
-      <div style={{ flex: '0 0 17%', minHeight: 0, borderBottom: '1px solid rgba(0,150,220,0.12)' }}>
+      {/* Video carousel（P3：17% → 14%，让位给告警区） */}
+      <div style={{ flex: '0 0 14%', minHeight: 0, borderBottom: '1px solid rgba(0,150,220,0.12)' }}>
         <VideoCarousel activeTab={activeTab} />
       </div>
 

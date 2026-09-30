@@ -3,7 +3,6 @@ import { PieChart, Pie, Cell, Tooltip } from 'recharts'
 import { apiFetch } from '../lib/apiFetch'
 
 const CYAN = '#00aaff'
-const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const ORANGE = '#ff7043'
 const PURPLE = '#ab47bc'
@@ -290,7 +289,6 @@ export function StatsPanel() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {dynPieData.map(d => {
-                    const pct = Math.round((d.value / alertTypeTotal) * 100)
                     // 横向进度条宽度按最大计数值比例
                     const barW = d.value === maxCount ? 48 : Math.max(6, Math.round(d.value / maxCount * 48))
                     return (

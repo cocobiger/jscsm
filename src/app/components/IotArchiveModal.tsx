@@ -3,7 +3,6 @@ import type { AlertItem } from './AlertPanel'
 import { authFetch } from '../lib/apiFetch'
 
 const CYAN = '#00aaff'
-const GREEN = '#00e676'
 
 interface IotRecord {
   id: string

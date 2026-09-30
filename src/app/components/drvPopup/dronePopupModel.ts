@@ -22,7 +22,7 @@ import type { DroneLiveEvt } from '../../lib/droneLive'
 // ── 调度常量（唯一来源，v2 排期参数化决策 P2 的落点）──
 export const DRONE_WINDOW_MAX = 2          // 决策 D1：同屏窗口上限
 export const DRONE_QUEUE_MAX = 3           // 决策 D1：队列上限
-export const DRONE_AUTO_HIDE_MS = 30_000   // 决策 D6：播放后 30s 自动收起（入队非销毁）
+export const DRONE_AUTO_HIDE_MS = 0          // 决策 D6：播放后自动收起；0=禁用自动收起，画面跟随 LIVE_OFF（降落）销毁
 export const DRONE_RESOLVE_WAIT_MS = 60_000 // 等待 mirror 接入的最长解析时间
 export const DRONE_RESOLVE_RETRY_MS = 4_000 // 解析重试间隔（zlm-watcher 15s 轮询拉 mirror，留余量）
 export const DRONE_FALLBACK_FOLD_MS = 120_000 // 兜底：始终未能播放也折叠，避免窗口常驻
@@ -37,9 +37,13 @@ export interface LiveEntry {
   sub: string           // 无人机 SN 标签
   startedAt: number     // 起飞（广播）时间 ms
   url: string           // 相对 HLS 播放地址（''=尚未解析到）
+  fallbackUrl?: string  // 备用播放地址（原流 hls；带框流异常时回退用）
   phase: 'resolving' | 'ready' | 'timeout'
   waitingUntil: number  // 解析超时时刻（host 手动重试会重设）
   zlmOnline: boolean
+  width: number | null  // 视频分辨率宽（流在线后由 stream-status 写回）
+  height: number | null // 视频分辨率高
+  changeReason?: string // 事件来源（webhook LIVE_ON / OSD_TAKEOFF_FALLBACK 兜底 / SIM 模拟）
   openSeq: number       // 进窗代数：每次上窗分配新值，React key 用 w-<key>-<openSeq>
 }
 
@@ -90,7 +94,7 @@ export function allEntries(state: PopupState): LiveEntry[] {
 }
 
 function makeEntry(
-  evt: Pick<DroneLiveEvt, 'deviceSn' | 'dockSn' | 'streamId' | 'ts' | 'zlm_online'>,
+  evt: Pick<DroneLiveEvt, 'deviceSn' | 'dockSn' | 'streamId' | 'ts' | 'zlm_online'> & { changeReason?: string },
   now: number, openSeq: number,
 ): LiveEntry {
   const deviceSn = String(evt.deviceSn)
@@ -107,6 +111,9 @@ function makeEntry(
     phase: 'resolving',
     waitingUntil: now + DRONE_RESOLVE_WAIT_MS,
     zlmOnline: !!Number(evt.zlm_online),
+    width: null,
+    height: null,
+    changeReason: evt.changeReason || '',
     openSeq,
   }
 }
@@ -131,7 +138,7 @@ function pushQueue(queue: LiveEntry[], entry: LiveEntry): { queue: LiveEntry[]; 
  */
 export function liveOn(
   state: PopupState,
-  evt: Pick<DroneLiveEvt, 'deviceSn' | 'dockSn' | 'streamId' | 'ts' | 'zlm_online'>,
+  evt: Pick<DroneLiveEvt, 'deviceSn' | 'dockSn' | 'streamId' | 'ts' | 'zlm_online'> & { changeReason?: string },
   now: number = Date.now(),
 ): LiveOnResult {
   const deviceSn = String(evt?.deviceSn || '')
@@ -206,7 +213,7 @@ export function foldWindow(state: PopupState, key: string): FoldResult {
  *  - 窗口满 → 折叠「最新打开窗口」入队（D3），点击项上窗
  * 折叠入队与点击项移出后队列不会超上限（队 ≤3 时 减1加1 不超）。
  */
-export function clickQueue(state: PopupState, key: string, now: number = Date.now()): FoldResult {
+export function clickQueue(state: PopupState, key: string, _now: number = Date.now()): FoldResult {
   const k = String(key)
   const qIdx = state.queue.findIndex(e => e.key === k)
   if (qIdx < 0) {

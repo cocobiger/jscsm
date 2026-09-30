@@ -140,6 +140,13 @@ export default function App() {
   }, [])
   useEffect(() => { setUnauthorizedHandler(handleUnauthorized) }, [handleUnauthorized])
 
+  // P4：驾驶舱「治理详情」→ 切到管理后台（后续页签由 AdminPanel / 秸秆页各自领取待处理导航）
+  useEffect(() => {
+    const onNav = () => setShowAdmin(true)
+    window.addEventListener('jsc:nav', onNav)
+    return () => window.removeEventListener('jsc:nav', onNav)
+  }, [])
+
   const handleLogout = useCallback(async () => {
     await doLogout()
     setUser(null)

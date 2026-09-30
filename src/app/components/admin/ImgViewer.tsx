@@ -209,13 +209,6 @@ export function useCanvasZoom(ref: React.RefObject<HTMLElement | null>, min = 0.
   const [zoom, setZoomState] = useState(1)
   const zoomRef = useRef(1)
 
-  const setZoom = useCallback((z: number) => {
-    const next = Math.max(min, Math.min(max, z))
-    if (next === zoomRef.current) return
-    zoomRef.current = next
-    setZoomState(next)
-  }, [min, max])
-
   useEffect(() => {
     const el = ref.current
     if (!el) return

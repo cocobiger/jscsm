@@ -21,18 +21,12 @@ const card: React.CSSProperties = {
   padding: '14px 16px',
 }
 
-const btn = (bg: string, fg: string, bd: string): React.CSSProperties => ({
-  padding: '6px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer', fontWeight: 600,
-  border: `1px solid ${bd}`, background: bg, color: fg,
-})
+// ── 接口契约统一出处：src/app/lib/api-types.ts（P2 · 2026-09-14）──
+// ⚠️ 历史 bug：此处曾把 /api/straw-engine/status 声明为平铺 { ok, workers, resource }，
+//    实际返回是嵌套 { engine, metrics, sampleStats } → S0 面板 Worker/CPU/内存/告警全部显示 0 或 '-'
+import type { StrawEngineStatus as EngStatus, EngineSnapshot, SnapStream } from '../../lib/api-types'
+import { checkShape, STRAW_ENGINE_STATUS_REQUIRED, ENGINE_SNAPSHOT_REQUIRED } from '../../lib/api-types'
 
-interface EngStatus { ok?: boolean; workers?: Record<string, any>; resource?: any }
-interface SnapStream {
-  running: boolean; stream_ok: boolean; frame_age_s: number | null
-  detects: number; alerts: number; last_label: string; last_conf: number
-  infer_ms: number; cfm: { hits: number; need: number; status: string; age_s: number | null }
-  boxes: any[]; snap: string
-}
 
 // ════════════════ S0 · 运行链路全景 ════════════════
 export function RunPipeline() {
@@ -41,24 +35,31 @@ export function RunPipeline() {
   useEffect(() => {
     let alive = true
     const load = async () => {
-      try { const r = await authFetch('/api/straw-engine/status'); if (r.ok) { const data = await r.json(); if (alive) setEng(data) } } catch { /* 静默 */ }
+      try { const r = await authFetch('/api/straw-engine/status'); if (r.ok) { const data = await r.json(); checkShape(data, STRAW_ENGINE_STATUS_REQUIRED, 'straw-engine/status'); if (alive) setEng(data) } } catch { /* 静默 */ }
     }
     load()
     const t = setInterval(load, 10000)
     return () => { alive = false; clearInterval(t) }
   }, [])
 
-  const workers = eng?.workers || {}
+  const health = eng?.engine || {}
+  const metrics = eng?.metrics || {}
+  const workers = health.workers || {}
   const nWorkers = Object.keys(workers).length
-  const okCount = Object.values(workers).filter((w: any) => w.running).length
-  const nAlerts = eng?.engine?.total_alerts ?? Object.values(workers).reduce((s: number, w: any) => s + (w.alerts || 0), 0)
+  const okCount = Object.values(workers).filter(w => w?.running).length
+  const nAlerts = metrics.total_alerts ?? Object.values(workers).reduce((s, w) => s + (w?.alerts || 0), 0)
+  const nDetects = metrics.total_detects ?? Object.values(workers).reduce((s, w) => s + (w?.detects || 0), 0)
+  // 模型信息（来自 /health，随现网模型切换自动更新，避免文案写死后过时）
+  const modelInfo = [health.model_format, health.model_version]
+    .filter(Boolean).join(' ') + ((health.model_classes || []).length ? ` · ${(health.model_classes || []).join('/')}` : '')
+    + (health.model_input_size ? ` @${health.model_input_size}` : '')
 
   const nodes: { icon: LucideIcon; name: string; desc: string; color: string; stat: string }[] = [
     { icon: Radio, name: '视频流接入', desc: '司空 RTMP 直推我方 ZLM(1936)；dji-bridge 抓屏转推（兜底）', color: CYAN,
       stat: `${nWorkers} 路流配置` },
-    { icon: Brain, name: '视觉检测', desc: 'RT-DETR 3 类（smoke/fire/house），分类别置信度阈值', color: AMBER,
-      stat: `引擎 ${eng?.ok === false ? '离线' : '在线'}` },
-    { icon: CheckCircle2, name: '多帧确认', desc: 'Confirmer：连续 3 帧命中才告警；house 类过滤不告警', color: GREEN,
+    { icon: Brain, name: '视觉检测', desc: modelInfo || '检测模型（未取到模型信息）', color: AMBER,
+      stat: `引擎 ${health.ok === false ? '离线' : '在线'}` },
+    { icon: CheckCircle2, name: '多帧确认', desc: 'Confirmer：连续 3 帧命中才告警；抑制重复上报', color: GREEN,
       stat: '3 帧确认制' },
     { icon: Siren, name: '告警生成', desc: '目标定位（GPS+云台+测距）+ 证据留存 + 附近人员检测', color: RED,
       stat: `累计 ${nAlerts} 条` },
@@ -71,12 +72,12 @@ export function RunPipeline() {
       {/* 状态汇总条 */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {[
-          ['引擎', eng?.ok === false ? '离线' : '在线', eng?.ok === false ? RED : GREEN],
+          ['引擎', health.ok === false ? '离线' : '在线', health.ok === false ? RED : GREEN],
           ['Worker', `${okCount}/${nWorkers} 运行`, CYAN],
-          ['推理帧', `${Object.values(workers).reduce((s: number, w: any) => s + (w.detects || 0), 0)}`, DIM],
+          ['推理帧', `${nDetects}`, DIM],
           ['告警', `${nAlerts}`, RED],
-          ['CPU', eng?.resource ? `${eng.resource.cpu_pct ?? '-'}%` : '-', DIM],
-          ['内存', eng?.resource ? `${eng.resource.mem_gb ?? '-'}G` : '-', DIM],
+          ['CPU', health.resource ? `${health.resource.cpu_pct ?? '-'}%` : '-', DIM],
+          ['内存', health.resource ? `${health.resource.mem_gb ?? '-'}G` : '-', DIM],
         ].map(([k, v, c]) => (
           <div key={k as string} style={{ ...card, padding: '8px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 84 }}>
             <span style={{ fontSize: 18, fontWeight: 700, color: c as string, ...mono }}>{v as string}</span>
@@ -103,7 +104,7 @@ export function RunPipeline() {
       {/* 各环节角色说明 */}
       <div style={{ ...card, fontSize: 12, color: '#9ab4d0', lineHeight: 1.9 }}>
         <b style={{ color: CYAN }}>怎么运行（一目了然）：</b>
-        无人机视频流接入 → 引擎按 interval 抽帧 → RT-DETR 检出 smoke/fire（house 过滤）→ Confirmer 连续 3 帧命中确认 → 命中则生成告警（自动定位目标 GPS + 留存证据图 + 检测附近人员）→ 后端反查乡镇责任单位 → 企业微信群推送带地图卡片。
+        无人机视频流接入 → 引擎按 interval 抽帧 → 检测模型检出目标（现网 {modelInfo || '模型信息未取到'}）→ Confirmer 连续 3 帧命中确认 → 命中则生成告警（自动定位目标 GPS + 留存证据图 + 检测附近人员）→ 后端反查乡镇责任单位 → 企业微信群推送带地图卡片。
       </div>
     </div>
   )
@@ -111,7 +112,7 @@ export function RunPipeline() {
 
 // ════════════════ S2 · 实时检测过程 ════════════════
 export function LiveDetection() {
-  const [snap, setSnap] = useState<any>(null)
+  const [snap, setSnap] = useState<EngineSnapshot | null>(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function LiveDetection() {
           return
         }
         const data = await r.json()
+        checkShape(data, ENGINE_SNAPSHOT_REQUIRED, 'straw-engine/snapshot')
         if (alive) { setSnap(data); setErr('') }
       } catch (e: any) { if (alive) setErr('引擎快照不可用：' + (e?.message || '')) }
     }
@@ -176,7 +178,7 @@ export function LiveDetection() {
               {s.snap ? (
                 <img src={s.snap} alt="" style={{ width: '100%', display: 'block' }} />
               ) : (
-                <span style={{ fontSize: 12, color: DIM, padding: 24 }}>{s.last_boxes?.length ? '画面渲染中…' : '当前无检测目标（引擎在监控中）'}</span>
+                <span style={{ fontSize: 12, color: DIM, padding: 24 }}>{s.boxes?.length ? '画面渲染中…' : '当前无检测目标（引擎在监控中）'}</span>
               )}
             </div>
             {/* 确认进度 */}

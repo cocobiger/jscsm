@@ -3,14 +3,13 @@ import { IconConfigPage } from './IconConfigPage'
 import { MapPointManage } from './MapPointManage'
 import { MapCoordPage } from './MapCoordPage'
 import { BoundaryManagePage } from './BoundaryManagePage'
-import { roleAtLeast } from '../../lib/auth'
+import { roleAtLeast, type Role } from '../../lib/auth'
 
 // ── 地图管理栏目：图标配置 / 点位管理 / 坐标系 / 边界管理 集中入口 ──
 
 const AMBER = '#ffb74d'
-const CYAN = '#00aaff'
 
-export function MapCenterPage({ role }: { role: string }) {
+export function MapCenterPage({ role }: { role: Role }) {
   // 各 tab 的权限：与导航一致（operator 可见点位管理，admin 见全部）
   const tabs: { key: string; label: string; icon: string; minRole: 'viewer' | 'operator' | 'admin' }[] = [
     { key: 'icons', label: '地图图标配置', icon: '🗺', minRole: 'admin' },

@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
-import { StrawEnginePage, StrawReviewBoard } from './StrawEnginePage'
+import { StrawEnginePage } from './StrawEnginePage'
 import { RunPipeline, LiveDetection } from './StrawLivePage'
-import { StrawResultsView } from './StrawResultsView'
+import { SmokeSampleWorkbench } from './SmokeSampleWorkbench'
 import { StreamPanel } from './StreamPanel'
 import { SikongPanel } from './SikongPanel'
 import { NegClassifyVerify } from './NegClassifyVerify'
 import { PushLogPage } from './PushLogPage'
+import { DroneDiagPanel } from './DroneDiagPanel'
 import { authFetch } from '../../lib/apiFetch'
 import type { CurrentUser } from '../../lib/auth'
-import type { LucideIcon } from 'lucide-react'
-import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye, Send } from 'lucide-react'
+
+import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye, Send, Activity } from 'lucide-react'
 
 // ── 秸秆焚烧监控 · 独立功能点（无人机视角）──
 // 数据边界：source='straw-engine' 的自研推理告警，与 AI分析存档（IoTCloud）完全隔离
@@ -46,7 +47,7 @@ interface Props {
 }
 
 export function StrawMonitorPage({ user }: Props) {
-  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results' | 'negverify' | 'pushlog'>('engine')
+  const [tab, setTab] = useState<'engine' | 'pipeline' | 'live' | 'streams' | 'sikong' | 'responsibility' | 'style' | 'results' | 'negverify' | 'pushlog' | 'diag'>('engine')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -63,11 +64,12 @@ export function StrawMonitorPage({ user }: Props) {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {([
           ['engine', '引擎健康 / 告警工作台', Brain],
-          ['results', '检测结果', ScanSearch],
+          ['results', '真烟样本工作台', ScanSearch],
           ['pipeline', '运行链路全景', Workflow],
           ['live', '实时检测过程', Radar],
           ['streams', '视频流面板', Video],
           ['sikong', '司空设备', Satellite],
+          ['diag', '链路诊断', Activity],
           ['negverify', '抽检标注', ScanEye],
           ['responsibility', '责任映射 / 微信群推送', Landmark],
           ['style', '推送样式', ClipboardList],
@@ -84,11 +86,12 @@ export function StrawMonitorPage({ user }: Props) {
       </div>
 
       {tab === 'engine' ? <StrawEnginePage />
-        : tab === 'results' ? <StrawResultsView />
+        : tab === 'results' ? <SmokeSampleWorkbench />
         : tab === 'pipeline' ? <RunPipeline />
         : tab === 'live' ? <LiveDetection />
         : tab === 'streams' ? <StreamPanel />
-        : tab === 'sikong' ? <SikongPanel />
+        : tab === 'sikong' ? <SikongPanel user={user} />
+        : tab === 'diag' ? <DroneDiagPanel />
         : tab === 'negverify' ? <NegClassifyVerify />
         : tab === 'responsibility' ? <ResponsibilityManager />
         : tab === 'pushlog' ? <PushLogPage user={user} />

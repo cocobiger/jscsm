@@ -2,6 +2,9 @@ import { authFetch } from '../../lib/apiFetch'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useDashboard } from '../../context/DashboardContext'
 import type { AirQualityRecord } from '../../context/DashboardContext'
+import { GasMonitorPage } from './GasMonitorPage'
+import { SmsWarningPage } from './SmsWarningPage'
+import { roleAtLeast, type Role } from '../../lib/auth'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -89,27 +92,10 @@ const EMPTY_FORM = {
   co: 0.9,
 }
 
-function genAutoRecord(station: string): typeof EMPTY_FORM {
-  const bases: Record<string, typeof EMPTY_FORM> = {
-    '周家坝': { station: '周家坝', date: todayStr(), hour: new Date().getHours(), aqi: 78, pm25: 22, pm10: 48, so2: 14, no2: 31, o3: 126, co: 0.9 },
-    '百安坝': { station: '百安坝', date: todayStr(), hour: new Date().getHours(), aqi: 55, pm25: 15, pm10: 38, so2: 9, no2: 22, o3: 88, co: 0.7 },
-  }
-  const base = bases[station] ?? EMPTY_FORM
-  const r = (v: number, pct = 0.15) => parseFloat((v * (1 + (Math.random() - 0.5) * pct)).toFixed(1))
-  return {
-    ...base,
-    aqi: Math.round(r(base.aqi)),
-    pm25: Math.round(r(base.pm25)),
-    pm10: Math.round(r(base.pm10)),
-    so2: Math.round(r(base.so2)),
-    no2: Math.round(r(base.no2)),
-    o3: Math.round(r(base.o3)),
-    co: r(base.co),
-  }
-}
-
-export function AirQualityDataPage() {
+export function AirQualityDataPage({ role }: { role: Role }) {
   const { airQualityData, pushAirQualityRecord, deleteAirQualityRecord, clearAirQualityData } = useDashboard()
+  const [subTab, setSubTab] = useState<'air' | 'gas' | 'sms'>('air')
+  const isOperator = roleAtLeast(role, 'operator')
 
   // Filters
   const [filterStation, setFilterStation] = useState<string>('全部')
@@ -119,7 +105,6 @@ export function AirQualityDataPage() {
   // Push form
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [lastSimPushed, setLastSimPushed] = useState<string | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   // 分页（每页 100 条）
@@ -175,24 +160,6 @@ export function AirQualityDataPage() {
     setForm(EMPTY_FORM)
   }
 
-  const handleSimPush = (station: string) => {
-    const rec = genAutoRecord(station)
-    pushAirQualityRecord({
-      station: rec.station,
-      date: rec.date,
-      hour: rec.hour,
-      aqi: rec.aqi,
-      pm25: rec.pm25,
-      pm10: rec.pm10,
-      so2: rec.so2,
-      no2: rec.no2,
-      o3: rec.o3,
-      co: rec.co,
-    })
-    setLastSimPushed(`${station} ${rec.date} ${String(rec.hour).padStart(2, '0')}:05 — AQI ${rec.aqi}`)
-    setTimeout(() => setLastSimPushed(null), 4000)
-  }
-
   const handleSync = useCallback(async (silent = false) => {
     if (!silent) setSyncMsg('同步中…')
     setSyncMsg('同步中…')
@@ -224,7 +191,32 @@ export function AirQualityDataPage() {
   const highlightKey = filterGas !== '全部' ? GAS_KEY_MAP[filterGas] : null
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* 子 Tab：市局数据 / 气体采集预警 / 短信预警推送（短信仅 operator+） */}
+      <div style={{ display: 'flex', gap: 4, padding: '10px 20px 0', flexShrink: 0, borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
+        <button onClick={() => setSubTab('air')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${subTab === 'air' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: subTab === 'air' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: subTab === 'air' ? CYAN : '#5a8aaa',
+        }}>市局数据</button>
+        <button onClick={() => setSubTab('gas')} style={{
+          padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+          border: `1px solid ${subTab === 'gas' ? CYAN : 'transparent'}`, borderBottom: 'none',
+          background: subTab === 'gas' ? 'rgba(0,170,255,0.10)' : 'transparent',
+          color: subTab === 'gas' ? CYAN : '#5a8aaa',
+        }}>气体采集预警</button>
+        {isOperator && (
+          <button onClick={() => setSubTab('sms')} style={{
+            padding: '7px 18px', fontSize: 13, borderRadius: '4px 4px 0 0', cursor: 'pointer',
+            border: `1px solid ${subTab === 'sms' ? CYAN : 'transparent'}`, borderBottom: 'none',
+            background: subTab === 'sms' ? 'rgba(0,170,255,0.10)' : 'transparent',
+            color: subTab === 'sms' ? CYAN : '#5a8aaa',
+          }}>短信预警推送</button>
+        )}
+      </div>
+      {subTab === 'air' ? (
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: 0 }}>
       {/* Left: push controls */}
       <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid rgba(0,80,150,0.2)', overflowY: 'auto', scrollbarWidth: 'none', padding: '20px' }}>
         <h2 style={{ color: '#c8e6ff', fontSize: 16, fontWeight: 600, marginBottom: 16 }}>市局监测站数据管理</h2>
@@ -482,6 +474,12 @@ export function AirQualityDataPage() {
           </div>
         </div>
       </div>
+      </div>
+      ) : subTab === 'gas' ? (
+        <GasMonitorPage />
+      ) : (
+        <SmsWarningPage />
+      )}
     </div>
   )
 }

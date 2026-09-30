@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AlertHistoryModal } from './AlertHistoryModal'
 import { AlertEvidenceModal } from './AlertEvidenceModal'
 import { AlertThumbnail } from './AlertThumbnail'
+import { StrawLiveModal } from './StrawLiveModal'
 import { useDashboard } from '../context/DashboardContext'
 import { fetchUnhandledCount } from '../lib/alertsApi'
+import { requestStrawNav } from '../lib/nav'
 
 export interface AlertItem {
   id: string
@@ -34,11 +36,19 @@ export interface AlertItem {
   memberIds?: string[]
   previewPicUrl?: string  // 聚合告警的预览图（后端 lightweight 输出，取组内首条 picUrl）
   status?: string        // 聚合告警组处理状态 pending / partial / handled（后端输出）
+  // ── P0（2026-09-14 驾驶舱实时告警改造）：来源 / 置信度范围 / 坐标 / 镇街 ──
+  source?: string        // 告警来源（iotcloud / straw-engine / chengyun-platform / cq_api）
+  confidenceMin?: number | null
+  confidenceMax?: number | null
+  confidenceAvg?: number | null
+  town?: string          // 镇街（straw 反查 / 责任映射，缺省为空）
+  community?: string
 }
 
-// 秸秆燃烧告警识别（AI 类型主数据为中文"秸秆燃烧"）
+// 秸秆燃烧告警识别：优先走 source 字段（straw-engine 自研推理），
+//   aiType 中文兜底兼容历史数据（聚合对象旧版无 source 字段）。
 function isStrawAlert(alert: AlertItem): boolean {
-  return (alert.aiType || alert.aggregateAiType || alert.type || '').includes('秸秆燃烧')
+  return alert.source === 'straw-engine' || (alert.aiType || alert.aggregateAiType || alert.type || '').includes('秸秆燃烧')
 }
 
 // 机场人员入侵告警识别（dock-guard 服务上报，aiType=机场人员入侵）
@@ -99,8 +109,17 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   const [flashId, setFlashId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [evidenceAlert, setEvidenceAlert] = useState<AlertItem | null>(null)
+  const [liveModal, setLiveModal] = useState<{ deviceSn: string; title: string } | null>(null)  // P2：带框流弹窗
+  const [previewImg, setPreviewImg] = useState<string | null>(null)  // P0：缩略图点击放大
+  const [showLowConf, setShowLowConf] = useState(false)  // P1：低置信度秸秆告警折叠展开
   const [pendingCount, setPendingCount] = useState(0)  // T23: 入口角标——后端未处理告警总数
-  const { externalAlerts, clearExternalAlerts } = useDashboard()
+  // P3（2026-09-14 大屏化）：滚动容器 ref + 告警卡定位滚动
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const scrollToAlert = (id: string) => {
+    const el = listRef.current?.querySelector(`[data-alert-id="${CSS.escape(id)}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  const { externalAlerts } = useDashboard()
 
   // T23: 入口角标——每 15s 拉一次后端未处理总数（聚合 + 平铺去重）；失败静默保持上值
   //   节奏 15s > 弹窗内 10s 轮询，避免双重请求；alerts:refresh 处置后也会被通知重拉
@@ -168,12 +187,19 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
         if (idx >= 0) next[idx] = item  // 聚合告警更新 / 单条覆盖
         else next.unshift(item)
       }
-      return next.slice(0, 20)
+      // P2（2026-09-14）：聚合告警是「持续性事件」（如秸秆仍在时间窗内），
+      //   不该按一次性记录被 20 条滚动窗口挤出 —— 否则告警多时聚合卡（连带带框流入口）会消失。
+      //   改为：未处置聚合告警始终保留，单条记录滚动保留最新若干条。
+      const aggs = next.filter(a => a.isAggregate && a.status !== 'handled')
+      const singles = next.filter(a => !(a.isAggregate && a.status !== 'handled'))
+      return [...aggs, ...singles.slice(0, Math.max(0, 20 - aggs.length))]
     })
     const lastNew = externalAlerts[0]
     if (lastNew) {
       setFlashId(lastNew.id)
       setTimeout(() => setFlashId(null), 2000)
+      // P3：新告警自动滚动到可见（sortAlerts 按重要性排序后新告警不一定在视口，滚动定位 + 高亮 2s）
+      setTimeout(() => scrollToAlert(lastNew.id), 80)
     }
   }, [externalAlerts])
 
@@ -187,6 +213,18 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
     return [...list].sort((a, b) => weight(a) - weight(b))
   }
   const sortedToday = sortAlerts(todayAlerts)
+  // P1：低置信度秸秆告警（聚合组最高置信度 < 0.3）默认折叠——大屏不刷屏，值班聚焦高置信告警
+  const lowConfStraw = sortedToday.filter(a => isStrawAlert(a) && a.confidenceMax != null && a.confidenceMax < 0.3)
+  const normalToday = sortedToday.filter(a => !(isStrawAlert(a) && a.confidenceMax != null && a.confidenceMax < 0.3))
+
+  // P3：跳到首个未处置告警（顶栏角标点击）
+  const jumpToFirstPending = () => {
+    const first = [...sortedToday, ...historyAlerts].find(a => a.status !== 'handled')
+    if (!first) return
+    setFlashId(first.id)
+    setTimeout(() => setFlashId(null), 2000)
+    setTimeout(() => scrollToAlert(first.id), 80)
+  }
 
   const renderAlertCard = (alert: AlertItem, historyDim = false) => {
           const style = LEVEL_COLORS[alert.level]
@@ -201,6 +239,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
           return (
             <div
               key={alert.id}
+              data-alert-id={alert.id}
               onClick={() => onSelectAlert?.(alert)}
               style={{
                 margin: '4px 10px',
@@ -223,6 +262,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                     <AlertThumbnail
                       src={alert.imageUrl}
                       borderColor="#7c3aed"
+                      onClick={alert.imageUrl ? () => setPreviewImg(alert.imageUrl!) : undefined}
                       fallback={
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.5">
                           <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M3 9h18M9 3v18"/>
@@ -256,10 +296,27 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       {alert.aggregateAiType || alert.aiType || alert.type}
                     </div>
                     <div style={{ color: '#5a8aaa', fontSize: 11 }}>
-                      {alert.location} · <span style={{ color: style.text }}>{alert.windowHours}h内 {alert.count}+ 条 · 最高{style.label}</span>
+                      {alert.location}
+                      {isStraw && alert.confidenceMax != null && alert.confidenceMin != null && (
+                        <> · <span style={{ color: '#ffd740', fontWeight: 600 }}>置信度 {Math.round(alert.confidenceMin * 100)}~{Math.round(alert.confidenceMax * 100)}%</span></>
+                      )}
+                      {isStraw && <> · <span style={{ color: '#4ade80' }}>3帧确认</span></>}
+                      {' · '}<span style={{ color: style.text }}>{alert.windowHours}h内 {alert.count}+ 条 · 最高{style.label}</span>
                     </div>
                   </div>
 
+                  {/* P2：秸秆带框流按钮（straw 聚合卡，点击直连实时带框画面） */}
+                  {isStraw && alert.aggregateChannelSipId && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setLiveModal({ deviceSn: alert.aggregateChannelSipId!.replace(/^sikong_/, ''), title: alert.location }) }}
+                      style={{
+                        padding: '4px 12px', fontSize: 11, borderRadius: 3, flexShrink: 0,
+                        border: '1px solid rgba(255,60,60,0.45)', background: 'rgba(255,60,60,0.12)',
+                        color: '#ff9b9b', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600, marginRight: 6,
+                      }}
+                    >📺 带框流</button>
+                  )}
                   {/* 详情按钮 */}
                   <button
                     type="button"
@@ -270,6 +327,27 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       color: '#a78bfa', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600,
                     }}
                   >详情</button>
+                  {/* P4：治理详情 → 跳到管理后台「秸秆焚烧监控 · 告警工作台」并定位该聚合组的原始记录 */}
+                  {isStraw && alert.memberIds && alert.memberIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        requestStrawNav({
+                          warningIds: alert.memberIds,
+                          aiType: alert.aggregateAiType || alert.aiType,
+                          latestTime: alert.latestTime,
+                          streamId: alert.aggregateChannelSipId || undefined,
+                        })
+                      }}
+                      title="跳转到秸秆专项告警工作台并定位该记录"
+                      style={{
+                        padding: '4px 12px', fontSize: 11, borderRadius: 3, flexShrink: 0,
+                        border: '1px solid rgba(255,112,67,0.45)', background: 'rgba(255,112,67,0.12)',
+                        color: '#ff9b75', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600, marginLeft: 6,
+                      }}
+                    >🔬 治理详情</button>
+                  )}
                 </div>
               ) : iotVideo ? (
                 // ── AI 视频分析卡片（带缩略图）───
@@ -278,7 +356,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                   <AlertThumbnail
                     src={alert.imageUrl}
                     borderColor={style.border}
-                    onClick={alert.imageUrl ? () => window.open(alert.imageUrl, '_blank') : undefined}
+                    onClick={alert.imageUrl ? () => setPreviewImg(alert.imageUrl!) : undefined}
                     fallback={
                       <>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a5a70" strokeWidth="1.5">
@@ -404,8 +482,8 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} badge={pendingCount} />
-      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+      <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} badge={pendingCount} onBadgeClick={jumpToFirstPending} />
+      <div ref={listRef} className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,150,220,0.35) transparent' }}>
         {alerts.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#3a5a70', gap: 8, padding: 20 }}>
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2a4a60" strokeWidth="1.5">
@@ -425,7 +503,29 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
             <span style={{ color: '#3a5a70', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>{todayAlerts.length}</span>
           </div>
         )}
-        {sortedToday.map(alert => renderAlertCard(alert, false))}
+        {normalToday.map(alert => renderAlertCard(alert, false))}
+
+        {/* P1：低置信度秸秆告警折叠组 */}
+        {lowConfStraw.length > 0 && (
+          <div style={{ margin: '6px 10px' }}>
+            <button
+              type="button"
+              onClick={() => setShowLowConf(v => !v)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                border: '1px dashed rgba(255,112,67,0.35)', background: 'rgba(255,112,67,0.06)',
+                color: '#9ad6f0',
+              }}
+            >
+              <span>🔕</span>
+              <span style={{ fontWeight: 600 }}>低置信度告警（{lowConfStraw.length} 条）</span>
+              <span style={{ color: '#5a8aaa' }}>· 最高置信度 &lt; 30% · 疑似误报</span>
+              <span style={{ marginLeft: 'auto', color: '#ffb74d' }}>{showLowConf ? '收起 ▲' : '展开 ▼'}</span>
+            </button>
+            {showLowConf && lowConfStraw.map(alert => renderAlertCard(alert, false))}
+          </div>
+        )}
 
         {/* ── 历史告警（跨天，灰化置底） ── */}
         {historyAlerts.length > 0 && (
@@ -446,11 +546,22 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
 
       {showModal && <AlertHistoryModal alerts={alerts} onClose={() => setShowModal(false)} />}
       {evidenceAlert && <AlertEvidenceModal alert={evidenceAlert} onClose={() => setEvidenceAlert(null)} />}
+      {liveModal && <StrawLiveModal deviceSn={liveModal.deviceSn} title={liveModal.title} onClose={() => setLiveModal(null)} />}
+
+      {/* P0：缩略图点击放大预览 */}
+      {previewImg && (
+        <div
+          onClick={() => setPreviewImg(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 2300, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+        >
+          <img src={previewImg} alt="" style={{ maxWidth: '92%', maxHeight: '92%', borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} />
+        </div>
+      )}
     </div>
   )
 }
 
-function PanelHeader({ color, title, count, onMore, badge }: { color: string; title: string; count?: number; onMore?: () => void; badge?: number }) {
+function PanelHeader({ color, title, count, onMore, badge, onBadgeClick }: { color: string; title: string; count?: number; onMore?: () => void; badge?: number; onBadgeClick?: () => void }) {
   return (
     <div
       className="flex items-center justify-between px-3 shrink-0"
@@ -491,10 +602,12 @@ function PanelHeader({ color, title, count, onMore, badge }: { color: string; ti
               <path d="M9 18l6-6-6-6" />
             </svg>
             更多
-            {/* T23: 未处理告警角标（>0 时显示红点+数字，>99 显示 99+） */}
+            {/* T23: 未处理告警角标（>0 时显示红点+数字，>99 显示 99+）；P3：点击跳到首个未处置 */}
             {badge !== undefined && badge > 0 && (
               <span
                 data-testid="alert-pending-badge"
+                onClick={(e) => { e.stopPropagation(); onBadgeClick?.() }}
+                title="跳到首个未处置告警"
                 style={{
                   position: 'absolute', top: -7, right: -7,
                   minWidth: 16, height: 16, lineHeight: '16px',
@@ -503,6 +616,7 @@ function PanelHeader({ color, title, count, onMore, badge }: { color: string; ti
                   fontSize: 10, fontWeight: 700,
                   fontFamily: "'JetBrains Mono', monospace",
                   boxShadow: '0 0 6px rgba(255,68,68,0.65)',
+                  cursor: onBadgeClick ? 'pointer' : 'default',
                   pointerEvents: 'none',
                 }}
               >{badge > 99 ? '99+' : badge}</span>

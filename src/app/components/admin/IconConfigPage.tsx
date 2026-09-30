@@ -5,7 +5,6 @@ import { MAP_ICONS, ICON_MAP, ICON_COLORS, ICON_CATEGORIES } from '../../lib/map
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
 const AMBER = '#ffd740'
-const RED = '#ff4444'
 
 interface IconCfgItem { icon: string; color: string }
 type IconCfg = Record<string, IconCfgItem>

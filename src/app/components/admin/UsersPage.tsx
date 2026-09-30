@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '../../lib/apiFetch'
 import { ROLE_LABELS, type Role } from '../../lib/auth'
 
-const CYAN = '#00aaff'
 const GREEN = '#00e676'
 const AMBER = '#ffd740'
 const RED = '#ff4444'

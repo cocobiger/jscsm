@@ -4,7 +4,6 @@ import { roleAtLeast, type CurrentUser } from '../../lib/auth'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
-const AMBER = '#ffd740'
 const RED = '#ff4444'
 
 interface RemoteChannel {

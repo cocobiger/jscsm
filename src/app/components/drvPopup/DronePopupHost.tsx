@@ -69,9 +69,15 @@ export function DronePopupHost() {
           if (!aliveRef.current || !inFlight.current.has(entry.key)) return
           const cur = findEntry(stateRef.current, entry.key)
           if (!cur) { inFlight.current.delete(entry.key); return }   // LIVE_OFF 已移除
-          if (info && info.hls) {
+          if (info && (info.bboxHls || info.hls)) {
             applyPatch(entry.key, c => {
-              const p: Partial<LiveEntry> = { url: info.hls, phase: 'ready', zlmOnline: info.online }
+              // 默认播原流；优先 **FLV**（2026-09-11：ZLM 的 HLS/TS 转发整体挂起，FLV 正常且延迟更低），
+              // HLS 作为回退；带框流(bboxHls/bboxFlv)作 fallbackUrl 备用。
+              // 原因：带框流是 2s 抽帧 + 长 GOP，HLS on-demand 下 m3u8 生成极慢导致 404，
+              // 若优先播带框流会卡住整个弹窗（2026-09-08 真飞暴露）。
+              const playUrl = info.flv || info.hls || info.bboxFlv || info.bboxHls
+              const fb = info.bboxFlv || info.bboxHls || undefined
+              const p: Partial<LiveEntry> = { url: playUrl, fallbackUrl: fb, phase: 'ready', zlmOnline: info.online, width: info.width ?? null, height: info.height ?? null }
               if (info.dockName && c.title.startsWith('机场')) p.title = info.dockName
               return p
             })

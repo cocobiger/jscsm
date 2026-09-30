@@ -81,10 +81,6 @@ function genSparkline(base: number, count = 14) {
   }))
 }
 
-function initSparklines(metrics: Metric[]) {
-  return metrics.map(m => genSparkline(m.value))
-}
-
 function Sparkline({ data }: { data: { v: number }[] }) {
   const W = 68, H = 26, pad = 2
   const vals = data.map(d => d.v)

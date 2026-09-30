@@ -5,7 +5,6 @@ import type { MqttTopic } from '../../context/DashboardContext'
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
 const AMBER = '#ffd740'
-const ORANGE = '#ff7043'
 const RED = '#ff4444'
 const PURPLE = '#ab47bc'
 
