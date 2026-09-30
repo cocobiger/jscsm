@@ -41,7 +41,7 @@ import urllib.request
 
 UA = 'wanzhou-towns-builder/1.0'
 # 万州区（500101）大致 bbox：用于结果自检，防止把邻区的乡镇混进来
-WZ_BBOX = (107.80, 30.35, 108.70, 31.25)
+WZ_BBOX = (107.80, 30.30, 108.95, 31.15)
 
 
 # ─────────────────────────── 坐标转换（高德 GCJ-02 → WGS84）───────────────────────────
@@ -179,6 +179,114 @@ def from_file(path: str, assume_gcj: bool = False) -> list[dict]:
     return out
 
 
+# ─────────────────────────── 取数：点-面配对（中文名在 Point 上）───────────────────────────
+def _pip(lng: float, lat: float, ring: list) -> bool:
+    ins = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if (yi > lat) != (yj > lat) and lng < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+            ins = not ins
+        j = i
+    return ins
+
+
+def _simplify(ring: list, tol: float) -> list:
+    """Douglas-Peucker 简化（tol 单位：度）。保留首尾。"""
+    if len(ring) < 5 or tol <= 0:
+        return ring
+    keep = [False] * len(ring)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(ring) - 1)]
+    while stack:
+        a, b = stack.pop()
+        if b <= a + 1:
+            continue
+        ax, ay = ring[a]; bx, by = ring[b]
+        dx, dy = bx - ax, by - ay
+        n = math.hypot(dx, dy)
+        best, bi = -1.0, -1
+        for i in range(a + 1, b):
+            px, py = ring[i]
+            if n == 0:
+                d = math.hypot(px - ax, py - ay)
+            else:
+                d = abs(dy * px - dx * py + bx * ay - by * ax) / n
+            if d > best:
+                best, bi = d, i
+        if best > tol:
+            keep[bi] = True
+            stack.append((a, bi)); stack.append((bi, b))
+    return [ring[i] for i in range(len(ring)) if keep[i]]
+
+
+def from_file_paired(path: str, assume_gcj: bool = False, tol: float = 0.0) -> list[dict]:
+    """用于"【面】的 name 是编号、【点】的 name 才是中文乡镇名"的数据集
+    （如《乡镇街道分界.geojson》= 52 Point + 52 Polygon）。
+    做法：① 只取 Polygon/MultiPolygon（Point 丢弃 —— 后端只吃环，混入 Point 会让初始化失败）
+          ② 用「点在多边形内」把每个面的中文名补上（每面应恰好命中 1 个点）
+          ③ 面的原 name（编号）挪到 division_code 保留来源痕迹
+    """
+    with open(path, encoding='utf-8') as f:
+        d = json.load(f)
+    feats = d.get('features') if d.get('type') == 'FeatureCollection' else [d]
+    polys, points = [], []
+    for f in feats or []:
+        g = f.get('geometry') or {}
+        pr = f.get('properties') or {}
+        if g.get('type') in ('Polygon', 'MultiPolygon'):
+            polys.append(f)
+        elif g.get('type') == 'Point' and (pr.get('name') or ''):
+            points.append((pr.get('name'), g.get('coordinates')))
+    out, unpaired = [], 0
+    for f in polys:
+        g = f.get('geometry') or {}
+        pr = f.get('properties') or {}
+        src_code = str(pr.get('name') or '')
+        coords = g.get('coordinates') or []
+        if g.get('type') == 'MultiPolygon':
+            best, bestn = None, 0
+            for poly in coords:
+                if poly and len(poly[0]) > bestn:
+                    best, bestn = poly[0], len(poly[0])
+            coords = best or []
+        else:
+            coords = coords[0] if coords else []
+        ring = []
+        for pt in coords or []:
+            try:
+                lng, lat = float(pt[0]), float(pt[1])
+            except (TypeError, IndexError, ValueError):
+                continue
+            if assume_gcj:
+                lng, lat = gcj02_to_wgs84(lng, lat)
+            ring.append([round(lng, 6), round(lat, 6)])
+        if len(ring) < 4:
+            continue
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
+        if tol > 0:
+            s = _simplify(ring, tol)
+            if len(s) >= 4:
+                if s[0] != s[-1]:
+                    s.append(s[0])
+                ring = s
+        # 补中文名：找落在本面内的 Point
+        name = src_code
+        for pn, pc in points:
+            if pc and _pip(pc[0], pc[1], ring):
+                name = pn
+                break
+        if name == src_code:
+            unpaired += 1
+        out.append({'type': 'Feature',
+                    'properties': {'name': name, 'division_code': src_code},
+                    'geometry': {'type': 'Polygon', 'coordinates': [ring]}})
+    print(f'  面 {len(polys)} 个｜点 {len(points)} 个｜未配到中文名的面: {unpaired}')
+    return out
+
+
 # ─────────────────────────── 校验 ───────────────────────────
 def verify(feats: list[dict], strict: bool = True) -> int:
     print(f'=== 校验：共 {len(feats)} 个多边形 ===')
@@ -229,6 +337,11 @@ def main():
     g.add_argument('--from-file')
     g.add_argument('--verify')
     ap.add_argument('--assume-gcj', action='store_true', help='输入是 GCJ-02（高德/腾讯）时自动转 WGS84')
+    ap.add_argument('--names-from-points', action='store_true',
+                    help='【面 name 是编号、中文名在 Point 上】的数据集（如《乡镇街道分界.geojson》）：'
+                         '自动丢 Point + 用点在多边形内把中文名补到面上')
+    ap.add_argument('--simplify-tol', type=float, default=0.0,
+                    help='按度做 Douglas-Peucker 简化（如 0.0001≈11m；0=不简化）')
     ap.add_argument('--out', default='wanzhou_towns.geojson')
     ap.add_argument('--no-strict', action='store_true')
     a = ap.parse_args()
@@ -246,8 +359,12 @@ def main():
         print('▶ 从天地图取…（若其边界接口不可用，请改用 --from-file）')
         raise SystemExit('❌ 天地图边界接口当前对该 key 返回 403/418，暂不可用；请改用 --from-file 或 --from-amap')
     else:
-        print(f'▶ 从已有文件规范化：{a.from_file}')
-        feats = from_file(a.from_file, assume_gcj=a.assume_gcj)
+        if a.names_from_points:
+            print(f'▶ 点-面配对模式（中文名取自 Point）：{a.from_file}')
+            feats = from_file_paired(a.from_file, assume_gcj=a.assume_gcj, tol=a.simplify_tol)
+        else:
+            print(f'▶ 从已有文件规范化：{a.from_file}')
+            feats = from_file(a.from_file, assume_gcj=a.assume_gcj)
 
     if not feats:
         raise SystemExit('❌ 未得到任何多边形')

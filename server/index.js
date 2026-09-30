@@ -3787,11 +3787,22 @@ app.listen(PORT, () => {
       const fpB = process.env.WANZHOU_TOWNS_GEOJSON ||
         path.join(__dirname, 'data', 'wanzhou_towns.geojson')
       const rawB = JSON.parse(fsB.readFileSync(fpB, 'utf8'))
-      const seedRows = rawB.features.map(f => ({
-        town: f.properties.name || '',
-        division_code: f.properties.division_code || '',
-        ring: (f.geometry.coordinates || [[]])[0] || [],
-      })).filter(r => r.town)
+      const seedRows = rawB.features
+        .filter(f => (f.geometry || {}).type === 'Polygon' || (f.geometry || {}).type === 'MultiPolygon')
+        .map(f => {
+          const g = f.geometry || {}
+          let coords = g.coordinates || []
+          if (g.type === 'MultiPolygon') {
+            let best = []
+            for (const poly of coords) { const r = (poly && poly[0]) || []; if (r.length > best.length) best = r }
+            coords = [best]
+          }
+          return {
+            town: (f.properties || {}).name || '',
+            division_code: (f.properties || {}).division_code || '',
+            ring: (coords[0]) || [],
+          }
+        }).filter(r => r.town)
       store.replaceBoundaries(seedRows, '初始 seed（wanzhou_towns.geojson）')
       boundaryRows = store.listBoundaries()
       log.info(`行政边界: 已从 geojson seed ${boundaryRows.length} 个乡镇/街道`)

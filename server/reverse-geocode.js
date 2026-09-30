@@ -6,10 +6,26 @@ const path = require('path')
 let _index = null
 
 function _build(features) {
-  return (features || []).map((f) => {
-    const ring = f.geometry.coordinates[0] || []
-    const name = f.properties.name || ''
-    const code = f.properties.division_code || ''
+  // 只接受「面」几何：混入 Point/LineString 时 coordinates[0] 不是数组，
+  // 会让 ring 迭代抛错、把整个边界索引搞崩（后端初始化会整段失败）。这里先过滤 + 兼容 MultiPolygon。
+  const polys = (features || []).filter((f) => {
+    const g = (f && f.geometry) || {}
+    return g.type === 'Polygon' || g.type === 'MultiPolygon'
+  })
+  return polys.map((f) => {
+    const g = f.geometry || {}
+    let ring = []
+    if (g.type === 'MultiPolygon') {
+      for (const poly of (g.coordinates || [])) {
+        const r = (poly && poly[0]) || []
+        if (r.length > ring.length) ring = r
+      }
+    } else {
+      ring = (g.coordinates || [])[0] || []
+    }
+    const props = f.properties || {}
+    const name = props.name || ''
+    const code = props.division_code || ''
     let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity
     for (const [lng, lat] of ring) {
       if (lng < minLng) minLng = lng
