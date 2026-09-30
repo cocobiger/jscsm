@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="hIbDQ36Qb139z7Ej9JhHZN">
+<head data-page-node-id="syNriLGnJLUpzHN60WWHKS">
+<meta charset="UTF-8" data-page-node-id="kxzy7MtLRaeTZDwht9qe9a">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="sZuZxTj8ZpwOTSpUHsd0vS">
+<title>真烟视频标框验证 · 红线约束补充评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--red);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--red);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="j1KtNJVWas1bZvTWh3Qfwj">
+<div class="page" data-page-node-id="EcaCE2pCV49fPPizaDEvRr">
+
+<div class="doc-head" data-page-node-id="7Zt8ABWXABCUlV8hvCBW97">
+  <div class="org" data-page-node-id="07DAEndiPrNFJJIQGtL62p">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="6NpzBvubWgAGkniAWRhfiT">真烟视频标框验证 · 红线约束补充评估</div>
+  <div class="subtitle" data-page-node-id="2l1KTJNgAtEG9EGbrNkE1D">—— 「真无人机起飞后不干扰视频流播放与算法识别」的隔离方案</div>
+  <div class="meta" data-page-node-id="vbHssGzSdp4CPhjwpYgrjY"><span data-page-node-id="NDc9v5gNO1CXACvPrKMsAK">编制时间：2026-09-08</span><span data-page-node-id="8CvEhrWtPDdB9gCbyn3YAu">性质：红线约束分析 + 隔离方案</span><span data-page-node-id="bxyU6SrKVToBJnzMBNwuLA">数据来源：实测 GPU/worker/链路</span></div>
+</div>
+
+<h2 data-page-node-id="BEULZ7vVwlvcraGNYfSPRm">一、结论摘要</h2>
+<div class="box danger" data-page-node-id="xiO5EGpuQab1orizG7OMxB">
+  <p data-page-node-id="sZ6o3wUKagGbYAT9bHGFOL"><b data-page-node-id="sNmlWVvSe5L2JmCYmSSKxA">这条红线约束非常合理且必要</b>——真烟模拟（SIM_SMOKE 推流 + 加流检测 + 弹窗）确实可能干扰真实无人机的视频流播放和算法识别。</p>
+  <p data-page-node-id="yupRg3LxrbAHAwTKsG5vee">必须做<b data-page-node-id="B0JcM5b5bAvy0kp8JImRFQ">「状态感知隔离」</b>：真烟模拟在真实无人机起飞时<b data-page-node-id="YZGEBzTAHwNKOn4Mfk3LfR">自动静默让位</b>，确保真实链路的视频流播放和算法识别绝对优先、不受影响。</p>
+</div>
+
+<h2 data-page-node-id="AY1LBwq4szcMziz34PEjsO">二、干扰点分析（4 个，按严重度）</h2>
+<table data-page-node-id="BCY6Wb4IYCSh2IeCPAAewb">
+  <tr data-page-node-id="HrBI4V9t80kezZpmuuu5r7"><th style="width:6%" data-page-node-id="Gn5wYZ0YjGnQYTmgYLAqix">#</th><th style="width:22%" data-page-node-id="u5eCEtjPN6w8Y1REpvuQI4">干扰点</th><th style="width:12%" data-page-node-id="pDvaJIfvArUVbzljAjFz4E">严重度</th><th data-page-node-id="xtB1AB5H7TGmBDa1EhESfw">影响说明</th></tr>
+  <tr data-page-node-id="ymzuofltG1Eyfg54m0KwT4"><td data-page-node-id="Tpe0XxVXqJjHmuiAiPpDHd">1</td><td data-page-node-id="LUCCQWQmN0MXrPT4iCJH72"><b data-page-node-id="3o3dSY5LIlN9tOiHU5dB3X">straw-engine 加流需重启</b></td><td data-page-node-id="bgRFIAOoPzqx49fdeGyWhD"><span class="tag s-red" data-page-node-id="1qiZ1vbcGiCJlz4A943aGv">高</span></td><td data-page-node-id="NB9lIXxNqM8NAY5bQpyHON">加 SIM 流检测要重启 straw-engine（~5-10s），<b data-page-node-id="pOxned0TR1yVgCxCQgv8dj">重启瞬间所有 worker（含真实流）检测中断</b>，真实无人机告警会漏报/延迟</td></tr>
+  <tr data-page-node-id="btCBKvmbtYStPHlvlgbwFC"><td data-page-node-id="XLAoL6UgsEj7vKt7EbVviU">2</td><td data-page-node-id="YGSHwVMEPqRBe9bRvI3s3P"><b data-page-node-id="28MwzFH7HaTZgefBEN6d9T">GPU 资源竞争</b></td><td data-page-node-id="oYWgQEzSv1BsZHBTvdBndS"><span class="tag s-amber" data-page-node-id="hS6s6GYQHtYzDhoEQFFRSV">中</span></td><td data-page-node-id="wEajvrkP9AVjceOIHMt1Pf">SIM_SMOKE 检测 worker 占用 GPU（~2-3GB），真实流起飞时与其竞争推理资源，可能拖慢真实检测延迟</td></tr>
+  <tr data-page-node-id="yrUoT8LyxuS7Cuco8gLbB3"><td data-page-node-id="is2ptpbnDVYtmiMfDatWIO">3</td><td data-page-node-id="GzNl0H7eN8Q1gP69izCPfJ"><b data-page-node-id="Tawf3WySG53cHuhhfiT9h0">弹窗窗口占用</b></td><td data-page-node-id="9vI3eQqDv3crsGZekhgedH"><span class="tag s-amber" data-page-node-id="hX0vHAB3j1ULr80D2WVq68">中</span></td><td data-page-node-id="8VHvEVlEOD99JWYH1nh7b5">弹窗 2 窗口，SIM_SMOKE 弹窗占 1 窗，真实无人机起飞时可能挤占/折叠真实弹窗</td></tr>
+  <tr data-page-node-id="2LjQ9Tjg2RUFuVEsUCd6UP"><td data-page-node-id="DSAM1xnGb1R58DPHEiGzwI">4</td><td data-page-node-id="7UYEbmXKW3rpckqDSEiEKU"><b data-page-node-id="fNTtkupjC9MQRCCGxK2GbN">推流资源占用</b></td><td data-page-node-id="ibvZMtFbOADAHD83I8M3ET"><span class="tag s-green" data-page-node-id="nYBINqFSlSlTjWHpGkuq4M">低</span></td><td data-page-node-id="7lkFFHPdbj7LTzwOXSpms0">SIM_SMOKE 推流占用 ZLM 带宽 + ffmpeg CPU，对真实流影响小</td></tr>
+</table>
+
+<div class="box warn" data-page-node-id="PUyKQ5W4R0PSBoH2z7OsXk">
+  <p data-page-node-id="7sfZrIXk9TGC28w4ZV0dEe"><b data-page-node-id="cqHQfiFEHsvhFDhKq8EW51">最关键的干扰是 #1（straw-engine 重启中断）</b>：这是硬中断，真实无人机起飞瞬间若正在做"加流/移除 SIM 流"的重启，真实告警会漏报 5-10s。</p>
+  <p data-page-node-id="CL2Wt4NVvZ9mUxxwdyDfCd"><b data-page-node-id="gTGapozKerbs4kcSs0TtNG">GPU 余量充足</b>（24GB 用 5.5GB，余 ~19GB），#2 资源竞争可控——但只要 SIM_SMOKE 在跑就会持续占用 GPU，长期跑会累积。</p>
+</div>
+
+<h2 data-page-node-id="qSgUAOIO97FamorFJGciJ2">三、隔离方案（状态感知隔离，3 层防护）</h2>
+
+<h3 data-page-node-id="xI6JlpIuhSO6sdxY6EvzuZ">第 1 层：前置守卫（启动前检查）</h3>
+<div class="code" data-page-node-id="JXVwnFk6PTuzBRArUkHKSb">真烟模拟启动前：
+  检查 OSD droneInDock（4 台是否全=1 在仓）
+  → 若有真实无人机在飞（任一 droneInDock=0）→ 拒绝启动 / 提示"有真实无人机在飞，禁止模拟"</div>
+
+<h3 data-page-node-id="zHcLrHiuF6Dp4EFNDgiB3L">第 2 层：自动静默（真实起飞自动让位）</h3>
+<div class="code" data-page-node-id="5wyHF7IgP6wYuDaac0nd27">模拟运行期间，监控 OSD（droneInDock 1→0 变化）：
+  一旦任一真实无人机起飞 → 立即自动：
+    ① 停 SIM_SMOKE 推流（kill ffmpeg）
+    ② 从 straw-engine config 移除 sikong_SIM_SMOKE 流（但不立即重启，等真实飞行结束后再重启，避免中断真实检测）
+    ③ off-all 清理 SIM_ 模拟弹窗事件（让出弹窗窗口）
+  → 让出 GPU / 弹窗 / 检测资源，真实链路绝对优先</div>
+
+<h3 data-page-node-id="sr0X9sGVAvgWwSGOrLq3iC">第 3 层：用完即清（防遗忘）</h3>
+<div class="code" data-page-node-id="xnqB4NRUhNgMO011axsCdv">真烟模拟脚本自带"限时自动清理"（如 15 分钟）：
+  到点自动停推流 + off-all + 标记待移除（下次 straw-engine 空闲重启时清理 config）
+  → 防止忘记清理导致 SIM 流长期占用资源</div>
+
+<h2 data-page-node-id="h7T3VKKA8eKbrD1cMZyEq4">四、落地措施</h2>
+<table data-page-node-id="b5sQ4IuXTJeB3KZpr9K1qW">
+  <tr data-page-node-id="AkyxV6lwqCo1hhlXEhtJAQ"><th style="width:24%" data-page-node-id="g62BFOgzDpUBLvx7UQyEJi">措施</th><th data-page-node-id="ikl1DxVj4slI4Q39Pgu3ky">说明</th><th data-page-node-id="ppTECxrHtrtiwNqGCAAtV0">工作量</th></tr>
+  <tr data-page-node-id="C841eD6AQT1t3ZldA2yyoZ"><td data-page-node-id="BIxa9HyIBjz292QrGaFXiy">① 启动守卫</td><td data-page-node-id="tC81n3gmhWl0Tdi7hQWKG5">真烟模拟脚本启动前查 OSD，有真实无人机在飞则拒绝启动并提示</td><td data-page-node-id="uniGtuPhFznryaIBtVqtby">0.2 天</td></tr>
+  <tr data-page-node-id="fYNFgiJziWPExqitRqDFJF"><td data-page-node-id="AZRwTp4Ldtpd8eZtZbjsFM">② 起飞自动静默</td><td data-page-node-id="Dxv1O9NdBmDptqB2dyfrMz">监控 OSD droneInDock 1→0，自动停推流 + off-all + 标记移除（不立即重启）</td><td data-page-node-id="5USPNRVIBh1zenWqykbZxV">0.3 天</td></tr>
+  <tr data-page-node-id="kHsaGIVjrPFxI9fPGHMyf8"><td data-page-node-id="lzSQ1PHavRvaLtClkze7A4">③ 延迟重启清理</td><td data-page-node-id="yUU6Z9Zwj3vEesqhBiPD4j">SIM 流从 config 移除但延迟重启（等真实飞行结束/straw-engine 空闲时），避免重启中断真实检测</td><td data-page-node-id="tIDvgdGHIc1tfitPPnQsQA">0.2 天</td></tr>
+  <tr data-page-node-id="7p9wnB410SVtyP3e1HhUXS"><td data-page-node-id="wplKEv3nUfiHe3fPTPspGY">④ 限时自动清理</td><td data-page-node-id="vzsAQ7GqgkGavOUdC8wBCN">模拟脚本 15 分钟自动清理</td><td data-page-node-id="kEHiUuaGBJsvzGuA4sryhQ">0.1 天</td></tr>
+</table>
+
+<h3 data-page-node-id="G8wT3RIdTJZcHLcP5xpD6L">4.1 关于"straw-engine 重启中断"的特殊处理</h3>
+<div class="box warn" data-page-node-id="CVdWnwpAiTDP7ND2yEL7Fa">
+  <p data-page-node-id="CMXrCKHgBBgDJF8QvdrBok">加流检测 SIM_SMOKE 时，重启 straw-engine 会中断真实检测 5-10s。<b data-page-node-id="Ic1p6ezd0OJIUHfBlF0Sit">对策</b>：</p>
+  <p data-page-node-id="8hXxqeZxfaYvZp7OI1hWHV">① <b data-page-node-id="ukV4HSknpqgsnHS8C45CYr">加流时机</b>：仅在"确认无真实无人机在飞"时做加流重启（前置守卫保证）；</p>
+  <p data-page-node-id="lOMSAIALdFM1Hc9XB24Ini">② <b data-page-node-id="nwlvOIv1KUOXwV6nB62HCE">移除时机</b>：真实无人机起飞后，SIM 流"标记移除但延迟重启"——等真实飞行结束（droneInDock 回 1）后再重启清理，<b data-page-node-id="lGrlFoDs2bllUjQ1HVKjpN">绝不在真实飞行中重启 straw-engine</b>；</p>
+  <p data-page-node-id="E5fKyA4ZafSILxzaeGsTjS">③ 这样真实检测在真实飞行全程<b data-page-node-id="66927ZLiMc5m6Tk7cHfLBE">零中断</b>，SIM 流的"脏配置"等真实飞行结束后再清理。</p>
+</div>
+
+<h2 data-page-node-id="rYadOZG6cWUC4h3q27StWX">五、结论</h2>
+<div class="box green" data-page-node-id="GhFoEe3JD51Gmx6Q2fIIlH">
+  <p data-page-node-id="80KAsoy03f4dCmZcMrZmkL">① <b data-page-node-id="kHy7oNZ0BmUME6go63ghJz">红线约束合理且必要</b>：真烟模拟 4 个干扰点（重启中断/GPU竞争/弹窗占用/推流资源）真实存在；<br data-page-node-id="ehn3EO9xB6Lwrw76ouo3EA">
+  ② <b data-page-node-id="QN9oSL9bo2D3yXVTfq3lcT">隔离方案 = 状态感知隔离 3 层防护</b>：前置守卫（起飞禁启动）+ 自动静默（起飞自动让位）+ 用完即清（限时清理）；<br data-page-node-id="YAfnwxEGLn4tAJUN1GZjOv">
+  ③ <b data-page-node-id="A65ZPW5QtoDfODEfPSOqBc">核心红线</b>：<b data-page-node-id="B4M2UaHKRXEdsbw8ZbUcYE">绝不在真实无人机飞行中重启 straw-engine</b>（避免真实检测中断）；SIM 流移除延迟到真实飞行结束后；<br data-page-node-id="hbGCGGPyAlr0kv1bmQj4OQ">
+  ④ <b data-page-node-id="3qjZsvy1n06itixIXo0Lk1">真实链路绝对优先</b>：真实无人机起飞时，SIM_SMOKE 立即停推流 + off-all 让出 GPU/弹窗；<br data-page-node-id="qXptcPdGVBnqxk9MNhnXaN">
+  ⑤ <b data-page-node-id="fHzHXFY8NIoDGtLgL5vI61">工作量约 0.8 天</b>（在原 0.5~1 天基础上增加隔离逻辑）。</p>
+</div>
+
+<div class="foot" data-page-node-id="GR5LdzH1XAoTLetWt2AOyR">
+  本报告为《真烟视频直播标框验证_评估》的补充（追加红线约束分析）。核心结论：可行，但必须做"状态感知隔离"——真实无人机起飞时 SIM_SMOKE 自动静默让位，且绝不在真实飞行中重启 straw-engine。
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="QUFDmBL1NB2Nqq8nURRsT8">
+<head data-page-node-id="IIZeybr5ATHlnTF9wHHfz4">
+<meta charset="UTF-8" data-page-node-id="TCIcTW2YRxve3GvNTAxxxK">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="FgKyfLgO47uz2BELmUQczb">
+<title>真烟视频直播标框验证 · 需求评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="RXu4pQGkR6VFIFtlZYoxwi">
+<div class="page" data-page-node-id="JPD2CNvN423wBtS2WlRmdB">
+
+<div class="doc-head" data-page-node-id="5lQZviQXV4AEmVEHSKYxSB">
+  <div class="org" data-page-node-id="oVvSmg8VaMLIJaIvXADF0h">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="Ya26L6OJO6PkOeTr9w84Mg">真烟视频直播标框验证 · 需求评估</div>
+  <div class="subtitle" data-page-node-id="TI91o8vUrSD6B12PVlaBHS">—— 用白天真烟视频做端到端"直播+标框"可控验证</div>
+  <div class="meta" data-page-node-id="hrOX7XKpiZvu27N5seAUHE"><span data-page-node-id="AiT9htAhQVvBvR53qGSpz8">编制时间：2026-09-08</span><span data-page-node-id="wMCFlecae830GUyTX0dx72">评估方式：代码级排查（只读）</span><span data-page-node-id="dP0k6VPaqFtrDbSHGdgECC">性质：可行性 + 方案</span></div>
+</div>
+
+<h2 data-page-node-id="j4wgmBCIv699lQeuU1Lbu2">一、结论摘要</h2>
+<div class="box green" data-page-node-id="3o4IWKZxhLpPxqqV0hJ6DQ">
+  <p data-page-node-id="YZg05en8PgsYu0FAKijg2P"><b data-page-node-id="BRk8JZyxgtlhBPluIRV3YB">需求完全可行，且是端到端验证"直播+标框"链路的最佳方式</b>——比真飞更可控（可反复测试、不依赖飞行窗口、不怕模型对远烟漏检）。</p>
+  <p data-page-node-id="EXkJeNmtvj0ZGM1or3tqEn">核心思路：把真烟视频用 ffmpeg 推流成一路"无人机流"（<code data-page-node-id="9bRBNGEGOh4robyuExULkY">sikong_SIM_SMOKE</code>），straw-engine 检测它出 bbox，simulate 触发弹窗，前端在原流画面上叠加实时检测框。</p>
+  <p data-page-node-id="HSHGaPZFKj9uvktQmeAsEb"><b data-page-node-id="dbSm5KnNUdd4AsKirkImPF">关键提醒</b>：必须选一段"有明显烟雾"的视频——v5 stage2 对 DJI 远烟是盲的，选错视频（远烟/看不清）会测不出框，误判为链路故障。</p>
+</div>
+
+<h2 data-page-node-id="eqvnGivRQKo12xrPUKYwMW">二、需求理解</h2>
+<p data-page-node-id="Au3T83vv6Myxzv0xdM9Bk9">用户想用一段"白天真烟视频"，通过模拟测试机制验证：直播弹窗 + 实时标框（BboxOverlay）是否正常工作。这本质是把 DroneSimPanel 的"事件模拟"升级为"事件 + 真实视频流模拟"。</p>
+
+<h2 data-page-node-id="rdxXadBF4bunvIE5zuB6M5">三、现状盘点（代码级）</h2>
+<table data-page-node-id="WfZ8OPoOyGRiqhzBvpkx0x">
+  <tr data-page-node-id="XKByF1pXpMFZIhiz51fAVo"><th style="width:26%" data-page-node-id="kPpw8JAnuxbbA90UJLCgVf">对象</th><th data-page-node-id="4m0NrS9To53mQbuHairMih">现状</th></tr>
+  <tr data-page-node-id="tki92KtLuM8cIB518LwMQS"><td data-page-node-id="3OgwGD5CtNPf5D7PqA1Bmu">模拟测试（DroneSimPanel）</td><td data-page-node-id="RChOG1dpmXt9mYB19qBi2c">只模拟<b data-page-node-id="JY1Zr6F4IEgkgQJy80FEbQ">起飞事件</b>（触发弹窗），<b data-page-node-id="pC0AGFZRA6wgHMvwsBKeNp">不提供真实视频流</b>——局限：伪 SN 无 ZLM mirror，真实画面需真机</td></tr>
+  <tr data-page-node-id="u0I3wE84ZZTVe5iDwIuBFX"><td data-page-node-id="2E1HYB7rbpRGGsq8EA6G4E">真烟视频资源</td><td data-page-node-id="6Y4gJMDQjxlPyMvFZX0S9c">服务器有大量白天无人机录像 <code data-page-node-id="9Z47A2H7YJeCamh6WrYDWn">/video/.../dock_media/.../DJI_..._V.mp4</code>（可见光 V 档）</td></tr>
+  <tr data-page-node-id="QVKyVchxLIDaM9MLxhgZXF"><td data-page-node-id="MBVxw7b3F17xiy4kE58dGH">straw-engine 检测</td><td data-page-node-id="pNFWKioXKRJwkEJc4FpV2c">streams 写 config.json 重启加载；<b data-page-node-id="rkatyXdeCyaVu5PKFT6ZyF">straw-sync.js 的 addStreamToEngine 可追加 config + 重启</b>（现有"动态加流"方式）</td></tr>
+  <tr data-page-node-id="QU1gnbLpTcFonc6PZia7sK"><td data-page-node-id="fqI2ZolTzo9NVJoK1iUncD">bbox 接口</td><td data-page-node-id="KB3sbaogGRGZNfl8vAlgEM">后端 <code data-page-node-id="fkAua4L23ygZFrhIChutSm">/api/drone-events/bbox?deviceSn=</code> 查 straw-engine snapshot 的 <code data-page-node-id="XJxrdWXYqKUbBkymdPpb80">sikong_&lt;deviceSn&gt;</code> boxes（已就绪）</td></tr>
+  <tr data-page-node-id="93JGjXZkMJcHuhwZAPXr8m"><td data-page-node-id="QXceDFwHP9Pptl1QC7WFET">前端标框</td><td data-page-node-id="TX9Xkw18vmPfxTxhJJm8Es">BboxOverlay 在弹窗原流上 canvas 叠加 bbox（已就绪）</td></tr>
+</table>
+
+<h2 data-page-node-id="yma4P9fM2vRc60tchA68rv">四、实施方案</h2>
+<div class="code" data-page-node-id="t4fjQhY9xyQbCeBxon6KGe">真烟视频（DJI_..._V.mp4）
+  → ffmpeg 推流 → ZLM jsc/sikong_SIM_SMOKE
+  → straw-sync 加流检测（config.json 追加 sikong_SIM_SMOKE + 重启 straw-engine）
+  → simulate 触发弹窗（deviceSn=SIM_SMOKE, dockSn=白名单dock）
+  → 弹窗播 sikong_SIM_SMOKE 流 + BboxOverlay 叠加 bbox
+  → 验证：画面播放 + 检测框实时叠加</div>
+
+<h3 data-page-node-id="yNDMlGF5FmA6gUvmBPomcb">4.1 关键步骤</h3>
+<table data-page-node-id="65GWZWJKq2FJ9wfN4fmej5">
+  <tr data-page-node-id="BQhSpzv0ovOYcwGF8At3Mn"><th style="width:6%" data-page-node-id="kq30qMbPDpgOgLBnFrBZED">序</th><th data-page-node-id="eskRk43UGGY0SHj2oS0VMw">步骤</th><th data-page-node-id="qj7QVZ6BThVDd7yRpRZ7zP">说明</th></tr>
+  <tr data-page-node-id="hWqUeHrBGT1MnPNCbBGAxU"><td data-page-node-id="sZv60WWCEHwhWaoenO4h0j">1</td><td data-page-node-id="pS0AubOPJV9KUBBsdzzea2"><b data-page-node-id="ZBor51LtNHMKb29XY0l1oz">选视频</b>：挑一段"白天 + 有明显烟雾"的 V 档视频</td><td data-page-node-id="WhPZ5U4khHIVfzIMUD1m7v">关键！远烟/看不清的视频测不出框（模型能力问题，非链路问题）</td></tr>
+  <tr data-page-node-id="3AemYLhfk58XkScGNyJVFn"><td data-page-node-id="nrPsEwtAYlpD2RuClVDA8q">2</td><td data-page-node-id="X6GO4SCYE8sUFq5U04cayS"><b data-page-node-id="Eknv1OET6FtXWsMdcArCyd">推流</b>：ffmpeg 循环推流到 <code data-page-node-id="04ysdC1EEVFYHLslZquIgC">jsc/sikong_SIM_SMOKE</code></td><td data-page-node-id="cGejWjQolzA47oaPnszNqP">stream 名带 SIM_ 前缀，与真实无人机隔离</td></tr>
+  <tr data-page-node-id="hKV2hPWzVWMLEAcHOPBifw"><td data-page-node-id="koj85Zt4RlJMxgPzHFtBZB">3</td><td data-page-node-id="XYIzcFCvSlwiL3ok4C6HKY"><b data-page-node-id="SeJ7yiVFavSZ8ihMBLG3VG">加流检测</b>：straw-sync addStreamToEngine 把 sikong_SIM_SMOKE 追加 config + 重启</td><td data-page-node-id="C7BEe1fA0bYByPbinu6Cor">straw-engine 拉流检测出 bbox</td></tr>
+  <tr data-page-node-id="4ykBJ9pLSvfImSfXU6qSsw"><td data-page-node-id="jqnpfjUy7p4bucLU19jvOO">4</td><td data-page-node-id="De0EEbTg2HUNJjgrPrOcTh"><b data-page-node-id="om7qsJ6ZMFoWp8icvYM5pe">触发弹窗</b>：DroneSimPanel 或手动 simulate(deviceSn=SIM_SMOKE)</td><td data-page-node-id="T3SlaeWpNlBHdrclV7sP6P">触发弹窗（白名单 dockSn 用真实机场）</td></tr>
+  <tr data-page-node-id="OGqv2CBnZBumFqfvbXvMth"><td data-page-node-id="1DdaR01kujCFKqTBOfBiDd">5</td><td data-page-node-id="b20GRayCjd15vZELVHDnIx"><b data-page-node-id="1ZMUa4DHq4DamZqlsUfh8P">验证标框</b>：弹窗播流 + BboxOverlay 叠加</td><td data-page-node-id="WyHuN6Ti74wagRiFHevEDc">看检测框是否随烟雾移动</td></tr>
+  <tr data-page-node-id="xL888QpIr7q3w4xwIUb6fK"><td data-page-node-id="APEE2NI3sivspHZBX1KVc3">6</td><td data-page-node-id="T6M9927vuKTGKYhoh3PGPG"><b data-page-node-id="VbCnH9dni1ki1re7pm3RK8">清理</b>：停推流 + off-all + 从 config 移除测试流</td><td data-page-node-id="u9YzOyNHyH7x1PO9J2UCGB">防残留</td></tr>
+</table>
+
+<h2 data-page-node-id="KdL2uTV5OCwvkQAeEuxOVg">五、风险与提醒</h2>
+<table data-page-node-id="VG7Vy99Nji1Jn2Ke947w9T">
+  <tr data-page-node-id="KyYRHlM9WUVlKjKJMXddW9"><th style="width:20%" data-page-node-id="8WDh8kygvYbGvFZdgKAxvc">风险</th><th data-page-node-id="5ozIiBmt6qFABzZpeNvQiv">说明 + 对策</th></tr>
+  <tr data-page-node-id="GcAowD2VN5FGD3oX3nYvIe"><td data-page-node-id="B2G8A3tFdQzo7feVd3wTMn"><b data-page-node-id="hxDoBkZE9yHjGoBFaDnIQh">模型对远烟漏检</b></td><td data-page-node-id="TwEA5zSTm98KrsmB5icbJ1">v5 stage2 对 DJI 远烟是盲的（已多次验证）。<b data-page-node-id="Xc1vSFWtJy4d7GsgEDQCsU">必须选"烟雾清晰、占比大"的近景视频</b>，否则测不出框。可先离线抽帧用 stage2 预演确认能检出再上线推流</td></tr>
+  <tr data-page-node-id="m1ZILJNrc1LZLxGGF4rMQL"><td data-page-node-id="mkctj9to937htxv06ypvJS">bbox 坐标偏移</td><td data-page-node-id="kMeF2tWC8jiOmkaQzbiVaF">检测帧分辨率 vs 视频分辨率可能不一致（视频 4K/1080P，检测输入 1280）。BboxOverlay 按视频分辨率缩放，若偏移需现场调缩放</td></tr>
+  <tr data-page-node-id="SIB4A7eEgMCrq7RYonAOqM"><td data-page-node-id="eBXZ0cynCGEJAa2JfOAInp">推流稳定性</td><td data-page-node-id="8S7NyiNxcJQhvaGaNSuLyV">ffmpeg 循环推流需 -stream_loop，长测建议后台 nohup + 限时清理</td></tr>
+  <tr data-page-node-id="0x9D81OWNUzNx17pGNEAfG"><td data-page-node-id="YLW8a2BDIRYTkNgFOOKaLf">防污染</td><td data-page-node-id="T0XiRSRp9Wj03zF0N5TDWH">测试流用 SIM_ 前缀，不污染真实 drone 数据；off-all 清理模拟事件；config 移除测试流</td></tr>
+</table>
+
+<h2 data-page-node-id="cIqXaZIHftrKPOSLgSfziK">六、与真飞验证的对比</h2>
+<table data-page-node-id="fJOrZegDjvaPqAQ044lYN2">
+  <tr data-page-node-id="jNKP1OqwXgzOiFiPqQqQgH"><th data-page-node-id="Sqyd0bCvUBu8k6XtKefP2g">维度</th><th data-page-node-id="xyHymPKMxLVdbW0QLFDCWU">真烟视频模拟</th><th data-page-node-id="FqjJx9EEDg6XlrVYmhZz8G">真实飞行</th></tr>
+  <tr data-page-node-id="uBGcFM3IXGDKEFO8tWvurc"><td data-page-node-id="zamK0xx82YdNrzkWO0wrqk">可控性</td><td data-page-node-id="G4v8vtizHWft4PXxf62wYI"><span class="tag s-green" data-page-node-id="lvSYQPiCeGkuVPtnkgD2xJ">高（可反复）</span></td><td data-page-node-id="pBs2mRAHg5vH9mEtpRcoRx">低（依赖飞行窗口）</td></tr>
+  <tr data-page-node-id="koaVSMhLSythSVxeWDfuOg"><td data-page-node-id="FMVkYWIrPucFf0aoArzC9L">成本</td><td data-page-node-id="6oZqOCOu3YDm0hPDzEHhcd"><span class="tag s-green" data-page-node-id="EZsibpiNvhViYQdtFaUC8z">零（已有视频）</span></td><td data-page-node-id="Q4e7MAkSfdb7XUE4FdsVvJ">需飞行 + 燃料</td></tr>
+  <tr data-page-node-id="7lLN789WZQtIrJ8KuEOMtQ"><td data-page-node-id="QquQY6ArHWUHkgLbwF6jbr">烟雾可控</td><td data-page-node-id="nm9BHBLy7dk7DfBjAIKnSt"><span class="tag s-green" data-page-node-id="XrbQWpEueqY8JcXvGxjx5E">可选清晰烟</span></td><td data-page-node-id="D2HwjLM0QKtir8bMxG3zmk">依赖现场/模型对远烟盲</td></tr>
+  <tr data-page-node-id="ZmJwCAYlCtmyjffNIxlhpZ"><td data-page-node-id="lMr03Oed4aePdpyJNKwN8u">验证标框</td><td data-page-node-id="puDsXWphEVDGvyZuzokQ9S"><span class="tag s-green" data-page-node-id="HKC82GCWcR8sNpIm46TFm0">充分</span></td><td data-page-node-id="gaJglEOmWBHfFFDXTEAMEp">充分</td></tr>
+  <tr data-page-node-id="RmrKUmaKVykyjC0dgga112"><td data-page-node-id="TRa0bh5s8zrKdtQcvNFFog">验证真实链路</td><td data-page-node-id="9KrYygebQaSNk9KkLoVXka"><span class="tag s-amber" data-page-node-id="nE6aftln4dCedvbmBGNMbU">接近（SIM_ 替代真 SN）</span></td><td data-page-node-id="HEWQ4obXDSBRhwEEVJJw0M">完全真实</td></tr>
+</table>
+<p data-page-node-id="tfL41BVBgg7soVAPOI4sBD"><b data-page-node-id="SNGlppRUCNuvbxI7LXet2e">结论</b>：真烟视频模拟是标框链路的<b data-page-node-id="2jMOiVUczb8NrLpR0JHoPU">首选验证方式</b>（可控、零成本、可反复），真飞是最终的"真实性验收"。建议先用真烟视频把标框链路调稳，再真飞验收。</p>
+
+<h2 data-page-node-id="xLoz2wd3Dug9BwlGKt92TC">七、工作量与建议</h2>
+<table data-page-node-id="mTRYB8M9IrE4zhI865FGBj">
+  <tr data-page-node-id="4WpfRFTGY7pswjt2xtJ8MT"><th data-page-node-id="CxswnDPNFXl6DXiYoiiOVL">项</th><th data-page-node-id="2ZQ4ubwAEQtZKObKKPic5E">说明</th><th data-page-node-id="Vsgd8ilsrdioXk4icbaMxx">工作量</th></tr>
+  <tr data-page-node-id="mjY0AqoEP5Ycx23oTdBA5B"><td data-page-node-id="y0hBfl3ISySOaumfa7qnYB">选视频 + 离线预演</td><td data-page-node-id="gLtO6Icfx3UIj3M8ILNL0C">挑 1~2 段清晰烟视频，离线抽帧用 stage2 确认能检出</td><td data-page-node-id="48bTPTOzNACtgpTBNP5HDC">0.3 天</td></tr>
+  <tr data-page-node-id="TmYeRuq3SJA4bVcDdVZeoN"><td data-page-node-id="Q6m10CH6CanIt4fXV61gjX">推流 + 加流检测脚本</td><td data-page-node-id="CtqjdJnI6O92k64rQcFxks">ffmpeg 推流 + straw-sync 加流 + simulate 触发，写成一键脚本</td><td data-page-node-id="jzMAVnULZXl43wiNnJAnMF">0.3 天</td></tr>
+  <tr data-page-node-id="ZmTwAmmYmIEo5nuWimdPBU"><td data-page-node-id="5ZwR0FzOPPfRFoFN14cFxP">标框验证 + 坐标校准</td><td data-page-node-id="r9Ygaxc6WVyqO0MBHolHZC">浏览器打开驾驶舱，验证标框，偏移则调 BboxOverlay 缩放</td><td data-page-node-id="NAxMrCXUheCFOPaF7skAme">0.3 天</td></tr>
+</table>
+<p data-page-node-id="4TgKSsR4p9ePmhYrjO3Pdc"><b data-page-node-id="4JJpHBoDTzOQfqkJezHt2q">合计约 0.5~1 天</b>。纯测试链路搭建，无核心代码改动。</p>
+
+<h2 data-page-node-id="Y0k7DGXBn0m6xQN2XlYsPC">八、结论</h2>
+<div class="box green" data-page-node-id="2diuD8QMRZeEjlXzA7SF17">
+  <p data-page-node-id="qxxDtduSCTG1iAifMs4nu7">① <b data-page-node-id="b3Z99ZCMDF8DYCMerD5lD3">需求完全可行</b>，是标框链路的最佳可控验证方式；<br data-page-node-id="Sd5SvlzQLZQAvMu8CZkRTO">
+  ② <b data-page-node-id="QNAaJMoo4mlUBMjUVkChrm">关键在选视频</b>：必须选"白天 + 烟雾清晰、占比大"的近景 V 档视频（远烟测不出框）；<br data-page-node-id="KtzRPndQDb98C1xysfsYGA">
+  ③ <b data-page-node-id="6jVYXZA54JBGtCFLiLGcjg">方案清晰</b>：真烟视频 → ffmpeg 推流 → straw-engine 检测 → simulate 弹窗 → BboxOverlay 标框；<br data-page-node-id="nHqRQDUdVMMD2U6AqjHwx4">
+  ④ <b data-page-node-id="K4mVLXsYNK1F2OpGLbzM8l">建议先离线预演</b>：抽帧确认 stage2 能检出再上线推流，避免误判为链路故障；<br data-page-node-id="eM1y1rpp2NfuoylExHgS82">
+  ⑤ <b data-page-node-id="cLmBAM2F1ce0StxOYeNilN">工作量约 0.5~1 天</b>，纯测试链路搭建。</p>
+</div>
+
+<div class="foot" data-page-node-id="rkIJNsJQM0YNWq7HUmc4Og">
+  本报告基于 2026-09-08 代码级排查（DroneSimPanel / straw-engine / bbox 接口 / 视频资源）。核心结论：可行，关键在选对视频（烟雾清晰、近景）。
+</div>
+
+</div>
+</body>
+</html>

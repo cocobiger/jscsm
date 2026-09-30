@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生态环境智能AI大数据驾驶舱 系统建设情况汇报</title>
+<style>
+  :root{
+    --ink:#1f2733; --mut:#5c6b7f; --line:#dbe2ec; --soft:#f4f7fb;
+    --blue:#1b4f9e; --blue2:#eaf1fb; --green:#1e8e5a; --amber:#b7791f;
+    --ok:#e7f5ee; --oktx:#1e8e5a; --ing:#fff7e6; --ingt:#a06a11;
+    --todo:#eef1f6; --todot:#5c6b7f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#fff}
+  .page{max-width:980px;margin:0 auto;padding:48px 56px 72px}
+  /* 封面头 */
+  .doc-head{border-bottom:2px solid var(--blue);padding-bottom:18px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:26px;font-weight:700;color:var(--blue);margin:6px 0 4px;letter-spacing:.5px}
+  .subtitle{font-size:15px;color:var(--mut)}
+  .meta{display:flex;gap:26px;font-size:12.5px;color:var(--mut);margin-top:14px}
+  /* 结构 */
+  h2{font-size:19px;color:var(--blue);margin:44px 0 6px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15.5px;margin:22px 0 8px;color:var(--ink)}
+  p.lead{margin:10px 0 6px;color:var(--mut)}
+  .lead b{color:var(--ink)}
+  .note{font-size:12.5px;color:var(--mut);margin-top:6px}
+  ul.plain{margin:8px 0 6px 0;list-style:none}
+  ul.plain li{padding-left:22px;position:relative;margin:5px 0}
+  ul.plain li::before{content:"";position:absolute;left:4px;top:9px;width:7px;height:7px;border-radius:2px;background:var(--blue)}
+  /* 数据条 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 6px}
+  .stat{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-align:left}
+  .stat .n{font-size:26px;font-weight:700;color:var(--blue);line-height:1.2;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:14px;font-weight:600}
+  .stat .t{font-size:12.5px;color:var(--mut);margin-top:2px}
+  /* 表 */
+  table{width:100%;border-collapse:collapse;margin:12px 0 6px;font-size:13.5px}
+  caption{caption-side:top;text-align:left;font-size:13px;color:var(--mut);padding-bottom:6px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:9px 11px;white-space:nowrap}
+  td{border:1px solid var(--line);padding:9px 11px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .cat td{background:var(--soft);font-weight:700;color:var(--blue);border:1px solid var(--line)}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .self{background:var(--blue2);color:var(--blue)}
+  .third{background:var(--soft);color:var(--mut);border:1px solid var(--line)}
+  .s-ok{background:var(--ok);color:var(--oktx)}
+  .s-ing{background:var(--ing);color:var(--ingt)}
+  .s-todo{background:var(--todo);color:var(--todot)}
+  /* 架构图 */
+  .arch{margin:18px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .arch .row{display:grid;gap:10px;padding:14px 16px}
+  .arch .r1{grid-template-columns:repeat(4,1fr);background:var(--soft)}
+  .arch .r2{grid-template-columns:repeat(3,1fr);background:#fff}
+  .arch .r3{grid-template-columns:repeat(4,1fr);background:var(--soft)}
+  .arch .cell{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 12px;font-size:13px}
+  .arch .cell .h{font-weight:700;color:var(--blue);font-size:13.5px;margin-bottom:3px}
+  .arch .cell .d{color:var(--mut);font-size:12px;line-height:1.55}
+  .arch .layer-lbl{background:var(--blue);color:#fff;font-size:12.5px;padding:5px 16px;font-weight:700}
+  .arrow{text-align:center;font-size:16px;color:var(--blue);line-height:1.1}
+  /* 成效卡 */
+  .ach{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  .ach .item{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px}
+  .ach .item b{color:var(--blue)}
+  .ach .item p{font-size:13px;color:var(--mut);margin-top:2px}
+  /* 计划 */
+  ol.plan{margin:8px 0 6px 0;padding-left:2px;list-style:none;counter-reset:pl}
+  ol.plan li{counter-increment:pl;padding-left:44px;position:relative;margin:10px 0;min-height:30px}
+  ol.plan li::before{content:counter(pl);position:absolute;left:0;top:2px;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;text-align:center;line-height:26px;font-size:13.5px}
+  ol.plan .t{font-weight:700}
+  ol.plan .s{color:var(--mut);font-size:13px}
+  .foot{margin-top:52px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  @media print{body{font-size:12.5px}.page{padding:16px 10px}h2{margin:26px 0 4px}.arch{break-inside:avoid}}
+  @media(max-width:760px){.page{padding:24px 18px}.stats{grid-template-columns:repeat(2,1fr)}.arch .r1,.arch .r2,.arch .r3{grid-template-columns:1fr 1fr}.ach{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="doc-head">
+  <div class="org">重庆市万州区生态环境局</div>
+  <div class="title">生态环境智能AI大数据驾驶舱 · 系统建设情况汇报</div>
+  <div class="subtitle">—— 应用数据对接 · 感知设备 · 算法应用 三大板块建设情况</div>
+  <div class="meta">
+    <span>汇报对象：局领导</span>
+    <span>编制时间：2026年9月3日</span>
+    <span>数据时点：2026-09-03</span>
+  </div>
+</div>
+
+<h2>一、系统总体情况</h2>
+<p class="lead">驾驶舱已建成<b>「前端感知采集 → 平台统一接入 → AI 算法研判 → 告警分派处置」</b>的完整闭环：外部应用数据实时汇入，视频监控、无人机、空气监测等感知设备统一接入；系统对汇聚的告警自动<b>聚合去重、研判分级、匹配责任单位</b>，通过驾驶舱大屏、微信卡片直达处置人员，处置结果可追溯、可复核。</p>
+
+<div class="stats">
+  <div class="stat"><div class="n">8,000<small>+</small></div><div class="t">试运行期累计接入告警（条）</div></div>
+  <div class="stat"><div class="n">4</div><div class="t">类外部应用/平台数据源</div></div>
+  <div class="stat"><div class="n">7</div><div class="t">路 AI 视频监控通道（已启用）</div></div>
+  <div class="stat"><div class="n">4</div><div class="t">座无人机机场（接入试运行）</div></div>
+</div>
+
+<h3>总体架构</h3>
+<div class="arch">
+  <div class="row r1">
+    <div class="cell"><div class="h">视频监控</div><div class="d">港口堆场、码头、厂区、道路等重点点位</div></div>
+    <div class="cell"><div class="h">无人机（司空2）</div><div class="d">多座机场、多架无人机机动巡查</div></div>
+    <div class="cell"><div class="h">环境空气监测</div><div class="d">PM10/PM2.5/O3 等多因子站点数据</div></div>
+    <div class="cell"><div class="h">城运等外部平台</div><div class="d">视频资源与业务数据共享（对接中）</div></div>
+  </div>
+  <div class="arrow">▲ 统一接入 ▲</div>
+  <div class="row r2">
+    <div class="cell"><div class="h">视频AI分析平台</div><div class="d">8 类违规场景智能识别</div></div>
+    <div class="cell"><div class="h">自研秸秆燃烧检测</div><div class="d">无人机视角烟雾识别（迭代升级中）</div></div>
+    <div class="cell"><div class="h">告警研判中枢</div><div class="d">聚合去重 · 研判分级 · 责任单位匹配 · 过滤规则</div></div>
+  </div>
+  <div class="arrow">▲ 生成有效告警 ▲</div>
+  <div class="row r3">
+    <div class="cell"><div class="h">驾驶舱指挥大屏</div><div class="d">实时告警、视频调阅、无人机动态一张图</div></div>
+    <div class="cell"><div class="h">微信告警推送</div><div class="d">卡片直达责任单位，附复核直达链接</div></div>
+    <div class="cell"><div class="h">人工复核台</div><div class="d">告警复核、误报标记、证据留存</div></div>
+    <div class="cell"><div class="h">处置闭环</div><div class="d">责任单位接单、反馈、全程留痕</div></div>
+  </div>
+</div>
+
+<h2>二、对接其他应用取数情况</h2>
+<p class="lead">系统采用统一告警中枢，将多个外部系统的数据<b>实时接入、统一格式、统一研判、统一推送</b>，避免"每套系统一个屏、值班人员多头盯"。</p>
+<table>
+  <caption>对接应用/平台数据接入一览</caption>
+  <tr><th style="width:18%">对接对象</th><th style="width:30%">接入内容</th><th style="width:16%">数据规模</th><th style="width:13%">建设状态</th><th>业务价值</th></tr>
+  <tr><td><b>视频AI分析平台</b>（外部视频智能分析）</td><td>港口堆场、码头、厂区、道路等点位 AI 识别结果（8 类违规场景）</td><td>累计 7,000+ 条</td><td><span class="tag s-ok">已上线运行</span></td><td>重点区域违规行为自动发现，实时上屏</td></tr>
+  <tr><td><b>环境空气监测数据</b>（市/区级空气监测）</td><td>PM10、PM2.5、O3 等多因子监测与预警（小时超标、趋势增长预警）</td><td>累计 250+ 条预警</td><td><span class="tag s-ok">已上线运行</span></td><td>空气质量异常自动预警，附判级依据</td></tr>
+  <tr><td><b>秸秆检测引擎</b>（系统内自研）</td><td>无人机巡查画面中的秸秆焚烧识别告警回流</td><td>累计 600+ 条</td><td><span class="tag s-ing">链路贯通 · 算法升级中</span></td><td>空中巡查发现焚烧行为，自动推送闭环</td></tr>
+  <tr><td><b>大疆司空2 平台</b>（无人机机场）</td><td>无人机起飞/降落/直播等作业事件实时回传</td><td>4 座机场接入</td><td><span class="tag s-ing">已接通 · 持续优化</span></td><td>无人机作业全程感知，起飞即上屏提醒</td></tr>
+  <tr><td><b>城运平台</b>（城市运行视频共享）</td><td>视频资源与相关业务数据对接</td><td>—</td><td><span class="tag s-todo">接口已开发 · 待真实环境联调</span></td><td>共享城市已有视频资源，减少重复建设</td></tr>
+  <tr><td><b>微信工作推送</b>（处置联动）</td><td>告警卡片推送、复核直达、处置反馈回传</td><td>与告警联动</td><td><span class="tag s-ok">已上线运行</span></td><td>告警直达责任单位，处置进度可追踪</td></tr>
+</table>
+<p class="note">说明：以上数据为系统联调及试运行期间接入，用于验证链路贯通与处理容量；各源均有"具体告警类型优先于通用规则"的聚合与过滤策略，原始告警经降噪后形成有效告警推送。</p>
+
+<h2>三、感知设备数据建设情况</h2>
+<p class="lead">已形成<b>「固定视频监控 + 无人机机动巡查 + 环境空气监测」</b>三位一体的感知体系，视频、图像、监测数据统一汇入平台并留存证据。</p>
+<table>
+  <caption>感知设备接入一览</caption>
+  <tr><th style="width:20%">感知类别</th><th style="width:34%">建设内容</th><th style="width:14%">规模</th><th style="width:12%">状态</th><th>作用</th></tr>
+  <tr><td><b>视频监控</b></td><td>重点港口堆场、码头、厂区、道路点位 AI 视频监控接入（九龙沙场、桐子园码头、苏商码头、红溪沟作业区、龙泗路、厂区主道、大门干道等）</td><td>7 路已启用</td><td><span class="tag s-ok">在役运行</span></td><td>堆头覆盖、道路扬尘等场景 24 小时自动看护</td></tr>
+  <tr><td><b>无人机巡查</b></td><td>大疆司空2 机场与无人机接入，直播画面实时回传、巡查录像归档留证</td><td>4 座机场</td><td><span class="tag s-ing">试运行中</span></td><td>机动巡查人力难达区域，焚烧/排污看得见、留得证</td></tr>
+  <tr><td><b>环境空气监测</b></td><td>空气监测站点数据接入，支持小时均值、超标判级、趋势预警</td><td>多因子站点</td><td><span class="tag s-ok">在役运行</span></td><td>区域空气质量数字化掌握，异常提前预警</td></tr>
+  <tr><td><b>流媒体与证据留存</b></td><td>视频直播、告警抓图、巡查录像统一存储，形成可回溯证据链</td><td>TB 级存储扩容</td><td><span class="tag s-ok">在役运行</span></td><td>告警复核、事后追查有图有真相</td></tr>
+  <tr><td><b>责任单位台账</b></td><td>全区责任单位与重点企业管理台账，含行政区划、处置归属</td><td>责任单位 18 家</td><td><span class="tag s-ok">已上线运行</span></td><td>告警自动匹配责任单位，支撑一键分派</td></tr>
+</table>
+
+<h2>四、算法相关应用建设情况</h2>
+<p class="lead">算法应用分<b>自研算法</b>与<b>生态算法接入</b>两条线推进：生态算法负责成熟场景的快速覆盖，自研算法针对秸秆焚烧等垂直场景深度优化，共同构成系统的"智能大脑"。</p>
+<table>
+  <caption>算法应用一览（标注来源，便于区分建设层次）</caption>
+  <tr><th style="width:20%">算法应用</th><th style="width:26%">能力说明</th><th style="width:14%">来源</th><th style="width:14%">状态</th><th>覆盖场景</th></tr>
+  <tr><td><b>视频AI 8 类场景识别</b></td><td>堆头未覆盖、道路扬尘、违规排污、固废（危废）违规倾倒、固废运输违规、侵占岸线与水面漂浮物、堆场扬尘等</td><td><span class="tag third">生态算法接入</span></td><td><span class="tag s-ok">运行中</span></td><td>港口堆场、码头、厂区、道路重点点位</td></tr>
+  <tr><td><b>秸秆焚烧烟雾识别</b></td><td>对无人机巡查画面中的烟雾进行实时识别，识别后自动复核、生成告警并推送</td><td><span class="tag self">自研算法</span></td><td><span class="tag s-ing">迭代升级中</span></td><td>无人机空中巡查场景（焚烧高发区域）</td></tr>
+  <tr><td><b>告警聚合与研判</b></td><td>同类告警按规则聚合折叠、给出研判依据（阈值/归因摘要），过滤规则屏蔽无关噪音</td><td><span class="tag self">自研算法</span></td><td><span class="tag s-ok">已上线运行</span></td><td>全量告警统一降噪，避免"告警轰炸"</td></tr>
+  <tr><td><b>事发地人员检测</b></td><td>告警发生后检测事发地是否有人在场，辅助判断处置方式（喊话/到场）</td><td><span class="tag self">自研算法</span></td><td><span class="tag s-ing">已实现 · 随检测升级联动</span></td><td>秸秆焚烧、违规倾倒等现场</td></tr>
+  <tr><td><b>无人机作业事件识别</b></td><td>自动识别起飞/降落等作业状态并上屏提醒，断线自动恢复</td><td><span class="tag self">自研算法</span></td><td><span class="tag s-ok">已上线运行</span></td><td>机场在役无人机全作业过程</td></tr>
+  <tr><td><b>人工复核训练闭环</b></td><td>告警结果人工复核（确认/误报标记），样本回流支撑算法持续迭代</td><td><span class="tag self">自研算法</span></td><td><span class="tag s-ing">闭环运转中</span></td><td>全部告警复核台 + 样本管理</td></tr>
+</table>
+<p class="note">关于秸秆识别算法的说明：针对无人机视角"白天远距离烟雾"这一识别难点，已完成初版模型灰度验证并识别出优化方向（训练样本需补充无人机视角真烟数据），现正按计划实施模型升级训练，升级完成后经真机作业验证再投入正式应用。这是识别类算法的正常迭代节奏，其余各算法不受影响、持续运行。</p>
+
+<h2>五、阶段建设成效</h2>
+<div class="ach">
+  <div class="item"><b>① 多源告警一屏汇聚</b><p>外部应用、视频AI、无人机、空气监测告警统一接入驾驶舱，值班人员"一个屏"掌握全局，告别多系统分散盯守。</p></div>
+  <div class="item"><b>② 告警从"发现"到"处置"闭环</b><p>自动匹配责任单位并微信推送、附复核直达链接，处置结果回传留痕，管理责任到人。</p></div>
+  <div class="item"><b>③ 智能降噪，聚焦有效事件</b><p>聚合去重与过滤规则落地，原始告警经研判后形成有效告警，减少重复打扰、提升处置效率。</p></div>
+  <div class="item"><b>④ 空中巡查能力落地</b><p>无人机机场接入并试运行，视频证据统一留档，形成"天上查、地上管、线上闭环"的监管模式。</p></div>
+</div>
+
+<h2>六、下一步工作计划</h2>
+<ol class="plan">
+  <li><div class="t">秸秆焚烧识别算法升级（近期重点）</div><div class="s">补充无人机视角真烟样本、完成模型重训与真机作业验证后正式投用，实现空中巡查焚烧行为"发现即告警"。</div></li>
+  <li><div class="t">城运平台真实环境对接</div><div class="s">完成与城运平台真实环境的接口联调，共享城市视频资源，扩大监控覆盖面。</div></li>
+  <li><div class="t">无人机常态化巡查作业</div><div class="s">结合秸秆焚烧高发期安排定期空中巡查航线，探索"按需起飞、自动巡查、告警直推"的无人值守模式。</div></li>
+  <li><div class="t">历史告警研判成果沉淀</div><div class="s">对试运行期告警集中复核归档，形成全区环境违规高发点位画像，为巡查与执法提供数据支撑。</div></li>
+</ol>
+
+<div class="foot">
+  本材料数据来源于系统生产库表级统计（试运行期接入数据，用于链路与容量验证），统计时点 2026-09-03。系统建设情况如有更新，以驾驶舱实际运行界面为准。
+</div>
+
+</div>
+</body>
+</html>

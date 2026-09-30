@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重点企业↔摄像头联动 · 复核勘误（2026-09-17）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.75}
+.wrap{max-width:1300px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:30px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:16px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.quote{background:rgba(255,82,82,.08);border-left:3px solid var(--red);padding:10px 14px;margin:11px 0;font-size:13px}
+ul,ol{margin:7px 0;padding-left:22px}li{margin-bottom:5px}
+.was{color:#ff8a80;text-decoration:line-through}
+.now{color:#9ef0b8;font-weight:700}
+.big{font-size:19px;font-weight:700;font-family:"JetBrains Mono",monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>重点企业 ↔ 摄像头联动 · 复核勘误</h1>
+  <div class="subtitle">复核时间：2026-09-17 16:40　·　复核对象：我 9/16 出具的结论「10 家 · 其中 10 家有视频监控（4 家有离线）」<br>
+  <b>结论：该结论有错，共 4 处。其中最要紧的一处是——我改了本可不改的生产数据。</b></div>
+</header>
+
+<h2>一、先给修正后的正确口径</h2>
+<div class="card good">
+  <table>
+    <tr><th>项</th><th>我 9/16 的结论</th><th>9/17 实测（正确）</th></tr>
+    <tr>
+      <td>已配摄像头家数</td>
+      <td>10 / 10</td>
+      <td class="now">10 / 10 ✅（这一项对）</td>
+    </tr>
+    <tr>
+      <td>摄像头路数</td>
+      <td>未写明（实为 10 路）</td>
+      <td class="now">共 <b>12 路</b> —— 万源玻璃 2 路、九龙万博 2 路、其余 8 家各 1 路</td>
+    </tr>
+    <tr>
+      <td>有离线的家数</td>
+      <td class="was">4 家</td>
+      <td class="now">6 家（离线 7 路 / 在线 5 路）</td>
+    </tr>
+    <tr>
+      <td>离线路数</td>
+      <td class="was">未写明</td>
+      <td class="now">7 路（重点企业组）；全站离线 10 路</td>
+    </tr>
+  </table>
+  <p style="margin:6px 0 0;font-size:13px">
+    <b>修正后一句话口径：</b>重点企业 <b>10 家，10 家均登记有摄像头，共 12 路（在线 5 路 / 离线 7 路，涉及 6 家）</b>。
+  </p>
+</div>
+
+<h2>二、我错在哪（4 处，按严重度排序）</h2>
+
+<div class="card bad">
+  <h3>错误 ① 【最要紧】我把"不用改生产数据"的问题，当成了数据治理问题</h3>
+  <p style="margin-top:0">我 9/16 的判断是：企业「重庆市九龙万博新材料科技有限公司」的摄像头名为「重庆市九龙万博监控1/2」，<b>命名与全称不一致</b>，故去改了两条生产流记录的名字。</p>
+  <p style="margin:8px 0"><b>但实测记录显示——这两条流的 <code>location</code> 字段本来就是企业全称：</b></p>
+  <table>
+    <tr><th>流 ID</th><th>name</th><th>location</th><th>我的判定</th></tr>
+    <tr><td><code>6273ab00…</code></td><td>重庆市九龙万博监控1</td><td><b>重庆市九龙万博新材料科技有限公司</b></td><td class="was">命名不一致 → 改数据</td></tr>
+    <tr><td><code>4aec3f51…</code></td><td>重庆市九龙万博监控2</td><td><b>重庆市九龙万博新材料科技有限公司</b></td><td class="was">命名不一致 → 改数据</td></tr>
+  </table>
+  <p style="margin:8px 0 0"><b>只要匹配键支持 <code>location</code>，这个问题本可零改动解决。</b>我当时确实看到了 location 字段，却把它读成"说明期望标签是企业全称"（用来佐证改名），而没想到它本身就能当匹配键 —— 这是判断错误，不是信息不足。</p>
+  <div class="quote" style="margin-bottom:0">
+    <b>我改动了不该改的生产数据。</b>已备份可回退：<code>/opt/jsc/backend/backups/streams_rename_20260916052330.json</code>（含两条原始记录全文 + 回滚命令）。是否回退见第四节。
+  </div>
+</div>
+
+<div class="card warn">
+  <h3>错误 ② 漏配 1 路：万源玻璃实际 2 路，我只算了 1 路</h3>
+  <table>
+    <tr><th>摄像头</th><th>分组</th><th>location 字段</th><th>状态</th></tr>
+    <tr><td>重庆市万州区万源玻璃有限公司</td><td>重点企业</td><td>重庆市万州区万源玻璃有限公司</td><td>在线</td></tr>
+    <tr><td><b>万源玻璃大门干道</b></td><td>重点企业</td><td><b>重庆市万州区万源玻璃有限公司</b></td><td>在线</td></tr>
+  </table>
+  <p style="margin:6px 0 0">我的匹配只看 <code>name</code> → 「万源玻璃大门干道」不是企业全称前缀 → **未归属任何企业**。但它明明白白在<b>重点企业组</b>、且 <code>location</code> 就是万源玻璃全称。<br>
+  <b>后果</b>：下钻里万源玻璃显示「1 路 · 在线」，实际是 <b>2 路</b>。即"家数"对、"路数"少算。<b>加入 <code>location</code> 作为匹配键后，重点企业组 12 路全部有归属。</b></p>
+</div>
+
+<div class="card warn">
+  <h3>错误 ③ 「N 家有离线」把两种不同含义合并了</h3>
+  <p style="margin-top:0">实测 10 路离线里：</p>
+  <table>
+    <tr><th>来源</th><th>路数</th><th>含义</th><th>会自动恢复吗</th></tr>
+    <tr><td><code>autoOffline=true</code></td><td>9 路</td><td>后端巡检探测判定不可达</td><td><span class="tag t-ok">会</span> 下次探测通就恢复</td></tr>
+    <tr><td><code>offline=true</code> + <code>autoOffline=false</code></td><td><b>1 路</b>（重庆湘渝盐化有限公司）</td><td><b>人工下线</b></td><td><span class="tag t-bad">不会</span> 见 <code>stream-monitor.js</code>：「手动 offline 优先：用户手动下线的流不被探测覆盖为在线」</td></tr>
+  </table>
+  <p style="margin:6px 0 0">我写的「N 家有离线」是一个数字，值班看到会默认"等一会就好"——但湘渝盐化那一路是<b>人工下线</b>，等多久都不会回来。这两类必须分开标注。</p>
+</div>
+
+<div class="card warn">
+  <h3>错误 ④ 数字本身已过时（数据在一天内变了，我没做时效声明）</h3>
+  <table>
+    <tr><th>时间</th><th>全站离线</th><th>重点企业组离线</th><th>要点企业组在线</th></tr>
+    <tr><td>9/16 13:25（我复核时）</td><td>7 路</td><td>4 路</td><td>8 路</td></tr>
+    <tr><td><b>9/17 16:39（现在）</b></td><td><b>10 路</b></td><td><b>7 路</b></td><td><b>5 路</b></td></tr>
+  </table>
+  <p style="margin:6px 0 0"><b>期间变化</b>：<u>新掉线</u> 重庆湘渝盐化、九龙万博（通道102 / 通道201）、彼迪正天生化；<u>恢复在线</u> 三峡国际健康城施工工地。<br>
+  我在 9/16 的交付里把"4 家有离线"当成了静态事实写进报告与验收截图 —— 摄像头在线状态是<b>实时量</b>，我应当写明"截至某时刻"，否则第二天就自相矛盾。</p>
+</div>
+
+<h2>三、复核过程（可复现）</h2>
+<table>
+  <tr><th>检查项</th><th>方法</th><th>结果</th></tr>
+  <tr><td>全量流 / 企业台账拉取</td><td><code>tmp/audit_enterprise_cameras.mjs</code></td><td>27 路 / 10 家，列出逐路属性</td></tr>
+  <tr><td>一路被多家归属（重复计数）</td><td>归属表反向索引</td><td><span class="tag t-ok">无</span></td></tr>
+  <tr><td>被归属但分组不是"重点企业"</td><td>分组交叉检查</td><td><span class="tag t-ok">无</span></td></tr>
+  <tr><td><b>漏配扫描</b>（企业名特征片段包含匹配）</td><td>去掉"重庆/有限公司"后做 contains</td><td>发现「万源玻璃大门干道」未被归属</td></tr>
+  <tr><td>双键匹配（name <b>或</b> location）</td><td><code>tmp/audit3.mjs</code></td><td>12 路全部归属，10/10 家</td></tr>
+  <tr><td>离线来源分辨</td><td><code>autoOffline</code> 字段 + <code>stream-monitor.js</code> 源码</td><td>9 巡检 + 1 人工</td></tr>
+  <tr><td>RTSP 探测能力（排除"未探测当成在线"的可能）</td><td>查 <code>ffprobe</code></td><td>存在（<code>/usr/local/bin/ffprobe</code>）→ RTSP 也能探测，<b>此项不构成错误</b></td></tr>
+</table>
+
+<h2>四、修正方案（3 个决策点）</h2>
+<table>
+  <tr><th>#</th><th>问题</th><th>选项</th><th>我的建议</th></tr>
+  <tr>
+    <td>D1</td>
+    <td><b>匹配键是否加入 <code>location</code></b></td>
+    <td>① 匹配键 = <code>name</code> <b>或</b> <code>location</code>（归一化后精确 → 再前缀）<br>② 维持只按 <code>name</code>，漏配的靠人工改名补齐</td>
+    <td><b>①</b>。这是最贴合本系统数据实情的做法：本系统多把企业名写在 <code>location</code>（万源玻璃、九龙万博都是），只按 name 必然持续漏配。</td>
+  </tr>
+  <tr>
+    <td>D2</td>
+    <td><b>九龙万博两路流名是否回退</b></td>
+    <td>① 回退为「重庆市九龙万博监控1/2」（恢复原状，靠 location 匹配）<br>② 保留「…（通道102/201）」</td>
+    <td><b>②保留</b>。<span class="tag t-info">理由</span> 名字里带通道号对运维更可读（原「监控1/2」看不出是哪个通道），且回退需再动一次生产数据；D1 落地后两种命名都能匹配，保留成本为零。</td>
+  </tr>
+  <tr>
+    <td>D3</td>
+    <td><b>离线是否区分来源</b></td>
+    <td>① 下钻「视频监控」列区分「离线(巡检)」/「已下线(人工)」，并说明后者不会自动恢复<br>② 维持「离线」一个词</td>
+    <td><b>①</b>。人工下线的流不会被巡检自动恢复，值班若不知道会一直空等；数据字段已有（<code>autoOffline</code>），改动只在展示层。</td>
+  </tr>
+</table>
+
+<div class="card acc" style="margin-top:14px">
+  <h3>若 D1、D3 采纳，改动范围（预估）</h3>
+  <ul style="margin-bottom:0">
+    <li><code>lib/kpiDrilldown.ts</code>：<code>specEnterprises</code> 匹配键改为 name/location 双键；<code>CameraLike</code> 加 <code>location</code>；「视频监控」列的离线文案按 <code>autoOffline</code> 区分；脚注同步改写</li>
+    <li>不需要后端改动（<code>/api/streams</code> 已返回 <code>location</code> 与 <code>autoOffline</code>）</li>
+    <li>工作量约 <b>0.3d</b>，含真实页面回归（万源玻璃应为 2 路、湘渝盐化应标注"人工下线"）</li>
+  </ul>
+</div>
+
+<h2>五、我这次错在哪（复盘）</h2>
+<table>
+  <tr><th>#</th><th>根因</th><th>以后怎么做</th></tr>
+  <tr>
+    <td>1</td>
+    <td><b>看到反例却不改假设</b>：<code>location</code> = 企业全称 这个反例摆在眼前，我却用它去佐证"该改名"，而没有回头质疑"是否一定要改数据"。</td>
+    <td>出现"要不要动生产数据"这种高成本选项时，先穷举<b>零改动方案</b>（换匹配键、加映射表），确认都不行再动数据。</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><b>只审"有没有匹配上"，没审"有没有漏"</b>：我验证的是"10/10 家都匹配了"，没做反向扫描"哪些摄像头没有任何归属"。</td>
+    <td>联动类改动必须做<b>双向核对</b>：正向（每家能否找到摄像头）+ 反向（每路能否找到归属），本次反向扫描才揪出「万源玻璃大门干道」。</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><b>把实时量当静态事实写进交付</b>：离线状态是秒级变化的量，我写成报告结论且未标注截止时间。</td>
+    <td>实时状态类结论一律写成「截至 YYYY-MM-DD HH:mm，X 家离线」，并在界面脚注同步说明。</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><b>把两种语义合成一个指标</b>：人工下线与巡检离线性质完全不同，合并成「N 家有离线」丢失了关键差异。</td>
+    <td>指标设计时先问"这个数字背后有几种不同的成因"，不同成因要在展示层可分辨。</td>
+  </tr>
+</table>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  复核证据：<code>tmp/_audit.txt</code> · <code>tmp/_audit2.txt</code> · <code>tmp/_audit3.txt</code>（脚本 <code>tmp/audit_enterprise_cameras.mjs</code> / <code>audit2.mjs</code> / <code>audit3.mjs</code>）<br>
+  复核时刻：2026-09-17 16:39（北京时间）· 数据源：<code>/api/streams</code>（27 路）· <code>/api/enterprises</code>（10 家）· <code>server/stream-monitor.js</code><br>
+  📂 docs/重点企业摄像头联动_复核勘误_20260917.html
+</div>
+</div>
+</body>
+</html>

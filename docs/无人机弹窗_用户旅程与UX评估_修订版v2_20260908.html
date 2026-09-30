@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="HeB3NsiJ9Xt0we7usAHsX0">
+<head data-page-node-id="dtGzRpirALtDcSJW84s61f">
+<meta charset="UTF-8" data-page-node-id="eaoZYGMrb34w3ktqmfjvCI">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="2krPhtoeJGL4BMuEMgz1kw">
+<title>无人机直播弹窗 · 用户旅程与 UX 评估（修订版 v2）</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1040px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}.box.rev{border-left-color:var(--purple);background:var(--purple2)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .emoji-cell{font-size:15px;text-align:center;white-space:nowrap}
+  .star{color:#f5a623}
+  .badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700}
+  .b-fixed{background:var(--green2);color:var(--green)}.b-open{background:var(--red2);color:var(--red)}
+</style>
+</head>
+<body data-page-node-id="XFifi9aQjfIji4E8OBCQtx">
+<div class="page" data-page-node-id="BH7SSlmuJeZEW0s0hDOOwH">
+
+<div class="doc-head" data-page-node-id="YCWTftQux8RgjRSW6nHi3y">
+  <div class="org" data-page-node-id="mOiCdJtBOQZ0rCNUop60xL">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="okkdw0VzDzRCrVxrOBYbny">无人机直播弹窗 · 用户旅程与 UX 评估</div>
+  <div class="subtitle" data-page-node-id="DQPkrbwsBcAntvRwBwtynZ">—— 修订版 v2（按 5 点修正后的严谨版）</div>
+  <div class="meta" data-page-node-id="nQ8xGL80g7ApxdIxqnlJQX"><span data-page-node-id="JGX6bICLSU2TdF1QCTEsFw">编制时间：2026-09-08</span><span data-page-node-id="SFKvDlSgqLmEmvTtCMhuQg">方法：NN/g 旅程图 + HEART</span><span data-page-node-id="HC0A17Xwzf0kckgiCaZMRo">版本：v2 修订版（区分已修/仍存、双评分、真飞约束重排）</span></div>
+</div>
+
+<h2 data-page-node-id="P6WPVlJHaV1H2LUd0fJX5U">〇、修订说明（v1 → v2 的 5 点修正）</h2>
+<table data-page-node-id="gxxl2ScFY2No7FDiMj9kr2">
+  <tr data-page-node-id="cowpDfDdQrUiB5TCsY2FhP"><th style="width:6%" data-page-node-id="ijkjC2VKd607iqNf7r391T">#</th><th data-page-node-id="bORYvHE0fs72KygHFIYmmG">修正项</th><th data-page-node-id="DzNmIUa63FuJ7PO852zR0G">处理方式</th></tr>
+  <tr data-page-node-id="uoUTCdhvLNknSdQbTRx2hu"><td data-page-node-id="wFiqZKkDMOFTCiU6867WF5">1</td><td data-page-node-id="mcAdP58ClR0kSI8tAeDUiQ">总体评分偏颇（基于历史 bug 打 2 分，但 bug 已修）</td><td data-page-node-id="71S0wVnP5o94xPuv8Ul97P">改为<b data-page-node-id="4VST0HsUvJykcF7h1inD2G">双评分</b>：暴露问题时 vs 修复后现状</td></tr>
+  <tr data-page-node-id="WvvfF7FFu7OmDxoQbeknSY"><td data-page-node-id="9jrUyYIYzF7dmGYjo5jqo3">2</td><td data-page-node-id="EXjPXBivcAgHf1FFwWsQwI">HEART 打分硬套、无数据支撑</td><td data-page-node-id="pWL6wlX7rKFjyHa79IYUtE">明确标注 <span class="tag s-amber" data-page-node-id="fmCVNcljJCC2BEwq56BBWU">[推断]</span>，并说明工具型功能不适用维度</td></tr>
+  <tr data-page-node-id="OpeD4amCw1VkmGrWDgBbqB"><td data-page-node-id="dKUdZVZZqLJrTht74bNY9W">3</td><td data-page-node-id="WMq5dcWWr46kuJ9LVqSB5b">痛点未区分已修/仍存，前后矛盾</td><td data-page-node-id="cRSrbRraFkbz8uAiy6Yg5b">痛点清单分 <span class="badge b-fixed" data-page-node-id="0iCHqhfIMujLtYrITZJyVI">已修复</span> / <span class="badge b-open" data-page-node-id="RDr3jmbNPppSB3xH9dSdoa">仍待解决</span> 两类</td></tr>
+  <tr data-page-node-id="vouQAPT0y2FSBFGcxBh1AB"><td data-page-node-id="NgBRJDMg7sAILfKJHjtDAg">4</td><td data-page-node-id="H278KasYfeIyY4COyfewCU">"旅程4 异常排查"是运维视角，非用户旅程</td><td data-page-node-id="CWPihVtPkgVc1L7dj5oOIh">移出用户旅程，独立为<b data-page-node-id="lStVgmw8BDpOs2ibsWN5zm">可运维性评估</b>章节</td></tr>
+  <tr data-page-node-id="65iYVo79FuGYy6JufnyQ5g"><td data-page-node-id="i6up5dmTVzDB3ACbeKtnKZ">5</td><td data-page-node-id="4lqAa62KxK02iCW3y6D6AB">排期未对齐"明天真飞"硬约束</td><td data-page-node-id="EjYtamdfdKduHCwzJUoLuQ">排期分<b data-page-node-id="M69EYFwbEUJfuOId6DnvuS">真飞前（最小可用集）/ 真飞后</b>两阶段</td></tr>
+</table>
+
+<h2 data-page-node-id="lHyMO8gDeFAF37sMuLGFGN">一、结论摘要（双评分）</h2>
+<div class="box rev" data-page-node-id="o2OrLXyxA65u4K6CHnDa42">
+  <p data-page-node-id="orie0VEiXFuvYxJoqMrAu9"><b data-page-node-id="ROgz6c7FeD22a2msvw1VyG">① 暴露问题时（今天真飞前）：★★☆☆☆（2/5）</b> —— 4 个潜伏缺陷叠加，首次真飞即触发"弹窗超时、无画面"。</p>
+  <p data-page-node-id="h9dW9lNZT0nFMCzPECo8uC"><b data-page-node-id="L7V0LZFHIEgo5U1HHAgYLY">② 修复后现状（今天修完）：★★★★☆（4/5）</b> —— 触发有 OSD 兜底、播放有原流优先+失败回退、状态有"已检测到起飞"反馈，链路已稳固。</p>
+  <p data-page-node-id="wax4Aw5l1SDk1IDXfuEtgZ">核心判断：<b data-page-node-id="wT4pSDQFhzAGhITcsNhc12">弹窗是「被动应急监控工具」，用户最痛的不是"功能少"，而是"不可预期、不可诊断"</b>。今天通过 6 项修复，已从"脆弱"转为"可用"，但"触发可视化"和"端到端验证"仍是下一步关键。</p>
+</div>
+
+<h2 data-page-node-id="aE4GJ01QBcqseZFB0eS4Eh">二、产品与用户概览</h2>
+<table data-page-node-id="mLQUpBnzeq6NGeBpwH4BsW">
+  <tr data-page-node-id="xtAxLALrHVoWJdobB60KcL"><th style="width:22%" data-page-node-id="v2l9vbd9Y3z8IJDSCN15NB">维度</th><th data-page-node-id="fyl3l0pundFfUeOdeC8PNC">内容</th></tr>
+  <tr data-page-node-id="uEP1JhUmlkbPhOzTU22XRE"><td data-page-node-id="CMiwbYDRC1RQStuRPHKWsJ">功能定位</td><td data-page-node-id="sEkJnStz7vxAdw4JCwr93P">无人机起飞时，驾驶舱自动弹出实时画面弹窗，供值班人员监控飞行与秸秆焚烧检测</td></tr>
+  <tr data-page-node-id="UDqmidXRHIFowFBRSpfJ4l"><td data-page-node-id="lLC8mtcnbiZqoWUuJUokfl">核心价值</td><td data-page-node-id="QugzkwHClPlIBlLnCRdqGU">「无人机一起飞，画面自动出现在眼前」——免手动、免查找、实时可见</td></tr>
+  <tr data-page-node-id="NLyhRBR8Cm40uobk7fyKPr"><td data-page-node-id="yt67g6shE3G3atmLVFc1ND">Persona ① 值班监控员</td><td data-page-node-id="eXO1eCUzFDXNvBqjrhpgp2">盯大屏，期望无人机起飞后画面自动弹出，第一时间看到现场</td></tr>
+  <tr data-page-node-id="VTBx0cBTA6FpDK9GEoCtFO"><td data-page-node-id="hANePIkfGBhIeRKmT4h0b4">Persona ② 运维/管理员</td><td data-page-node-id="5KB0wHZj3GXJklroBtSNOH">排查"为什么没弹窗/为什么卡住"，需要链路可见性</td></tr>
+  <tr data-page-node-id="2ZBldIAYpeSXeWYrO96025"><td data-page-node-id="13UAGGhVoAs2EAaRzxeBKf">入口渠道</td><td data-page-node-id="tUpdxZEqWgzlQ5DlOirDfW">Web 驾驶舱（:81/jsc/），SSE 长连接驱动</td></tr>
+</table>
+
+<h2 data-page-node-id="WL9ZAqpOm6ol9jD98ApPAd">三、关键用户旅程清单（用户视角，3 条）</h2>
+<table data-page-node-id="AxeUdFJBk43I6vSQ2hDEfh">
+  <tr data-page-node-id="qNcNnPxlpFj1wAog5fJiA8"><th style="width:6%" data-page-node-id="xrFVbKbDBt9epDAuxPecwq">#</th><th style="width:30%" data-page-node-id="RbglpNxZZsFtH5SuOXgrLb">旅程</th><th style="width:20%" data-page-node-id="uQtdzJYB8dE60y5vdyOIgm">起点 → 终点</th><th data-page-node-id="SAnqQocatDHVDfVWqXT4kg">优先级</th></tr>
+  <tr data-page-node-id="Ga3BisNQkPjn2tkmM9gclB"><td data-page-node-id="loaStwta2REc31lzYcMANh">1</td><td data-page-node-id="vKFmGwFpEeocoEJCFkYcWY"><b data-page-node-id="lEyUaGABGBptg0DZ783GVa">核心：起飞→弹窗→画面</b></td><td data-page-node-id="7mKcF6w5ev7sXLhZzd0Eee">无人机起飞 → 画面播放</td><td data-page-node-id="rkHKmRBaXSMdw4MTfyTUVt"><span class="tag s-red" data-page-node-id="JFRq17Wxo4dUBUXPUSnXa0">高</span></td></tr>
+  <tr data-page-node-id="IvOMCx7KNvSYIYA86gzJRY"><td data-page-node-id="94XuAvudDGscnfCdxBUNFH">2</td><td data-page-node-id="qnrMZuDRsO0LOhSddNElx1">多机并发弹窗管理</td><td data-page-node-id="KBU4xpgZPzPpua3ZgwwQDD">多机同时起飞 → 窗口/队列切换</td><td data-page-node-id="2FHuAILRXo8DCexHoVCDBY"><span class="tag s-amber" data-page-node-id="2ddW3Hn66MTlXzBPBCNxB1">中</span></td></tr>
+  <tr data-page-node-id="R2U4Z6FWTsB9q3vxFw4H0W"><td data-page-node-id="XeJ8ctf4qr7lvIGNaYV1g0">3</td><td data-page-node-id="9n68ZboR7ZSMsIMED6ln33">飞行结束收起</td><td data-page-node-id="zloLo6eR78UwHPnVWNf2TV">降落 → 弹窗关闭</td><td data-page-node-id="AXpmhHDHHk4jhdbRGLePLt"><span class="tag s-amber" data-page-node-id="DSUK6XThZTzEZvCrHH71ya">中</span></td></tr>
+</table>
+<p class="foot" style="margin-top:0" data-page-node-id="k2GtIBDmCro8K5nD1ToLvJ">注：原 v1 的"旅程4 异常排查"为运维视角，已移至第八节「可运维性评估」。</p>
+
+<h2 data-page-node-id="FRr5xV28O2dechM5pN2I04">四、旅程地图</h2>
+
+<h3 data-page-node-id="IHPCgogzZ4zU7o9g64H3RB">旅程 1：起飞 → 弹窗 → 画面（核心）</h3>
+<table data-page-node-id="ueq3HijjrCMGkXWQsBk7OD">
+  <tr data-page-node-id="bIluEafSY8NTqnfBUCTJly"><th style="width:12%" data-page-node-id="kGCONjVNC0aIcYH9CuHjg4">阶段</th><th style="width:20%" data-page-node-id="uedFBRSO21HLrC5zJIkAyn">触点</th><th style="width:20%" data-page-node-id="z3CdtiFWZ4NNzHHvh0nG5h">用户动作/感知</th><th style="width:9%" data-page-node-id="8BZvSIBqUCWOaEbPFtpL50">情绪</th><th style="width:20%" data-page-node-id="3Jl4KNkE9CXgs6sAeH2CXp">摩擦点（现状）</th><th data-page-node-id="KOi6Dzyq8mvNoi1tQsq9Aq">指标/依据</th></tr>
+  <tr data-page-node-id="Qsj60SOmraNvxHc1f3Hwq0"><td data-page-node-id="WIMBmgcw4EEhAI1X4xcwYy">触发</td><td data-page-node-id="9jrCCNcpZfD0xTWQ5FdWhu">无人机离仓（OSD droneInDock 1→0）</td><td data-page-node-id="XyfJQKj7s9LElEZ5oIA9j2">值班员看到无人机起飞</td><td class="emoji-cell" data-page-node-id="8NasXFaqtSPGJsInc9EPTc">😐</td><td data-page-node-id="elbXduOV6GsZZgmFlUgZpE">系统无即时"已感知"反馈（OSD 兜底 10s 轮询，仍有窗口）</td><td data-page-node-id="bEbBuPAz5algDr5JHY74eh">触发延迟 0~10s <span class="tag s-blue" data-page-node-id="9BAzGtMkbvMcQVpjYBb5Yo">[实测]</span></td></tr>
+  <tr data-page-node-id="ILc8me38XEJcflraL6Obru"><td data-page-node-id="uViLtRTon0YD2r69CHCvEe">弹窗</td><td data-page-node-id="J60VyVE4x0a2i6RvZQdoNt">DronePopupWindow 上窗</td><td data-page-node-id="k8eQdb0XIa4bTehO4QRe6G">期望"画面立刻出现"</td><td class="emoji-cell" data-page-node-id="bMFMzI43lkLRcPS2VkB89N">😐</td><td data-page-node-id="utA02Kfepr98D3I37rlztp">弹窗出现但画面是"已检测到起飞·接入中"（已加状态反馈）</td><td data-page-node-id="xWBFNPBuVX0I7Fa1inTKmM">弹窗→画面 9~15s <span class="tag s-blue" data-page-node-id="LCsrSikNid69uR7FIndQH0">[实测]</span></td></tr>
+  <tr data-page-node-id="9H9ybTnry4mb6pEmfTU4sU"><td data-page-node-id="fDCelJHFHumcn4EDEd6vao">播放</td><td data-page-node-id="vMliTYWGnAb1odi3VWraZS">SinglePlayer 拉 HLS</td><td data-page-node-id="iQpEkxqWfr3PeFumj0KQtL">看画面</td><td class="emoji-cell" data-page-node-id="ZkoarBdreALlVct8Dg9Cq9">🙂</td><td data-page-node-id="lO9JMOyeIHTRJtHkoHCobf">已修复：原流优先 + 失败回退，不再卡死</td><td data-page-node-id="kXWw7HXSAG3ts5rJeKAneB">成功率（已加固）</td></tr>
+  <tr data-page-node-id="h36ENiLiRMbrVetO1cfGn3"><td data-page-node-id="WT7URxN5ntn7e2htzNRSEZ">稳定</td><td data-page-node-id="07FsmxPzGroSiyxrEgFq6U">画面持续播放</td><td data-page-node-id="3K32yuxixo2epSVYnuL9KI">持续监控</td><td class="emoji-cell" data-page-node-id="LlFwwpB2O8pHFzv4HHrjEP">😊</td><td data-page-node-id="4wOpg0wCENrc1prHKWhVDR">无（播放稳定后体验好）</td><td data-page-node-id="Ck18BASXsYWxbZg9l0x5iB">30s 自动收起倒计时</td></tr>
+</table>
+
+<h2 data-page-node-id="quVRkbTAn2OGSjOqRcXGYE">五、HEART 评估</h2>
+<div class="box warn" data-page-node-id="dYlI8ogxmvuxQYseoA5N9z">
+  <p data-page-node-id="FYnOEdGzoRNqhJyWD38NJw"><b data-page-node-id="h9yzNNuQXLddimEUixiTsk">⚠️ 方法说明</b>：HEART 是为消费级产品（APP/网站）设计的框架，对"无人机弹窗"这种<b data-page-node-id="M2c9OGjBgJgWHwcBFOlvk3">纯工具型监控功能</b>，Engagement/Adoption/Retention 三个维度并不适用（它不是用户主动使用的产品，而是被动触发的监控工具）。因此下表仅对适用的 Happiness / Task Success 打分，其余标注"不适用"。<b data-page-node-id="sI8Mv1d7nkBHpyJFNwRPFc">所有评分均为 [推断]，无真实埋点数据支撑</b>——这是本评估的主要局限。</p>
+</div>
+<table data-page-node-id="Sa24UCAVfM6u6h0CgVRmCz">
+  <tr data-page-node-id="NePhMPOx6b2ktBhbh20lWa"><th data-page-node-id="e8LKD88BmDSl7BCEO1EMfj">旅程</th><th data-page-node-id="5qUW1GOhjVQO0wvgMxpBbt">Happiness</th><th data-page-node-id="seYPdmcaaq5SOiZQGDUsFC">Engagement</th><th data-page-node-id="IEoOl5LUJARd9vADnce4K4">Adoption</th><th data-page-node-id="bCTShbJQDjxAF7Ly9CWQLp">Retention</th><th data-page-node-id="Cuv2d6w3yfj2BfhzQU0cNr">Task Success</th></tr>
+  <tr data-page-node-id="WncKSEHRi90biWyxzOkU6a"><td data-page-node-id="CbFVnqjxq2fpgbFx66z1Bs">1 起飞→弹窗→画面</td><td data-page-node-id="gM6cuAkqJagL8xd87wgO0Q">4 [推断]</td><td data-page-node-id="o5GxeR562vvDCue2F1PZDy">不适用</td><td data-page-node-id="AKuzJFJBjY5oaFnn9Vigjh">不适用</td><td data-page-node-id="RfzS2tlIgEk42R7DvBIAEu">不适用</td><td data-page-node-id="bcTszFAsG8FXNiAPOOEW1y">3 [推断]</td></tr>
+  <tr data-page-node-id="LWpcz20rEyJmcW3qrHFn1Z"><td data-page-node-id="BL6yU9rdRA81ssJZxrI2fQ">2 多机并发</td><td data-page-node-id="4HHS5AQsQqbSF8UKsFiQ8t">4 [推断]</td><td data-page-node-id="SR8fR91C3C7oWlUFgYTGG4">—</td><td data-page-node-id="UzWGoqjyRIw0UVVcG0jpfg">—</td><td data-page-node-id="Pry7Z5oOlrAjSEe5XPI1f5">—</td><td data-page-node-id="A3dY0ShNo4gD6OMloMPR8G">4 [推断]</td></tr>
+  <tr data-page-node-id="1LS9257CETcbwFYupeSvw4"><td data-page-node-id="f0iksJMryAx4sWIKAXhD9X">3 飞行结束收起</td><td data-page-node-id="aO9KBkQARafBf9XS2zMjop">4 [推断]</td><td data-page-node-id="mg9s6NxijB3Ww90o8qHvsx">—</td><td data-page-node-id="qS9FFNn0NcNDyk46H4IzZe">—</td><td data-page-node-id="JB8H3lh3EVrvMVbL8HzglG">—</td><td data-page-node-id="Ayk1OB4atji0KGuTW4UWPA">4 [推断]</td></tr>
+</table>
+
+<h2 data-page-node-id="iglmJlmNbbi1HBEBOJC0we">六、痛点清单（区分已修/仍存）</h2>
+
+<h3 data-page-node-id="VKuEFtixu3az92c5Qr3pgA">✅ 已修复（今天真飞暴露并已完成修复）</h3>
+<table data-page-node-id="Qka04qCGaROR5aSZBObuIV">
+  <tr data-page-node-id="xKDSvXtI5hWrNBTp87hZJX"><th style="width:6%" data-page-node-id="jvo1wulOgBYYssDR2sGJHG">#</th><th style="width:30%" data-page-node-id="i53uC46sP1v3wcFN3NT7F4">痛点</th><th data-page-node-id="1XAgVJhBgRxBuKTmsSKxV6">修复方式</th></tr>
+  <tr data-page-node-id="fbTaoHe5PZXHaUnxNy8oUt"><td data-page-node-id="FLQR8kgcFvklOkHtcY7GJ7">1</td><td data-page-node-id="ylPDCIQB3G5GNEL6Ah962r">司空不推 LIVE webhook 导致没弹窗（单点依赖）</td><td data-page-node-id="u3I9DtEDjAp4bZClyzdhKq">P0-2 OSD 兜底：OSD droneInDock 变化触发弹窗</td></tr>
+  <tr data-page-node-id="1l1DeEWg5MYg2lyiNiKX9R"><td data-page-node-id="mA302APBrmF2RORemm0sBF">2</td><td data-page-node-id="lwZNM23J6W9NAqloJsSB7L">hls 指向公网未开放的 6080 端口导致超时</td><td data-page-node-id="hX8GG7tNzTUGQk94xf6yYx">改为走 nginx 反代的相对路径 /jsc/sikong_.../hls.m3u8</td></tr>
+  <tr data-page-node-id="wmJcr49vX78JwgAAIavDs9"><td data-page-node-id="1HXxvQHAiF2F6AdDxSFMX0">3</td><td data-page-node-id="ROs9ou7tonrC5BvSk1l00P">带框流名不一致（straw_bbox_sikong_ 前缀重复）</td><td data-page-node-id="exS45vCwbcpc9PdURebqyH">BboxStreamer 去 sikong_ 前缀</td></tr>
+  <tr data-page-node-id="BvrXGkXVInKraX3CFxDhVH"><td data-page-node-id="bHGSN7bmLzUECeVjEvj0Vo">4</td><td data-page-node-id="kgnxQup7nailAgBktmjef7">带框流 2fps/18s GOP 导致 HLS 404</td><td data-page-node-id="yHJJR7JpFREKrd1Cq4VFa4">帧率提至 10fps + 前端默认播原流、失败回退</td></tr>
+  <tr data-page-node-id="Q4D94Q0jb1h5nFaBBKWvhA"><td data-page-node-id="Y7Fm7DV5mvPtDhkczl8BD6">5</td><td data-page-node-id="FLjLcxmqEKlpVL5D9zTld2">分辨率显示 null</td><td data-page-node-id="JPpMrpVqQXRwCMpEsd3qmc">getStreamResolution 改从 ZLM tracks 取</td></tr>
+</table>
+
+<h3 data-page-node-id="REMYbLT5rh2DGQhuz15GSS">🔴 仍待解决（核心痛点，是体验的真正短板）</h3>
+<table data-page-node-id="4fN8vCz3Ck0CB3ZZS2ly2a">
+  <tr data-page-node-id="9TNxA9ao0zBlEfTsQhsMtR"><th style="width:6%" data-page-node-id="g7pgydFXZfVJkrSA94THeH">#</th><th style="width:10%" data-page-node-id="VNpmuTlRCJo9oicRgWxmil">严重度</th><th style="width:30%" data-page-node-id="aPKMbx3UsAJdCmSOGcwDK8">痛点</th><th data-page-node-id="0Cz9FcfYGSVOOkYRqHfTYA">证据</th></tr>
+  <tr data-page-node-id="sTYM1bfQaZCzTsQ9GMlMsi"><td data-page-node-id="2vjhKrem6Up423hIHwfW79">①</td><td data-page-node-id="2UPLpiF3NqyJMQ8NCAyo2J"><span class="tag s-red" data-page-node-id="V4TthW7ycHG3O490eZP4L2">P0</span></td><td data-page-node-id="V64v03Xx6qaNwog8DaPfzB"><b data-page-node-id="Fcqv1gG3nissaAGIENFedC">触发可见性</b>：无人机起飞后，弹窗出现前系统无"已感知/接入中"的全局状态灯，用户仍需主动等待/猜测</td><td data-page-node-id="VGmaYknT811F64hS6RwFcz">[推断] 弹窗内已有状态反馈，但弹窗出现前（0~10s 窗口）仍无可见性</td></tr>
+  <tr data-page-node-id="i45u9jwfgXkpKzFYh7UPxP"><td data-page-node-id="1vXtEFRpsB16RPeBQw1jtv">②</td><td data-page-node-id="eLtQpKrHAZzlpG0Yj2FDDs"><span class="tag s-red" data-page-node-id="VdPaPvKY5t8s561soRJ0Oc">P0</span></td><td data-page-node-id="M90C5bf9McMzUXTIwOrNRi"><b data-page-node-id="owOZLqk6XTO6UAtknbCzcf">端到端验证缺失</b>：无自动化 smoke test，bug 潜伏到真飞才暴露（今天 4 个 bug 都是真飞才触发）</td><td data-page-node-id="vJ31mmePptwMHuHjDbnPdm">[实测] 今天多次"修完再真飞"的循环</td></tr>
+  <tr data-page-node-id="EgqRIQC5YAgFUZs1AK5kWP"><td data-page-node-id="Q0hkbRF3QIcGDugEsnuG0L">③</td><td data-page-node-id="ktHL6jSqlSytGFraMoUbnh"><span class="tag s-amber" data-page-node-id="xBPWrkVGxmeUdheYmT7fBJ">P1</span></td><td data-page-node-id="xELAEaABJSxLELM24Ya2Ic"><b data-page-node-id="jZtHFsAfZxT87XyIA6CIV2">拉流进度反馈</b>：弹窗"接入中"有文案但无进度条/预估</td><td data-page-node-id="wAGfnnJ75T3mk29hUGgfr5">[实测] 已加文案，进度条未做</td></tr>
+  <tr data-page-node-id="vNF5QecB5b5IwElSsdQbhc"><td data-page-node-id="5Rl9HeyzRoPbpTAHrfIfgM">④</td><td data-page-node-id="ANAE3lysWzqgngJYleZsOB"><span class="tag s-amber" data-page-node-id="DOf0qFgvgX5s4jXCPDVag1">P1</span></td><td data-page-node-id="1HuXUkoKdixV9vtjwObDTR"><b data-page-node-id="OgH8DytVxkCReY3q8ybMYu">实时标框未满足</b>：带框流方案不适配主画面，标框能力实质缺失</td><td data-page-node-id="y1YltGKal8utNtYwiOZurq">[实测] 已改"原流为主"，标框需重构</td></tr>
+</table>
+
+<h2 data-page-node-id="refR77k4We2plRTUimSpdL">七、开发现状评估</h2>
+<table data-page-node-id="NcIuIAZGxPdIb1V5qDjQxG">
+  <tr data-page-node-id="ZiitXQzJEFiqT5xweXM2aH"><th style="width:26%" data-page-node-id="ozifeHBsJLDKoSG5uq4gPa">环节</th><th style="width:14%" data-page-node-id="BzFnotaYCkWQ5ed8NquPxM">状态</th><th data-page-node-id="huJf2x3vhitW5XviN0rbV9">说明</th></tr>
+  <tr data-page-node-id="3RldTe1ZdbX0kf3SQlo8CG"><td data-page-node-id="Os8KiQIs8t8GAmTtCIFtnu">弹窗状态机（2窗+3队）</td><td data-page-node-id="ACMrczEvYKElOMZzIyg41L"><span class="tag s-green" data-page-node-id="PriUJN2vTG7Hp0GutlTQD6">完善</span></td><td data-page-node-id="DVlEtlN08L07ywWaNlPycm">drvPopup 纯状态机 + 折叠/队列/回灌</td></tr>
+  <tr data-page-node-id="IBVLaDrGfIfigkM0pA61bd"><td data-page-node-id="6aw4TggEnuEmP6YLDxW6Qk">事件触发（SSE + OSD兜底）</td><td data-page-node-id="cY7LWsQgB0KPMwKTwXvJgK"><span class="tag s-green" data-page-node-id="uBMBETz8Pvmo8AL8HXxQjz">已加固</span></td><td data-page-node-id="fd0TpwqUlG0Ha0BfNC7zHq">P0-2 OSD 兜底，不再单点依赖 webhook</td></tr>
+  <tr data-page-node-id="4mnfJUZYZVtRSPnx0gxAly"><td data-page-node-id="UwQqv7FZ5Dx8zePbWJNjKm">拉流 mirror + 播放</td><td data-page-node-id="GwvwrLPDt8JYdCEkBLoUfn"><span class="tag s-green" data-page-node-id="rBRmnpT9PFc225r50j3hUO">已修复</span></td><td data-page-node-id="SOkFQX75NBfSxt3Vmx9kH3">hls 相对路径 + 原流优先 + 失败回退</td></tr>
+  <tr data-page-node-id="9AiuHlB9VanmVu0vygePLa"><td data-page-node-id="gATRcXXkDeS6NnEjBqFkRi"><b data-page-node-id="G8lJK1qTIHYpak9HmOkboG">触发可视化</b></td><td data-page-node-id="C6COmE2xlfmCpsLTfYoGnM"><span class="tag s-red" data-page-node-id="sE2jVphIoePlvTi4ax7EIR">缺失</span></td><td data-page-node-id="U7zF4EH8fU6jPECsifxnYm">弹窗出现前无全局"已感知"状态灯（痛点①）</td></tr>
+  <tr data-page-node-id="ceQse0J3NFmGhGfWuRMjoL"><td data-page-node-id="m8aCc5bTMzIWK5rAxQLs6I"><b data-page-node-id="FVmbJMcTkewfAuPF5WDm1U">端到端验证</b></td><td data-page-node-id="NJt4DOAClAcfvPfT5VPOB9"><span class="tag s-red" data-page-node-id="EChf5O2015KZBx7b5PoaEI">缺失</span></td><td data-page-node-id="1LzGllC1oNzvqW4vNhRtdD">无自动化 smoke test（痛点②）</td></tr>
+  <tr data-page-node-id="CWttTulxttkcDQcDifDxIM"><td data-page-node-id="UvVSRTI6EzKmiGyKWfzMVp"><b data-page-node-id="vP57NfWsffDEqBMZKthM86">实时标框</b></td><td data-page-node-id="V50XeREuOTlwzYZ59C57vW"><span class="tag s-amber" data-page-node-id="RGoFhtzabwqRvGwByhrMK9">未满足</span></td><td data-page-node-id="lJFlxn5mf3GbeQCRO9LFDk">带框流方案不适配，需重构（痛点④）</td></tr>
+</table>
+
+<h2 data-page-node-id="wkMAfD7kGwyXkABqiyAvg9">八、可运维性评估（原"旅程4"，独立成章）</h2>
+<table data-page-node-id="WMZ5UxQwO3GIYHSMnROuyU">
+  <tr data-page-node-id="dnFTvp7oR8GF5LBLHhfH1u"><th style="width:20%" data-page-node-id="vMCtEw18XiGI4YdnjXa8Es">环节</th><th style="width:40%" data-page-node-id="z29yj3H0o4YyRZLT3OKDxF">现状</th><th data-page-node-id="lYfqNNlHjS2qlr8j5TGoMV">痛点</th></tr>
+  <tr data-page-node-id="50bZ5RHfU1SBnfH0tCuvLi"><td data-page-node-id="YR0RJi4nURk7QFZF4aLZYK">发现</td><td data-page-node-id="zXr34jzUWYfaMDGlPkBpWB">用户反馈"没弹窗/超时"</td><td data-page-node-id="t9WECDVDjm9hlzUagWCLj5">现象描述模糊，无法快速定位</td></tr>
+  <tr data-page-node-id="ajyNvZiWlP8CptjYAnW4k2"><td data-page-node-id="6El8bY9lJdqN0UCvBNVeVi">定位</td><td data-page-node-id="doAMnW8oQNUA0B3etls5Lh">需跨 4 个系统（司空/dji-openapi/后端/nginx）手动交叉排查</td><td data-page-node-id="dt82lyVkqUbuCOggqeS63y">[实测] 今天多次 30min 级排查</td></tr>
+  <tr data-page-node-id="yPW3UbSQ7BztFCwNJ1kam4"><td data-page-node-id="c9PhRHbxcBmXKxxB2ze7xM">修复</td><td data-page-node-id="NiEXabAL9iedNKgRRO4CDG">改代码/部署</td><td data-page-node-id="axE7H65dtKxPRok7mbZ4Lv">缺端到端 smoke test，每修一处都要真飞验证</td></tr>
+</table>
+<p data-page-node-id="YmP5qF948ow9j9GsOFHfIm"><b data-page-node-id="brQLY32FfAZshHBB98Zdnw">建议</b>：后台加"弹窗链路自检"面板（SSE 连接/事件/拉流/播放四段状态灯 + 最近事件源标签），把排查从 30min 级降到分钟级。</p>
+
+<h2 data-page-node-id="hO3qKHjdfGTQLcBoUWyHd7">九、改进建议（可落地）</h2>
+<table data-page-node-id="SsyBJTeaEC3FvYn0GY1ZWB">
+  <tr data-page-node-id="ChpcdiFS5l8WtHmnuq0JRu"><th data-page-node-id="40i8u17G9ilcZERTHWzFc5">#</th><th style="width:10%" data-page-node-id="ymJEX2yQBT2xXNt9syCvCP">优先级</th><th data-page-node-id="23JnSmaKA97pACE89rwSLC">改动点（具体）</th><th data-page-node-id="wysY0oG6cmgIIyIUKF3WQ3">预期收益</th><th data-page-node-id="d7NeMwPuBW2bNn4t4iu5zH">验证指标</th><th data-page-node-id="Qe11jZ6zk6bpSVZWMf8FAP">成本</th></tr>
+  <tr data-page-node-id="y5mpb2QCFOnlWhtl9Wdhrv"><td data-page-node-id="P7HlFFwJ9UrTyAEtI4OvYV">1</td><td data-page-node-id="Bd05ZPCpAPMW6Ewu3gGcHB"><span class="tag s-red" data-page-node-id="Xatf7FK1XiwSzMuzetDIl4">P0</span></td><td data-page-node-id="MZmAh7bwibj6ItS0ExnBc0"><b data-page-node-id="L5xtOk5sjfVgggm0ME2gwT">触发状态可视化</b>：地图机场卡片/顶部状态栏加"无人机状态指示灯"（在仓/起飞中/流接入中/直播中）</td><td data-page-node-id="52IidzRFFViZnZZNljnzEU">消除"系统无反应"焦虑</td><td data-page-node-id="GhsCFvruHMYw4WuCcQLMbY">"以为坏了"误判率 ↓</td><td data-page-node-id="AjHN9iDCRFwYjrayKlS7HD">低</td></tr>
+  <tr data-page-node-id="48Z8pMu2vAnmWAPKhQlA26"><td data-page-node-id="CFBTwe3iFkE3wypdRJ9fuC">2</td><td data-page-node-id="Aqk5IZRfFDtkyMg3txr3Yq"><span class="tag s-red" data-page-node-id="eUX2MAyGv3h32gKgt4ndyr">P0</span></td><td data-page-node-id="TXn61lHq1AKimm9PKcCMcG"><b data-page-node-id="LiUnita9CydhQZBYXUyslE">端到端 smoke test</b>：部署后自动跑"模拟起飞→弹窗→拉流→播放"脚本</td><td data-page-node-id="Nb9TFSHWehIO9hwgOBAAER">阻断潜伏 bug</td><td data-page-node-id="bfqZSv5NjTTqBpsM15m82F">真飞首次成功率 ↑</td><td data-page-node-id="aiFfIY1V4gEEsqbm5bksYa">中</td></tr>
+  <tr data-page-node-id="FR30XmqBtcIAfuJlWesPWG"><td data-page-node-id="RdVNWZnOWNjwOwuFPcnNu9">3</td><td data-page-node-id="DeOxD5b6OyFuCSTR7BF18Z"><span class="tag s-amber" data-page-node-id="sJcCzrjxqGmTTdzjQlAxeZ">P1</span></td><td data-page-node-id="D91eGwrJEp3Ybo8A0BfY7G"><b data-page-node-id="0Gqo7hbiZFOEBkYHroadhB">拉流进度反馈</b>：弹窗"接入中"加进度条/预估</td><td data-page-node-id="R8EZqcc4ZuRawLQCDkqONV">降低等待焦虑</td><td data-page-node-id="tqoF6UyKIHLqveNMwBZ9Yl">等待放弃率 ↓</td><td data-page-node-id="2IXR3S2HwAW5ys4E93kKP8">低</td></tr>
+  <tr data-page-node-id="h5QsLmdeNcWORwiOE0rS0k"><td data-page-node-id="1jNjSJYUbWkUMSk4gl64nx">4</td><td data-page-node-id="Ixn2KmVQyiF04VyCRLDLvg"><span class="tag s-amber" data-page-node-id="F7RhrEIMeUD6WkBy0UYzRb">P1</span></td><td data-page-node-id="1LyQEQKMhDBfX3gNwFZs7l"><b data-page-node-id="3WiucLPSZxn0SQ9bvJNihz">实时标框重构</b>：原流 + SSE 推 bbox 前端 canvas 叠加</td><td data-page-node-id="NLljBIMnCHpfggTzfImsjX">真正实现实时标框</td><td data-page-node-id="jOPYdbPYIWrXNyRO4jaT99">检测框实时可见</td><td data-page-node-id="3zYEFWCqKpAMECg7Ha95WA">高</td></tr>
+  <tr data-page-node-id="iKosH58Zs2Hsgd7hwWvwP2"><td data-page-node-id="O5TnYMG3mgDSormTQGkn0u">5</td><td data-page-node-id="AW0veULLhk8jr9JUV9aRLq"><span class="tag s-green" data-page-node-id="NAHSy4cZwS7ExzagWsFpAi">P2</span></td><td data-page-node-id="aJOjpRkuLBwUvkT5W9zY3X"><b data-page-node-id="1olVqWXqDBVfAvnH8GGtEH">诊断面板</b>：后台链路自检四段状态灯</td><td data-page-node-id="xMXjJsFdQhBiNsEKXsQbbO">排查 30min→分钟级</td><td data-page-node-id="wKHRDGzijqcGGnEB0Csm9k">MTTR ↓</td><td data-page-node-id="pTfgCY8HlhOXo1tJgjXVDk">中</td></tr>
+</table>
+
+<h2 data-page-node-id="Sl5GB6t8MIQH52QVJ7yaUr">十、排期（以"明天真飞"为第一约束）</h2>
+
+<h3 data-page-node-id="1tlOBXCBKxJfDTte0CZe87">🟢 阶段 A：明天真飞前（最小可用集）</h3>
+<table data-page-node-id="k4HCaRNoptNnxMroyZvHKh">
+  <tr data-page-node-id="3UYC6U1NSZkTWaZJxMwhva"><th style="width:6%" data-page-node-id="OfonN3JYL7ypZgrhTXeRTG">序</th><th style="width:38%" data-page-node-id="L9fy4tBLIETXtcLFRu24Mh">任务</th><th data-page-node-id="6G03yg4S6GC4vowKf29xVH">工作量</th><th data-page-node-id="isPBHRBLGDII3pfFCTrLAf">是否阻塞真飞</th></tr>
+  <tr data-page-node-id="hP0L2xZZEqroP7E13ZFNJz"><td data-page-node-id="pUzVJdb1hH71dwxyqZTKV5">A1</td><td data-page-node-id="HbdIdqtKl4NBE8j4xW6Ork">验证当前修复（hls 相对路径/原流优先/失败回退/OSD 兜底）</td><td data-page-node-id="h9B7v368wuJZUALUdcW0Ao">已完成</td><td data-page-node-id="3sq4Iy9k4cWKdoM0NeCVsq"><span class="tag s-green" data-page-node-id="1VsvNyu4WtnCofUiUOOZoJ">已完成</span></td></tr>
+  <tr data-page-node-id="hQqnCDJ5IUoqmWT7Y3DeyO"><td data-page-node-id="ZIUcwRvNC5JJM8xBPuKbr6">A2</td><td data-page-node-id="Z3vOgjHvPqsorpeYrTLpVH">（可选增强）触发状态指示灯最小版</td><td data-page-node-id="TSkVpz3tNOH6Fo0n06QhTO">0.3 天</td><td data-page-node-id="U08I2nJ2S4CgCAnPG4Qk1j"><span class="tag s-amber" data-page-node-id="QHuGWo5cduVQZQ4MkDIh5E">不阻塞</span>，锦上添花</td></tr>
+</table>
+<div class="box green" data-page-node-id="Fvje5253iUvV9knU2XmEqP">
+  <p data-page-node-id="XY2ECnZz6nM9gfeM0PhzFP"><b data-page-node-id="sRyIlBV2utXAidrX7eg0vB">关键判断</b>：当前已修好的「hls 相对路径 + 原流优先 + 失败回退 + OSD 兜底」已构成<b data-page-node-id="pjOECKltb0gWso09VuqEKA">最小可用集</b>，明天真飞<strong data-page-node-id="0AGgfVsJYeAiMO58stx344">能够</strong>出画面。触发可视化是增强、不阻塞真飞，可做可不做。</p>
+</div>
+
+<h3 data-page-node-id="2kdeHMSQgqgEY2RLwI6WGx">🔵 阶段 B：明天真飞后（按价值排序）</h3>
+<table data-page-node-id="9nCwc9vJ2g6eH0cGTnBdDE">
+  <tr data-page-node-id="ONqe5VWfRr8EiF4c9oAiGo"><th style="width:6%" data-page-node-id="Sao0Ewn4TzCrXaqhklCByq">序</th><th style="width:38%" data-page-node-id="nFToWJrF4RaPeXEB4T9i5D">任务</th><th data-page-node-id="srggLGJgptJsURB2A6d3ub">工作量</th><th data-page-node-id="SLS3rBolDRveLXNEyFFA60">说明</th></tr>
+  <tr data-page-node-id="9PVxsS10PEjIxqCVbVhect"><td data-page-node-id="giHOVfCdgUJKOSN7ldyUZT">B1</td><td data-page-node-id="cjH6TL57bhlA0jnfwS1prd">端到端 smoke test（痛点②）</td><td data-page-node-id="MmPj2sWD83cZlLdMpboOP6">1 天</td><td data-page-node-id="UN86ccJKTtrGjtcGVGX4mi">最高优先级——防止下次真飞再暴露潜伏 bug</td></tr>
+  <tr data-page-node-id="AJEQFdmhgiyp5DxqN4F1ny"><td data-page-node-id="tq3nkMCBr90NBUUi4XZs1p">B2</td><td data-page-node-id="Z5qTOBBqFKj6GyUDAG2Cyl">触发状态可视化完整版（痛点①）</td><td data-page-node-id="IIjp6Srb9ngGQpNqfZQsrs">0.5~1 天</td><td data-page-node-id="39nagL9mIRrJEapeqB3JlU">解决"不可预期"核心痛点</td></tr>
+  <tr data-page-node-id="vYvWKIEEuF3sq1ebqwlK0C"><td data-page-node-id="N9uFwaXNXnqhEnc3gB4e9r">B3</td><td data-page-node-id="KWfBj4sr0DYBeM7V5DlWpy">实时标框重构（痛点④）</td><td data-page-node-id="TAVlLvpBaCNlngbGJdN2wR">2~3 天</td><td data-page-node-id="0up76lGN6TNAMaj4Y1DeNC">业务诉求，需单独设计</td></tr>
+  <tr data-page-node-id="VZh1dsnE4VGFSIZ1xCddia"><td data-page-node-id="gGPflASK2FQokroJDTUxnl">B4</td><td data-page-node-id="rXZsUWiPJHebVQywigwH8C">诊断面板（可运维性）</td><td data-page-node-id="dZbCfFxAICaXQ5QJggQcn1">0.5 天</td><td data-page-node-id="EdEFTqQV1m0MCU7o1EsMgl">提升排查效率</td></tr>
+</table>
+
+<h2 data-page-node-id="Hfdj0byrjpFUqyeDU50i98">十一、结论</h2>
+<div class="box green" data-page-node-id="2S50SsrT6LRHnYbaDWxGme">
+  <p data-page-node-id="NYKO9JV6XWiDu2eDAF2ADV">① <b data-page-node-id="PaKRBJUZpx1og6Wr957Cjp">功能链路已通且已加固</b>（触发/拉流/播放/收起全链路，今天修完 6 项）；<br data-page-node-id="A2K1jBhT0TE7P2RdLE1MRi">
+  ② <b data-page-node-id="jpPXnMKUkUPfYEKkQaoDih">体验短板不在功能，在"可预期性"和"可验证性"</b>：触发可视化（痛点①）+ 端到端验证（痛点②）是下一步核心；<br data-page-node-id="I2xpNmrfXCK7wwhFVz4bPM">
+  ③ <b data-page-node-id="hW3edhCw908ED4q9Tz6IyF">明天真飞已具备最小可用集</b>，能出画面；触发可视化是增强不阻塞；<br data-page-node-id="lcmBGLzQnSn6SlvhTHZkvE">
+  ④ <b data-page-node-id="l7DxQD8Bq3eAtYx3dOGLDs">排期务实排序</b>：真飞后优先做 smoke test（防潜伏 bug），再做可视化与标框重构。</p>
+</div>
+
+<div class="foot" data-page-node-id="tWfSiNzyU2SsiXBRIlzZ7q">
+  本报告为 v2 修订版（2026-09-08），基于 v1 的 5 点修正：双评分 / HEART 标注推断 / 痛点分已修仍存 / 运维评估独立 / 排期对齐真飞约束。数据来源：[实测]=真实环境走查、[推断]=基于资料判断。
+</div>
+
+</div>
+</body>
+</html>

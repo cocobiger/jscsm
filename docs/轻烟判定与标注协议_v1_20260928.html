@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>轻烟判定与标注协议 v1 · 万州秸秆焚烧</title>
+<style>
+  :root{
+    --ink:#1a1d21; --ink2:#4a5158; --ink3:#7a828a;
+    --line:#e3e7ea; --line2:#cfd6db; --bg:#f6f8f9; --card:#fff;
+    --brand:#1f6feb; --brand-bg:#eaf2ff;
+    --ok:#0f7b3f; --ok-bg:#e8f7ee;
+    --warn:#a86400; --warn-bg:#fff6e5;
+    --bad:#b3261e; --bad-bg:#fdecea;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:15px;line-height:1.8;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:36px 28px 80px}
+  header.top{border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:26px}
+  h1{font-size:25px;margin:0 0 8px;letter-spacing:-.2px}
+  .meta{color:var(--ink3);font-size:13.5px}
+  .meta b{color:var(--ink2)}
+  h2{font-size:19.5px;margin:42px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  h3{font-size:16.5px;margin:24px 0 8px}
+  h4{font-size:14.5px;margin:18px 0 6px;color:var(--ink2)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.6px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  tbody tr:nth-child(even){background:#fafbfc}
+  td.c,th.c{text-align:center;white-space:nowrap}
+  code{font-family:var(--mono);font-size:12.7px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  .src{font-size:12.4px;color:var(--ink3)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:14px 0}
+  .note{border-left:4px solid var(--brand);background:var(--brand-bg);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .warn{border-left:4px solid var(--warn);background:var(--warn-bg);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .bad{border-left:4px solid var(--bad);background:var(--bad-bg);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .ok{border-left:4px solid var(--ok);background:var(--ok-bg);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .b-ok{background:var(--ok-bg);color:var(--ok);border:1px solid #bfe3cd}
+  .b-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #f0d9a8}
+  .b-bad{background:var(--bad-bg);color:var(--bad);border:1px solid #f3c4c0}
+  .b-i{background:var(--brand-bg);color:var(--brand);border:1px solid #c4dbff}
+  ol,ul{padding-left:24px;margin:8px 0}
+  li{margin:5px 0}
+  .toc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 20px}
+  .toc ol{columns:2;column-gap:26px;margin:6px 0}
+  .toc a{color:var(--ink2);text-decoration:none;border-bottom:1px dotted var(--line2)}
+  .foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+  .step{display:flex;gap:12px;margin:10px 0}
+  .step .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-top:3px}
+  @media print{ body{background:#fff;font-size:11.5pt} .wrap{max-width:none;padding:0}
+    .card,.note,.warn,.bad,.ok{break-inside:avoid} h2{break-after:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>轻烟判定与标注协议 v1.2</h1>
+  <div class="meta">
+    <b>适用</b>：万州区秸秆焚烧监控 · 无人机巡检可见光烟雾数据标注（含"远方轻烟"档）<br>
+    <b>版本</b>：v1.2 · 2026-09-29（v1：2026-09-28 / v1.1：2026-09-29）&nbsp;|&nbsp; <b>状态</b>：待两人独立标注一致性验证后生效<br>
+    <b>v1.2 变更</b>：<b>判定由「三级」扩为「五档」——新增 <code>明火</code> 与 <code>明火+烟</code></b>（秸秆焚烧夜间常先见火光，"烟"一档装不下）；一致性门禁改按<b>粗口径（是否焚烧）</b>计，细口径五分类作参考；§6.1 补"一框内火烟兼有"的画法；§5.1 增"夜间亮核/火光"行<br>
+    <b>v1.1 变更</b>：新增 <code>NEAR</code> 理由码与 §5.2「不采集帧识别」；新增 §5.1「常见情形速查」；明确「非烟也要记尺度档」<br>
+    <b>配套</b>：锚点候选筛选工具、锚点确认工作台、一致性校验工具（见 §8）<br>
+    <b>文件</b>：<code>docs/轻烟判定与标注协议_v1_20260928.html</code>（文件名保留 v1 以便链接稳定）
+  </div>
+</header>
+
+<div class="card">
+  <b>一页速览（给标注员）</b>
+  <ol style="margin-bottom:0">
+    <li><b>必须看连续 5–10 帧</b>再判——单帧看不出是不是烟。<span class="badge b-bad">硬要求</span></li>
+    <li>判<b>五档</b>：<b>确定烟</b> / <b>明火+烟</b> / <b>明火</b> / <b>疑似轻烟</b> / <b>非烟</b>。<b>拿不准就选"疑似"</b>，不要猜。</li>
+    <li>先看<b>是否接地/近接地</b>（烟源于地面）→ 再判尺度档（D/M/N）→ 再写理由码。</li>
+    <li><b>火 ≠ 烟</b>：火焰画青框，烟柱才画红框；同一个点源可同时有两类，分开画。</li>
+    <li>框要<b>包住可见的整个烟体（含源点）</b>，不要把纯天空的虚影拉进来。</li>
+  </ol>
+</div>
+
+<div class="toc">
+  <b style="font-size:13.5px">目录</b>
+  <ol>
+    <li><a href="#s1">目的与适用范围</a></li>
+    <li><a href="#s2">尺度分档定义（为什么这么分）</a></li>
+    <li><a href="#s3">判定流程（5 步）</a></li>
+    <li><a href="#s4">判定档口径（五档）</a></li>
+    <li><a href="#s5">易混淆清单与区分判据</a></li>
+    <li><a href="#s6">框怎么画 / 落库字段</a></li>
+    <li><a href="#s7">一致性门禁与自检</a></li>
+    <li><a href="#s8">配套工具</a></li>
+    <li><a href="#s9">附录：本项目已知陷阱</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">1. 目的与适用范围</h2>
+<p>本协议解决一个具体问题：<b>"远方轻烟"没有公认的判定标准，多人各标各的，标签会变成噪声且不可逆。</b></p>
+<p>因此本协议只做一件事：<b>把"轻烟"变成可复现、可校验的判定动作</b>。凡是本协议未覆盖的情形，一律进入 <span class="badge b-warn">疑似</span> 或 <span class="badge b-i">挂起</span>，<b>不允许自由发挥</b>。</p>
+<table>
+  <thead><tr><th style="width:110px">适用</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><b>适用</b></td><td>无人机巡检可见光帧（4 机场 sikong_* 流）、驾驶舱取证图；昼/夜均适用</td></tr>
+    <tr><td><b>不适用</b></td><td>红外/热成像、非本项目相机来源的图片（如外部公开数据集、社交平台转发图）——混入会教错外观</td></tr>
+    <tr><td><b>不采集</b></td><td><b>SIM_SMOKE / 机场直连流 / 机库盖子视角</b>（项目铁律：禁入训练集）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s2">2. 尺度分档定义（为什么这么分）</h2>
+<p>分档按 <b>等效边长 @1920</b> 计算，与训练/推理口径一致：</p>
+<div class="card" style="text-align:center;font-family:var(--mono);font-size:14px">
+  等效边长 = sqrt(w<sub>norm</sub> × h<sub>norm</sub>) × 1920 &nbsp;&nbsp;<span style="color:#7a828a">（w/h 为归一化框宽高；若源帧非 1920 宽，先按 letterbox 缩放到 1920 再折算）</span>
+</div>
+<table>
+  <thead><tr><th class="c" style="width:70px">档位</th><th class="c" style="width:150px">等效边长</th><th>含义与典型表现</th></tr></thead>
+  <tbody>
+    <tr><td class="c"><b>D</b>（远）</td><td class="c"><b>&lt; 40 px</b></td>
+      <td>本项目<b>要攻的目标档</b>。远处一抹淡淡灰白，边界模糊、无明显羽状结构；常只有十几个像素，需要放大才看得出"在动"。</td></tr>
+    <tr><td class="c"><b>M</b>（中）</td><td class="c">40 – 160 px</td>
+      <td>能看出烟柱轮廓与上升方向，仍可能与云/雾混淆。当前模型的主战场。</td></tr>
+    <tr><td class="c"><b>N</b>（近）</td><td class="c">&gt; 160 px</td>
+      <td>烟柱结构清楚、有明确源点（田块/垃圾堆）。</td></tr>
+  </tbody>
+</table>
+<div class="bad">
+  <b>为什么必须分档报告——实测数据说明问题</b><br>
+  现网白天/夜间两个模型同训自 <code>v5_train_v5</code>，该集 <b>1041 个框</b>的等效边长分布：
+  p05=54.2 · p50=140.7 · p90=383.2，其中 <b>&lt;40px（D 档）仅 18 个、占 1.7%</b>。<br>
+  ⇒ 模型<b>从未见过 D 档</b>，这正是"降阈值也救不回召回"的根因。所以本次标注的<b>首要目标是把 D 档样本补上来</b>，
+  而不是再去堆 N 档的大烟。
+</div>
+
+<h2 id="s3">3. 判定流程（5 步，严格按顺序）</h2>
+
+<div class="step"><div class="n">1</div><div>
+  <b>看连续帧，不看单帧。</b>调出该点位的<b>连续 5–10 帧</b>（时间上相邻，间隔按抽帧率）。
+  <div class="warn" style="margin:8px 0 0">单帧无法区分"轻烟"与"一小块碎云"——<b>判别信息在时间维度</b>：
+  烟会<b>缓慢上升、向外扩散、形态连续演化</b>；云整体漂移、形态基本稳定、边界相对锐利。</div>
+</div></div>
+
+<div class="step"><div class="n">2</div><div>
+  <b>查接地/近接地（最高优先级的先验）。</b>秸秆焚烧的烟<b>必然源于地面</b>。
+  <ul style="margin:6px 0 0">
+    <li>框的下沿是否<b>触及或紧邻地表/地平线附近的地物</b>（田块、坡地、建筑、林带）？</li>
+    <li>是否能看到<b>源点</b>（一小簇白/灰起点，或与地面相连的柱根）？</li>
+    <li>若一块淡影<b>完全悬在画面中部、四周被天空包围、与地面无任何连接</b> → 优先判 <span class="badge b-bad">非烟（云）</span>。</li>
+  </ul>
+</div></div>
+
+<div class="step"><div class="n">3</div><div>
+  <b>判尺度档 D / M / N</b>（按 §2 公式，不要目测"看起来小"）。若跨档，按<b>最大边所在档</b>记，并在备注里写实际边长。
+</div></div>
+
+<div class="step"><div class="n">4</div><div>
+  <b>判五档。</b>按 §4 口径给出 <b>确定烟 / 明火+烟 / 明火 / 疑似轻烟 / 非烟</b>。拿不准一律"疑似"，并在备注写清"拿不准的点是什么"。
+</div></div>
+
+<div class="step"><div class="n">5</div><div>
+  <b>画框 + 写理由码。</b>按 §6 画框；在备注里填至少一个<b>理由码</b>（下表），便于事后统计分歧来源。
+  <table style="margin-top:8px">
+    <thead><tr><th class="c" style="width:80px">理由码</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="c"><code>GND</code></td><td>能看到源点/接地</td></tr>
+      <tr><td class="c"><code>RISE</code></td><td>连续帧可见缓慢上升</td></tr>
+      <tr><td class="c"><code>SPRD</code></td><td>连续帧可见向外扩散</td></tr>
+      <tr><td class="c"><code>GREY</code></td><td>灰白半透明、对比度低</td></tr>
+      <tr><td class="c"><code>CLOUD</code></td><td>判为云（悬空/边界锐利/形态稳定）</td></tr>
+      <tr><td class="c"><code>DUST</code></td><td>判为扬尘（贴地、横向扩散、无明显上升）</td></tr>
+      <tr><td class="c"><code>HAZE</code></td><td>判为水汽/薄雾（大面积均匀、无源点）</td></tr>
+      <tr><td class="c"><code>GLARE</code></td><td>判为反光/太阳眩光/灯光（高亮、过曝、无形态）</td></tr>
+      <tr><td class="c"><code>UNC</code></td><td>拿不准（必须配文字说明）</td></tr>
+      <tr><td class="c"><code>OTHER</code></td><td>其它明确的替代解释（建筑白顶 / 电线杆塔 / 大棚 / 塑料地膜 / 屋顶反光等，备注写明是什么）</td></tr>
+      <tr style="background:#fdecea"><td class="c"><code>NEAR</code></td>
+        <td><b>近场 / 起降视角</b>：框在<b>机场本体、无人机机身、座舱顶盖、机库内壁、水泥地特写</b>上（画面被单一近距离物体占据，看不到地平线或天空）。<br>
+          <span class="src">→ 这类帧属协议 §1 的「不采集」。<b>务必用 <code>NEAR</code> 这个结构化码标明</b>，
+          而不要只写自由文本备注 —— 入训练集时要按此码<b>批量剔除</b>，自由文本没法批量过滤。</span></td></tr>
+    </tbody>
+  </table>
+</div></div>
+
+<h2 id="s4">4. 五档判定口径</h2>
+<table>
+  <thead><tr><th class="c" style="width:110px">级别</th><th>充分条件（满足其中一条即可给出该级别）</th><th class="c" style="width:150px">进入训练集？</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="c"><b>确定烟</b><br><span class="badge b-ok">正样本</span></td>
+      <td>① 能看到源点/明确接地 <b>且</b> 连续帧可见上升或扩散；<br>
+          ② 或：有地面参照物可判尺度、烟柱形态在连续帧中连续演化且方向一致。</td>
+      <td class="c">是（入正样本·烟）</td>
+    </tr>
+    <tr style="background:#fff6e5">
+      <td class="c"><b>明火+烟</b><br><span class="badge b-warn">正样本</span></td>
+      <td>框内<b>既有可见火焰/火光，又有明显烟体</b>（秸秆焚烧的典型夜间形态）。<br>
+          典型：亮核过曝 + 其上方/侧向有可辨的灰白或暖色烟羽。</td>
+      <td class="c">是（入正样本·火+烟）</td>
+    </tr>
+    <tr style="background:#fff6e5">
+      <td class="c"><b>明火</b><br><span class="badge b-warn">正样本</span></td>
+      <td>框内<b>只见火焰/火光，看不到可辨烟体</b>（如夜间远处一个持续、接地的炽亮点/团）。<br>
+          注意：<b>只要能排除"固定灯火"，就按明火算</b>；排除不了时归"疑似轻烟 + <code>GLARE</code>"。</td>
+      <td class="c">是（入正样本·火）</td>
+    </tr>
+    <tr>
+      <td class="c"><b>疑似轻烟</b><br><span class="badge b-warn">隔离</span></td>
+      <td>具备灰白半透明、低对比度等外观，但<b>无法确认时序演化</b>，或无法确认接地。<br>
+          典型：只给了 1–2 帧；帧间跳变太大；目标贴在画面边缘被裁切。</td>
+      <td class="c"><b>否</b>（进隔离分区，默认不入训练）</td>
+    </tr>
+    <tr>
+      <td class="c"><b>非烟</b><br><span class="badge b-bad">负样本</span></td>
+      <td>能给出明确替代解释（云/扬尘/水汽/反光/灯光/建筑白顶/田埂白膜等），且<b>写得出理由码</b>。<br>
+          注意：<b>"我找不到替代解释"不等于"是烟"</b>——那种情形归"疑似"。</td>
+      <td class="c">是（入负样本/难负）</td>
+    </tr>
+  </tbody>
+</table>
+<div class="note">
+  <b>五档怎么用：粗口径 vs 细口径</b>
+  <ul style="margin:6px 0 0">
+    <li><b>粗口径（一致性门禁用这个）</b>：把 确定烟 / 明火+烟 / 明火 三档合并为「<b>是焚烧</b>」，
+      加上「疑似」「非焚烧」共三分类 → <b>门禁仍是 一致率 ≥ 0.80</b>（含义与 v1.1 的三级一致，口径可比）。</li>
+    <li><b>细口径（参考，不设硬门槛）</b>：五分类逐项一致率 + 混淆矩阵 → 用来<b>定位分歧具体出在哪两档之间</b>
+      （例如"明火"与"明火+烟"分不清），比一个总数字有用得多。</li>
+  </ul>
+</div>
+
+<div class="warn">
+  <b>宁缺勿滥（项目铁律）</b>：拿不准就标"疑似/暂缓"，<b>绝不猜</b>。可疑样本进隔离分区、默认不入训练集。
+  宁可多花人工，也不让脏数据进集。
+</div>
+
+<h2 id="s5">5. 易混淆清单与区分判据</h2>
+<p>依据：本项目干扰源统计（难负分类）——<b>云 227、电线杆 317、建筑 87、混凝土 51</b>；其中 D 档最主要的混淆源是<b>天空中的小块碎云</b>。</p>
+<table>
+  <thead><tr><th class="c" style="width:120px">易混物</th><th>外观</th><th>与本项目烟的区分判据</th></tr></thead>
+  <tbody>
+    <tr><td class="c"><b>碎云 / 云边</b></td>
+      <td>白、亮、边界相对锐利、常成片</td>
+      <td><b>悬空</b>（四周皆天空、不接地）；连续帧<b>形态稳定</b>、整体漂移；亮度更高、更"白"。</td></tr>
+    <tr><td class="c"><b>水汽 / 薄雾</b></td>
+      <td>大面积均匀灰白，无明显边界</td>
+      <td>覆盖范围<b>远大于</b>单个点源；无上升方向；随地形起伏成层。</td></tr>
+    <tr><td class="c"><b>扬尘</b></td>
+      <td>灰黄、贴地、横向铺开</td>
+      <td>主要<b>横向扩散</b>、几乎不上升；有明显的车/施工等触发源；色彩偏黄褐。</td></tr>
+    <tr><td class="c"><b>太阳眩光 / 过曝云</b></td>
+      <td>极亮、过曝、常在画面<b>上部</b></td>
+      <td>亮度异常高、无形态；<b>画面最上方区域</b>（本项目已在其上生效"天空带屏蔽"，该类不再产生告警）。</td></tr>
+    <tr><td class="c"><b>夜间灯光 / 水面反光</b></td>
+      <td>亮斑、边缘硬、有星芒/晕</td>
+      <td>无扩散；位置固定不随帧演化形成柱状；夜间常见。</td></tr>
+    <tr><td class="c"><b>建筑白顶 / 田埂白膜 / 大棚</b></td>
+      <td>规则矩形、边界笔直、亮度稳定</td>
+      <td><b>几何规整</b>、静止不动、有明显棱角；无半透明过渡。</td></tr>
+    <tr><td class="c"><b>电线杆 / 塔架（线索）</b></td>
+      <td>细长竖直白/亮线</td>
+      <td>静止、笔直、端点锐利；常与真烟同框 —— <b>不要把杆体画进烟框</b>。</td></tr>
+  </tbody>
+</table>
+
+<h3>5.1 常见情形速查（拿不准时先查这张表）</h3>
+<div class="note" style="margin-top:6px">
+  这张表来自实际标注中第一批遇到的问题（含一个真实样本）。<b>查不到的情形一律按 §4 的"疑似轻烟 + <code>UNC</code> + 备注"处理</b>，不要自由发挥。
+</div>
+<table>
+  <thead><tr><th style="width:250px">你看到的情形</th><th class="c" style="width:96px">三级</th><th class="c" style="width:130px">尺度档</th><th>理由码</th></tr></thead>
+  <tbody>
+    <tr style="background:#eaf2ff">
+      <td><b>天空里一小朵白云</b>（悬空、四周皆天空、孤立一小团）<br>
+        <span class="src">例：锚点 <code>D_day_01</code>，26×10px，等效 37px 的一团云</span></td>
+      <td class="c"><b>非烟</b></td>
+      <td class="c"><b>按它自己的大小填</b><br>（37px → <b>D 远</b>）</td>
+      <td><code>CLOUD</code>（可加 <code>GREY</code>）<br>
+        <span class="src">→ 这正是一条宝贵的 <b>D 档难负</b>：与"37px 远烟"同尺度</span></td>
+    </tr>
+    <tr>
+      <td>大片连片的云 / 云层 / 云带</td>
+      <td class="c">非烟</td>
+      <td class="c">不适用</td>
+      <td><code>CLOUD</code></td>
+    </tr>
+    <tr>
+      <td>地平线附近一缕灰白，<b>能看出从地面升起</b></td>
+      <td class="c"><b>确定烟</b></td>
+      <td class="c">按它的大小</td>
+      <td><code>GND</code> + <code>RISE</code>（有扩散再加 <code>SPRD</code>）</td>
+    </tr>
+    <tr>
+      <td>只给了 1–2 帧，看不出动没动</td>
+      <td class="c">疑似轻烟</td>
+      <td class="c">按它的大小</td>
+      <td><code>UNC</code>（备注写"帧数不足"）</td>
+    </tr>
+    <tr>
+      <td>太阳附近爆亮 / 过曝；夜间亮斑、灯光、水面反光</td>
+      <td class="c">非烟</td>
+      <td class="c">不适用</td>
+      <td><code>GLARE</code></td>
+    </tr>
+    <tr>
+      <td>贴地横向铺开的黄灰色（车过、施工）</td>
+      <td class="c">非烟</td>
+      <td class="c">按它的大小</td>
+      <td><code>DUST</code>（几乎不上升）</td>
+    </tr>
+    <tr>
+      <td>整幅画面均匀发灰、无边界（起雾/水汽）</td>
+      <td class="c">非烟</td>
+      <td class="c">不适用</td>
+      <td><code>HAZE</code></td>
+    </tr>
+    <tr>
+      <td>建筑白顶 / 电线杆塔 / 大棚 / 塑料地膜 / 屋顶反光<br>
+        <span class="src">特征：边界笔直、几何规整、静止不动</span></td>
+      <td class="c">非烟</td>
+      <td class="c">按它的大小</td>
+      <td><code>OTHER</code>（备注写明是什么）</td>
+    </tr>
+    <tr style="background:#fff6e5">
+      <td><b>夜间一个持续、接地的亮核</b>（亮核过曝，其上方/侧向有扩散）<br>
+        <span class="src">例：锚点 <code>N_night_263a96</code>（960×720 夜间，eq≈176px），
+          经时序核对后判定为 <b>明火+烟</b></span></td>
+      <td class="c"><b>明火+烟</b><br>（若只见火 → <b>明火</b>）</td>
+      <td class="c">按它的大小</td>
+      <td><code>GND</code> + <code>RISE</code><br>
+        <span class="src">排除不了固定灯火时：<code>疑似轻烟</code> + <code>GLARE</code> + <code>UNC</code></span></td>
+    </tr>
+    <tr style="background:#fdecea">
+      <td><b>近场 / 起降视角</b>：画面被单一近距离物体占满 —— 机场本体、无人机机身、座舱顶盖、
+        机库内壁、水泥地特写（<b>看不到地平线或天空</b>）<br>
+        <span class="src">例：锚点 <code>D_day_02</code>，无人机降落时把框打在了机场本体上</span></td>
+      <td class="c"><b>非烟</b></td>
+      <td class="c"><b>不适用</b></td>
+      <td><code>NEAR</code>（备注写"近场/机场本体"）<br>
+        <span class="src">→ 属「不采集」，入训练集时按 <code>NEAR</code> 批量剔除</span></td>
+    </tr>
+    <tr>
+      <td>看着像烟，但<b>找不到源点也看不出接地</b>，且只此一帧</td>
+      <td class="c">疑似轻烟</td>
+      <td class="c">按它的大小</td>
+      <td><code>UNC</code> + 备注（<b>不要</b>因为"像"就判确定烟）</td>
+    </tr>
+  </tbody>
+</table>
+<div class="warn">
+  <b>关于"天空里的云"的一个关键提醒</b>：我们已在生产上线了「天空带屏蔽」（画面上方 10% 内的框不推送、不计告警），
+  但这只挡得住<b>最顶部</b>的云。<br>
+  以 <code>D_day_01</code> 为例，它的 y 中心在 <b>0.144</b>（画面高度的 14.4%）—— <b>在屏蔽带之外</b>，照样会报警。
+  ⇒ <b>云的问题最终必须靠模型与时序判别解决</b>，标注时请务必把这类云一并标成非烟、
+  并尽量给它正确的尺度档 —— 它们就是训练"不看错云"的弹药。
+</div>
+
+<h3>5.2 不采集帧怎么识别（起降 / 近场视角）</h3>
+<div class="bad">
+  <b>为什么单列一节</b>：协议 §1 早就写了「机库盖子视角」不采集，但<b>从没给出可操作的判定标准</b>。
+  实测发现现有字段<b>认不出来</b>这类帧 —— <code>straw_detections.scene</code> 会把它误标成 <code>day</code>、
+  <code>note</code> 字段大多是空的（全库仅 7 条带"近场"备注）。所以只能靠<b>人看图判断</b>，标准必须写死。
+</div>
+<table>
+  <thead><tr><th style="width:190px">特征</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><b>看不到地平线 / 天空</b></td><td>画面里没有远景、没有天际线，视野被一个近距离物体占满。这是最可靠的判据。</td></tr>
+    <tr><td><b>物体尺寸突然"巨大"</b></td><td>同一个物体（如机场盖板、机库壁）在相邻帧的正常巡航空域里很小，在起降帧里占满画面。</td></tr>
+    <tr><td><b>出现明显的机场/机体结构</b></td><td>停机坪标识（如"H"）、舱盖、机械臂、机身蒙皮、金属反光面、混凝土特写纹理。</td></tr>
+    <tr><td><b>时间上处于起降窗口</b></td><td>一次飞行的首尾几分钟。本项目引擎里对应 <code>osd_skip=在仓(机库盖子)</code> 与 <code>landing_suppress</code> 窗口。</td></tr>
+  </tbody>
+</table>
+<div class="ok">
+  <b>处置（三步，别漏）</b>
+  <ol style="margin-bottom:0">
+    <li>判定档填 <b>非烟</b>（近场机场盖板既不烧也没烟，别因为它"发热/发亮"就填火档）；</li>
+    <li>尺度档填 <b>不适用</b>（尺度档是为空中远距目标标定的，近场尺寸不可比）；</li>
+    <li>理由码勾 <b><code>NEAR</code></b>，备注写清"近场/机场本体"。</li>
+  </ol>
+</div>
+<div class="note">
+  <b>为什么一定要用 <code>NEAR</code> 而不是只写备注</b>：入集流程要对这类帧做<b>批量剔除</b>
+  （否则它们会作为"负样本"混进训练集，教模型"机场盖板不是烟"—— 既无价值又浪费容量）。
+  自由文本备注的写法千差万别，<b>没法批量过滤</b>；结构化理由码才能。
+  <br><br>
+  <b>另外</b>：这类帧<b>仍然值得标</b>，不要因为「不采集」就跳过 —— 标注结果本身就是
+  <b>「生产误报的取证记录」</b>（引擎在起降阶段把框打在机场本体上，这本身是个应修的问题）。
+</div>
+
+<h2 id="s6">6. 框怎么画 / 落库字段</h2>
+<h3>6.1 画框规则</h3>
+<ul>
+  <li><b>包住整个可见烟体（含源点）</b>，不要只框最浓的一段。</li>
+  <li><b>不要</b>把纯天空的虚影、云的边缘、杆体拉进框内。</li>
+  <li>目标被画面边缘裁切时：框到边界为止，并在备注写 <code>EDGE</code>。</li>
+  <li><b>火 ≠ 烟</b>：火焰画<b>青框</b>，烟柱才画<b>红框</b>；同一点源可同时存在，<b>分开画两个框</b>。</li>
+  <li><b>一个框里火烟兼有时</b>（锚点校准时只给一个模型框）：判定选 <b>明火+烟</b>，
+      并在备注写清"框内哪部分判火、哪部分判烟"（供后续拆框）。</li>
+  <li>D 档（&lt;40px）目标很小：<b>宁可框稍大一点点</b>把源点含进去，也不要为了"紧"而漏掉接地证据。</li>
+</ul>
+<h3>6.2 每张样本必须落库的字段</h3>
+<table>
+  <thead><tr><th style="width:170px">字段</th><th>取值</th></tr></thead>
+  <tbody>
+    <tr><td><code>verdict</code></td><td><code>smoke_confirmed</code> / <code>smoke_suspect</code> / <code>not_smoke</code></td></tr>
+    <tr><td><code>bucket</code></td><td><code>D</code> / <code>M</code> / <code>N</code>。<b>非烟也要记尺度档</b>（写框住对象自身的等效边长档）
+      —— 因为负样本必须与正样本<b>同尺度</b>才能当难负样本用。
+      填 <code>不适用</code> 的三种情形：<b>①</b> 对象本身没有尺度可言（太阳眩光、整片薄雾）；
+      <b>②</b> <b>近场 / 起降视角</b>（尺度档是针对空中远距目标标定的，近场尺寸不可比，见 <code>NEAR</code>）；
+      <b>③</b> 目标被画面边缘裁切到无法估尺度。</td></tr>
+    <tr><td><code>reason_codes</code></td><td>§3 步骤 5 的理由码，可多选</td></tr>
+    <tr><td><code>box</code></td><td>像素 xyxy（<b>相对原帧</b>，不是缩略图坐标）；无烟留空</td></tr>
+    <tr><td><code>frames_seen</code></td><td><b>本次判定实际看了几帧</b>（≥5；只看 1 帧时必填理由）</td></tr>
+    <tr><td><code>src</code> / <code>stream</code> / <code>ts</code></td><td>来源、流、时间（用于排除 SIM/机库视角）</td></tr>
+    <tr><td><code>annotator</code> / <code>started_at</code></td><td>标注员与耗时（用于一致性统计）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s7">7. 一致性门禁与自检</h2>
+<div class="card">
+  <b>放行门禁（本协议生效的前提）</b>
+  <ol style="margin-bottom:0">
+    <li>安排 <b>2 名标注员</b>，<b>互不通气</b>，各自独立标注<b>同一批 50 张</b>（覆盖 D/M/N × 昼/夜）。</li>
+    <li>用 §8 的<b>一致性校验工具</b>比对，须同时满足：
+      <ul>
+        <li><b>【硬门槛】粗口径一致率 ≥ 0.80</b> —— 「焚烧 / 疑似 / 非焚烧」三分类型逐张比对<br>
+            <span style="color:#7a828a;font-size:12.5px">v1.2 起「确定烟 / 明火+烟 / 明火」先合并为「焚烧」再比对：门禁只问"烧没烧"；硬按五档卡会把"都认定在烧、只是火烟成分看法不同"误判成口径失守</span></li>
+        <li>判为"焚烧"的样本上，<b>框级平均 IoU ≥ 0.50</b></li>
+        <li><b>【硬门槛】档位（D/M/N）一致率 ≥ 0.80</b></li>
+        <li><b>【参考项】五档细口径一致率</b>（不设门槛）—— 用来定位分歧具体落在
+            「确定烟 / 明火+烟 / 明火」哪两档之间，比一个总数字有用</li>
+      </ul>
+    </li>
+    <li>未达标 → <b>不开标注</b>，先针对"<b>粗口径</b>分歧最大的 10 张"开会把口径写进本协议
+        （<b>升版</b>，如 v1.2 → v1.3），再重测。</li>
+    <li>达标 → 本协议生效；此后每 <b>500 张</b>抽样 20 张复测，防口径漂移。</li>
+  </ol>
+</div>
+<div class="note">
+  <b>关于门禁口径的一处说明（对早期简写的修正）</b>：早期排期里写的"同档 IoU 一致性 ≥0.5"过于简略。
+  严格来说：<b>档位与判定档是分类量，用"一致率"；框位置才用 IoU</b>。v1.2 起按"粗口径 + 档位"两个硬门槛 + "五档细口径"一个参考项执行。
+</div>
+
+<h2 id="s8">8. 配套工具</h2>
+<table>
+  <thead><tr><th style="width:230px">工具</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td><code>build_anchor_candidates.py</code></td>
+      <td>按「尺度档 × 昼夜」自动从本项目真实帧里挑锚点候选，输出候选清单 + 缩略图。<br>
+          只取本项目自有来源（<code>v5_train_v5</code> / <code>v6_train</code> / <code>straw_detections</code> 真实机场流），<b>刻意排除外部公开数据集</b>。</td></tr>
+    <tr><td><code>anchor_workbench.html</code>（本协议配套工作台）</td>
+      <td>单文件 HTML，内嵌锚点候选图。两名标注员各自独立选「三级 + 档位 + 理由码」，导出 JSON；内置一致性校验面板。</td></tr>
+    <tr><td><code>check_agreement.py</code></td>
+      <td>输入两份标注 JSON，输出：三级一致率、档位一致率、框级平均 IoU、分歧清单，并给出 PASS/FAIL 判定。</td></tr>
+  </tbody>
+</table>
+<p><b>锚点样本怎么用</b>：锚点不是"标准答案"，而是<b>边界教学样本</b>——每格 10–20 张团队公认的边界情形，
+用来对齐"什么程度算确定烟、什么程度只能算疑似"。标注新品前先过一遍锚点集。</p>
+
+<h2 id="s9">9. 附录：本项目已知陷阱（血泪教训）</h2>
+<table>
+  <thead><tr><th class="c" style="width:34px">#</th><th>陷阱</th><th>后果与对策</th></tr></thead>
+  <tbody>
+    <tr><td class="c">1</td><td><b>正负增量不同批配平</b>：只往正样本里堆轻烟</td>
+      <td>曾实测 <b>+7 正塞 26 难负 → 召回 95%→75%</b>。对策：正负必须<b>同批、同尺度</b>配平后再入集。</td></tr>
+    <tr><td class="c">2</td><td>把 <code>source='alert'</code> 的记录当成"真样本"直接统计</td>
+      <td>实测其中 <b>74% 是 <code>scene='sim'</code> 模拟器帧</b>。对策：统计前必须先过滤 SIM。</td></tr>
+    <tr><td class="c">3</td><td>把 <code>picall</code> 当无人机帧用</td>
+      <td><code>picall</code> 实为<b>驾驶舱/遥控器 UI 录屏截图</b>（含地图、虚拟摇杆），坐标体系与视频帧完全不同。<b>任何坐标统计都必须剔除</b>。</td></tr>
+    <tr><td class="c">4</td><td>用"画面高度百分比"硬切天空带而不看相机姿态</td>
+      <td>证据帧有 8 种分辨率，且含俯视/舱内帧（那类画面"上方"是机库盖子）。对策：俯视帧自动禁用，并逐步改为<b>按云台 pitch 算动态天际线</b>。</td></tr>
+    <tr><td class="c">5</td><td>用降采样的缩略图坐标写回 <code>box</code></td>
+      <td>缩略图与原帧分辨率不同，坐标会整体错位。对策：<b><code>box</code> 一律写原帧像素坐标</b>（工作台负责换算）。</td></tr>
+    <tr><td class="c">6</td><td>只看单帧就下结论</td>
+      <td>轻烟与碎云在单帧上几乎不可分。<b>本协议 §3 步骤 1 是硬要求。</b></td></tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  轻烟判定与标注协议 v1.2 · 2026-09-29 · 万州区秸秆焚烧监控项目<br>
+  本协议为标注口径文件，未改动任何生产配置。生效前提见 §7 一致性门禁。
+</div>
+
+</div>
+</body>
+</html>

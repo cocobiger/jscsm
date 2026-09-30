@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="df5rau1ILVjKN2FAqbYLPz">
+<head data-page-node-id="iKc2S6i9NDs6Qobz3JuyPy">
+<meta charset="UTF-8" data-page-node-id="7G8aMo28txjSXExHfyYCYa">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="iwv99PsJNvnxTAQAIvZFo5">
+<title>无人机实时坐标地图显示 · 评估与排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:24px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px}
+  h2{font-size:18px;color:var(--blue);margin:36px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="SkYBpPxVXv59TL9KG30tWf">
+<div class="page" data-page-node-id="IZ1ATho0KBLrkZCV6iZMmh">
+
+<div class="doc-head" data-page-node-id="pPDTT2HDXh66E7fqpjCCTT">
+  <div class="org" data-page-node-id="kkefeUIn32K91m2WJr9oDN">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="flXtxChOJWdXgnWoH3FuNy">无人机飞行实时坐标 · 地图显示功能评估与排期</div>
+  <div class="subtitle" data-page-node-id="3zFgJNlXMl9Dd7kNLoXlbG">—— 需求可行性评估、数据源排查、方案与落地步骤</div>
+  <div class="meta" data-page-node-id="HKesZfpqDzfslDMf1FeN22"><span data-page-node-id="YTd42GK32IzJHZHpoTm0eh">编制时间：2026-09-08</span><span data-page-node-id="aB28Ok6Ase5dgTMXvpA3IE">评估方式：代码级排查（只读）</span><span data-page-node-id="FmI6tr3B71uoC2DOVRHY1d">待拍板：方案 A/B</span></div>
+</div>
+
+<h2 data-page-node-id="NRQaKRTd0ng8wb9FnBDh3l">一、结论摘要</h2>
+<div class="box green" data-page-node-id="PxnK1R56T19fpk5PBcdNSq">
+  <p data-page-node-id="GaHkFpOCKGRjaFapC0spqt"><b data-page-node-id="JzUW4ECgODVlB1iSvOFUlG">需求可行，数据源已确认存在</b>，但需要打通一段"数据暴露"链路 + 一次真飞验证。核心结论：</p>
+  <p data-page-node-id="7lmE3mP3uXSyOGOuwLLOJR">① 驾驶舱电子地图已具备渲染能力（机场标记 + OSD 遥测信息窗已上线）；<br data-page-node-id="BjRRIEQsB5R30GrFOtYB5R">
+  ② 司空系统<b data-page-node-id="ypoO965OvGqkYHEBPL2UzD">确实推送无人机实时经纬度</b>（OSD deviceType=1 帧，字段 <code data-page-node-id="xglWw10xJ8IAwth86Oenb3">latitude/longitude/height</code>，已反编译 SDK 证实）；<br data-page-node-id="nTyxwJLrOd2VStwmZFHNOY">
+  ③ <b data-page-node-id="tQqZe9h9wkmxyzLiMzXG7E">当前缺口</b>：dji-openapi 的 OSD WebSocket 尚未把无人机帧暴露出来（实测 /api/telemetry/latest 只有机场帧 deviceType=0）；<br data-page-node-id="8YWRavutJMRmlzpvMLQc3p">
+  ④ <b data-page-node-id="YoZb6E5ygFrvLMpqpd6422">关键前提</b>：无人机 OSD 帧推测仅在「飞行中」才推送（在仓时司空不推），需一次真飞确认。</p>
+</div>
+
+<h2 data-page-node-id="D0U9Tmrw7jzEFDL1rwldRh">二、现状盘点（代码级）</h2>
+<h3 data-page-node-id="QB8rqEiipeJzIhJFlbHVGu">2.1 已具备的能力</h3>
+<table data-page-node-id="AjwY0TCHXqqDLeICYFaqkf">
+  <tr data-page-node-id="2aBSuS1jMDevUlEmTomYi3"><th style="width:28%" data-page-node-id="37uQjiNJBqqCWRPxFDV7bi">环节</th><th data-page-node-id="MvQZjNdVPy4QQBBidUO7l8">现状</th></tr>
+  <tr data-page-node-id="MdyFuuqHB8CBDZVz0LmzLl"><td data-page-node-id="xQGpGN4hoOTDlLCzo1rqmr">地图引擎</td><td data-page-node-id="Cs9c2HHdIrGKpGE9Op1oww">MapView 组件 + Leaflet 引擎（mapAdapter），marker/图标/信息窗齐全，已处理 GCJ-02↔WGS-84 坐标偏移</td></tr>
+  <tr data-page-node-id="BTfR5yID3wLKFB0XRhWJsK"><td data-page-node-id="9SuB0qpRMjXfBgk0nBANmo">机场标记</td><td data-page-node-id="s02aX08ETqcTjfqwaE4aRl">已上线：地图「air」tab 渲染 4 个司空机场标记，含 OSD 遥测信息窗（电量/风速/温度/GPS数/坐标）</td></tr>
+  <tr data-page-node-id="h86fS2rKmrnf0mJkR6TkHB"><td data-page-node-id="Btk4PY1znU6o5kTyjeVWzO">OSD 数据链</td><td data-page-node-id="B6s9YfHEzhrIanJiFF1Dc3">dji-openapi(:17810) 已接司空 OSD WebSocket（ws-osd-client.js），同时收机场(deviceType=0)+无人机(deviceType=1)帧</td></tr>
+  <tr data-page-node-id="yje7NDqW6oFUAkw6U3fkWl"><td data-page-node-id="y7fxk3wJCSnavHgoOH2tgI">坐标解析逻辑</td><td data-page-node-id="02JbUzhIdqs8Ekuiamb0XT">telemetry.js 已预留 <code data-page-node-id="mv8Ibv5d6DHb47kOHkitso">resolveTarget()</code>，字段设计含 uavLat/uavLon</td></tr>
+</table>
+
+<h3 data-page-node-id="oULEZZS1nykAzURLVuIcv3">2.2 数据源确认（反编译 SDK 铁证）</h3>
+<div class="code" data-page-node-id="KQGLPykUgeuIrBptVDa033">// 司空 dock-sdk 的 OsdDockDrone（无人机 OSD）字段：
+height, latitude, longitude, positionState(DronePositionState), ...
+// 另有 DronePilotRealtimeMessageVO$LocateDataDTO（无人机实时定位数据）</div>
+<p data-page-node-id="1APw8RinCPnqpEV6EFpvx1">确认：<b data-page-node-id="4YB9hVCVclKaUMQ59RLuOL">无人机实时经纬度字段名就是 <code data-page-node-id="3wAx4GYpVrxkfFsUATFkjK">latitude</code> / <code data-page-node-id="6ZmmtyEfEb9Gv7Kw5NxxSx">longitude</code> / <code data-page-node-id="KtJUT7P7pfKqajafsU0whw">height</code></b>，与 telemetry.js 的 <code data-page-node-id="XKJ6aPxDada1HCCjNDO4Rl">resolveTarget</code> 预期一致。</p>
+
+<h3 data-page-node-id="HYQw298dtc5YE91jtkoj44">2.3 当前缺口（实测）</h3>
+<table data-page-node-id="8mAcyTJP1lJPztPI6ddVKA">
+  <tr data-page-node-id="hJaqLKfbu6nQYSSQtpjz6e"><th data-page-node-id="9FOzx1R4KVwikoFONLiwKS">检查项</th><th data-page-node-id="DXd8fsEOyjWTmJAt16cUR4">实测结果</th><th data-page-node-id="UXajCsDx5IPPqq68JFffOY">判断</th></tr>
+  <tr data-page-node-id="naO205BkHwe2NphHU5qM8x"><td data-page-node-id="bPekUk9YkqElV5hP6154hx">/api/telemetry/latest 返回的 deviceType</td><td data-page-node-id="LnsyKtbNqxbdeIojGj2yTG">只有 <code data-page-node-id="R2g52NCG20HZ9GprqVKpxn">{0}</code>（机场），无 deviceType=1</td><td data-page-node-id="Z66L9Ph3GlGZnRc5JKaQDP"><span class="tag s-red" data-page-node-id="bRYB2dDtXhV8ga5rMvz2Bj">缺无人机帧</span></td></tr>
+  <tr data-page-node-id="MJivCpcAGsJYmTNovrL4D1"><td data-page-node-id="w1IsZQ3483XFyfMiYgvINO">无人机在仓时坐标</td><td data-page-node-id="8tiEEpEp9jYTKIyrdJvphb">/api/target source=dock，坐标=机场坐标</td><td data-page-node-id="hu3cychoL7zgNjHlB28hIR"><span class="tag s-amber" data-page-node-id="tEwMGsTF02bVmIVPFb34Wy">在仓无无人机坐标</span></td></tr>
+  <tr data-page-node-id="kon1o4X4cm8CEGT1QdJK8y"><td data-page-node-id="ELghqzBjpLhKbtfwoSGjpG">ws-osd 订阅</td><td data-page-node-id="TBAgUDCKHbaFOEgg4klhZa">握手帧 deviceTypes 未显式限制，理论收两类</td><td data-page-node-id="N3EcnmuuCm6Fb66ayI5Fma"><span class="tag s-blue" data-page-node-id="na9Jau5sZu2HvdEKhokZzG">待确认</span></td></tr>
+</table>
+<div class="box warn" data-page-node-id="rC3GUIERYkxFEhpAuhP6zR">
+  <p data-page-node-id="tNvfpZ5yOjYQjNubSHFBAm"><b data-page-node-id="wyz29EL2HKnQrzcPDJi9g2">根因判断</b>：当前 /api/telemetry/latest 只有机场帧，最可能是<b data-page-node-id="8U55w6T8J8VpjuRWvlT5nm">无人机在仓时司空不推 deviceType=1 帧</b>（仅飞行中推送）。这需要一次真飞才能最终确认——而这也恰好是"无人机飞行时显示坐标"场景的天然前提。</p>
+</div>
+
+<h2 data-page-node-id="vo5nXC34A9Wx1kAU30wsmt">三、方案对比</h2>
+<table data-page-node-id="Qd2zJy8vrVw7hf4axLoIIw">
+  <tr data-page-node-id="K7eJ7vigwIujEuBFCXx2pK"><th style="width:16%" data-page-node-id="NH7z03St4YcCTnBVKuty5J">方案</th><th style="width:44%" data-page-node-id="BTBIA0A8m4TzwGyy1KPTHl">做法</th><th data-page-node-id="KIbsVPrtxHzZZgRdJDQnuA">评估</th></tr>
+  <tr data-page-node-id="7hxZVYuTLPpju6XrYNR1i7">
+    <td data-page-node-id="Qo0oE0SvU6TKPvgBLhGCUr"><b data-page-node-id="xEyuZMXYJwdEKHMGA0f6za">A（推荐）</b></td>
+    <td data-page-node-id="Moh0MTGjC5pEvypJCfM4mx">先打通链路 + 真飞验证：<br data-page-node-id="lP9iEYzHCqr8VzsKOIgTdr">① dji-openapi 暴露无人机帧（telemetry.allLatest 已按 deviceSn 去重，需确认无人机帧 key 用 childSn 不冲突）<br data-page-node-id="8GQczijgADT95Vdspfnurv">② 后端 /api/sikong/devices 附带每机场的无人机实时坐标<br data-page-node-id="OH6Gws5J7870A6dAHxNoZI">③ 前端 MapView 给"飞行中"无人机单独打实时 marker<br data-page-node-id="qxS1dE9Y9nRnDOhoUnJU5d">④ 真飞时验证字段与刷新频率</td>
+    <td data-page-node-id="hWcXGlMjGFDga5kgo9VNFV"><span class="tag s-green" data-page-node-id="rpHH7gpEu3naj5aNkSukJA">稳妥</span> 分阶段、风险可控，先验证数据再上 UI</td>
+  </tr>
+  <tr data-page-node-id="VZQzLV2yeTdjXldxE3qnm5">
+    <td data-page-node-id="ZFnXAgLjbYA4H01gqoCmFU"><b data-page-node-id="VffSIKN0RirLT7hlVlA3fD">B</b></td>
+    <td data-page-node-id="1L0PUhvS76kFl1bmqdpPaS">直接按 latitude/longitude 假设写全链路代码，真飞时一起验证</td>
+    <td data-page-node-id="X5SFS214Kc8OVgKQLpbIti"><span class="tag s-amber" data-page-node-id="UQguRaYLzK6hdkIpNhw6j1">快但赌</span> 若字段名/推送时机与假设不符需返工</td>
+  </tr>
+</table>
+<p data-page-node-id="gJTwPrXxRuPT9bqoynTkIq"><b data-page-node-id="tdxqvkdP1q3DAcCEXJagd3">推荐 A</b>：因唯一不确定点是"无人机 OSD 帧的推送时机与字段"，这个只能真飞验证，先做不依赖该不确定性的链路部分，把风险收敛到"最后一步真飞"。</p>
+
+<h2 data-page-node-id="9W3tcLwL7GAjZejJoK0e82">四、落地步骤（方案 A）</h2>
+<table data-page-node-id="GkDgyonV0f2WcfRsTSR4ID">
+  <tr data-page-node-id="jEzno2GSSPgCKLRyxnivE4"><th style="width:8%" data-page-node-id="b2DCDpECATMuzNZ9V0EWYc">步</th><th style="width:34%" data-page-node-id="kPYVVssKTp2miK7stF3Kq3">动作</th><th data-page-node-id="vcsIVBBQsv7uOFko4o8HmD">说明</th></tr>
+  <tr data-page-node-id="jAZhDQavP6FQoKyMM0laxr"><td data-page-node-id="XcaBl3BeXGlI8AY2R3T0XB">G1</td><td data-page-node-id="ME7fXF16z94awjsDKDuIGD">dji-openapi 暴露无人机 OSD 帧</td><td data-page-node-id="WX37TUqdYZgkgyUU7Wa8GT">确认 ws-osd 无人机帧(deviceType=1)被 record；telemetry.allLatest 按 deviceSn 去重时无人机帧不丢失；必要时 /api/telemetry/latest 增加 deviceType 区分</td></tr>
+  <tr data-page-node-id="2UGvWkEzijlETwgS4ZPMCU"><td data-page-node-id="OkjJ5Uh8BKfnqZFQkCN7gx">G2</td><td data-page-node-id="f0BnFxEMIyKlE9yQbf8JYC">后端 /api/sikong/devices 附带无人机坐标</td><td data-page-node-id="xAEDvoXAwOQthAULLy3Nmb">sikong.js fetchMergedDevices 里，把 telemetry 中 deviceType=1 的 latitude/longitude 挂到对应机场 items 的 drone 字段</td></tr>
+  <tr data-page-node-id="En2COERaLZyaIafAaZbv6Y"><td data-page-node-id="AVzgp4DfED6rFQE49PsS5q">G3</td><td data-page-node-id="fn0ivO7uqUbZ5cxxRp7BfP">前端 MapView 无人机实时 marker</td><td data-page-node-id="AwcCb6NypkYtrZwXIVjR1i">给"飞行中"（droneInDock=0）的无人机单独 marker（区别于机场，可带航向/高度），随 OSD 轮询刷新</td></tr>
+  <tr data-page-node-id="lES7g7P0SzDFGiB0DHsvZ7"><td data-page-node-id="PYIQo4Yn75dPjRbyA1ASxA">G4</td><td data-page-node-id="qH9Xzd9nQ7zwbfVPWIX1dK">真飞验证 + 刷新频率调优</td><td data-page-node-id="efabTVtAuIOGU3rz4CGBe2">一次真飞确认字段值/推送频率，调整 marker 刷新间隔（避免抖动）</td></tr>
+</table>
+
+<h2 data-page-node-id="jCmNHUh9it7hbFdlhLGyEu">五、冲突排查</h2>
+<table data-page-node-id="kTeLNWcDLthOTRwF8e3FwL">
+  <tr data-page-node-id="55QKKLSwLV57qkfF1sU2E3"><th data-page-node-id="3GE5fyOprxGlMjM3Nb9dMP">潜在冲突</th><th data-page-node-id="eYVhHdbvT0LwPtb73jbhAw">排查结论</th></tr>
+  <tr data-page-node-id="e2B8B0mr5FYOD2YCN2GDu2"><td data-page-node-id="IOi7DSDXAdTaYTB2pi5MMn">机场 marker vs 无人机 marker 重叠</td><td data-page-node-id="dG3PRUqaWs2pkuwf9rt5Kh">在仓时只显示机场；飞行时无人机 marker 叠加（可偏移或替换），需前端区分 droneInDock 状态</td></tr>
+  <tr data-page-node-id="goBVCODg7ZU2eXeFiJWA4T"><td data-page-node-id="fO8rDfnReK5zZdGH3G3MfC">坐标偏移（GCJ-02 vs WGS-84）</td><td data-page-node-id="mMrdjeSliX7OYDbSYcYfes">司空给的经纬度是 WGS-84 还是 GCJ-02 需真飞验证；MapView 已有 coord 转换工具，可复用</td></tr>
+  <tr data-page-node-id="4iE7fer1E84vP58WdZPaNV"><td data-page-node-id="0Flntaqo1FRjB0W3IuHkuG">OSD 轮询频率</td><td data-page-node-id="W7603aeR8tiOkWSB6ko1L6">当前 ws-osd 是推送式，前端应订阅而非轮询；若走 /api/sikong/devices 轮询，需控制频率（建议 3-5s）</td></tr>
+  <tr data-page-node-id="TbXWbIlKCaY0qq9BEYNrdb"><td data-page-node-id="ScX7SjMA6M6oD4fJwzH2rL">与秸秆检测拉流的资源争用</td><td data-page-node-id="lbHfswalfC81vAq3vFiJut">无——坐标是 OSD 遥测通道，与视频流(ZLM)独立</td></tr>
+</table>
+
+<h2 data-page-node-id="tm2MFB6IE0aChstesUThmU">六、风险与回滚</h2>
+<table data-page-node-id="ULKk63hHUCbCD8QgMcD0cF">
+  <tr data-page-node-id="XNkBGDnUH6HfXTtiw6QQfe"><th data-page-node-id="Bgr4nv9DIyKEjRCjua1NbX">风险</th><th data-page-node-id="xunWGXlA8TNBs0upUCI5yZ">等级</th><th data-page-node-id="EbC4Qox1ACpTYZAVcF4cIV">回滚</th></tr>
+  <tr data-page-node-id="jzNoCIs6vOIgx8CgXyvuJM"><td data-page-node-id="c3mO7Z53OnaotVg8cBlFjF">无人机 OSD 帧真飞时字段名与假设不符</td><td data-page-node-id="R4bvPJT7y6pmbrywPvxwXE">中</td><td data-page-node-id="aEfoCNFTAMkSleyTBhdCHA">G1 阶段先抓一帧确认字段，不符即改 pick() 路径，不改核心逻辑</td></tr>
+  <tr data-page-node-id="nIxU6DWp38O6ng2K98AWSW"><td data-page-node-id="9hUWNylkv5o8Snuw7F8i8e">真飞时无人机坐标频繁跳动导致 marker 抖动</td><td data-page-node-id="22Rp7bGUultBr9N596QtJh">低</td><td data-page-node-id="for1LN8OEci98ZZi6Da9h4">前端做坐标平滑/最小位移过滤</td></tr>
+  <tr data-page-node-id="LFytAkkbuEubdlNmDASTE2"><td data-page-node-id="g8JXCTg3RCtGcC8m0hwMU4">改动影响现有机场标记/OSD 信息窗</td><td data-page-node-id="PWxs8oDBamiNLLSWRdjgHW">低</td><td data-page-node-id="OEtDS1o45Ucb0LwulY7PFY">纯增量（新增无人机 marker 字段），不改机场渲染逻辑，git 可回滚</td></tr>
+</table>
+
+<h2 data-page-node-id="2h1SYguJ1O6yoUy8irPl8N">七、排期预估</h2>
+<table data-page-node-id="FacQXHpZX9EH7xJ5wPIH0h">
+  <tr data-page-node-id="Byw7zGJKY2o6590lFlEp1M"><th data-page-node-id="lQdYztHGxLUrHqbWGS8CDH">阶段</th><th data-page-node-id="QsiokfLyx54VW5UGoWvN3o">工作量</th><th data-page-node-id="7DZfTNWxBGWfcPA1Bq48fg">说明</th></tr>
+  <tr data-page-node-id="4gOH3m34I1AcACHBTwCwhr"><td data-page-node-id="GUrjtpkb7BaG8Erl9SONLy">G1 暴露无人机帧</td><td data-page-node-id="VE1HT6NEbFOD6OzBCLfenr">0.5 天</td><td data-page-node-id="QtWQC1mP4vEe088SbTnEVd">纯后端排查+小改，可立即做（不依赖真飞）</td></tr>
+  <tr data-page-node-id="1JGbgMu8m53BOyZQWKGfPP"><td data-page-node-id="TcRtP5ZpSUCh44wmEdbR5w">G2 后端附带坐标</td><td data-page-node-id="9EK0QyifKGb5wlXckeAbLb">0.5 天</td><td data-page-node-id="7xGvspGH9VLe0AgqTVj0lp">sikong.js 小改</td></tr>
+  <tr data-page-node-id="1ulkJ2cBpzoqqSvCAeogys"><td data-page-node-id="7N1JTIFdg0MzTemKUzs1I1">G3 前端 marker</td><td data-page-node-id="4F7t8P1bVyKI71LkZYd9B2">1 天</td><td data-page-node-id="jq209u9WRedpQNSRGDj5SP">MapView 增量渲染</td></tr>
+  <tr data-page-node-id="PnSqixmZdEF8AGfxYNA6rQ"><td data-page-node-id="LvVdEWhoRCpjjPbCTLT6zi">G4 真飞验证</td><td data-page-node-id="o5o8NGOTPjUmSNK2rdlc6D">1 次飞行窗口</td><td data-page-node-id="1wbcpmgs8aFkEOFAqMiuFv">唯一外部依赖，需协调飞行任务</td></tr>
+</table>
+<p data-page-node-id="sKxKznmFHUxxWE164ehPcI"><b data-page-node-id="AjwXIzrjBGVeZDz9XaUvrF">合计：约 2 天开发 + 1 次真飞验证。</b>G1-G3 可先做，G4 等真飞。</p>
+
+<div class="foot" data-page-node-id="9Ljknvlf2DLZT31FYW37rN">
+  本报告基于 2026-09-08 代码级排查（只读，未改动任何配置）。核心依据：司空 dock-sdk 反编译（OsdDockDrone 含 latitude/longitude/height 字段）+ 实测 /api/telemetry/latest 仅有机场帧。待拍板：是否按方案 A 开工 G1-G3。
+</div>
+
+</div>
+</body>
+</html>

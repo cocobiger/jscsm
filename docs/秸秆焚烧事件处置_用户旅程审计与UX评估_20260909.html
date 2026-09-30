@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="NvF3TNHIDlc0ErSCEZ62no">
+<head data-page-node-id="HmiH0wdGrBK1xFkIFvYNtF">
+<meta charset="UTF-8" data-page-node-id="HhIHOwSl3d8gdUHTVrbI0m">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="i3iGT9XvCBNg2IU7FTG0lG">
+<title>秸秆焚烧事件处置 · 用户旅程审计与 UX 评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1080px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .journey{display:flex;flex-direction:column;gap:0;margin:16px 0}
+  .jstep{display:flex;gap:12px;border-left:3px solid var(--line);padding:10px 14px;position:relative}
+  .jstep.ok{border-left-color:var(--green)}.jstep.warn{border-left-color:var(--amber)}.jstep.bad{border-left-color:var(--red)}
+  .jnum{flex:0 0 28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .jstep.ok .jnum{background:var(--green)}.jstep.warn .jnum{background:var(--amber)}.jstep.bad .jnum{background:var(--red)}
+  .jbody{flex:1}
+  .jtitle{font-weight:700}
+  .jmood{font-size:12px;color:var(--mut)}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="rZfyGdtB7J4cTtYtBMa0r6">
+<div class="page" data-page-node-id="BGK45L8jBTu2N8GIzWf2jv">
+
+<div class="doc-head" data-page-node-id="qWTdreesZIbzrutZgMos9V">
+  <div class="org" data-page-node-id="cZzOg5De9OqujOGFS15dGj">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="xjF3DhhCiW2NOvNAoNOUvz">秸秆焚烧事件处置 · 用户旅程审计与 UX 评估</div>
+  <div class="subtitle" data-page-node-id="cbvP6bvGkXI7DBcovo9998">—— 从「算法识别 → 坐标定位 → 镇街归属 → 事件卡片 → 人工复核」全链路体验评估</div>
+  <div class="meta" data-page-node-id="PZ0MyyfQfJ7kvPjGONkb1L"><span data-page-node-id="F3hkWMj9TBYnhRqcwvAyB2">编制时间：2026-09-09</span><span data-page-node-id="4qFbyuuIDH30QIBqFCMyBD">方法：NN/g 服务设计旅程图 + HEART 框架</span><span data-page-node-id="gPDPTCfaDbEEDkgef2YIix">性质：用户旅程审计 + UX 痛点 + 开发排期</span></div>
+</div>
+
+<h2 data-page-node-id="MvJKCeU2NwLD6WBQhWvV4B">一、结论摘要</h2>
+<div class="box green" data-page-node-id="QFAybVDGnoUy94USqZy9Wk">
+  <p data-page-node-id="EcMyd9Frk3elL6qN5iOiIo"><b data-page-node-id="QKAIbABMu7S87Kn6SJmMF0">业务链路 80% 已实现，闭环基本打通；核心痛点集中在地图定位的「准确性」上。</b></p>
+  <p data-page-node-id="OZFqZEUmxhqjdwyCrjLT5V">① 算法识别 → OSD 坐标 → 镇街反查 → 责任单位 → 事件卡片 → 人工复核，<b data-page-node-id="ChoGERhVOkJgc1B1mcV9rF">六大环节全部已有实现</b>；<br data-page-node-id="rpswSBoPrl36Lacf6AiQdL">
+  ② <b data-page-node-id="WgODIjCy3oCm8LFKkW3e4p">P0 痛点：腾讯地图导航坐标偏移</b>——告警坐标是 WGS-84（OSD GPS），但腾讯地图链接未转 GCJ-02，手机端导航偏移约 300~500 米；<br data-page-node-id="U2gAlPD62N6zARRxmvR1Uk">
+  ③ <b data-page-node-id="6avNmM1sFkDLgPttiSJPM4">P1 痛点</b>：坐标精度依赖三层降级（engine → OSD 精确定位 → 兜底万州中心）+ 手机端「自动导航」是网页链接非 App 深链；<br data-page-node-id="As8U5osgB28wTT6qKSFdxI">
+  ④ <b data-page-node-id="FwOwbjZeYfr5oc1fBVeH6A">开发排期约 0.8 天</b>，P0 一行坐标转换即可修复。</p>
+</div>
+
+<h2 data-page-node-id="3fUcG0Qgm25shaMKKamu2r">二、现状盘点（业务链路六大环节）</h2>
+<table data-page-node-id="fkHTjYpoHreoHZqqcNBhmE">
+  <tr data-page-node-id="Yvt3dMiIge1xfvtaEBBCR9"><th style="width:18%" data-page-node-id="bYp0XMACskZDHVkbtrWfW5">环节</th><th style="width:12%" data-page-node-id="QuR4U5UzyftYH8ixfQ0vOi">状态</th><th data-page-node-id="lnYDywfuIYVrYrmHHAAnQL">实现方式（代码级）</th></tr>
+  <tr data-page-node-id="KaeyVMzPTRldo2erPLqyeK"><td data-page-node-id="rGlfe84mJEOlMc2oGjxekw">① 算法识别</td><td data-page-node-id="JtrfV2fLo3b3J3Lg0H2tlh"><span class="tag s-green" data-page-node-id="1xR3bKXYGtnZCDRxku8QNt">✅ 已实现</span></td><td data-page-node-id="UVik3P5LM4D7bQQ7s8L4LG">straw-engine stage2（含 09-09 补训）检测 smoke/fire → 连续 3 帧确认 → POST /api/straw-alert</td></tr>
+  <tr data-page-node-id="ur1GKW4P6BTTq10juAHzXs"><td data-page-node-id="OpvD54VxnxfEmBLYLfL0xF">② OSD 坐标</td><td data-page-node-id="HBUvOXaxovd0Dkmg29bMyB"><span class="tag s-green" data-page-node-id="hEBJ5CfqHVbWRKDw5rttja">✅ 已实现</span></td><td data-page-node-id="WQd8GC5CcRsW6MN3R3FNxJ">三层降级：engine 自带坐标 → fetchAlertTarget（OSD GPS+云台测距）→ 兜底万州中心(30.8077,108.4076)；geoSource 记录来源</td></tr>
+  <tr data-page-node-id="hlsFe6K6GUt0ehR8OWvsr7"><td data-page-node-id="zAlO0Ehd61C7gsvEMB2xWp">③ 镇街反查</td><td data-page-node-id="P2meSgCDy6uUiZMmxNqp3J"><span class="tag s-green" data-page-node-id="0H0IReRAI2393nMuWFWoVJ">✅ 已实现</span></td><td data-page-node-id="3BKwI6tBciKZ1jxCz1n5TV">reverseGeocode（PIP 点在多边形，WGS-84）→ area_boundary 表 <b data-page-node-id="qdHUTOEQMrax5c75zzH5Xm">51 镇街全覆盖</b> + division_code</td></tr>
+  <tr data-page-node-id="DpDOqzH7xuTI5dZTOp0lmr"><td data-page-node-id="zCvLP6AGWoQx65FXfhabPm">④ 责任单位</td><td data-page-node-id="PZzBZXUcmPlz3WN7Hfhl37"><span class="tag s-green" data-page-node-id="ZwsKrBzegPnYvZJRIazFnB">✅ 已实现</span></td><td data-page-node-id="3kfTZuewOIKpgieO1A3MSD">findResponsibility(town.name) → resp.unit / person / phone</td></tr>
+  <tr data-page-node-id="4Ln2y7THxdKH1mbHDdF2Dc"><td data-page-node-id="NUJepA1zr8PDCsCAnVQEUF">⑤ 事件卡片</td><td data-page-node-id="KmPWq4qRisCxHARsbTc1VF"><span class="tag s-green" data-page-node-id="5CvmTPg5fnwezn1Jek85Up">✅ 已实现</span></td><td data-page-node-id="V1p6uyOhDT56N8tBNvSnpk">时间(firstSeenAt 截取 HH:MM:SS)、图片(picUrl)、置信度(aiConfidence)、坐标(lat/lon)、腾讯地图链接、责任单位</td></tr>
+  <tr data-page-node-id="4AJZp25QJHfe3yD4cfojVI"><td data-page-node-id="gCnwSX5oIBLWuI2UWktYTV">⑥ 人工复核</td><td data-page-node-id="xKTZBqDIPa6CaGHz8wQHI1"><span class="tag s-green" data-page-node-id="n2jrlCR85OOASiHmKCjEkm">✅ 已实现</span></td><td data-page-node-id="IOKnAGLd0TdDeua4ashonm">/api/straw-review（true/false/miss）+ 复检 gate（pre/post/off）+ 复核直达链接(openAlert=id)</td></tr>
+</table>
+
+<h2 data-page-node-id="JsHXSEo3GZV3lcKcUuAOrS">三、用户旅程图</h2>
+<p data-page-node-id="OZtsYu1uOe7SynYuitx5Rd"><b data-page-node-id="J0n4JtQFmGPKzp1B5PSVVj">Persona</b>：① 值班复核员（收到告警→复核卡片→判定）；② 责任单位处置员（收到微信→看地图导航→现场处置）。</p>
+
+<div class="journey" data-page-node-id="ImuZnLUfOSOCUFK3pR0Fla">
+  <div class="jstep ok" data-page-node-id="EyyvJZsPBMKjDm3bJwzs4z"><div class="jnum" data-page-node-id="Tlrw82f1KKXtPxJV484Ap9">1</div><div class="jbody" data-page-node-id="BGgVSbPn1oYXiHA9cPc7Il">
+    <div class="jtitle" data-page-node-id="QkvXalf4qeeYqwlNwDoWFZ">触发：算法识别出秸秆焚烧</div>
+    <div class="jmood" data-page-node-id="5RFdSe4OJWcDkj9lkdl22k">😐 情绪平稳 · 自动化，无人工介入</div>
+    连续 3 帧确认 → 生成告警。已实现，含 09-09 补训后对「稀释远烟」召回提升。
+  </div></div>
+
+  <div class="jstep warn" data-page-node-id="eyXT01Soi1fRSQAVEeguCK"><div class="jnum" data-page-node-id="I4DtnuBX9WQhRLluR4DOc6">2</div><div class="jbody" data-page-node-id="G4upd6oCimq7ClTD9kH9FI">
+    <div class="jtitle" data-page-node-id="53LwL1oqSXfZSuIXQ9bdCF">定位：OSD 坐标 + 镇街归属</div>
+    <div class="jmood" data-page-node-id="1CIwOUpi6LyiFWlmiXbf9x">😟 潜在焦虑 · 坐标精度不确定</div>
+    三层降级（engine→OSD→兜底）。<b data-page-node-id="Y7fjB4GA8TKNdIglU6V0xC">摩擦点</b>：engine 坐标精度未明；司空链路不可达时兜底万州中心（定位误导）；坐标是 WGS-84 但后续腾讯地图需 GCJ-02。
+  </div></div>
+
+  <div class="jstep ok" data-page-node-id="cppIVk5trTz8HugYmBpZVG"><div class="jnum" data-page-node-id="YfS3uSAzI50urRGcRf6nOx">3</div><div class="jbody" data-page-node-id="eOvSHd3kJ2F4gUbRS3LWyq">
+    <div class="jtitle" data-page-node-id="f5zF97yMyjjzIMLr9sqKli">卡片生成：时间+图片+置信度+地点+责任单位</div>
+    <div class="jmood" data-page-node-id="2PUKYtmBWnOWt6mKBqlCmu">😐 平稳 · 字段齐全</div>
+    卡片字段完整（时间/图片/置信度/坐标/腾讯地图链接/责任单位）。<b data-page-node-id="mc5t7AJiAjv9YSBiLl55XU">摩擦点</b>：时间只有 HH:MM:SS 无日期。
+  </div></div>
+
+  <div class="jstep bad" data-page-node-id="yIYxIclzOdlPQbXkF8lGtV"><div class="jnum" data-page-node-id="iTwdARPc3hPj5L4Y006lj1">4</div><div class="jbody" data-page-node-id="Kw79ZA1qKhigeVwE5LdsiM">
+    <div class="jtitle" data-page-node-id="QsWV7r5lw0bMB3cuFaxZE9">推送 + 导航：责任单位打开地图去现场</div>
+    <div class="jmood" data-page-node-id="9dligBNWuFLw08eIHF8PVR">😫 挫败 · 导航坐标偏移</div>
+    <b data-page-node-id="VzsoAgC5zZdSsfPkqHzv8W">P0 摩擦点</b>：腾讯地图链接 map.qq.com/?pt=lat,lon 用的是 <b data-page-node-id="CPpmWlFpGsxMRrJzrQAlKz">WGS-84 原始坐标，未转 GCJ-02</b> → 手机端打开导航偏移 300~500 米，可能导错路口/地块。
+  </div></div>
+
+  <div class="jstep ok" data-page-node-id="3h7eXDFiJ3IM9m5HwFbul5"><div class="jnum" data-page-node-id="Auz7PwyrssEyFCOBYnDHOw">5</div><div class="jbody" data-page-node-id="D6JCNeYJDnGcFf53VnoVvE">
+    <div class="jtitle" data-page-node-id="3AbvRt9van3QoPV9CCwcml">人工复核：值班员判定真烟/误报</div>
+    <div class="jmood" data-page-node-id="AaxgpyevKNUferOtcfTcbU">😐 平稳 · 闭环完整</div>
+    复核直达链接 + verdict true/false/miss + 误报更正推送。已实现闭环。
+  </div></div>
+</div>
+
+<h2 data-page-node-id="eXD0i9n6oirXBTXYsqyEmy">四、痛点清单（按严重度分级）</h2>
+<table data-page-node-id="KC5wRTQD7tALp7LOEto00a">
+  <tr data-page-node-id="jY3aSL2QEKJJoeH9SF1LJr"><th style="width:6%" data-page-node-id="zNoLUja7XA1GxEuzu9vR3z">级</th><th style="width:30%" data-page-node-id="wvuNHMY7Xg0e9xJymyw7Mc">痛点</th><th style="width:12%" data-page-node-id="RG0xPkAEB1BUQWbAtofOOv">依据</th><th data-page-node-id="DUEy4HWQImn9dTWFUQt8Id">影响</th></tr>
+  <tr data-page-node-id="A5x5jL5il2F4oPx8TQG8JT"><td data-page-node-id="xNooZeXOqtgWtkubzmq13P"><span class="tag s-red" data-page-node-id="p7i0jWPeT204vfNmBtqjTo">P0</span></td><td data-page-node-id="thLaFBBU0AFO9qCutTOFtc"><b data-page-node-id="1ylYRA6H5Dc6tCqaYUhq39">腾讯地图导航坐标偏移</b>：告警 WGS-84 坐标未转 GCJ-02 直接给腾讯地图</td><td data-page-node-id="noig8oH1aNCN9AK751cMAN">[实测] index.js L1772 直接 `map.qq.com/?pt=${lat},${lon}`；coord.js 有 wgs2gcj 但告警链路未用</td><td data-page-node-id="JYKEcZQS8xBtpwgc15wSIj">手机导航偏移 300~500 米，责任单位可能导错现场，<b data-page-node-id="NDvLPWGIFxyEX9tJKsBXhV">直接影响处置效率</b></td></tr>
+  <tr data-page-node-id="bRaaXrienQYOE1eRJGY0g4"><td data-page-node-id="KAZdzRfb3OpyiU0rFoPvR0"><span class="tag s-amber" data-page-node-id="tzeAB3jF9idbSPLAPsndND">P1</span></td><td data-page-node-id="yMLzoHNTkanuHJ3m5cdvd3"><b data-page-node-id="VF6zhyM5hCBOcB5vdQ7tOI">坐标精度依赖降级链</b>：engine 坐标精度未明，兜底是万州中心</td><td data-page-node-id="2vnCjN2rNp9rf0lPBUDRxW">[实测] index.js L1624 兜底 30.8077,108.4076（市中心）</td><td data-page-node-id="BR2G2HmFmoQM0iFuO2Ay4v">司空链路不可达时定位到市中心，误导处置</td></tr>
+  <tr data-page-node-id="T6SJoMNKj49uJlUzOYObff"><td data-page-node-id="MIze1P2TdK8QqknKZQjZ2u"><span class="tag s-amber" data-page-node-id="iAwNj0U6jAFYrFpjogce48">P1</span></td><td data-page-node-id="zCJlcma6pHRfaC06LtFgmT"><b data-page-node-id="GaWq10A9MPwYq8MEGBziWf">「自动导航」是网页链接非 App 深链</b>：map.qq.com 是网页，非腾讯地图 App 导航</td><td data-page-node-id="5ErmDEgvGZmjSK7tAtT4bA">[推断] 需确认手机端打开体验</td><td data-page-node-id="9Uo9dsEv4wtuMt5vrNdzcO">「手机端自动导航」体验不完整</td></tr>
+  <tr data-page-node-id="97YATOOPiPRo56DwTvNKXt"><td data-page-node-id="n01z6eFZEGPQpE5BV3QHFi"><span class="tag s-amber" data-page-node-id="zLDhe8VrFn9OPNXuWjgOvk">P2</span></td><td data-page-node-id="1xHu5sTkt6glgg0AXOJSnA"><b data-page-node-id="3Kpop7hyS91CKwBx5bA9nl">卡片时间只有 HH:MM:SS 无日期</b></td><td data-page-node-id="G7f4i8vq9X4B6sKkIZ00XA">[实测] index.js L1643 firstSeenAt.slice(11,19)</td><td data-page-node-id="LXjtSiYihMlP8kXF0JKscZ">跨天/延迟复核时时间歧义</td></tr>
+</table>
+
+<h2 data-page-node-id="cVJpCFmFDrFKQ4XetFWvbG">五、开发现状评估 + 排期</h2>
+<table data-page-node-id="S3YUbeZEn9XGLouN4ISk3z">
+  <tr data-page-node-id="qCrOdJXIusqExHdQNaQhkz"><th style="width:6%" data-page-node-id="d8yZvFdKzBlfCdLo6Njp9B">序</th><th style="width:34%" data-page-node-id="JbxADsdOVQcX6Z7jBagug7">改动点</th><th style="width:10%" data-page-node-id="F1ELVWRQNPL4nYAtDDN4CU">工作量</th><th data-page-node-id="10TdfTJoosD6MCwjGdkIWC">说明</th></tr>
+  <tr data-page-node-id="7MqpuDdwBcwZDcHaFGozeY"><td data-page-node-id="KvvcH7vKfHbe17ALrGAU01">1</td><td data-page-node-id="3dQWXnhSPmeHYRdtOighN1"><b data-page-node-id="TAONBkDPHr61mNF9z9uPYN">P0 坐标转换修复</b>：告警链路 map.qq.com 前加 wgs2gcj</td><td data-page-node-id="xciyR8vfpXdPyMCbb2DTOC">0.2 天</td><td data-page-node-id="b1UV13Mk3eMxGMhDblz4U5">index.js L1772 改 `coord.wgs2gcj(lat,lon)`，一行修复，立即消除导航偏移</td></tr>
+  <tr data-page-node-id="zFfXVl87Xzyqq2MzNH5t0A"><td data-page-node-id="0DC0Yoo7hiVeD0RDZmK431">2</td><td data-page-node-id="LeBfCaqsg8VyIGF4SoA7QK"><b data-page-node-id="MfOIPec4FODJCQZjrHVaLu">P1 坐标精度优化</b>：engine 坐标来源梳理 + 兜底策略标注「定位不精确」</td><td data-page-node-id="XYk1f801wrXaBQ48BA4PNW">0.3 天</td><td data-page-node-id="x1ZAIiKOM71AC1pTYCbMZH">确认 straw-engine 检测帧坐标来源；兜底时卡片明确标注「定位待精确定位」</td></tr>
+  <tr data-page-node-id="HxL3ShI4JwqGn75UFMckby"><td data-page-node-id="QDNx9Y0TB95DQCD15R4FZH">3</td><td data-page-node-id="K6fKVh3I3m0N5xRKv5SWA7"><b data-page-node-id="aBNHZaU9yPA6CiK8FTsRxL">P1 手机导航深链</b>：腾讯地图 App uri scheme 或坐标 GCJ-02 深链</td><td data-page-node-id="qEJ7SzGfVW1G095XO0mdHu">0.2 天</td><td data-page-node-id="HHwyV8yNimLhfAHMnMfAEy">确认手机端打开体验后决定是否需要 navi 深链</td></tr>
+  <tr data-page-node-id="CPAXXkOb6kmjvFgMNbUhVI"><td data-page-node-id="FWHRqET2G0j0vli3v5hMUv">4</td><td data-page-node-id="ABZQ1YVjCwaS9byv1b41bw"><b data-page-node-id="nNweh00SwOK8mi8CHOkg0F">P2 时间精度</b>：卡片补日期+完整时间</td><td data-page-node-id="nT6zGhmE5Ic3D877guU1KB">0.1 天</td><td data-page-node-id="N8OuzMLTd0vzEUcZDJKrnJ">firstSeenAt 展示完整日期时间</td></tr>
+  <tr data-page-node-id="3iTHSq7ULAGL8Yqys597Eh"><td colspan="2" data-page-node-id="UMxyNXnh3ViG4p6x3mbRKv"><b data-page-node-id="cMZgWeWDY99TsmfAwAo4Pa">合计</b></td><td data-page-node-id="JsCPRMoj5E6MqycEgWcDCg"><b data-page-node-id="STSPC9zR9EWX7esCqC9IVe">~0.8 天</b></td><td data-page-node-id="0QYhnkOUXpFFtdJEVXBGIL">—</td></tr>
+</table>
+
+<h2 data-page-node-id="uX4NHpksB1lVRugm8qBsKi">六、优先级排序（影响 × 成本）</h2>
+<div class="box warn" data-page-node-id="OwfeGEZzmjbCScRmL4AwmW">
+  <p data-page-node-id="X6QRCbWX7RaHNFMs1RCXOh"><b data-page-node-id="5xvyrJvHrQWDdHEo49n22r">建议顺序</b>：先做 <b data-page-node-id="QiCRDauzfKY79OyifJKcpH">P0 坐标转换</b>（0.2 天，一行修复，消除导航偏移这个最影响处置效率的痛点）→ 再评估 <b data-page-node-id="mQMgVGcu2E5aZJM3Ea6JjU">P1 坐标精度</b>（0.3 天）→ <b data-page-node-id="UM41We8KCXeHmFZmChUROM">P1 手机深链 + P2 时间</b>（0.3 天）。</p>
+  <p data-page-node-id="77QMxVvKEERqiZOIlZeHGx"><b data-page-node-id="rrskl78dS5OihjpqLAUwUH">核心判断</b>：链路主体已完整（80% 已实现），无需大改；核心是把「导航准确性」这个决定处置成败的关键点做对——<b data-page-node-id="le4RzVm58dfjLg1dyrY9Bq">坐标转 GCJ-02 是唯一 P0</b>，改完即可显著提升用户体验。</p>
+</div>
+
+<div class="foot" data-page-node-id="yxXZvijhd4qP7grut0LgUk">
+  本报告基于 2026-09-09 代码级盘点（index.js straw-alert 链路 L1608-1835 / reverse-geocode.js / coord.js / sikong.js fetchAlertTarget + 服务器 area_boundary 51 镇街）。方法：NN/g 旅程图 + HEART。标注：[实测]=代码/环境走查，[推断]=基于实现逻辑推断，[待确认]=需真机验证。
+</div>
+
+</div>
+</body>
+</html>

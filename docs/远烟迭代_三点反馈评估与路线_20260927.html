@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「远方轻烟」迭代 · 三点反馈评估与路线 · 2026-09-27</title>
+<style>
+  :root{
+    --ink:#1a1d21; --ink2:#4a5158; --ink3:#7a828a;
+    --line:#e3e7ea; --line2:#cfd6db;
+    --bg:#f6f8f9; --card:#ffffff;
+    --brand:#1f6feb; --brand-bg:#eaf2ff;
+    --ok:#0f7b3f; --ok-bg:#e8f7ee;
+    --warn:#a86400; --warn-bg:#fff6e5;
+    --bad:#b3261e; --bad-bg:#fdecea;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:15px; line-height:1.75; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:36px 28px 80px}
+  header.top{border-bottom:3px solid var(--ink); padding-bottom:18px; margin-bottom:28px}
+  h1{font-size:26px; line-height:1.35; margin:0 0 8px; letter-spacing:-.2px}
+  .sub{color:var(--ink3); font-size:13.5px}
+  .sub b{color:var(--ink2); font-weight:600}
+  h2{font-size:20px; margin:44px 0 14px; padding-left:12px; border-left:5px solid var(--brand); line-height:1.4}
+  h3{font-size:16.5px; margin:26px 0 10px}
+  h4{font-size:14.5px; margin:20px 0 8px; color:var(--ink2)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0; padding-left:24px}
+  li{margin:6px 0}
+  code{font-family:var(--mono); font-size:12.8px; background:#eef1f4; padding:1.5px 5px; border-radius:4px; color:#243b53}
+  pre{background:#1f2430; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto; font-size:12.6px; line-height:1.6; margin:12px 0}
+  pre code{background:none; color:inherit; padding:0}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:16px 0}
+  .card.tight{padding:14px 16px}
+  .note{border-left:4px solid var(--brand); background:var(--brand-bg); padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0}
+  .warn{border-left:4px solid var(--warn); background:var(--warn-bg); padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0}
+  .bad{border-left:4px solid var(--bad); background:var(--bad-bg); padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0}
+  .okbox{border-left:4px solid var(--ok); background:var(--ok-bg); padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0}
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13.6px; background:var(--card)}
+  th,td{border:1px solid var(--line2); padding:8px 10px; text-align:left; vertical-align:top}
+  th{background:#eef2f5; font-weight:600; white-space:nowrap}
+  tbody tr:nth-child(even){background:#fafbfc}
+  td.num,th.num{text-align:right; font-family:var(--mono); font-size:12.8px}
+  .badge{display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap}
+  .b-ok{background:var(--ok-bg); color:var(--ok); border:1px solid #bfe3cd}
+  .b-warn{background:var(--warn-bg); color:var(--warn); border:1px solid #f0d9a8}
+  .b-bad{background:var(--bad-bg); color:var(--bad); border:1px solid #f3c4c0}
+  .b-info{background:var(--brand-bg); color:var(--brand); border:1px solid #c4dbff}
+  .bars{margin:14px 0}
+  .bar-row{display:flex; align-items:center; gap:10px; margin:5px 0; font-size:13px}
+  .bar-lab{width:120px; flex:none; color:var(--ink2); font-family:var(--mono); font-size:12.4px}
+  .bar-track{flex:1; background:#eef1f4; border-radius:4px; height:20px; position:relative; overflow:hidden}
+  .bar-fill{height:100%; border-radius:4px; background:linear-gradient(90deg,#4b8bf4,#1f6feb)}
+  .bar-fill.hot{background:linear-gradient(90deg,#ef6a5f,#b3261e)}
+  .bar-fill.dim{background:linear-gradient(90deg,#9fb4c9,#7d93a8)}
+  .bar-val{width:132px; flex:none; text-align:right; font-family:var(--mono); font-size:12.4px; color:var(--ink2)}
+  .col2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .col3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+  .kpi{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px}
+  .kpi .v{font-size:23px; font-weight:700; font-family:var(--mono); letter-spacing:-.5px}
+  .kpi .k{font-size:12.5px; color:var(--ink3); margin-top:2px}
+  .kpi .d{font-size:12.5px; color:var(--ink2); margin-top:6px}
+  .kpi.bad .v{color:var(--bad)} .kpi.ok .v{color:var(--ok)} .kpi.info .v{color:var(--brand)}
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 20px}
+  .toc ol{margin:6px 0; columns:2; column-gap:28px}
+  .toc a{color:var(--ink2); text-decoration:none; border-bottom:1px dotted var(--line2)}
+  .toc a:hover{color:var(--brand); border-color:var(--brand)}
+  .foot{margin-top:52px; padding-top:18px; border-top:1px solid var(--line2); color:var(--ink3); font-size:12.5px}
+  .src{font-size:12.4px; color:var(--ink3); font-family:var(--mono)}
+  svg{display:block; max-width:100%}
+  @media print{
+    body{background:#fff; font-size:12pt}
+    .wrap{max-width:none; padding:0}
+    .card,.kpi{break-inside:avoid}
+    h2{break-after:avoid}
+    pre{background:#f4f6f8; color:#1a1d21; border:1px solid var(--line2)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>「远方轻烟」迭代 · 三点反馈评估与路线</h1>
+  <div class="sub">
+    <b>项目</b>：万州区秸秆焚烧监控（straw-engine / ONNX + ORT CUDA）&nbsp;·&nbsp;
+    <b>日期</b>：2026-09-27&nbsp;·&nbsp;
+    <b>性质</b>：需求评估（未改生产）<br>
+    文中所有数字均为<b>当日实测</b>，非估算、非历史记忆。复现命令见 §9。
+  </div>
+</header>
+
+<div class="card">
+  <h3 style="margin-top:0">结论先行</h3>
+  <table>
+    <thead><tr><th style="width:78px">编号</th><th>你的反馈</th><th style="width:92px">评估</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>①</b></td>
+        <td>每天 ≤5 次飞行、多为单机场（单路）</td>
+        <td><span class="badge b-ok">成立</span></td>
+        <td>我先前"6 路×2s＝单卡满载、无余量"的约束<b>作废</b>。单路 2s 预算 2000ms 下余量约 <b>39×</b>（纯推理）。这解锁了 ROI 切片、更高分辨率，更重要的是<b>可把 interval 2s→1s</b>，让时序判别变得可行。</td>
+      </tr>
+      <tr>
+        <td><b>②</b></td>
+        <td>mosaic 开启后重做数据集训练？</td>
+        <td><span class="badge b-warn">可开但有前提</span></td>
+        <td>已查源码确认<b>不存在"开了会被立刻关掉"的陷阱</b>（我先前怀疑有误）；但要<b>配套"大气衰减仿真"+ 真实小尺度难负</b>，单靠 mosaic 不够。</td>
+      </tr>
+      <tr>
+        <td><b>③</b></td>
+        <td>画面上方 10% 不参与远烟判定</td>
+        <td><span class="badge b-ok">成立</span></td>
+        <td>实测真实流上方 10% 仅占 <b>1.04%</b> ⇒ 代价≈漏 1~2%，可接受。<b>但实现方式必须改</b>：固定百分比有 3 个隐患，应改为<b>动态天际线 + 接地先验</b>。</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note" style="margin-bottom:0">
+    <b>贯穿三条的一个总纲</b>：本次迭代的根因是<b>尺度缺口</b>——现网模型从未见过 &lt;40px 的烟。
+    因此所有动作都应围绕"<b>把远烟变成模型见过的东西</b>"，而不是调阈值。
+  </div>
+</div>
+
+<div class="toc">
+  <b style="font-size:13.5px">目录</b>
+  <ol>
+    <li><a href="#s1">背景与根因定性</a></li>
+    <li><a href="#s2">实测基线（三张事实表）</a></li>
+    <li><a href="#s3">反馈①：算力余量重估</a></li>
+    <li><a href="#s4">反馈②：mosaic 评估</a></li>
+    <li><a href="#s5">反馈③：上方 10% 屏蔽评估</a></li>
+    <li><a href="#s6">修订后的迭代路线</a></li>
+    <li><a href="#s7">风险与回滚</a></li>
+    <li><a href="#s8">反面清单（明确不做）</a></li>
+    <li><a href="#s9">附录：工具与复现</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">1. 背景与根因定性</h2>
+<p>现网秸秆烟检测使用两个模型，<b>白天 / 夜间同训自同一套数据</b>：</p>
+<table>
+  <thead><tr><th>项</th><th>实测值</th></tr></thead>
+  <tbody>
+    <tr><td>白天模型</td><td><code>v5_smoke_v5/stage9_1920/weights/best.onnx</code></td></tr>
+    <tr><td>夜间模型</td><td><code>v5_smoke_v5/stage3_0909/weights/best_1920.onnx</code></td></tr>
+    <tr><td>训练数据</td><td><code>/video/shujuji/datasets/v5_train_v5/v5_smoke_v5_s2.yaml</code>（nc=1 <code>['smoke']</code>）</td></tr>
+    <tr><td>训练参数</td><td><code>imgsz</code> 1920(day) / 1280(night)｜<code>scale=0.5</code>｜<b><code>mosaic=0.0</code></b>｜<code>epochs=30</code>｜<code>batch</code> 3/6</td></tr>
+    <tr><td>推理输入</td><td><code>inputSize=1920</code>，<code>CUDAExecutionProvider</code>，6 路 worker <code>interval=2s</code>，<code>confSmoke=0.15</code></td></tr>
+  </tbody>
+</table>
+
+<div class="bad">
+  <b>根因定性：这是「尺度缺口」，不是阈值问题、也不是换结构能解决的。</b><br>
+  现网训练集 1041 个框里，<b>&lt;40px 的只有 18 个（1.7%）</b>，下 5% 分位是 54px。
+  也就是说模型<b>从未见过"远方轻烟"长什么样</b>。<br>
+  这一条直接解释了此前的 E1 结论（三档阈值扫 182 帧、IoU≥0.3 命中恒 0）——所谓"域缺口"，<b>本质就是尺度缺口</b>。
+  所以<b>降阈值必然无效</b>。
+</div>
+
+<h2 id="s2">2. 实测基线（三张事实表）</h2>
+
+<h3>2.1 现网训练集的框尺度分布</h3>
+<p>方法：递归读取 YOLO 标签，取归一化 <i>w,h</i> 的几何均值，× 1920 得<b>等效边长 @1920</b>（现网输入尺寸）。</p>
+<div class="bars">
+  <div class="bar-row"><div class="bar-lab">&lt;20px</div><div class="bar-track"><div class="bar-fill hot" style="width:0.6%"></div></div><div class="bar-val">2&nbsp;&nbsp;(0.2%)</div></div>
+  <div class="bar-row"><div class="bar-lab">20–40px</div><div class="bar-track"><div class="bar-fill hot" style="width:4.2%"></div></div><div class="bar-val">16&nbsp;&nbsp;(1.5%)</div></div>
+  <div class="bar-row"><div class="bar-lab">40–80px</div><div class="bar-track"><div class="bar-fill" style="width:53.6%"></div></div><div class="bar-val">202&nbsp;&nbsp;(19.4%)</div></div>
+  <div class="bar-row"><div class="bar-lab">80–160px</div><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><div class="bar-val">377&nbsp;&nbsp;(36.2%)</div></div>
+  <div class="bar-row"><div class="bar-lab">160–320px</div><div class="bar-track"><div class="bar-fill" style="width:80.4%"></div></div><div class="bar-val">303&nbsp;&nbsp;(29.1%)</div></div>
+  <div class="bar-row"><div class="bar-lab">&gt;320px</div><div class="bar-track"><div class="bar-fill" style="width:37.4%"></div></div><div class="bar-val">141&nbsp;&nbsp;(13.5%)</div></div>
+</div>
+<p class="src">分位：p05=54.2 · p10=61.9 · p25=87.3 · p50=140.7 · p75=221.6 · p90=383.2 ｜ 合计 1041 框 ｜ 红色＝本项目要补的档位</p>
+<div class="warn">
+  <b>可测量的迭代目标</b>：训练集里 <code>&lt;40px</code> 占比从 <b>1.7%</b> 提到 <b>15–20%</b>。
+  低于这个量级，梯度会被大目标主导，远烟档仍然学不到。
+</div>
+
+<h3>2.2 推理算力基准</h3>
+<table>
+  <thead><tr><th>路径</th><th class="num">耗时</th><th class="num">占 2s 预算</th></tr></thead>
+  <tbody>
+    <tr><td>生产路径 ONNX + ORT(CUDA) @1920² · 白天</td><td class="num">50.5 ms</td><td class="num">2.5%</td></tr>
+    <tr><td>生产路径 ONNX + ORT(CUDA) @1920² · 夜间</td><td class="num">49.9 ms</td><td class="num">2.5%</td></tr>
+    <tr><td>torch 端到端 predict（输入 1080p）imgsz=1920</td><td class="num">32.0 ms</td><td class="num">1.6%</td></tr>
+    <tr><td>同上 imgsz=2560</td><td class="num">60.8 ms</td><td class="num">3.0%</td></tr>
+    <tr><td>2×2 切片 ×4（每片 imgsz=1920）</td><td class="num">134 ms</td><td class="num">6.7%</td></tr>
+    <tr style="background:#fff6e5"><td><b>引擎自报 <code>last_ms</code></b>（= <code>predict()</code> 墙钟，含 letterbox + NMS）</td><td class="num"><b>340 ms</b></td><td class="num">17.0%</td></tr>
+  </tbody>
+</table>
+<p class="src">设备：RTX 3090 24GB ｜ torch 2.4.1+cu121 ｜ ultralytics 8.4.125 ｜ 预算＝单路 <code>interval=2s</code></p>
+
+<h3>2.3 真实烟的纵向分布（画面内的位置）</h3>
+<div class="bad">
+  <b>先排除一个会误导结论的陷阱</b>：复检库 <code>straw_detections</code> 中 <code>source='alert'</code> 共 588 行，<br>
+  但其中 <b>434 行（74%）是 <code>scene='sim'</code> 的模拟器帧</b>。不先过滤，就会拿仿真帧的分布去论证生产规则。
+</div>
+<table>
+  <thead><tr><th>source</th><th class="num">sikong_*（真实机场）</th><th class="num">sim（模拟器）</th><th class="num">other</th></tr></thead>
+  <tbody>
+    <tr><td>alert</td><td class="num">154</td><td class="num" style="background:#fdecea"><b>434</b></td><td class="num">0</td></tr>
+    <tr><td>low</td><td class="num">233</td><td class="num">0</td><td class="num">0</td></tr>
+    <tr><td>random</td><td class="num">493</td><td class="num">40</td><td class="num">0</td></tr>
+    <tr><td>picall</td><td class="num">0</td><td class="num">0</td><td class="num">121</td></tr>
+  </tbody>
+</table>
+
+<p><b>只统计真实机场流（sikong_* ∪ picall，776 图 / 767 框）：</b></p>
+<div class="bars">
+  <div class="bar-row"><div class="bar-lab">y 0.0–0.1</div><div class="bar-track"><div class="bar-fill hot" style="width:2.8%"></div></div><div class="bar-val">8&nbsp;&nbsp;(1.04%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.1–0.2</div><div class="bar-track"><div class="bar-fill dim" style="width:17.6%"></div></div><div class="bar-val">51&nbsp;&nbsp;(6.6%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.2–0.3</div><div class="bar-track"><div class="bar-fill dim" style="width:13.8%"></div></div><div class="bar-val">40&nbsp;&nbsp;(5.2%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.3–0.4</div><div class="bar-track"><div class="bar-fill" style="width:45.3%"></div></div><div class="bar-val">131&nbsp;&nbsp;(17.1%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.4–0.5</div><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><div class="bar-val">289&nbsp;&nbsp;(37.7%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.5–0.6</div><div class="bar-track"><div class="bar-fill" style="width:49.5%"></div></div><div class="bar-val">143&nbsp;&nbsp;(18.6%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.6–0.7</div><div class="bar-track"><div class="bar-fill dim" style="width:10.0%"></div></div><div class="bar-val">29&nbsp;&nbsp;(3.8%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.7–0.8</div><div class="bar-track"><div class="bar-fill dim" style="width:9.7%"></div></div><div class="bar-val">28&nbsp;&nbsp;(3.7%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.8–0.9</div><div class="bar-track"><div class="bar-fill dim" style="width:13.8%"></div></div><div class="bar-val">40&nbsp;&nbsp;(5.2%)</div></div>
+  <div class="bar-row"><div class="bar-lab">y 0.9–1.0</div><div class="bar-track"><div class="bar-fill dim" style="width:2.1%"></div></div><div class="bar-val">6&nbsp;&nbsp;(0.8%)</div></div>
+</div>
+<table>
+  <thead><tr><th>口径</th><th class="num">框数</th><th class="num">上方 10% 内</th><th class="num">上方 20% 内</th><th class="num">上方 30% 内</th></tr></thead>
+  <tbody>
+    <tr><td>真实机场流全部（sikong_* ∪ picall）</td><td class="num">767</td><td class="num"><b>8（1.04%）</b></td><td class="num">59（7.69%）</td><td class="num">99（12.91%）</td></tr>
+    <tr><td>其中：已人工复核 <code>review_status=true</code></td><td class="num">258</td><td class="num"><b>5（1.94%）</b></td><td class="num">15（5.81%）</td><td class="num">26（10.08%）</td></tr>
+    <tr><td>其中：<code>source='alert'</code></td><td class="num">136</td><td class="num"><b>1（0.74%）</b></td><td class="num" style="background:#fff6e5">20（14.71%）</td><td class="num">36（26.47%）</td></tr>
+  </tbody>
+</table>
+<p class="src">y = 框中心纵坐标／画面高度（0＝顶部，1＝底部）｜ 框等效边长（原始帧像素）p05=30.6 · p25=71.5 · p50=91.7 · p75=116.3 · p95=152.1</p>
+
+<h3>2.4 证据帧的原始分辨率：8 种（这是下面第 5 节的伏笔）</h3>
+<div class="bars">
+  <div class="bar-row"><div class="bar-lab">1440×1080</div><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><div class="bar-val">282</div></div>
+  <div class="bar-row"><div class="bar-lab">1280×720</div><div class="bar-track"><div class="bar-fill" style="width:82.6%"></div></div><div class="bar-val">233</div></div>
+  <div class="bar-row"><div class="bar-lab">960×720</div><div class="bar-track"><div class="bar-fill" style="width:45.4%"></div></div><div class="bar-val">128</div></div>
+  <div class="bar-row"><div class="bar-lab">2968×1732</div><div class="bar-track"><div class="bar-fill dim" style="width:19.9%"></div></div><div class="bar-val">56</div></div>
+  <div class="bar-row"><div class="bar-lab">2560×1329</div><div class="bar-track"><div class="bar-fill dim" style="width:17.4%"></div></div><div class="bar-val">49</div></div>
+  <div class="bar-row"><div class="bar-lab">1920×1080</div><div class="bar-track"><div class="bar-fill dim" style="width:3.5%"></div></div><div class="bar-val">10</div></div>
+  <div class="bar-row"><div class="bar-lab">2942×1732</div><div class="bar-track"><div class="bar-fill dim" style="width:2.8%"></div></div><div class="bar-val">8</div></div>
+  <div class="bar-row"><div class="bar-lab">1698×1278</div><div class="bar-track"><div class="bar-fill dim" style="width:0.4%"></div></div><div class="bar-val">1</div></div>
+</div>
+
+<h2 id="s3">3. 反馈①：算力余量重估</h2>
+
+<div class="col3">
+  <div class="kpi info"><div class="v">~39×</div><div class="k">单路 2s 周期余量</div><div class="d">按纯推理 50ms 计</div></div>
+  <div class="kpi info"><div class="v">2000 ms</div><div class="k">每帧预算</div><div class="d">interval=2s / 单路</div></div>
+  <div class="kpi bad"><div class="v">6.8×</div><div class="k">引擎开销 / 纯推理</div><div class="d">340ms vs 50ms，本身是优化空间</div></div>
+</div>
+
+<h3>3.1 我的原判断错在哪</h3>
+<p>我此前的约束是「6 路流 × interval 2s ＝ 3 帧/s × 0.34s ≈ 1.02 s/s ≈ 单卡满载，无余量」。
+这是把 <b>6 路同时在飞的最坏情形</b>当成了常态。按你的反馈（每天 ≤5 次飞行、大部分时间单机场起飞），
+真实负载是 <b>单路 0.5 帧/s</b>，预算 2000ms/frame。</p>
+
+<h3>3.2 这个纠正解锁了什么</h3>
+<table>
+  <thead><tr><th style="width:150px">能力</th><th>说明</th><th style="width:120px">代价</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>ROI 放大 / 2×2 切片</b></td>
+      <td>把"远处"所在的天空带裁出来单独放大再推理，等效像素尺寸立刻提升 2–4 倍：<code>&lt;40px</code> 变成 <code>80–160px</code>（模型最擅长的档）。<b>复用现网权重、零训练</b>，可先量出"纯结构红利"的天花板。</td>
+      <td>134 ms（6.7%）</td>
+    </tr>
+    <tr>
+      <td><b>提高 imgsz</b></td>
+      <td>1920 → 2560。</td>
+      <td>61 ms（3.0%）</td>
+    </tr>
+    <tr style="background:#e8f7ee">
+      <td><b>interval 2s → 1s</b></td>
+      <td><b>这是最有价值的一项</b>：采样率翻倍 ⇒ 帧间位移更小、运动信号更连续 ⇒ <b>时序判别（长时中值背景 + 帧差）真正可行</b>。而时序才是把"缓慢上升扩散的轻烟"与"整体漂移、形态稳定的碎云"分开的唯一正解（单帧信息量不够）。</td>
+      <td>翻倍帧数，仍充裕</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <b>两条必须写进设计的约束</b>
+  <ol style="margin-bottom:0">
+    <li><b>多机重叠要降级。</b>项目里已观测到"多机先后起飞、后者中断前者约 14 秒"。重活路径只在<b>活跃流 ≤2 路</b>时开启，超出则回退廉价路径——绝不能因为加了重活把实时链路拖垮。</li>
+    <li><b>先挖 <code>last_ms</code> 的 290ms 开销。</b><code>main.py:400</code> 的 <code>last_ms</code> 量的是整个 <code>predict()</code> 墙钟（含 letterbox 预处理 + NMS），纯推理只有 50ms。
+      这 290ms 的差额<b>比改模型更容易拿</b>，且直接扩大所有后续方案的预算。建议 P0 先做这一项。</li>
+  </ol>
+</div>
+
+<h2 id="s4">4. 反馈②：mosaic 评估</h2>
+
+<h3>4.1 先澄清一个我自己的误判</h3>
+<p>我原本怀疑：当前 <code>close_mosaic=50</code> 而 <code>epochs=30</code>，会不会一开 mosaic 就被立刻关掉、白跑一轮。查了源码——<b>不成立</b>：</p>
+<pre><code># ultralytics/engine/trainer.py:459
+if epoch == (self.epochs - self.args.close_mosaic):
+    self._close_dataloader_mosaic()
+    self.train_loader.reset()
+
+# 当前参数：epochs=30, close_mosaic=50  →  30 - 50 = -20
+# epoch 只会走 0..29 → 【永远不等于 -20】→ 永不触发关闭
+# ⇒ 设置 mosaic=1.0 后会全程生效，不存在"白开"问题</code></pre>
+<div class="okbox">
+  <b>结论：mosaic 可以直接开</b>，不需要为了它改 epochs。
+</div>
+<div class="warn">
+  <b>但有一个真实的坑要注意</b>：<code>trainer.py:1085</code> 的 <b>resume</b> 分支是
+  <code>if start_epoch &gt; (self.epochs - self.args.close_mosaic)</code> → <code>&gt; -20</code> <b>恒真</b>
+  ⇒ <b>一旦用 <code>resume=</code> 续训，mosaic 会被立刻关掉</b>。<br>
+  （本项目 stage9 用的是 <code>model=stage3_0909/weights/best.pt</code> 迁移学习，<b>不是 resume</b>，所以此前未受影响——但下次要小心。）
+</div>
+
+<h3>4.2 为什么"单靠 mosaic 不够"</h3>
+<p>mosaic 把 4 张图拼成一张再整体缩放，效果是<b>把已有目标按比例缩小</b>（140px 的烟 → 70px 的烟）。
+它买到的是<b>尺度不变性</b>，但买不到"远方"的另一半物理成因：</p>
+<table>
+  <thead><tr><th style="width:190px">"远方轻烟"的特征</th><th style="width:110px">mosaic 能造吗</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>尺度变小</td><td><span class="badge b-ok">能</span></td><td>拼图后整体缩小，等效目标边长减半</td></tr>
+    <tr><td><b>大气衰减</b>（对比度↓、偏蓝灰、细节丢失）</td><td><span class="badge b-bad">不能</span></td><td>缩小后的烟仍然<b>对比度很高、边缘清晰</b>，与真实远烟的"发灰、发虚"差得远 —— 这是最容易让模型在实飞时失效的差异</td></tr>
+    <tr><td><b>同尺度的真实难负</b>（天空里的小块碎云）</td><td><span class="badge b-bad">不能</span></td><td>mosaic 造出的"小云"只是被缩小的云，纹理统计不真实；这档难负必须真实采集/裁切</td></tr>
+    <tr><td>固定机位几何先验</td><td><span class="badge b-warn">反而破坏</span></td><td>拼图会造出"不可能的场景"（烟柱被接缝切断、村庄紧邻随机田地）→ 对<b>固定机位域</b>是负作用，建议用较低概率（0.5 起）做 A/B</td></tr>
+  </tbody>
+</table>
+
+<h3>4.3 建议做法（三件套，缺一不可）</h3>
+<div class="card">
+  <ol style="margin:0">
+    <li><b>开 mosaic</b>：<code>mosaic=1.0</code>（固定机位域建议从 <code>0.5</code> 起做 A/B）；把 <code>close_mosaic</code> 改成合理值（如 <code>5</code>，让最后几轮用<b>真实几何</b>收敛——你的机位是固定的，几何先验很值钱）。</li>
+    <li><b>配套"大气衰减"离线仿真</b>：对正样本批量生成退化版本（降对比度 + 轻微蓝灰偏移 + 降饱和 + 轻模糊），还原真远处的散射效果。这是 mosaic 补不上的那一半。</li>
+    <li><b>配真实小尺度难负</b>：从既有 <code>v5_hardneg/云彩</code>（487 图）与 <code>day_0911</code>（2303 张未标注白天图）的天空区裁取小块云。</li>
+  </ol>
+</div>
+
+<h3>4.4 A/B 设计（避免又一次"指标好看、上线就废"）</h3>
+<table>
+  <thead><tr><th style="width:110px">组</th><th>配置</th><th>评估口径</th></tr></thead>
+  <tbody>
+    <tr><td>基线 A</td><td>现状参数（<code>mosaic=0</code>，仅补小尺度正负样本）</td><td rowspan="3">
+      <b>只看远档（&lt;40px）</b>的：<br>
+      ① 分档召回（远/中/近各自算）<br>
+      ② <b>误报/小时</b>（业务真正在意的指标）<br>
+      ③ 云/电线杆类误报的增量<br>
+      <b>不看总 mAP50</b>——它在小目标问题上没有意义
+    </td></tr>
+    <tr><td>实验 B</td><td>A + <code>mosaic=1.0</code></td></tr>
+    <tr><td>实验 C</td><td>B + 大气衰减仿真 + 真实小云难负</td></tr>
+  </tbody>
+</table>
+<div class="note">
+  预期：<b>C &gt; B &gt; A</b>，且 B 相对 A 的增益应主要体现在<b>尺度鲁棒性</b>上；
+  若 B 的误报上升明显，说明 mosaic 造出的不真实背景在起作用 → 降 <code>mosaic</code> 概率或提高难负权重。
+</div>
+
+<h2 id="s5">5. 反馈③：屏蔽画面上方 10% 的评估</h2>
+
+<h3>5.1 实测支持你的思路</h3>
+<div class="okbox">
+  真实机场流的 <b>767 个框</b>里，落在画面<b>上方 10%</b> 的只有 <b>8 个（1.04%）</b>；
+  已人工复核的 258 个框里是 <b>5 个（1.94%）</b>；真实告警帧 136 框里是 <b>1 个（0.74%）</b>。<br>
+  ⇒ <b>屏蔽上方 10% 的代价 ≈ 漏 1~2%。思路成立。</b>
+</div>
+<div class="warn">
+  <b>但不要超过 10%</b>：实测上方 20% 就要掉 <b>7.7%</b>（真实告警组更高达 <b>14.7%</b>），上方 30% 掉 <b>12.9%</b>。
+  10% 是可接受的上限，20% 以上风险显著。
+</div>
+
+<h3>5.2 画面示意（真实分布 + 两个先验）</h3>
+<div class="card tight">
+<svg viewBox="0 0 680 340" role="img" aria-label="画面纵向分布示意">
+  <defs>
+    <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eaf2ff"/><stop offset="100%" stop-color="#dbe8fb"/>
+    </linearGradient>
+  </defs>
+  <!-- 画面框 -->
+  <rect x="40" y="20" width="300" height="300" fill="url(#gsky)" stroke="#1a1d21" stroke-width="1.6"/>
+  <!-- 屏蔽带（上方 10%） -->
+  <rect x="40" y="20" width="300" height="30" fill="#b3261e" opacity="0.20"/>
+  <line x1="40" y1="50" x2="340" y2="50" stroke="#b3261e" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="348" y="44" font-size="11.5" fill="#b3261e">y=0.10　上方 10%（候选屏蔽带）</text>
+  <!-- 各带刻度 -->
+  <line x1="40" y1="80" x2="340" y2="80" stroke="#7d93a8" stroke-width="0.8" stroke-dasharray="3 3"/>
+  <line x1="40" y1="140" x2="340" y2="140" stroke="#7d93a8" stroke-width="0.8" stroke-dasharray="3 3"/>
+  <line x1="40" y1="170" x2="340" y2="170" stroke="#0f7b3f" stroke-width="1.6"/>
+  <text x="348" y="166" font-size="11.5" fill="#0f7b3f">y=0.50　实测真实烟最密集区（0.4–0.5 占 37.7%）</text>
+  <line x1="40" y1="230" x2="340" y2="230" stroke="#7d93a8" stroke-width="0.8" stroke-dasharray="3 3"/>
+  <line x1="40" y1="320" x2="340" y2="320" stroke="#4a5158" stroke-width="1.2"/>
+  <!-- 左侧 y 刻度 -->
+  <text x="34" y="24" font-size="10.5" fill="#7a828a" text-anchor="end">0.0</text>
+  <text x="34" y="96" font-size="10.5" fill="#7a828a" text-anchor="end">0.2</text>
+  <text x="34" y="174" font-size="10.5" fill="#7a828a" text-anchor="end">0.5</text>
+  <text x="34" y="252" font-size="10.5" fill="#7a828a" text-anchor="end">0.8</text>
+  <text x="34" y="322" font-size="10.5" fill="#7a828a" text-anchor="end">1.0</text>
+
+  <!-- 右侧：两个先验示意 -->
+  <text x="470" y="36" font-size="12.5" font-weight="700" fill="#1a1d21">接地先验（更本质）</text>
+  <rect x="470" y="48" width="170" height="118" fill="#f6f8f9" stroke="#cfd6db"/>
+  <path d="M470 128 h170" stroke="#4a5158" stroke-width="1.2"/>
+  <ellipse cx="520" cy="88" rx="20" ry="13" fill="#ffffff" stroke="#7d93a8" stroke-dasharray="3 2"/>
+  <text x="470" y="70" font-size="10.5" fill="#7a828a">悬空、四周皆天空 → 判云</text>
+  <path d="M578 128 l-4 -34" stroke="#b3261e" stroke-width="2.4"/>
+  <circle cx="578" cy="128" r="3.4" fill="#b3261e"/>
+  <text x="470" y="182" font-size="10.5" fill="#b3261e">自地表升起 → 判烟</text>
+
+  <text x="470" y="212" font-size="12.5" font-weight="700" fill="#1a1d21">天际线可动态求得</text>
+  <rect x="470" y="224" width="170" height="96" fill="#f6f8f9" stroke="#cfd6db"/>
+  <line x1="486" y1="236" x2="624" y2="236" stroke="#1f6feb" stroke-width="1.6"/>
+  <text x="486" y="250" font-size="10.5" fill="#1f6feb">pitch=0° → 地平线居中</text>
+  <line x1="486" y1="272" x2="624" y2="272" stroke="#1f6feb" stroke-width="1.6" stroke-dasharray="5 3"/>
+  <text x="486" y="286" font-size="10.5" fill="#1f6feb">pitch 下俯 → 地平线上移</text>
+  <text x="486" y="308" font-size="10.5" fill="#b3261e">极大下俯 → 无天空，自动禁用屏蔽</text>
+</svg>
+</div>
+
+<h3>5.3 但固定百分比有 3 个隐患，实现方式必须改</h3>
+<table>
+  <thead><tr><th style="width:150px">隐患</th><th>实测依据</th><th>后果</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>① 相机角度／分辨率不恒定</b></td>
+      <td>证据帧有 <b>8 种分辨率</b>（1440×1080、1280×720、960×720、2968×1732、2560×1329…）；
+        且真实告警组里 <b>22% 的框落在 y 0.8~1.0（贴底）</b> —— 那是<b>舱内/俯视帧</b>。</td>
+      <td>俯视帧的"上方 10%"根本不是天空而是机库盖子／地面，固定百分比<b>直接失效</b>。</td>
+    </tr>
+    <tr>
+      <td><b>② "接地"比"高度"更本质</b></td>
+      <td>秸秆焚烧的烟<b>必然源于地面</b>；实测真实烟底边中位 y=0.537，不会孤零零悬在顶部。</td>
+      <td>用"是否与地表连通/近接地"作判据，能<b>同时</b>解掉"云（悬空、四周被天空包围）vs 烟（自地表升起）"，
+        而且<b>完全不受相机角度影响</b>。</td>
+    </tr>
+    <tr style="background:#e8f7ee">
+      <td><b>③ 动态天际线是可行的</b></td>
+      <td>已查证：<code>gimbalPitch</code> / <code>gimbalYaw</code> <b>在 <code>dji-openapi/lib/telemetry.js:57-58</code> 已能取到</b>
+        （<code>payloadObj.gimbalPitch</code> 或 <code>data.gimbal.gimbal_pitch</code>）；
+        <code>target-locator.js</code> 已写明约定（pitch：水平 0°、<b>向下为正</b>）。</td>
+      <td>用 <b>云台 pitch + 相机垂直 FOV</b> 即可算出天际线 y；俯视时 <code>y_horizon &lt; 0</code> ⇒
+        <b>画面无天空 ⇒ 自动禁用屏蔽</b>。<br>
+        <span class="badge b-warn">现状</span> straw-engine <b>目前完全没消费 pitch</b>（只用 <code>droneInDock</code>），需在"遥测 → 引擎"之间加一条字段。</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>5.4 建议落地形态（分级推进，不要一刀切禁止）</h3>
+<table>
+  <thead><tr><th style="width:72px">级别</th><th>做法</th><th style="width:210px">成本 / 门禁</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>L0</b><br><span class="badge b-ok">立即可做</span></td>
+      <td>把"画面上方 10%"作为<b>后处理规则</b>：该区内命中的框<b>不推送、不计告警</b>，
+        但<b>落库为 <code>source='low'</code></b>。</td>
+      <td>零训练、可回滚。<br>
+        <b>附带收益</b>：把屏蔽区变成<b>自动难负样本矿</b>——后续挖"天空里的小云"直接从库里取。<br>
+        <b>门禁</b>：先离线回放历史 evidence，确认真实告警少了几条（已有数据 ≈1%）。</td>
+    </tr>
+    <tr>
+      <td><b>L1</b></td>
+      <td>固定 10% → <b>动态天际线</b>（OSD pitch 优先，图像内容判定作兜底）；
+        对<b>舱内/俯视帧自动禁用屏蔽</b>（可直接用现有 <code>osd_skip</code> 字段识别）。</td>
+      <td>需加一条遥测字段 + 一次标定（用几帧已知 pitch 的图拟合相机垂直 FOV）。<br>
+        <b>兜底原则</b>：天际线判定不置信时<b>不屏蔽</b>——宁多检不漏检。</td>
+    </tr>
+    <tr>
+      <td><b>L2</b></td>
+      <td>把"<b>接地先验 + 天际线距离</b>"作为<b>二级复核特征</b>，与时序判别一起进复核器。</td>
+      <td>与 P2 的时序复核器合并实现。</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="s6">6. 修订后的迭代路线</h2>
+<table>
+  <thead><tr><th style="width:64px">阶段</th><th>内容</th><th style="width:230px">门禁 / 判据</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>P0</b><br><span class="badge b-info">1–2 天</span></td>
+      <td>
+        <b>①</b> 出《轻烟判定协议 v1》+ 锚点样本（每档 × 昼夜各 10–20 张公认边界样本；标注员<b>必须看连续 5–10 帧</b>再判定）。<br>
+        <b>②</b> L0 屏蔽规则上线（后处理，落库为 low）。<br>
+        <b>③</b> 单路试点 <code>interval 2s→1s</code>。<br>
+        <b>④</b> 挖 <code>last_ms</code> 那 290ms 的开销。
+      </td>
+      <td>协议：两人独立标 50 张，<b>同档 IoU 一致性 ≥0.5</b> 才放行，否则回炉改定义。<br>
+        L0：离线回放确认代价 ≈1%。</td>
+    </tr>
+    <tr>
+      <td><b>P1</b><br><span class="badge b-info">1 周</span></td>
+      <td>
+        <b>⑤</b> 从 <code>day_0911</code>（2303 张，标签 0）里筛难正样本：用现网模型在<b>极低阈值（0.01–0.05）</b>跑一遍，
+        取"低置信度但人工确认是真烟"的帧。<br>
+        <b>⑥</b> mosaic + 大气衰减仿真 + 真实小云难负，<b>三件套</b>做数据集 v6-远烟；训练 stage10。<br>
+        <b>⑦</b> 趁算力余量做 <b>ROI 放大/切片</b>的零训练天花板测量。
+      </td>
+      <td>
+        <b>训练集里 <code>&lt;40px</code> 占比 ≥15%</b>（现 1.7%）。<br>
+        正负<b>同批配平</b>（既有教训：+7 正塞 26 难负 → 召回 95%→75%）。<br>
+        评估<b>按尺度分档</b>，指标用<b>误报/小时</b>而非 mAP50。
+      </td>
+    </tr>
+    <tr>
+      <td><b>P2</b><br><span class="badge b-info">2–3 周</span></td>
+      <td>
+        <b>⑧</b> <b>时序复核器</b>：长时中值背景建模 + 帧差，对"低对比度 + 缓慢上升扩散"的区域打分。<br>
+        <b>⑨</b> 把动态天际线（L1）与接地先验（L2）并入二级复核。<br>
+        <b>⑩</b> 输出分级：<code>确定烟 / 疑似轻烟 / 忽略</code>，<b>复用现有复检 gate</b> 把"疑似轻烟"走人工通道。
+      </td>
+      <td>远烟档召回 ≥60% 且全局误报 ≤ 阈值，方允许进灰度；否则只以"疑似"级别推送。</td>
+    </tr>
+    <tr>
+      <td><b>P3</b></td>
+      <td><b>⑪</b> G5' 真飞灰度，拿<b>真实误报率</b>。</td>
+      <td>这是<b>唯一</b>的最终验收标准（既有待办）。</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>贯穿设计的一条原则</b>：远烟天然不可靠，<b>不该硬压误报率</b>，而应走"分级 + 人工复检"。
+  项目已有 <code>straw_review_gate</code>（低置信 held 待复核）机制——<b>轻烟正好该进这个通道</b>。
+</div>
+
+<h2 id="s7">7. 风险与回滚</h2>
+<table>
+  <thead><tr><th style="width:170px">动作</th><th>风险</th><th style="width:250px">回滚方式</th></tr></thead>
+  <tbody>
+    <tr><td>L0 屏蔽上方 10%</td><td>若某机位地平线位置特殊，可能漏检该区真烟</td><td>后处理开关，<b>改一个配置即恢复</b>；且命中已落库为 <code>low</code>，可事后追回</td></tr>
+    <tr><td><code>interval 2s→1s</code></td><td>帧数翻倍；多机同时飞时叠加</td><td>改回 <code>config.json</code> 的 <code>interval</code>；已确认余量充裕</td></tr>
+    <tr><td>开 mosaic 重训</td><td>可能推高误报（不真实背景）；破坏固定几何先验</td><td>权重文件级回滚（<code>config.model/modelDay/modelNight</code> 指回 stage9/stage3）；A/B 三组对比再决定上线</td></tr>
+    <tr><td>接时序复核器</td><td>引入延迟与新依赖</td><td>作为二级，可开关旁路；一级检测器保持现状不变</td></tr>
+    <tr><td>动 <code>predict()</code> 内 letterbox/NMS</td><td>可能改变数值结果</td><td>改前留备份 + 用同一批 evidence 做前后一致性对比（输出框 IoU）</td></tr>
+  </tbody>
+</table>
+<div class="warn" style="margin-bottom:0">
+  <b>本次评估未改动任何生产配置</b>。以上均为离线测量与只读分析（读 config / 标签 / 数据库 / 跑基准），
+  仅在 <code>/tmp</code> 与本地 <code>tmp/</code> 生成脚本。
+</div>
+
+<h2 id="s8">8. 反面清单（明确不做）</h2>
+<table>
+  <thead><tr><th style="width:34px">#</th><th>不做</th><th>依据</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>只降 <code>confSmoke</code> 阈值换召回</td><td>E1 已证：三档阈值扫 182 帧、IoU≥0.3 命中恒 0，是尺度缺口而非阈值问题</td></tr>
+    <tr><td>2</td><td>只往正样本里堆轻烟</td><td>stage4 教训：+7 正塞 26 难负 → 召回 95%→75%</td></tr>
+    <tr><td>3</td><td>定义未定就让多人并行标注</td><td>主观性会把标签变成噪声，且<b>不可逆</b></td></tr>
+    <tr><td>4</td><td>直接用 <code>source='alert'</code> 做统计</td><td>本次实测：<b>74% 是模拟器帧（scene='sim'）</b></td></tr>
+    <tr><td>5</td><td>屏蔽画面上方 ≥20%</td><td>实测掉 7.7%（告警组 14.7%），风险显著</td></tr>
+    <tr><td>6</td><td>硬编码分辨率/角度假设</td><td>证据帧有 8 种分辨率，且含俯视/舱内帧</td></tr>
+    <tr><td>7</td><td>指望单帧模型区分"轻烟 vs 碎云"</td><td>单帧信息量不足；必须上时序</td></tr>
+    <tr><td>8</td><td>用 <code>resume=</code> 续训却以为 mosaic 生效</td><td><code>trainer.py:1085</code> 条件恒真，resume 会立刻关掉 mosaic</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s9">9. 附录：工具与复现</h2>
+<h3>9.1 新增审计工具（本机 <code>tmp/</code>）</h3>
+<table>
+  <thead><tr><th style="width:220px">脚本</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>audit_size_dist.js</code></td><td>递归统计任意 YOLO 标签集的<b>等效边长分布</b>（@1920 分档）——评估"这套数据够不够远/够不够小"</td></tr>
+    <tr><td><code>bench_smoke.py</code></td><td><b>推理算力基准</b>（ORT / Torch / 切片），跑前须带 systemd 的 <code>LD_LIBRARY_PATH</code></td></tr>
+    <tr><td><code>db_smoke_stats4.py</code></td><td>从 <code>straw_detections</code> 统计真实流的纵向/尺度分布（含 <b>sim 过滤</b> + <code>/api/evidence/</code> URL→磁盘映射）</td></tr>
+    <tr><td><code>survey_smoke_iter.sh</code> / <code>recon_smoke.sh</code></td><td>一次性拉取 config / health / snapshot / 数据集 / GPU / 环境</td></tr>
+  </tbody>
+</table>
+
+<h3>9.2 关键复现命令</h3>
+<pre><code># 尺度分布审计（在 226 上）
+node /tmp/audit_size_dist.js \
+  /video/shujuji/datasets/v5_train_v5/labels \
+  /video/shujuji/datasets/v5_train_merge/labels \
+  /video/shujuji/datasets/v6_train/labels
+
+# 算力基准（必须带 LD_LIBRARY_PATH，否则 CUDA 静默回退 CPU）
+LD_LIBRARY_PATH=/opt/jsc/straw-engine/venv/lib/python3.10/site-packages/nvidia/cublas/lib:... \
+  /opt/jsc/straw-engine/venv/bin/python /tmp/bench_smoke.py
+
+# 真实流纵向分布
+/opt/jsc/straw-engine/venv/bin/python /tmp/db_smoke_stats4.py
+
+# 现网模型与流配置
+node -e 'const c=require("/opt/jsc/straw-engine/config/config.json");console.log(c.modelDay,c.modelNight,c.inputSize)'</code></pre>
+
+<h3>9.3 数据来源一览</h3>
+<table>
+  <thead><tr><th style="width:230px">数据</th><th>来源</th></tr></thead>
+  <tbody>
+    <tr><td>训练参数 / 尺度分布</td><td><code>v5_smoke_v5/stage9_1920|stage3_0909/args.yaml</code> + 对应 labels</td></tr>
+    <tr><td>算力</td><td>本机 ONNX Runtime CUDA + torch 实跑（RTX 3090 24GB）</td></tr>
+    <tr><td>纵向/尺度分布</td><td><code>/opt/jsc/backend/data/jsc.db</code> → <code>straw_detections</code>（1477 行）</td></tr>
+    <tr><td>干扰源统计</td><td><code>v5_train_balance_report.json</code> → <code>neg_classified</code></td></tr>
+    <tr><td>云台姿态可得性</td><td><code>dji-openapi/lib/telemetry.js:57-58</code>、<code>lib/target-locator.js</code></td></tr>
+    <tr><td>mosaic 逻辑</td><td><code>ultralytics/engine/trainer.py:459 / 1085</code>（版本 8.4.125）</td></tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  万州区秸秆焚烧监控 · 「远方轻烟」迭代评估 · 2026-09-27 · 所有数字均为当日实测<br>
+  本报告为评估建议，未改动任何生产配置。实施前请确认 P0 门禁（判定协议一致性、L0 离线回放）。
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="NLIGlCEV4GXl9bQL0gr8kx">
+<head data-page-node-id="3p5n0N9Lsr4PIF4wh0PHiD">
+<meta charset="UTF-8" data-page-node-id="VHHU6n2EFDH03oD8QU9DZJ">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="wpPSo63IUEbHQuMQHYnrhB">
+<title>修复 ollama llama-server · 评估与任务排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="Z7QIsOQf352C2XnpaaCwiG">
+<div class="page" data-page-node-id="n9S1uZIEbmWPR4Eb4LWfZJ">
+
+<div class="doc-head" data-page-node-id="CqWTivoZ0IxHDtjEmAXM7i">
+  <div class="org" data-page-node-id="z8Z5mwky9Ys2lGPjGkXQyX">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="qAPsAdfZq13CFzDPxawAhy">修复 ollama llama-server · 评估与任务排期</div>
+  <div class="subtitle" data-page-node-id="qILsojrETtDJrCRGJWedlc">—— 解决「llama-server binary not found」，恢复 VLM 标框能力（不影响系统 + 8T盘安装）</div>
+  <div class="meta" data-page-node-id="68rYZEUmFiub1P9e76HBDy"><span data-page-node-id="DFpLASBGWxO1Vxkea020gP">编制时间：2026-09-09</span><span data-page-node-id="IXEPhMa5fGRbCtFekq22fy">评估方式：ollama 安装现状代码级排查</span><span data-page-node-id="Xjmx4URxw1yjLQClpFl4zL">性质：可行性 + 排期</span></div>
+</div>
+
+<h2 data-page-node-id="X8vEYaRGVCVHJQqyEofMvl">一、结论摘要</h2>
+<div class="box green" data-page-node-id="GDzfuKVn4M5gDwbZK3VkKX">
+  <p data-page-node-id="NfvLPwgKp7MAAZMEFi3qos"><b data-page-node-id="1qLaj5YfiNay4zHrXwAgLW">问题可修复，方案清晰：用官方 release 重装 ollama（含完整 llama-server）到 8T 数据盘（/video），不影响系统运行。</b></p>
+  <p data-page-node-id="MKMSSpr1dmSXjSvaaYyCfs">① <b data-page-node-id="yAY5F5I4mGQ7qTfdgu8ymD">根因</b>：ollama server（0.32.15）与 client（0.33.2）版本不匹配 + 运行中的进程用的是已删除的旧二进制（deleted）+ llama-server 在 /usr/local/lib/ollama/ 下确实缺失；<br data-page-node-id="6k2dhIewotbKwTPaZ8SJIx">
+  ② <b data-page-node-id="Wbf7fvDZwezvEhGOY49XKE">修复</b>：下载官方 release（含 llama-server）解压到 /video，停掉损坏的旧进程，用新二进制重启；<br data-page-node-id="1q2N1TM3PL5UygzvEGnh7c">
+  ③ <b data-page-node-id="UEjTs0rLELU9x3EEpOnFRp">不影响系统</b>：ollama 是独立服务（straw-engine/dji-openapi/jsc-backend 不受影响），模型复用（/video/ollama/models 已有 qwen2.5vl:7b），GPU 显存可控（VLM 随用启停，straw-engine 检测优先）；<br data-page-node-id="mgDTXke6lcNsY9zXnkGcoH">
+  ④ <b data-page-node-id="ErKIGH4a1eBZ6sTkKKshW0">排期约 1 天</b>。</p>
+</div>
+
+<h2 data-page-node-id="eSnXcV6a2vHNLFvf4VRKhe">二、问题根因（代码级排查实测）</h2>
+<table data-page-node-id="fFi35EW7RBx8OFVl7OMoJB">
+  <tr data-page-node-id="3kUe9ilNPoWu5E25YTsj2O"><th style="width:26%" data-page-node-id="7DvJG7IcVUNREPOonHvvPe">排查项</th><th data-page-node-id="MWhaIZpUstQ0PcP6IUWTN2">实测</th><th data-page-node-id="qvvDop0rcO17LfAkPxqsn5">问题</th></tr>
+  <tr data-page-node-id="yn6FW6hAFwzPTJDOqH8ool"><td data-page-node-id="mBYCxfMjHRHmBfHMZBhNZS">ollama 二进制</td><td data-page-node-id="XUcGOIgJPHWGXJ17b5M4PY">/usr/local/bin/ollama（8月29日，39MB）</td><td data-page-node-id="wC7F4UYVfcTPw1bj2ktEUS">版本 0.32.15，但 client 0.33.2——<b data-page-node-id="JglORkUHXCBBxh5N9cCqmc">版本不匹配</b></td></tr>
+  <tr data-page-node-id="9bv5hEKPcaxHy8osz1d16G"><td data-page-node-id="4r0Pi64gCiGirUn0C86dNX">运行进程</td><td data-page-node-id="6hF9Wc975DE34yNwjb7Kb8">PID 2460521（8月28日启动）</td><td data-page-node-id="hkeIQEaNmmDnhvGDlkAUNF"><b data-page-node-id="DfCTuWOyMOlBWKVGbGtjlH">二进制已 deleted</b>（/usr/local/bin/ollama (deleted)）——进程用旧二进制</td></tr>
+  <tr data-page-node-id="Ne4L63YqqsJHj8fCte70O1"><td data-page-node-id="h9PC1OWR7D1veJvZ8uz9qe">官方安装路径</td><td data-page-node-id="C9vEpXJn0ooCkG0GKfVb6b">/usr/local/lib/ollama/cuda_v12 存在</td><td data-page-node-id="rTsw6p1d3VkvbhKD6M9WXr"><b data-page-node-id="iTXmyW5g4M7ORkBrTzMFfQ">但没有 llama-server</b>（只有 cuda_v12 子目录）</td></tr>
+  <tr data-page-node-id="Hnn5v0eH90LukC1QJQ7yCC"><td data-page-node-id="s4DBquJDw9gog75elxiIAA">llama-server 全盘搜索</td><td data-page-node-id="9sh1LR9HmiXA8PCREJBVRZ">find /usr/local /root /opt 无结果</td><td data-page-node-id="HuDU6XSLp5WUpY09qp4X3b"><b data-page-node-id="FicE9waru6JC3CN6yJwJpY">确实缺失</b>——推理引擎没装/没编译</td></tr>
+  <tr data-page-node-id="vCNDrSXoZZ7JjVmdndPm9E"><td data-page-node-id="u6uQWG1noGSYPF4tr2n3Zy">推理测试</td><td data-page-node-id="IFBJGadx10yfLur9DcGxvz">Qwen2.5-VL 全部 500 错误</td><td data-page-node-id="7GzY7qP6FYCTOjnEBaQ357">llama-server binary not found</td></tr>
+</table>
+
+<div class="box danger" data-page-node-id="lBLXMArkdbshyDki6MZ7g3">
+  <p data-page-node-id="5rX2GWSzd8ms8Ku7m2MCYH"><b data-page-node-id="E9bfJR8poqyhC15vFyNyKW">根因总结</b>：ollama 安装不完整/损坏——server 与 client 版本不匹配（0.32 vs 0.33），运行进程用的是已删除的旧二进制，且 <b data-page-node-id="RHPQhRdljzO1nQRxjVaZnV">llama-server（推理引擎）根本没装</b>。/api/tags 能列模型（因为模型文件在），但推理时找不到 llama-server 二进制 → 500 错误。</p>
+</div>
+
+<h2 data-page-node-id="WNVkXr8wa2ZJH63VeXfYMq">三、修复方案（官方 release 重装到 8T 盘）</h2>
+<h3 data-page-node-id="XaWaXZaK3Sgp5EAYEnBMyf">3.1 方案对比</h3>
+<table data-page-node-id="O4i3eqp57nehx06Ba1JFjl">
+  <tr data-page-node-id="5XvzKZe9EGLhfLWksYuYD4"><th style="width:22%" data-page-node-id="tSfALAEXff2NkFaH7DdI3w">方案</th><th data-page-node-id="FUa3nJQhiyYbHDPp2Z2g9t">做法</th><th data-page-node-id="63sWiYcd40XwtiqIhf7hgg">优劣</th><th style="width:10%" data-page-node-id="XvO3T9nj02F3O5aY1RbuBA">推荐</th></tr>
+  <tr data-page-node-id="rAeNPQPIKUEVrS2qmS7EnX"><td data-page-node-id="CfkUR7sP25K4vsC25tLjfv"><b data-page-node-id="1oXUnTowVIiTxemnIOr8VN">A. 官方 release 重装</b></td><td data-page-node-id="Xq5fknLsNbS4x96lENDgH0">下载 ollama 官方 linux-amd64 release（含 ollama + lib/ollama/llama-server + cuda 库），解压到 /video，替换旧安装</td><td data-page-node-id="BGCUzYGBMpje6vuBMTGLFl"><span class="tag s-green" data-page-node-id="etVDF6gaADZ7FjTfJOk6oh">干净完整</span> 不编译，官方原版含 llama-server；可控安装位置（/video）</td><td data-page-node-id="e9VZCMrK6FJ6BYiOscMmNv"><span class="tag s-green" data-page-node-id="EPBqLgmQpq25kksrANZ0CK">推荐</span></td></tr>
+  <tr data-page-node-id="WacoZG5Wyh36q51GTkY4bR"><td data-page-node-id="sEZPNtjM0proCpwdAxcoWN">B. 官方安装脚本</td><td data-page-node-id="vDtAgAxJS9aLckCWZY2vkD">curl ollama 官方 install.sh，装到 /video（OLLAMA_MODELS 指向 /video）</td><td data-page-node-id="LZBobAsNn53GD3rCwDZs06">简单，但脚本默认装系统目录，需手动调整到 /video</td><td data-page-node-id="U4mKkbVt9yrHxUdjvpp4Vd"><span class="tag s-amber" data-page-node-id="vgP8cgJK7qPOzzehNcO0SF">备选</span></td></tr>
+  <tr data-page-node-id="rXVCHyoPgYzBWNFPq2BGUJ"><td data-page-node-id="q8ejzCcQ3zsldU5NNoXvDQ">C. 编译 llama-server</td><td data-page-node-id="fnAjOVU3hqUxb5Dkq7EyXA">按错误提示 `cmake -S llama/server --preset cpu && cmake --build --preset cpu`</td><td data-page-node-id="jitNdhj4RioWN5rjzNV3kY">需源码 + 编译环境 + cuda 编译，复杂且易错</td><td data-page-node-id="BXqdHBfSOOzeNxItXTlqMt"><span class="tag s-red" data-page-node-id="D0vnqwTyFnR0D9hTuoALFD">不推荐</span></td></tr>
+</table>
+
+<h3 data-page-node-id="bitrtHomoMo7w2bRtpP2I1">3.2 推荐方案（A）详细步骤</h3>
+<div class="code" data-page-node-id="FyBwOAxTIH33fqOdOSKsnC">1. 停旧 ollama 进程（已损坏，推理 500，停用不影响其他系统）
+2. 备份旧安装（/usr/local/bin/ollama + /usr/local/lib/ollama，可回滚）
+3. 下载 ollama 官方 release（linux-amd64，含 llama-server）到 /video/ollama_install/
+4. 解压：ollama 二进制 → /video/ollama_install/bin/ollama
+         lib/ollama/（含 llama-server + cuda_v12）→ /video/ollama_install/lib/ollama/
+5. 配置 OLLAMA_MODELS=/video/ollama/models（复用已有 qwen2.5vl:7b，不重下）
+6. systemd 服务指向 /video/ollama_install/bin/ollama serve
+7. 验证：/api/tags 列模型 + Qwen2.5-VL 推理成功 + GPU 显存占用可控</div>
+
+<h2 data-page-node-id="JsMFfKhzb8VRsT2GjIawmh">四、对系统运行的影响（可控）</h2>
+<table data-page-node-id="2e2shg4wVwnB7JDPrr68Oe">
+  <tr data-page-node-id="MVmHnH0KrJ355cBYgcTSrs"><th style="width:22%" data-page-node-id="Co33j1nUf7D6emiqKJrD6Z">影响面</th><th style="width:12%" data-page-node-id="IZfoSV8KPqRjUfb3wd6AbI">风险等级</th><th data-page-node-id="weyfSFCog81z4fS0T1l1vw">说明 + 对策</th></tr>
+  <tr data-page-node-id="IcU4rVt6GDYTagSWmGLE5N"><td data-page-node-id="3LB9ib6008A7QF3OcCEk33">停旧 ollama 进程</td><td data-page-node-id="kE2Aj9rEq8BFP7lE1FGdDy"><span class="tag s-green" data-page-node-id="iD60GOUg771GjBAIpfGJtJ">无影响</span></td><td data-page-node-id="Tu7umfthImbvXIgXUdra8c">旧进程已损坏（推理 500），且当前没在用 VLM（straw-engine 检测不依赖 ollama）；停用不影响 straw-engine/dji-openapi/jsc-backend</td></tr>
+  <tr data-page-node-id="QWOM1F7WTD2Y6CGhzAQnSi"><td data-page-node-id="43cbQtNCw1fB8Pp60mwggH">GPU 显存占用</td><td data-page-node-id="4oX28xyY8RogznDwnRub72"><span class="tag s-amber" data-page-node-id="GuB82qPfW204MvNH6g4hU2">可控</span></td><td data-page-node-id="5VlTsj6VPr0DknVO8xQorw">Qwen2.5-VL 7B 推理需 ~6-8GB 显存；straw-engine 用 ~5.5GB；24GB 总显存余量充足（当前用 4.8GB）。<b data-page-node-id="7eqAbcT7bFeUIarVxIl8w1">对策：VLM 随用启停（不用时停 ollama，不占常驻 GPU），straw-engine 检测优先</b></td></tr>
+  <tr data-page-node-id="ywHV3t2a8rWnFyiBIXU0iy"><td data-page-node-id="F8rVIWWGxtajUjkIrrFw4F">磁盘空间</td><td data-page-node-id="62jauCnFMNhYj4fX89WEvV"><span class="tag s-green" data-page-node-id="0cIzuSFEWltHCcvnbAL9ho">充足</span></td><td data-page-node-id="CwFJJTtuB5uXFL9G9BEp79">/video 剩 6.0T（637G/7T=10%）；ollama 安装 ~1GB + 模型已有 5.6G，空间充足；<b data-page-node-id="DXux230N53zI4xi6XNcbjt">装 /video 数据盘（运维铁律），不占系统盘</b></td></tr>
+  <tr data-page-node-id="eAKhO51V3vHylEfgSL3T0z"><td data-page-node-id="CF9tUnejjYFWJcqLwQgFb6">服务中断</td><td data-page-node-id="OCWxAzpYiUTBoLXARKADb6"><span class="tag s-green" data-page-node-id="sLjdrG6pJ96205K4OqWhgC">无影响</span></td><td data-page-node-id="sbOb3inl7AWrH7Q6exADsW">ollama 独立服务，重装不影响 straw-engine（systemd 独立）/dji-openapi/jsc-backend/nginx</td></tr>
+  <tr data-page-node-id="uAmWiwEvvM3OQE1OTW5uZM"><td data-page-node-id="BOLonOJYNfJsKmscVzfQcz">模型重下</td><td data-page-node-id="kmdjL5LkZpj69SEZGWHHC5"><span class="tag s-green" data-page-node-id="kS3Rgat25SX8wttwOewm8L">无</span></td><td data-page-node-id="q4SlYXDiqBgws0cAI7T8QO">/video/ollama/models 已有 qwen2.5vl:7b（5.6G），OLLAMA_MODELS 指向同一目录，重装后复用，不用重下</td></tr>
+</table>
+
+<h2 data-page-node-id="vikCHxHb4zxA8vA2C5jFbV">五、任务排期</h2>
+<table data-page-node-id="axBLMbe4PbqyRkvdfmmX1H">
+  <tr data-page-node-id="qR3iodzMnGFPvZkSi2jVgh"><th style="width:6%" data-page-node-id="BlWSXh7UX96zYpXy76zq6d">序</th><th style="width:34%" data-page-node-id="rC9SqdsOyedJID8KCBm47E">任务</th><th style="width:12%" data-page-node-id="NZznDckXMsGLZvCCqyGpXf">工作量</th><th data-page-node-id="xYVFhVeexicMODhnWCa924">安全要点</th></tr>
+  <tr data-page-node-id="B2e1w84GhXXvzgDzV4dhEX"><td data-page-node-id="yX9dw07lKaDFfeLRZeBklO">1</td><td data-page-node-id="ygtFnRjPjwFFQVNQrlt5xS">停旧 ollama 进程 + 备份旧安装（可回滚）</td><td data-page-node-id="SqU4GZVMQBhztTJAl78w6m">0.1 天</td><td data-page-node-id="1pAH6KPQQAyTdjYL9IGTmF">已损坏，停用不影响其他系统</td></tr>
+  <tr data-page-node-id="5a5mUPvApMTrMpQmkpHj5k"><td data-page-node-id="Pn1L7xccucKPg05DfGO9zC">2</td><td data-page-node-id="cucP9OvMHgEigpSWw0dn06">下载官方 release（含 llama-server）到 /video/ollama_install/</td><td data-page-node-id="40zFOb70MpDv2yU8X6OMf4">0.2 天</td><td data-page-node-id="XCniCPFyemqmPMD0FF5GqL">装 /video 数据盘</td></tr>
+  <tr data-page-node-id="GykQosDPMzlWsqBJEIecFM"><td data-page-node-id="yoMPOEDqDzyFvAHhJwzkxN">3</td><td data-page-node-id="S44q6hfFF0tCFpS2DXxGMX">解压安装 + 配置（OLLAMA_MODELS=/video/ollama/models 复用模型）</td><td data-page-node-id="H0hmgfy8r2Wwhw6zAb0gOr">0.2 天</td><td data-page-node-id="H6ql34E80z9zVQtQ8rnlck">不动系统盘，模型复用</td></tr>
+  <tr data-page-node-id="bGaIl56XgRH7K6ubzad0a0"><td data-page-node-id="4l41FI2GBEcvBHCGpD1PXq">4</td><td data-page-node-id="CYBWoVcmuSNqwBSEiiRJBf">systemd 服务化（指向 /video/ollama_install/bin/ollama serve，随用启停）</td><td data-page-node-id="HGpSHcDx2UzvwBaRaOQTil">0.2 天</td><td data-page-node-id="4Lc3pnTUHrjme4rAyDWmPF">独立服务，不影响其他系统</td></tr>
+  <tr data-page-node-id="Os85SnTZbwEOltzX2t4vMN"><td data-page-node-id="OA1SGQPOdBTVhVCszYSKTa">5</td><td data-page-node-id="sUfjPbpsc38tPbn79w11bj">验证 VLM 推理（/api/tags + Qwen2.5-VL 跑通 + GPU 显存可控）</td><td data-page-node-id="Q5F5OZO4ed4k7IVmhX6cEA">0.3 天</td><td data-page-node-id="GIrErFBxuKbBPqx9Lj8kBa">GPU 随用启停，straw-engine 优先</td></tr>
+  <tr data-page-node-id="sbVGDKFNAjZHr1HUjaeTwv"><td colspan="2" data-page-node-id="DuY5qGR6bsyCqZrDMPGlAX"><b data-page-node-id="pNlyCVXtPWz6HpwgEPzgow">合计</b></td><td data-page-node-id="F1FyL0nGr5vkgRXl7UPL4N"><b data-page-node-id="AKTecB5TChGApHKogifp3P">~1 天</b></td><td data-page-node-id="tPjkMiKdPwkVHZTy5690zL">—</td></tr>
+</table>
+
+<h2 data-page-node-id="KYYNsLX7Eysc8eFK0nqFY1">六、关键设计决策</h2>
+<table data-page-node-id="yWe9dKTn9ObijmmIYwsHrG">
+  <tr data-page-node-id="0HlP2MFAubAhCp5gsfg0Kn"><th style="width:24%" data-page-node-id="kBYnJfnxAbeIqOxiYfQHG2">决策点</th><th data-page-node-id="8lrs51u6v2yZVOo5vD3pvY">方案</th><th data-page-node-id="cGcDWbQ7xdKx1Y1VON8kf2">理由</th></tr>
+  <tr data-page-node-id="gc2ny1o6d6fP8dGe1PMTZD"><td data-page-node-id="6QDNEUJEOsXK2gZEFB57AC">安装位置</td><td data-page-node-id="OYqGXYp4raNQEB0M40yz1I"><b data-page-node-id="kPTzxP205dgkMiDK6IZIXT">/video/ollama_install/</b></td><td data-page-node-id="BMkJ33GObwdJPVT5ETreiF">运维铁律：写操作只准 /video 数据盘，禁系统盘 sda</td></tr>
+  <tr data-page-node-id="dDfgaQBYHDHEUDvn26pF5H"><td data-page-node-id="jseEDyY2ssJNXDRTYuaX81">GPU 显存控制</td><td data-page-node-id="J54XamKwxABGH5teYfMRzb"><b data-page-node-id="IHCAuSEEhijjqO12ItSmmj">VLM 随用启停</b></td><td data-page-node-id="GNPXq3GE3KfV8RqMmfBQKO">不用时停 ollama（不占常驻 GPU），straw-engine 检测优先；Qwen2.5-VL 7B ~6-8GB，24GB 余量充足</td></tr>
+  <tr data-page-node-id="NYro4KqQPy7AEst3esNt7j"><td data-page-node-id="ZxD5dkp41nsGDtaXMqfTGI">模型复用</td><td data-page-node-id="OlYOg0ODzA0VVBOgJjH6fv">OLLAMA_MODELS=/video/ollama/models</td><td data-page-node-id="MYWO7dDXq8bwwLZbgwrLrQ">已有 qwen2.5vl:7b（5.6G），重装后复用不重下</td></tr>
+  <tr data-page-node-id="8pa5kpLUYfyGvgjcy3D1wN"><td data-page-node-id="8l0Dh6uZ6TAW7B0uxtUkQB">服务化</td><td data-page-node-id="Fla2BoIGwCL15iEJ72sGMU">systemd 管理（随用启停）</td><td data-page-node-id="WEvqNmDQTyi7tcKx7aBKpN">独立服务，不影响 straw-engine/dji-openapi/jsc-backend</td></tr>
+  <tr data-page-node-id="uPkLntUQbDsQg1ZAVD26Y0"><td data-page-node-id="KhFftU3zqWpHK9sxIBetMu">回滚</td><td data-page-node-id="wFDAdzYYORA27HtoHQtrkA">备份旧安装（/usr/local/bin/ollama + /usr/local/lib/ollama）</td><td data-page-node-id="Z9kHWfbgRiSyTTuNaSTWQf">修复失败可回滚</td></tr>
+</table>
+
+<h2 data-page-node-id="4KZF7t8IH58VuKyOQGJQ2y">七、结论</h2>
+<div class="box green" data-page-node-id="C44OqkmCEehpi5wTmW1rYa">
+  <p data-page-node-id="L0WVaUKsd0Fw4F4xikkzmG">① <b data-page-node-id="iVORkWDjtkbIyQ7OhizH25">根因明确</b>：ollama 版本不匹配 + 进程用 deleted 旧二进制 + llama-server 确实缺失（推理引擎没装）；<br data-page-node-id="pcyiLxh5xhEZ9WYkKtMEdt">
+  ② <b data-page-node-id="MSEesH0veVpADNiQ4F1ueI">修复方案清晰</b>：官方 release 重装到 /video（含完整 llama-server），停损坏旧进程，模型复用；<br data-page-node-id="11LF4ChbSJ74EhREBRkNjY">
+  ③ <b data-page-node-id="deN5rMDBTm1IG7A8nHpzs8">不影响系统运行</b>：ollama 独立服务，GPU 显存可控（VLM 随用启停，straw-engine 优先），装 /video 数据盘；<br data-page-node-id="7sllTdGqpSoMrBThMRTqVa">
+  ④ <b data-page-node-id="kFs2TfJNCkNvVMQ2TMAOoR">排期约 1 天</b>，修复后 VLM 标框能力恢复（Qwen2.5-VL 可用于"薄雾状远烟"等标注辅助）。</p>
+</div>
+
+<div class="foot" data-page-node-id="0BE1ZXfNdJ9uABwAg6Tn8X">
+  本报告基于 2026-09-09 ollama 安装现状代码级排查（版本不匹配 0.32/0.33 + 进程 deleted + llama-server 全盘缺失 + /video 6.0T 充足 + 模型已下载 5.6G）。核心结论：官方 release 重装到 /video，不影响系统，排期约 1 天。
+</div>
+
+</div>
+</body>
+</html>

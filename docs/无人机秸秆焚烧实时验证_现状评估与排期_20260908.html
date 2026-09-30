@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="YPttl8CYtgJE2UyNqjoRqL">
+<head data-page-node-id="KTmGaFnBAp4JwR2GgMMheX">
+<meta charset="UTF-8" data-page-node-id="wE1DSKkpcFn7GmJGrGpTz1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="S8LDW7S7Y0ZJ4qFSCMw3Ed">
+<title>无人机秸秆焚烧实时验证 · 现状评估与任务排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .gantt{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .gantt-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .gantt-name{width:150px;flex-shrink:0;color:var(--ink)}
+  .gantt-bar{height:18px;border-radius:3px;background:var(--blue);color:#fff;font-size:11px;line-height:18px;padding:0 8px;white-space:nowrap}
+  .gantt-bar.warn{background:var(--amber)}
+  .gantt-bar.red{background:var(--red)}
+</style>
+</head>
+<body data-page-node-id="AX7FU5vSiqPgKFPjcZL0UD">
+<div class="page" data-page-node-id="LQDrayVvI1JtkwGuMi0cSE">
+
+<div class="doc-head" data-page-node-id="CotKfCHGiXEJPlNjdpc0a3">
+  <div class="org" data-page-node-id="y2SPP24UikjGlurNyQJHrN">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="r3zU33jSaA7uduF8rBTKxv">无人机实时秸秆焚烧验证 · 现状评估与任务排期</div>
+  <div class="subtitle" data-page-node-id="Bo2HDtqwDDGa65TnCJkEMh">—— 需求逐项对照、现有链路盘点、缺口与排期（面向明天真飞验证）</div>
+  <div class="meta" data-page-node-id="6hu0j4yfb7w7LZ7GEqFmrB"><span data-page-node-id="FKBRg6RnmUJspIgknR6i84">编制时间：2026-09-08</span><span data-page-node-id="InIIJt3jDTPoO8uqS0pAOM">评估方式：代码级排查（只读）</span><span data-page-node-id="Yr7a21BCdzbp6HUGGQH0BM">验证目标：明天无人机实飞</span></div>
+</div>
+
+<h2 data-page-node-id="IDGhTL5atutZTGOZ9ZAcDp">一、结论摘要</h2>
+<div class="box warn" data-page-node-id="mCR5eblMVNAErOVxGN7p3C">
+  <p data-page-node-id="COYFjlhcsr2VxGoX3G8VhW"><b data-page-node-id="Qa5UQARtovlcpLAXGgDVWw">现有系统已满足约 70%，核心链路（检测→标框→坐标定位→乡镇→入库→人工确认）已全部打通，但「弹窗画面实时标框叠加」这一环是缺口</b>，且坐标定位依赖的无人机 OSD 字段需真飞确认。</p>
+  <p data-page-node-id="BHCEwekEojUwJs2SgmpLrA">一句话：<b data-page-node-id="L6lCV2wXDbkvVlV3g1ATwq">检测和事件生成的后端链路基本就绪；差的只是"弹窗画面里实时画框"这个前端可视化能力，以及无人机 OSD 坐标字段的真飞确认。</b></p>
+</div>
+
+<h2 data-page-node-id="7xvfiempGKYindLZhnPq6t">二、需求逐项对照</h2>
+<table data-page-node-id="OMICQ5xTHgZyy4EDfggqg9">
+  <tr data-page-node-id="YuH0e0EDaZQBGYs7kVoPdf"><th style="width:26%" data-page-node-id="AHp6zhJ9KB6orwU4JbltP1">需求项</th><th style="width:14%" data-page-node-id="PehAZRoDr5YSsbuFStSh8v">现状</th><th data-page-node-id="fJHKiMv37E1mUyCJcWxLF1">说明</th></tr>
+  <tr data-page-node-id="BYMMPIKJN1gLbliMQGZled"><td data-page-node-id="nf3aEv31FGKPYQuBYzRDTd">① 无人机起飞后弹窗显示画面</td><td data-page-node-id="VSgUvnt0kfkBQYisdRFLwS"><span class="tag s-green" data-page-node-id="VoghhegjIrvNZWLlCnjENu">✅ 已满足</span></td><td data-page-node-id="iJXrkjXyyprFZUGTZLH8U4">DronePopupWindow 弹窗 + SinglePlayer 播放 HLS，LIVE_ON 触发（今日刚优化：只留无人机流、取消30s自动收起、1080P）</td></tr>
+  <tr data-page-node-id="dKJd5UK9QXjYBiI2k0YQiP"><td data-page-node-id="8TA4ChfJsmxpCxpb0nThgF">② 画面里实时显示秸秆判定（标框）</td><td data-page-node-id="sUxD0cUydZRflDna0wFX9i"><span class="tag s-red" data-page-node-id="tA4EHNggHsOzKjBJYdIlrG">❌ 缺口</span></td><td data-page-node-id="GdbsvuAV2lPhCLQ2ygBZ0L">检测在后端 straw-engine 抽帧做（有 bbox），但<b data-page-node-id="puMSo3N8EwB8HkC4wpNnsA">弹窗画面没有叠加标框</b>——前端只纯播放，无 canvas 覆盖层</td></tr>
+  <tr data-page-node-id="ZP618960LVdmNQyoZFle7I"><td data-page-node-id="kmLpSbd3FNgw2XiRMvtsz4">③ 推送坐标（无人机坐标+方向+标框距离）</td><td data-page-node-id="TfPlTRWXkzCWkyGlLXgh32"><span class="tag s-amber" data-page-node-id="3WCzy9O1dBrbsnKQgeCUtk">⚠️ 部分</span></td><td data-page-node-id="5g2SCqvbHpLmq8GGDVfddL">target-locator.js 已实现「GPS+航向+云台+测距→目标经纬度」算法（自测6项全过）；但依赖的无人机 OSD 字段（heading/yaw/pitch/range）需真飞确认是否推送</td></tr>
+  <tr data-page-node-id="zWAN6wJFUCZjsBY3fxjypb"><td data-page-node-id="E3fQ4CCs8L0Xu9Ia7CgdF1">④ 坐标所辖乡镇</td><td data-page-node-id="wmlPAGF7mLLfgyHBFaKNsU"><span class="tag s-green" data-page-node-id="Ci5qBcufSeaggyTr13dXh2">✅ 已满足</span></td><td data-page-node-id="oVVeKybqBZqA5UFyCFFbED">reverse-geocode.js 离线 PIP 反查（wanzhou_towns.geojson）+ findResponsibility 责任单位映射，均已实现</td></tr>
+  <tr data-page-node-id="y23foO5OTW3ni18BQnKMIV"><td data-page-node-id="yCbmLIMCe5iKt4dC3CuhnN">⑤ 图像</td><td data-page-node-id="ApBWNx3IAmLH8xUqlqglYj"><span class="tag s-green" data-page-node-id="874aFwUKBZR8qioQNETHQa">✅ 已满足</span></td><td data-page-node-id="3nvQZlKx6nZjWGvvPORocQ">save_evidence 存带框证据图（fire红框/smoke黄框）+ 复检帧</td></tr>
+  <tr data-page-node-id="rISwYTmM4fxmtSwAS0U0kP"><td data-page-node-id="YLnWmTdMrLbEKOEuOMT9TR">⑥ 置信度</td><td data-page-node-id="K9DaTDd8ErrGZZBKDVznR7"><span class="tag s-green" data-page-node-id="G5IyIv0WwFDUqiUHWcQBd7">✅ 已满足</span></td><td data-page-node-id="BnH4XgpPyG1CBIPDQSbnjd">alert.aiConfidence 已上报</td></tr>
+  <tr data-page-node-id="UzMrAJHSL8gCihyM2o1svT"><td data-page-node-id="4trWIfocF6jGAhhlbCtsAY">⑦ 形成秸秆焚烧事件</td><td data-page-node-id="stDGGXKB3QH1YxHq7ALAsL"><span class="tag s-green" data-page-node-id="u4998nlf7pfxIF1LHFhBgS">✅ 已满足</span></td><td data-page-node-id="nBdUIrCaibHQsbBH5VHkg4">/api/straw-alert → warnings(source=straw-engine) → strawWorkflow 责任反查+卡片+企微推送</td></tr>
+  <tr data-page-node-id="lsxThE7YSTz2hRPGNsfGNC"><td data-page-node-id="zt5YRil1YspBq7lmHIb0tm">⑧ 手动确认后入库</td><td data-page-node-id="L7zWMXW55Lx8DwWhDDIGAH"><span class="tag s-green" data-page-node-id="GTFM3xgfsRO1P54nCLB0SS">✅ 已满足</span></td><td data-page-node-id="rX4pWxR54ATWmnUVrWeq9C">/api/straw-review/:id（true/false/miss）+ straw_detections 复检表 + warning_id 精确关联 + 样本回流训练</td></tr>
+</table>
+
+<h2 data-page-node-id="H3neYcH8be1LIZE1D79JEe">三、关键缺口详解</h2>
+
+<h3 data-page-node-id="QyO8fIjw6do9IWcZzpkMUF">3.1 缺口一：弹窗实时标框叠加（最核心，明天验证必缺）</h3>
+<p data-page-node-id="GVuBHZMvOGNPS4AoUyfYGb">当前架构：<b data-page-node-id="XFTCh8AGuVEmgk98FdaFQP">检测在 straw-engine 后端抽帧完成</b>（cv2 拉 FLV → Detector → 得 bbox → save_evidence 存图）。弹窗（DronePopupWindow）只是前端单独再拉一路 HLS 播放，<b data-page-node-id="EWqkEYJT63XDCfbA41aY5G">两个画面是独立的</b>，弹窗画面看不到检测框。</p>
+<p data-page-node-id="0UKeiqpVxO4uLIF53T69cy">要满足"弹窗画面里实时显示标框"，有两条技术路线：</p>
+<table data-page-node-id="AGdryKX2N37hYGJNOeyYDp">
+  <tr data-page-node-id="O7Sjz8mV0ZwnIM6qx08qUD"><th style="width:16%" data-page-node-id="C7TFOGyn5HRWxI2rKvFN2V">路线</th><th style="width:40%" data-page-node-id="4m7650DGDFMzTqPzUCW5yp">做法</th><th data-page-node-id="mbFrAXdEWcEDFF6SZOn3ga">评估</th></tr>
+  <tr data-page-node-id="ovlw2ter1xqnyLyjet1elZ"><td data-page-node-id="4hLTU0j08BVpdGbT8YtsDV"><b data-page-node-id="3aACvejlKm6vJz5dctfl88">路线X（推荐）</b><br data-page-node-id="DWgGTzAFBX9Pb4FNN9CeWm">后端合成推流</td><td data-page-node-id="xHCvdtF2rvuomIKtUrzv5K">straw-engine 抽帧检测后，把 bbox 用 cv2 画到帧上，再重新推一路"带框流"到 ZLM（如 <code data-page-node-id="yZWc5i3wwvyqrASNIVMFeU">straw_bbox_<SN data-page-node-id="kOCYzGoWuuEuS5VPtCHsdl"></code>），弹窗改播这路带框流</td><td data-page-node-id="nhTgNt5q1XIWHmbslPjD6p"><span class="tag s-green" data-page-node-id="r42tuyQqRSi3ebKkO7InLy">改动小</span> 复用现有检测帧，只需加"推流"一步；弹窗播放逻辑几乎不变</td></tr>
+  <tr data-page-node-id="nBwEICezjrv4KERTfUJAKX"><td data-page-node-id="EjBF8X0TqZY507rCYHLhA1"><b data-page-node-id="B8xODNpp5YBGss5H6pRHqA">路线Y</b><br data-page-node-id="gTL4wvLLa1Bue4IXQ8utwH">前端叠加</td><td data-page-node-id="4Z5AHgwt4f2So2NGda9ADC">后端把 bbox 通过 SSE 实时推给前端，前端在 video 上叠 canvas 按坐标画框</td><td data-page-node-id="P7LRHHDCDBCmvxyu41nEpH"><span class="tag s-amber" data-page-node-id="E5PQe50KdaCBeKZjks0fXr">改动大</span> 需 SSE 同步 bbox 时间戳 + 前端坐标换算，实时对齐难</td></tr>
+</table>
+<p data-page-node-id="BgSC8v9k80vyP4npEIWMCK"><b data-page-node-id="WhcrFf9ujH1vh6gd90RgJa">推荐路线X</b>：最稳、明天验证最可靠。但需新增「straw-engine 检测帧→重推带框流」能力（约 0.5-1 天）。</p>
+
+<h3 data-page-node-id="M7TYDa0Ls7zfqqImC270WG">3.2 缺口二：无人机 OSD 坐标字段（需真飞确认）</h3>
+<p data-page-node-id="Jt45yw5ADKzuPblI1zAmxW">target-locator 定位需要无人机 OSD 帧里的 <code data-page-node-id="vVRwtKtiaXOdygrp59JbGI">heading（航向）/ gimbal.yaw（云台偏航）/ gimbal.pitch（云台俯仰）/ range（激光测距）</code>。这些字段在无人机<b data-page-node-id="pasqP1VSE1ltbGSzh569la">飞行中</b>的 OSD 帧（deviceType=1）里，今日刚修复了 ws-osd 的 deviceSn 取值 bug，但字段名与是否推送仍需真飞抓一帧确认。</p>
+<div class="box" data-page-node-id="57ISs9Cx0bfZyNFzQRI2Qt">
+  <p data-page-node-id="Fnnx9VAe1JpxOEkQBebGWb"><b data-page-node-id="4oaRJ150mra5ug0i3Vo4BU">风险</b>：若无人机 OSD 帧不含这些字段（或字段名不同），坐标定位会退化到"机场坐标"（geoSource=dock），无法实现"根据无人机坐标+方向+距离"的精确定位。</p>
+</div>
+
+<h2 data-page-node-id="5LldEdcOroI5S5GdvXPZ2J">四、明天验证的可执行路径</h2>
+<p data-page-node-id="ymM4dSqZ5YWo6RJHwSs9N0">考虑到「明天就要验证」，分两条腿走：</p>
+<table data-page-node-id="tIibmD13CYVFCunWBB78sU">
+  <tr data-page-node-id="18VD4rupbQmE1tBRfnAC6y"><th style="width:20%" data-page-node-id="K84v1eIGCUHInIt2dHBey2">路径</th><th data-page-node-id="zpttc4m5yFQ9KStVTtLGcd">内容</th></tr>
+  <tr data-page-node-id="fNQJoyIGMByy9KKKTZ64LE"><td data-page-node-id="2zMQiXRNGMhbRzcjTyC8k5"><b data-page-node-id="x68bgb46x9VVe7XkX2jhe1">保底（今天必做）</b></td><td data-page-node-id="6FhMf27nBtDecaxeft1doh">路线X「后端合成带框流」——让弹窗画面能实时显示标框，这是明天验证的<b data-page-node-id="C0D6RImu3DCCwbmTLKzn1P">门面核心</b>；同时保证检测→事件→入库链路可用</td></tr>
+  <tr data-page-node-id="0xm2PXNxRph9ARx4fcdNmw"><td data-page-node-id="WdOCvFKegs0VGSwIEUEh9h"><b data-page-node-id="FxMxFPwVZCgmH5vSZVHbmx">增强（真飞时验证）</b></td><td data-page-node-id="iy1XBo5SGwPzRonrpTpBxo">真飞抓无人机 OSD 帧，确认 heading/yaw/pitch/range 字段，若齐全则精确定位生效；否则降级机场坐标（事件仍可生成，只是坐标是机场位置）</td></tr>
+</table>
+
+<h2 data-page-node-id="oon54CtJ13v1Zf3y6kvTpN">五、任务排期（明天验证倒排）</h2>
+<div class="gantt" data-page-node-id="3RtQzyV2cfO8PTvgtsrHN6">
+  <div class="gantt-row" data-page-node-id="j6w4katV1zAvSrSGvYwHgI"><span class="gantt-name" data-page-node-id="laHGiaJBz9MH2gfLGb0BQ3">T1 弹窗带框流（路线X）</span><span class="gantt-bar" style="width:100%" data-page-node-id="2ugtLxBqrSPVq2iOz1Lzd1">今天 ~3h —— 核心门面，必做</span></div>
+  <div class="gantt-row" data-page-node-id="GjwZWzYC6x9fT5Vz3W2pS8"><span class="gantt-name" data-page-node-id="Ixk0INtJu4SoTsBa4DEDcP">T2 带框流播放接入</span><span class="gantt-bar" style="width:60%" data-page-node-id="CEdeGN35nIzfMvTzqCOQ0Z">今天 ~1.5h</span></div>
+  <div class="gantt-row" data-page-node-id="YTnOOY1jYrJUPnTAyDM1VE"><span class="gantt-name" data-page-node-id="jk6DdglvdBBTaYNBggl7Fs">T3 端到端联调（模拟）</span><span class="gantt-bar" style="width:40%" data-page-node-id="m7iZGUAZ7sBImE7H068gB9">今天 ~1h</span></div>
+  <div class="gantt-row" data-page-node-id="r8K5QoMl3SegMVgPGlBaOK"><span class="gantt-name" data-page-node-id="DxipNuPHnkaHfFVK1Aq31n">T4 真飞验证</span><span class="gantt-bar warn" style="width:50%" data-page-node-id="E1uGJ0aqStGKb0HGAParAc">明天 实飞窗口</span></div>
+  <div class="gantt-row" data-page-node-id="GSXCeaiRR76QwuX3u6FJMC"><span class="gantt-name" data-page-node-id="kVTIEDfuMBKf3uij8LstTn">T5 坐标字段确认+调优</span><span class="gantt-bar red" style="width:35%" data-page-node-id="zAeXX4t8LvTmUG4GmRy5PN">明天 飞后（依T4结果）</span></div>
+</div>
+<table data-page-node-id="QwFuoHNSqLltkwjm0tn8Ta">
+  <tr data-page-node-id="6gyTbL9ttT3YQ5Z52uAsoc"><th data-page-node-id="J544oZkinIZHIP2aEoARsc">任务</th><th data-page-node-id="VAh2AHIo9RnBIzM02KTvAC">内容</th><th data-page-node-id="XGXKlkUyo1szjraIsjRlZ5">依赖</th></tr>
+  <tr data-page-node-id="ZOsPJCdiaEmrPoTcyCc2mp"><td data-page-node-id="loEkT9VXFvH2QPRCMeqJDK"><b data-page-node-id="1tLC54FMqcIs86qDtqb2sG">T1</b></td><td data-page-node-id="NSfHHp0h7vLgb6lVHO8xDr">straw-engine 加"检测帧重推带框流到 ZLM"（复用检测输出画框→ffmpeg/RTMP 推 <code data-page-node-id="fjM5T0cwh11kkfDmwcd85L">straw_bbox_<SN data-page-node-id="jfoVoJaLAn9ZoJyhrZhzkP"></code>）</td><td data-page-node-id="GjdSEQDvXzj70yvetbpp1F">无</td></tr>
+  <tr data-page-node-id="uypxGpdLgsSdT0t7nnp8lV"><td data-page-node-id="1Ac6HGPUrTfgACnqGxqTIj"><b data-page-node-id="GMWAoulVPyK5K6JlQRerVD">T2</b></td><td data-page-node-id="Ykq8wUYqmhhxMHa5zAS1Gi">弹窗/前端播放带框流（检测到 bbox 时切带框流，无框时播原流）</td><td data-page-node-id="SyEpzX71D6IovhtUU8A361">T1</td></tr>
+  <tr data-page-node-id="u5ubO8MvIREotxrgb7EREG"><td data-page-node-id="hTJB9jGnXkVUccQEBKWPa5"><b data-page-node-id="aNLah8Y9TVk1coj3GUkjMC">T3</b></td><td data-page-node-id="lulDJ1MEx7SJGgLDtmtVLR">用 DroneSimPanel 模拟真机事件，端到端走一遍（弹窗→标框→告警→坐标→乡镇→入库→手动确认）</td><td data-page-node-id="01AkFprQ5DIPvCqEpqoxT3">T1+T2</td></tr>
+  <tr data-page-node-id="faI7KZZHZYrAx4kVS7d8T8"><td data-page-node-id="MKMYab5cPdTQHU31hxDso5"><b data-page-node-id="I8Gc6BTVAed5aW23JuR6Gn">T4</b></td><td data-page-node-id="xQywtSsUDElm3hwfcUMGWz">明天真飞：验证标框实时性 + 抓无人机 OSD 帧确认坐标字段</td><td data-page-node-id="uKKhgP0ojnsi36SiwYyF1G">T3</td></tr>
+  <tr data-page-node-id="5h5UCYD45dpSkec4y8mvSZ"><td data-page-node-id="m0CpfC8E6vr83SjQyhTMIf"><b data-page-node-id="ZbcinglDxQjVtzMAEydvEZ">T5</b></td><td data-page-node-id="qchzFm0nPWnB95LzwuVA5l">按 T4 结果修坐标定位字段（若字段齐全即生效，否则降级 dock 坐标并记录）</td><td data-page-node-id="YSP1yCDJdyiF2mQS4CHtPT">T4</td></tr>
+</table>
+
+<h2 data-page-node-id="7TpS5NcSAZaFvxhiXAlKov">六、风险与兜底</h2>
+<table data-page-node-id="VWD3iBj4CemrznHfhEx9Kv">
+  <tr data-page-node-id="ZpJFV410gzDqSRTHLLRMeO"><th data-page-node-id="7ecmvsMDQhj172rEHzyVMM">风险</th><th data-page-node-id="eJywCHw3seYRQ86I642xiZ">等级</th><th data-page-node-id="73CfIzCjtldH2KGTabIZS5">兜底</th></tr>
+  <tr data-page-node-id="CwetdKz43cSO7fiDFW05VJ"><td data-page-node-id="jjaF3YNJcMMkkYhmHcnq9Q">带框流推流带宽/编码开销</td><td data-page-node-id="eQX8XqpmVfc6D8xOFYroAm">低</td><td data-page-node-id="OSq9iAOa7HnOCkJkPcMn21">推流用低码率 720p、仅告警期间推，空闲不推</td></tr>
+  <tr data-page-node-id="f7UBVBohAMDmB8Y4JtaZxQ"><td data-page-node-id="XIjicCE4JDuHuOoT0vdByP">无人机 OSD 缺定位字段</td><td data-page-node-id="0tEZ5juEJ2gkpU9oV8Naz7">中</td><td data-page-node-id="cvzxi77CWlR2VwjioahuAT">坐标降级机场坐标（geoSource=dock），事件仍完整生成，仅坐标精度下降</td></tr>
+  <tr data-page-node-id="TdHyTIYx2bn02jZ6UYpAGC"><td data-page-node-id="H0NczRjtHWdZZ0egEhQikh">模型对真飞烟零检出（G1闸门已证 stage2 对远烟盲）</td><td data-page-node-id="Qs39dVMa4TcY6bWIBX6JsL"><b data-page-node-id="NBihqCJTHlr2qAWnwDKqfI">高</b></td><td data-page-node-id="d62ahNMsG9Pue6nlJbSlVv">这是最大风险——若明天模型检不出烟，则整个验证无告警产生。需提前准备"已知烟源/低空近烟"场景，或接受"验证链路而非验证模型精度"</td></tr>
+</table>
+
+<div class="box danger" data-page-node-id="Hqy2NHQ1qQTXMfp7KLYUAt">
+  <p data-page-node-id="7XC8FcOnNz8tJb9EMqyq6u"><b data-page-node-id="AqZHiHQsvjnmX9LkcfCbFQ">⚠️ 最重要的风险提醒</b>：记忆里已有结论——<b data-page-node-id="PizdtT2yP55zFJJHSn8aSJ">v5 stage2 模型对 DJI 远烟域零检出（G1 闸门 + E1 快评 + 段2续训三次失败均证实）</b>。明天验证若飞"远距离细微烟"，模型大概率检不出，整个实时标框链路就没有告警可展示。</p>
+  <p data-page-node-id="xkRwMUmlCHHPfnEorhPrRU"><b data-page-node-id="uKovZ0gb2bsdRbLh9MFjP9">建议</b>：明天验证前，先明确验证目标是「<b data-page-node-id="ZtD9c553SRpRwXN17XzLW3">链路贯通性</b>」（弹窗标框→事件→坐标→乡镇→入库，用低空近烟或已知燃烧点保证有检出）还是「<b data-page-node-id="gpe8XTw3uWRj5tuIoL8XG4">模型精度</b>」（大概率无检出）。前者今天按排期做即可，后者需先解决模型（非短期可成）。</p>
+</div>
+
+<h2 data-page-node-id="pekDa0Hu1a4ElB3aShFf1K">七、结论</h2>
+<div class="box green" data-page-node-id="DHC6YSaq7MVDeaf16L9iFQ">
+  <p data-page-node-id="tT4NoOq662MoqneKzunoUT"><b data-page-node-id="PGK0WMKUow8pthGBDInVtM">① 事件生成后端链路（检测/坐标/乡镇/图像/置信度/入库/人工确认）已基本就绪</b>，今天只差「弹窗实时标框」这一个前端可视化缺口；<br data-page-node-id="33583kR9NrhT7sPGYIn0yn">
+  <b data-page-node-id="OyZNkBivYShoWDuYAXv42S">② 建议今天按 T1-T3 落地「带框流」方案</b>，保证明天验证的"弹窗实时标框"门面可用；<br data-page-node-id="rxEDCn9co4o2hfr7JxewGG">
+  <b data-page-node-id="LBHi4x8Wkyne1q3JyltXfI">③ 坐标精确定位依赖无人机 OSD 字段，需明天真飞确认</b>，不确认则降级机场坐标；<br data-page-node-id="6zaSh9hY1um9ReFnb9xw0n">
+  <b data-page-node-id="dvrGnN4FvSv0eBTR00mEFe">④ 最大风险是模型对真飞烟零检出</b>，建议明天用"低空近烟/已知燃烧点"保证链路有告警可验。</p>
+</div>
+
+<div class="foot" data-page-node-id="2FNOboIcAJLJ1dtzlT8pMW">
+  本报告基于 2026-09-08 代码级排查（只读，未改动任何配置）。评估范围：straw-engine(app/main.py/reporter.py/recorder.py) + dji-openapi(target-locator.js/telemetry.js/ws-osd-client.js) + jsc-backend(index.js straw-alert/strawWorkflow + reverse-geocode.js + store-db.js) + 前端(DronePopupWindow/MapView)。
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>实时告警图片加载故障 · 评估与修复方案 · 2026-09-03</title>
+<style>
+:root{--bg:#0e1116;--card:#161b22;--line:#21262d;--ink:#e6edf3;--sub:#7d8590;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.65}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 32px}
+h1{font-size:23px;margin:0 0 6px;color:var(--ink)}
+h2{font-size:17px;margin:26px 0 10px;color:var(--blue);border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:14px;margin:16px 0 6px;color:var(--ink)}
+.sub{color:var(--sub);font-size:12.5px;margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.kpi .v{font-size:26px;font-weight:700;line-height:1.2}
+.kpi .l{font-size:11.5px;color:var(--sub);margin-top:2px}
+.kpi.red .v{color:var(--red)}.kpi.green .v{color:var(--green)}.kpi.amber .v{color:var(--amber)}.kpi.blue .v{color:var(--blue)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:#1c2128;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#14191f}
+.tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.4);margin-right:3px;white-space:nowrap}
+.tag.green{background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.4)}
+.tag.amber{background:rgba(210,153,34,.15);color:var(--amber);border-color:rgba(210,153,34,.4)}
+.tag.red{background:rgba(248,81,73,.15);color:var(--red);border-color:rgba(248,81,73,.4)}
+.tag.gray{background:rgba(125,133,144,.15);color:var(--sub);border-color:rgba(125,133,144,.4)}
+.tag.purple{background:rgba(188,140,255,.15);color:var(--purple);border-color:rgba(188,140,255,.4)}
+ol,ul{padding-left:20px;margin:6px 0}li{margin:3px 0}
+code{background:#0d1117;border:1px solid var(--line);padding:0 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,Consolas,monospace;color:var(--purple)}
+.note{font-size:12px;color:var(--sub);margin-top:5px}
+.verdict{background:#1c2128;border-left:3px solid var(--amber);padding:12px 16px;border-radius:4px;margin:14px 0}
+.verdict.green{border-left-color:var(--green)}
+.flow{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap;margin:10px 0}
+.flow .node{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12px;min-width:120px;flex:1}
+.flow .node b{display:block;font-size:12.5px;margin-bottom:2px}
+.flow .node .s{font-size:11px;color:var(--sub)}
+.flow .arrow{align-self:center;color:var(--sub);font-size:16px;padding:0 2px}
+.flow .node.bad{border-color:rgba(248,81,73,.55)}
+.flow .node.ok{border-color:rgba(63,185,80,.55)}
+.step{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:8px 0}
+.step .ph{font-weight:700;font-size:13.5px}
+.step .meta{font-size:11.5px;color:var(--sub);margin:2px 0 6px}
+.check{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>实时告警图片加载故障 · 评估与修复方案</h1>
+<p class="sub">JSC 驾驶舱 · 2026-09-03 · 状态：诊断完成，待方案拍板（本报告未改动任何生产代码）</p>
+
+<div class="grid4">
+  <div class="kpi red"><div class="v">60</div><div class="l">实测失败图片 imgFail（DOM 统计）</div></div>
+  <div class="kpi green"><div class="v">1</div><div class="l">实测成功图片 imgOk（历史 5001 真实图）</div></div>
+  <div class="kpi amber"><div class="v">9</div><div class="l">「暂无图片」占位（onError 兜底）</div></div>
+  <div class="kpi blue"><div class="v">3</div><div class="l">失败类型：401 网关 / 404 缺图 / 400 路径</div></div>
+</div>
+
+<h2>1. 现象与影响</h2>
+<div class="card">
+<p>驾驶舱「实时告警」面板中 <strong>iotcloud（AI 视频分析）告警的图片全部无法加载</strong>，卡片图区显示「暂无图片」占位。headless 对生产页面（:81/jsc/）DOM 实测：</p>
+<table>
+<thead><tr><th>实测指标</th><th>数值</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>imgOk</td><td><span class="tag green">1</span></td><td>唯一成功：历史 5001 真实告警图 <code>1788347706707..jpg</code>（thumb 200 image/webp）</td></tr>
+<tr><td>imgFail</td><td><span class="tag red">60</span></td><td>页面 61 张图仅 1 张成功，其余全 502/400/404</td></tr>
+<tr><td>noPicPlaceholders</td><td><span class="tag amber">9</span></td><td>onError 后渲染「暂无图片」占位（本轮测试告警均为 9/2 注入数据）</td></tr>
+</tbody>
+</table>
+<p class="note">⚠️ 注意：当前页面里的 iotcloud 告警全部是 <strong>9/2 的 inject / p1fix 测试数据</strong>（今日无真机告警），因此"全挂"中有一部分是测试图被删/测试形态导致；但其中 6882 认证网关形态代表的是 <strong>9/2 19:32 起上游真实下发的新格式</strong>，真机告警一旦产生将同样全挂——这是必须修的真问题。</p>
+</div>
+
+<h3>请求级实测明细（IMG_REQS 捕获）</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>图源形态</th><th>样例</th><th>结果</th><th>归类</th></tr></thead>
+<tbody>
+<tr><td>1-4</td><td><code>172.16.8.11:6882</code></td><td>t1_spill / t2_cover / p1fix_t1 / p1fix_t2</td><td><span class="tag red">502</span></td><td>6882 认证网关 → 401 JSON（HTTP 200 包裹）→ 后端 reject</td></tr>
+<tr><td>5</td><td><code>111.10.220.226:5001</code></td><td>1788347706707..jpg（历史真实）</td><td><span class="tag green">200 image/webp</span></td><td>5001 nginx 静态直出，代理链路正常</td></tr>
+<tr><td>6-7</td><td><code>5001 / 6882</code></td><td>p1fix_t3 / 9·2 t1_spill / t2_cover inject</td><td><span class="tag red">502</span></td><td>测试图源 404 或 6882 网关 401</td></tr>
+<tr><td>8-9</td><td><code>/api/evidence/...</code></td><td>_125441.jpg / _133437.jpg（straw 证据图）</td><td><span class="tag amber">400</span></td><td>相对路径被 AlertThumbnail 改写为 <code>/api/thumb?url=/api/evidence/...</code> → validatePicUrl 抛 Invalid URL</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>2. 图片加载链路</h2>
+<div class="flow">
+  <div class="node"><b>上游下发</b><span class="s">IoTCloud 告警 data_json.picUrl<br>绝对 URL（host 由上游决定）</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>存储</b><span class="s">iot-fetcher transformToWarning<br>picUrl 原样入库（无 host 改写）</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>前端映射</b><span class="s">DashboardContext →<br>/api/iot-image?url={picUrl}</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>缩略图改写</b><span class="s">AlertThumbnail 匹配改写为<br>/api/thumb?url=...&amp;w=200</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>后端代理</b><span class="s">iot-fetcher proxyImage / thumbImage<br>validatePicUrl 白名单 + host 改写</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>上游图源</b><span class="s">:5001 nginx 静态 或<br>:6882 认证网关</span></div>
+</div>
+
+<div class="card">
+<table>
+<thead><tr><th>后端端点</th><th>位置</th><th>逻辑</th><th>失败表现</th></tr></thead>
+<tbody>
+<tr><td><code>/api/iot-image</code>（原图）</td><td>iot-fetcher.js L476 proxyImage</td><td>validatePicUrl 白名单校验（<code>111.10.220.226</code>/<code>172.16.8.11</code>/<code>10.120.49.14</code>，路径须含 <code>/images/</code> 或 <code>/profile/snap/</code>）→ <code>111.10.220.226→172.16.8.11</code> host 改写 → http.get 转发</td><td>上游非 200 → <code>502 Image source error</code></td></tr>
+<tr><td><code>/api/thumb</code>（缩略图）</td><td>iot-fetcher.js L446 thumbImage</td><td>fetchImageBytes 拉源字节 → sharp resize+webp；无 sharp 降级 proxyImage</td><td>拉取失败 → <code>502</code>；URL 非法 → <code>400</code></td></tr>
+<tr><td><code>validatePicUrl</code></td><td>iot-fetcher.js L398</td><td>仅校验 host 白名单 + 路径关键字，<strong>不校验 host 端口、不处理认证形态</strong></td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>3. 根因分层</h2>
+
+<div class="step">
+<div class="ph">① 上游图源切换 = 主因</div>
+<div class="meta">9/2 19:32 起，IoTCloud 下发告警 picUrl 的 host 由 <code>111.10.220.226:5001</code>（nginx 静态直出，免认证）切换为 <code>172.16.8.11:6882</code>（认证网关）。</div>
+<p>6882 对任意路径返回 <code>{"code":401,"msg":"...认证失败，无法访问系统资源"}</code> —— 且是 <strong>HTTP 200 包裹的 JSON，不是图片</strong>。后端 <code>fetchImageBytes/proxyImage</code> 裸转发：看到 <code>statusCode!==200</code>（或拿到的 200 body 非图但 sharp 处理失败）→ 502 → 前端 onError → 「暂无图片」占位。当前代理层 <strong>没有 6882 的 token/cookie 注入能力</strong>，此形态下恒 401。</p>
+</div>
+
+<div class="step">
+<div class="ph">② 后端代理未适配认证网关</div>
+<div class="meta">iot-fetcher.js validatePicUrl L398-413：host 白名单放行 172.16.8.11，但代理逻辑只做「静态 host 改写」，无认证透传、无 cookie 会话、无"先试 A 源再回退 B 源"能力。</div>
+</div>
+
+<div class="step">
+<div class="ph">③ 测试图数据叠加放大现象</div>
+<div class="meta">DB 实证：iotcloud 7154 条 picUrl 为 :5001（正常）+ 仅 7 条 :6882（全部是 inject/p1fix 测试图，今日 5 条 iotcloud 告警全是测试数据）。</div>
+<p>页面 60 张失败图里，一部分是 5001 测试图已删（p1fix 系列 404）、一部分是 6882 测试形态（401）。真实历史图（5001）经代理 200 正常 → <strong>证明代理链路本身健康，问题集中在"新图源形态"</strong>。</p>
+</div>
+
+<div class="step">
+<div class="ph">④ 聚合告警选图逻辑缺陷（次生风险）</div>
+<div class="meta">store-db.js L2099：<code>previewPicUrl = 组内首条含 picUrl 成员</code>。</div>
+<p>若聚合组内首条恰好是 6882 死链/测试图，整组聚合卡片的预览图一起挂；即使其余成员图正常也不会被选。今日聚合组=0 属数据巧合，真机告警一旦混入死链成员即触发。</p>
+</div>
+
+<div class="step">
+<div class="ph">⑤ /api/evidence 相对路径缺陷（straw 证据图）</div>
+<div class="meta">AlertThumbnail.tsx L27-32：把一切 <code>/api/iot-image?url=</code> 改写为 <code>/api/thumb?url=...</code>；但当 picUrl 本身是相对路径 <code>/api/evidence/...</code> 时（straw 证据图本应直链），被错误改写成 <code>/api/thumb?url=/api/evidence/...</code> → validatePicUrl 对非 http(s) URL 抛 Invalid URL → 400。</div>
+</div>
+
+<h2>4. 关键实证（支撑方案选择）</h2>
+<div class="card">
+<table>
+<thead><tr><th>证据</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>历史真实告警 7154 条 picUrl 全为 <code>:5001</code>，代理实测 200</td><td>5001 静态源 + 现有代理 = <span class="tag green">健康基线</span></td></tr>
+<tr><td>今日 6882 形态测试图（90510/90511 等）在 <code>:5001 同路径</code> 试拉 <span class="tag green">HIT 200</span></td><td>两图源很可能是<strong>同一份目录的两种出口</strong>（6882 = 5001 的鉴权包壳）→ host/port 归一化可行</td></tr>
+<tr><td>9/2 19:32 前后 picUrl host 突变</td><td>切换是上游单方面变更，我方无感知 → 需要"图源形态变更"告警/兜底机制</td></tr>
+<tr><td>今日 iotcloud 告警 5 条全为测试（inject/p1fix）</td><td>当前 UI 全挂 ≠ 真实业务全挂，但 <strong>真机告警一旦产生即为 6882 形态 → 必然全挂</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>5. 解决方案对比</h2>
+<table>
+<thead><tr><th>方案</th><th>做法</th><th>优点</th><th>缺点 / 依赖</th><th>成本 / 见效</th><th>评级</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>A<br>代理加 6882 认证透传</strong></td>
+<td>后端代理对 6882 源注入 token/cookie、维护会话、失败重放；凭据存 env</td>
+<td>根治真实形态；无需改前端；长期正道</td>
+<td>需向 IoTCloud 申请凭据（周期不可控）；认证策略可能再变；代理状态管理复杂</td>
+<td>中-高 / 凭据到位后 ~1 天</td>
+<td><span class="tag amber">长期</span></td>
+</tr>
+<tr>
+<td><strong>B<br>host/port 归一化（读时双源回退）</strong></td>
+<td>后端 <code>fetchImageBytes/proxyImage</code> 遇 <code>172.16.8.11:6882</code> 时先改写 <code>172.16.8.11:5001</code> 同路径试拉；5001 404 再回退 6882 原样；双败返 502+日志</td>
+<td><strong>实测同路径 HIT 200 支撑</strong>；无凭据依赖；不动 DB（可逆）；今日全挂形态即被覆盖；真实历史图不受影响</td>
+<td>假设两图源同目录同路径（当前实证成立，需保留回退兜底防上游只喂 6882 独有新图）；属"适配上游"的过渡 hack</td>
+<td>低 / 0.5 天</td>
+<td><span class="tag green">推荐主方案</span></td>
+</tr>
+<tr>
+<td><strong>C<br>前端降级重试 + evidence 直链</strong></td>
+<td>AlertThumbnail：thumb 请求 502/400 → 降级重试 <code>/api/iot-image</code> 原图；<code>/api/evidence/</code> 相对路径不 rewrite 直接 img 直链</td>
+<td>纯前端零后端改动、当日可上；顺带修缺陷⑤；thumb sharp 自身故障时也能兜底</td>
+<td>对 6882 401 无效（原图代理一样 502）→ 只治标、止血用</td>
+<td>极低 / 0.5 天</td>
+<td><span class="tag amber">止血</span></td>
+</tr>
+<tr>
+<td><strong>D<br>聚合选图改"可达优先"</strong></td>
+<td>store-db queryWarningsAggregated 的 previewPicUrl 排除已知死链形态（如 6882）取组内首个正常成员</td>
+<td>消除整组聚合卡挂死的次生风险</td>
+<td>不解决单卡片图挂；依赖"已知死链形态"黑名单，需随上游演化维护</td>
+<td>低 / 0.5 天</td>
+<td><span class="tag amber">配套</span></td>
+</tr>
+</tbody>
+</table>
+
+<div class="verdict">
+<strong>推荐：组合拳 = B（后端读时双源回退，主）+ C（前端降级 + evidence 直链修复，止血）+ D（聚合选图加固，配套）</strong>，三件同日落地可整体闭环；<strong>A（认证透传）列为长期正道</strong>，等拿到 IoTCloud 凭据后实施，届时 B 可降级为纯兜底。
+</div>
+
+<h2>6. 落地步骤（推荐组合，分 3 批）</h2>
+
+<div class="step">
+<div class="ph"><span class="tag amber">批 1 · 止血</span> 前端 C（0.5 天，纯前端可独立先行）</div>
+<div class="meta">改动文件：<code>src/app/components/AlertThumbnail.tsx</code></div>
+<ul>
+<li>onError 处理：thumb 加载失败 → 若 src 是 <code>/api/thumb?url=</code> 形态，重置为原 <code>/api/iot-image?url=</code> 重试一次；再失败才渲染「暂无图片」</li>
+<li>相对路径直链：src 以 <code>/api/evidence/</code> 或非 http(s) 开头时<strong>不 rewrite</strong>，直接走原生 img（修复缺陷⑤ 400）</li>
+<li>验收口径：straw 证据图 200；502 图先占位再自动变原图重试（网络面板可见第二个请求）</li>
+</ul>
+</div>
+
+<div class="step">
+<div class="ph"><span class="tag green">批 2 · 主修</span> 后端 B（0.5 天）</div>
+<div class="meta">改动文件：<code>server/iot-fetcher.js</code>（fetchImageBytes L416 / proxyImage L476）</div>
+<ul>
+<li>抽取统一 <code>resolveImageBytes(url)</code>：先按原 URL 拉取（现状逻辑）→ 若 host:port 为 <code>172.16.8.11:6882</code>（或 111.10.220.226:6882）且失败/401，则改写为 <code>:5001</code> 同路径重试 → 仍败返回原始错误</li>
+<li>双败时 log.error 记录 <code>[img-proxy] 6882/5001 双源均失败 url=...</code>，便于跟踪上游是否出现"5001 无副本"的新图</li>
+<li>不改 DB、不改入库逻辑（读时适配，天然可逆）</li>
+<li>验收口径：今日 6882 形态测试图 curl 后端代理返回 200 image/*；真实 5001 历史图仍 200</li>
+</ul>
+</div>
+
+<div class="step">
+<div class="ph"><span class="tag purple">批 3 · 加固</span> 聚合选图 D + 可选长期 A</div>
+<div class="meta">改动文件：<code>server/store-db.js</code> L2099；长期 A 改 <code>server/iot-fetcher.js</code> + env</div>
+<ul>
+<li>previewPicUrl 选择逻辑：在组内遍历时跳过「6882 网关形态 / 已判定不可达」成员，取首个健康成员；全组无健康图则 null（前端显示占位而非裂图）</li>
+<li>（可选）A：向 IoTCloud 申请 6882 认证凭据 → env <code>IOTCLOUD_6882_TOKEN</code> → fetch 时注入 header；凭据进 <code>.env</code> + <code>.gitignore</code>，不落库不入 git</li>
+</ul>
+</div>
+
+<h2>7. 部署与核验</h2>
+<div class="card">
+<ul>
+<li><strong>后端</strong>：scp <code>server/iot-fetcher.js</code>（+ <code>store-db.js</code>）→ 生产 <code>/opt/jsc/backend/</code>（顶层，非 server/ 子目录）→ <code>node --check</code> → <code>systemctl restart jsc-backend</code> → <span class="check">✓</span> md5sum 对照 + journalctl 无报错</li>
+<li><strong>前端</strong>：<code>pnpm build</code> → scp dist 全部文件铺到 <code>/opt/jsc/frontend/</code> 根（正斜杠，勿落 frontend/dist/ 子目录）→ 按记忆铁律 curl 核验 index.html 引用 assets 全 200</li>
+<li><strong>验收</strong>：重跑 <code>shot_pic_diag</code> → 期望 imgFail 60→0、imgOk ≥ 当前、暂无图片占位消失（测试图 404 的例外项另计）；聚合组注入含死链成员的样例验证 D 生效；截图存 tmp/</li>
+<li><strong>入口注意</strong>：核验走 :81/jsc/（本机 Windows 沙箱访问 :80 走代理必 502，非生产问题）；后端 curl 在服务器本机执行</li>
+</ul>
+</div>
+
+<h2>8. 风险与回滚</h2>
+<div class="card">
+<table>
+<thead><tr><th>风险</th><th>等级</th><th>缓解</th></tr></thead>
+<tbody>
+<tr><td>上游 6882 独有新图（5001 无副本）→ B 归一化 404</td><td><span class="tag amber">中</span></td><td>双源回退设计：5001 404 → 回退 6882 原样请求；双败日志留痕，便于跟进上游</td></tr>
+<tr><td>B 属"适配上游"策略，上游再变则需再适配</td><td><span class="tag amber">中</span></td><td>图源形态变更日志 + 每张失败图都留痕，后续可自动告警"新图源形态出现"</td></tr>
+<tr><td>C 降级重试会多发一次原图请求（流量↑）</td><td><span class="tag gray">低</span></td><td>仅 502/400 失败路径触发，正常图不重试</td></tr>
+<tr><td>A 凭据泄露 / 认证策略变更</td><td><span class="tag gray">低</span></td><td>凭据存 env + .gitignore；A 仅在凭据到位后启用</td></tr>
+</tbody>
+</table>
+<p><strong>回滚</strong>：读时适配未改 DB，回滚 = git revert 后端文件 + 重 scp + restart（或前端旧 bundle 从 backups/ 还原重铺），无数据迁移负担，分钟级可逆。</p>
+</div>
+
+<h2>9. 结论与决策点</h2>
+<div class="verdict green">
+<strong>一句话结论</strong>：故障主因是 <strong>9/2 19:32 上游 IoTCloud 将告警图源切至 172.16.8.11:6882 认证网关</strong>，后端图片代理无认证透传能力导致 401→502→前端「暂无图片」占位；5001 静态源全链路健康（历史 7154 条 + 同路径 HIT 200 实测）为归一化修复提供了直接依据。<br><br>
+<strong>推荐执行</strong>：批 1（前端降级 + evidence 直链）→ 批 2（后端 6882→5001 读时双源回退）→ 批 3（聚合选图加固）；长期视凭据情况补 A 认证透传。
+</div>
+
+<table>
+<thead><tr><th>决策点</th><th>选项</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td>① 是否按 批1+批2+批3 组合实施</td><td>A 仅止血（批1）/ B 止血+主修（批1+2）/ C 全量三批</td><td><span class="tag green">C 全量</span>（三件套同日闭环，互为兜底）</td></tr>
+<tr><td>② 是否接受"读时双源回退"这一适配策略（不动 DB、天然可逆）</td><td>接受 / 改为写时归一化（入库前改 host，DB 落 5001 地址）</td><td><span class="tag green">读时</span>（可逆、无历史数据污染；写时留作备选）</td></tr>
+<tr><td>③ 是否向 IoTCloud 申请 6882 认证凭据（支撑长期方案 A）</td><td>可申请 / 暂不申请</td><td>建议发起申请，到位后补 A；未到位前 B 已覆盖现状</td></tr>
+</tbody>
+</table>
+
+<p class="note">附：诊断过程未修改任何生产文件；涉及只读侦察 server/iot-fetcher.js、server/store-db.js、src/app/components/AlertPanel.tsx、AlertThumbnail.tsx、DashboardContext.tsx + DB 统计（json_extract picUrl）+ 生产页面 DOM 实测。</p>
+
+</div>
+</body>
+</html>

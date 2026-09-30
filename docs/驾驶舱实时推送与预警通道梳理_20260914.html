@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱实时推送与预警通道梳理（2026-09-14）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1280px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:26px}
+h1{font-size:23px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+.meta{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.meta span{padding:3px 10px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.25);border-radius:3px}
+h2{font-size:19px;margin:38px 0 14px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:15px;margin:22px 0 10px;color:var(--accent)}
+h4{font-size:14px;margin:14px 0 6px;color:var(--orange)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px;margin-bottom:14px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:8px 11px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 11px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 6px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-video{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.t-straw{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-gas{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-chengyun{background:rgba(167,139,250,.16);color:#c4b5fd;border:1px solid rgba(167,139,250,.45)}
+.t-idle{background:rgba(107,135,168,.16);color:#8fa9c4;border:1px solid rgba(107,135,168,.4)}
+.flow{display:flex;flex-direction:column;gap:0;margin:14px 0}
+.frow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
+.fbox{flex:1;min-width:150px;background:rgba(0,170,255,.05);border:1px solid rgba(0,170,255,.28);border-radius:5px;padding:10px 12px}
+.fbox b{display:block;color:var(--cyan);font-size:12px;margin-bottom:3px}
+.fbox small{color:var(--muted);font-size:11px;line-height:1.5;display:block}
+.arrow{display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:18px;padding:2px 0}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:12px 0;font-size:13px}
+ul{margin:8px 0;padding-left:22px}li{margin-bottom:5px}
+.big{font-size:22px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>驾驶舱实时推送与预警通道梳理</h1>
+  <div class="subtitle">数据来源：<code>jsc.db</code> 实测 + 后端入库代码 + 前端接收点全量清点（非文档推断）</div>
+  <div class="meta">
+    <span>📅 2026-09-14 22:30</span>
+    <span>🗄 warnings 表 30035 条</span>
+    <span>📡 4 条接入通道 · 4 种前端接收机制</span>
+    <span>⏱ 轮询 10s / 15s / 30s + SSE + MQTT</span>
+  </div>
+</header>
+
+<!-- ══════════ 一、总览 ══════════ -->
+<h2>一、总览：一句话讲清</h2>
+<div class="card acc">
+  <p style="margin-top:0">所有预警<b>殊途同归于一张 <code>warnings</code> 表</b>（单一入口 <code>store.insertWarning()</code>），再经<b>推送规则聚合成"聚合告警"降噪</b>，最后由驾驶舱前端以 <b>10 秒轮询为主</b> 拉取渲染；无人机起飞另走 <b>SSE 实时信道</b>。</p>
+  <div class="kpi">
+    <div><div class="lbl">warnings 总量</div><div class="big">30,035</div></div>
+    <div><div class="lbl">数据跨度</div><div class="big" style="font-size:15px">06-07 ~ 09-14</div></div>
+    <div><div class="lbl">接入通道</div><div class="big">4</div></div>
+    <div><div class="lbl">聚合规则</div><div class="big">5</div></div>
+    <div><div class="lbl">过滤规则</div><div class="big" style="color:var(--amber)">0</div></div>
+  </div>
+</div>
+
+<h3>1.1 四通道实测分布（按 source 统计）</h3>
+<table>
+  <tr><th>通道（source）</th><th>中文名</th><th>预警类型</th><th>条数</th><th>占比</th><th>最后入库</th><th>状态</th></tr>
+  <tr>
+    <td><span class="tag t-video">iotcloud</span></td><td>AI 视频分析</td><td><code>iot-video-analysis</code></td>
+    <td><b>28,988</b></td><td>96.5%</td><td>2026-09-14 19:14</td>
+    <td><span class="tag t-video">主力</span></td>
+  </tr>
+  <tr>
+    <td><span class="tag t-straw">straw-engine</span></td><td>秸秆检测</td><td><code>iot-video-analysis</code></td>
+    <td><b>636</b></td><td>2.1%</td><td>2026-09-13 19:07</td>
+    <td><span class="tag t-straw">自研引擎</span></td>
+  </tr>
+  <tr>
+    <td><span class="tag t-gas">cq_api</span></td><td>气体监测（市局）</td><td><code>growth5h</code> 389 · <code>cross</code> 15 · <code>fixed</code> 1 · <code>straw_burning</code> 1</td>
+    <td><b>406</b></td><td>1.4%</td><td>2026-09-14 22:25</td>
+    <td><span class="tag t-gas">实时采集中</span></td>
+  </tr>
+  <tr>
+    <td><span class="tag t-chengyun">chengyun-platform</span></td><td>城运中心</td><td>—</td>
+    <td><b>0</b></td><td>0%</td><td>—</td>
+    <td><span class="tag t-idle">代码就绪·无数据</span></td>
+  </tr>
+  <tr>
+    <td><span class="tag t-idle">straw-zu0822</span></td><td>秸秆历史遗留</td><td><code>null</code></td>
+    <td>5</td><td>0.02%</td><td>2026-08-22</td>
+    <td><span class="tag t-idle">遗留</span></td>
+  </tr>
+</table>
+<div class="quote">
+  <b>官方通道定义</b>（后端 <code>index.js:2363</code>）：<code>{ cq_api:'气体监测', iotcloud:'AI视频', 'straw-engine':'秸秆检测', 'chengyun-platform':'城运中心' }</code> —— 前三个在跑，城运平台接口已通但尚无真实告警入库。
+</div>
+
+<!-- ══════════ 二、逐通道链路 ══════════ -->
+<h2>二、逐通道完整链路（谁产生 → 怎么进 → 多久一次）</h2>
+
+<div class="card">
+  <h3><span class="tag t-video">通道 1</span> AI 视频分析（iotcloud）· 28,988 条 · 绝对主力</h3>
+  <div class="flow">
+    <div class="frow">
+      <div class="fbox"><b>IoTCloud 云平台</b><small>视频 AI 分析（堆头未覆盖/道路扬尘/违规排污等 8 类）</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>后端定时拉取</b><small><code>iot-fetcher.js</code> 拉录像/事件列表，按 recordId 去重（<code>iot_record_seen</code>）</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>insertWarning</b><small><code>source:'iotcloud'</code> · <code>warning_type:'iot-video-analysis'</code></small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>warnings 表</b><small>带 picUrl（6882/5001 抓图）、aiType、置信度、经纬度</small></div>
+    </div>
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:0">
+    <b>特点</b>：累计量最大（3 个月 28,988 条），来源为第三方云平台，图片经 <code>/api/iot-image</code> 代理（6882 认证网关 → 5001 双源回退）。这是驾驶舱"实时告警"里最常见的卡片（堆头未覆盖）。<br>
+    <b>⚠️ 正常日均其实不高</b>（09-11~09-14 实测 22 / 48 / 111 / 23 条），但 <b>09-06~09-10 曾连续 5 天异常爆发</b>（3794 / 3373 / 4376 / 5220 / 3804 条，单日最高是正常水平的 <b>200 倍以上</b>），是噪声治理必须正视的历史事件。
+  </p>
+</div>
+
+<div class="card">
+  <h3><span class="tag t-straw">通道 2</span> 秸秆检测（straw-engine）· 636 条 · 自研推理</h3>
+  <div class="flow">
+    <div class="frow">
+      <div class="fbox"><b>司空2 无人机镜像流</b><small>RTMP → 我方 ZLM(1936)</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>straw-engine :7200</b><small>抽帧 → YOLO11m smoke@1280 → <b>连续 3 帧确认</b>（Confirmer）→ OSD 定位</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>HTTP 上报</b><small><code>POST /api/straw-alert</code>（免登录 PUBLIC）</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>insertWarning</b><small><code>source:'straw-engine'</code> + 证据帧 <code>/api/evidence/&lt;日期&gt;/…jpg</code></small></div>
+    </div>
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:0">
+    <b>特点</b>：<b>事件驱动</b>（有烟才上报，非固定频率）；链路最长（无人机→ZLM→引擎→后端）；带 bbox/置信度/机场/镇街，也是唯一有"带框流 + 真烟样本回流"闭环的通道。最后入库 09-13 19:07（当日无人机未再起飞）。
+  </p>
+</div>
+
+<div class="card">
+  <h3><span class="tag t-gas">通道 3</span> 气体监测（cq_api）· 406 条 · 唯一"数值型"预警</h3>
+  <div class="flow">
+    <div class="frow">
+      <div class="fbox"><b>数据源配置</b><small><code>datasources.json</code>：周家坝 / 百安坝 2 条<br>URL：<code>hbyw.sthjj.cq.gov.cn</code> 36h AQI</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>采集调度器</b><small><code>schedulerTick</code> 每 15s 检查，按 <code>collect_cycle=300s</code> 触发</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>crawler.crawl</b><small>mode=api · POST <code>stationname=周家坝</code></small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>ingestRecord</b><small>校验 → 去重(点位+时间) → 质量检查 → 入库</small></div>
+      <div class="arrow">→</div>
+      <div class="fbox"><b>预警引擎</b><small><code>warning-engine.js</code> 生成 growth5h / cross / fixed</small></div>
+    </div>
+  </div>
+  <h4>预警判定规则（warning-engine.js 实测阈值）</h4>
+  <table>
+    <tr><th>污染物</th><th>静默区（不预警）</th><th>5h 增长预警</th><th>跨阈值预警</th></tr>
+    <tr><td>PM2.5</td><td>≤30</td><td>30&lt;值≤60 且 5h 增长 ≥40%</td><td>跨 75 / 115 / 150</td></tr>
+    <tr><td>PM10</td><td>≤45</td><td>45&lt;值≤120 且 5h 增长 ≥40%</td><td>跨 150 / 250 / 350</td></tr>
+    <tr><td>NO₂</td><td>≤30</td><td>&gt;30 且 5h 增长 ≥40%</td><td>—</td></tr>
+    <tr><td>O₃</td><td>≤160</td><td>—</td><td>跨 160</td></tr>
+  </table>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:0">
+    <b>特点</b>：唯一按"小时整点"产生、按数值阈值判定、<b>不依赖视觉</b>的通道；最新入库 22:25（5 分钟前），是当前唯一持续在跑的通道。
+  </p>
+</div>
+
+<div class="card warn">
+  <h3><span class="tag t-chengyun">通道 4</span> 城运中心（chengyun-platform）· 0 条 · 已接线未通电</h3>
+  <p style="font-size:13px;margin:0">
+    代码侧完整支持：<code>store-db.js:1688</code> 已实现该 source 的入库、聚合查询（<code>queryWarningsAggregated</code> 的 source 白名单含它）、<code>alert-location-rank</code> 等统计也认它。<b>但 warnings 表实测 0 条</b> —— 说明城运平台的告警入口尚未产生真实数据（对接/联调未完成，或对端未推送）。
+  </p>
+</div>
+
+<!-- ══════════ 三、后端统一入库与降噪 ══════════ -->
+<h2>三、后端统一入库与"降噪"设计</h2>
+
+<h3>3.1 单一入库入口</h3>
+<div class="card">
+  <p style="margin-top:0;font-size:13px">不论哪条通道，最终都调 <code>store.insertWarning(w)</code>（<code>INSERT OR REPLACE</code>，以 <code>id</code> 为主键），落 <code>warnings</code> 表：</p>
+  <table>
+    <tr><th>列</th><th>说明</th></tr>
+    <tr><td><code>id</code></td><td>主键（<code>iot-&lt;recordId&gt;</code> / <code>straw-&lt;ts&gt;-&lt;rand&gt;</code>）</td></tr>
+    <tr><td><code>created_at</code></td><td>⚠️ <b>格式不统一</b>：iotcloud 存本地 <code>YYYY-MM-DD HH:mm:ss</code>，straw/cq_api 存 <b>UTC ISO</b> → 前端/聚合层需兼容两种（现由 <code>parseWarningTime</code> 兜底）</td></tr>
+    <tr><td><code>warning_type</code></td><td><code>iot-video-analysis</code> / <code>growth5h</code> / <code>cross</code> / <code>fixed</code></td></tr>
+    <tr><td><code>status</code></td><td><code>pending</code> / <code>handled</code>（聚合组还有 <code>partial</code>）</td></tr>
+    <tr><td><code>data_json</code></td><td>全量业务字段（source / aiType / picUrl / lat / lon / aiConfidence / bbox / streamId …）</td></tr>
+  </table>
+</div>
+
+<h3>3.2 聚合降噪（push_rules · 实测 5 条规则全启用）</h3>
+<div class="card">
+  <table>
+    <tr><th>规则名</th><th>适用通道</th><th>AI 类型</th><th>时间窗</th><th>阈值</th></tr>
+    <tr><td>堆头未覆盖</td><td>ALL</td><td>堆头未覆盖</td><td>24h</td><td>≥20 条</td></tr>
+    <tr><td>道路扬尘</td><td>ALL</td><td>道路扬尘</td><td>24h</td><td>≥1 条</td></tr>
+    <tr><td>秸秆燃烧</td><td>ALL</td><td>秸秆燃烧</td><td>24h</td><td>≥2 条</td></tr>
+    <tr><td>堆场扬尘</td><td>ALL</td><td>堆场扬尘</td><td>24h</td><td>≥20 条</td></tr>
+    <tr><td>AI视频24h≥5聚合</td><td>ALL</td><td><b>（通配）</b></td><td>24h</td><td>≥5 条</td></tr>
+  </table>
+  <p style="font-size:13px;margin-bottom:0">
+    <b>折叠逻辑</b>（<code>queryWarningsAggregated</code>）：按 <code>(通道, AI类型)</code> 分组 → 窗口内命中数 ≥ 阈值 → 折叠成 <b>1 条"聚合告警"</b>（带 <code>memberIds</code> / <code>count</code> / <code>maxLevel</code> / <code>confidence 范围</code>）；未达阈值则原样平铺。<br>
+    <b>规则优先级</b>：业务方「具体类型」规则 &gt; 系统默认「通配」规则（否则通配抢先命中，自定义阈值失效）。
+  </p>
+</div>
+
+<div class="card warn">
+  <h3>3.3 过滤规则（alert_filter_rules）· 实测 0 条</h3>
+  <p style="font-size:13px;margin:0">
+    设计上用于"命中即从告警列表隐藏"（<code>alertFilterRuleHit</code>），支持按来源多选 + 等级 + 时间。当前<b>一条都没配</b> —— 意味着所有告警都会进入列表，没有任何前置屏蔽，只能靠聚合降噪。
+  </p>
+</div>
+
+<!-- ══════════ 四、前端接收机制 ══════════ -->
+<h2>四、驾驶舱前端的接收机制（4 种并存）</h2>
+
+<table>
+  <tr><th>机制</th><th>载体</th><th>接口 / 信道</th><th>频率</th><th>用途</th></tr>
+  <tr>
+    <td><b>① 轮询（主）</b></td>
+    <td><code>DashboardContext</code></td>
+    <td><code>/api/warnings?limit=100&amp;aggregate=1&amp;lightweight=1</code></td>
+    <td><b>10s</b></td>
+    <td>推入 <code>externalAlerts</code> → AlertPanel 实时告警列表（聚合卡 + AI 视频卡）</td>
+  </tr>
+  <tr>
+    <td><b>② 角标轮询</b></td>
+    <td><code>alertsApi.fetchUnhandledCount</code>（AlertPanel 调）</td>
+    <td><code>/api/warnings?aggregate=1</code> + <code>?status=pending&amp;limit=500</code> 双请求去重</td>
+    <td><b>15s</b></td>
+    <td>右上角未处置总数红标（99+）</td>
+  </tr>
+  <tr>
+    <td><b>③ SSE 实时流</b></td>
+    <td><code>DronePopupHost</code>（EventSource）</td>
+    <td><code>/api/drone-events/stream?token=</code></td>
+    <td>长连接 + 心跳</td>
+    <td>无人机起飞/降落 → 弹窗自动上窗（唯一"真推送"信道）</td>
+  </tr>
+  <tr>
+    <td><b>④ MQTT 直连</b></td>
+    <td><code>DashboardContext</code>（浏览器 mqtt.js）</td>
+    <td>浏览器直连 Broker（WebSocket 8083/8084）</td>
+    <td>订阅式</td>
+    <td>采集预警 / 设备数据（配置驱动）· ⚠️ <b>当前 UI 显示"未连接"</b></td>
+  </tr>
+  <tr>
+    <td>⑤ 弹窗内轮询</td>
+    <td><code>AlertHistoryModal</code></td>
+    <td><code>?limit=500&amp;aggregate=1</code> + <code>?limit=500</code></td>
+    <td>10s</td>
+    <td>历史告警翻页 + 新告警 diff（提示音触发源）</td>
+  </tr>
+  <tr>
+    <td>⑥ 顶栏秸秆统计</td>
+    <td><code>TopBar</code></td>
+    <td><code>/api/warnings?limit=100&amp;aggregate=1&amp;lightweight=1</code></td>
+    <td>30s</td>
+    <td>顶栏"秸秆 N 件"计数</td>
+  </tr>
+  <tr>
+    <td>⑦ 地图告警联动</td>
+    <td><code>MapView</code> / <code>CenterPanel</code></td>
+    <td><code>useDashboard().externalAlerts</code> + iot-analysis/status</td>
+    <td>10s / 15s</td>
+    <td>地图点位红闪、摄像头告警图标</td>
+  </tr>
+</table>
+
+<div class="card good">
+  <h3>4.1 前端"实时"的真实时序</h3>
+  <pre style="background:rgba(0,0,0,.3);padding:12px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:0">告警产生（后端入库）
+   │  ≤10s 延迟
+   ▼
+DashboardContext 轮询命中 → toAlert() 适配 → externalAlerts
+   │  （首次进页：仅回灌最新 10 条；后续轮询只推"新 id"+ 聚合更新）
+   ▼
+AlertPanel 合并 → alerts → sortAlerts（人员入侵 > 秸秆 > 其他）
+   │
+   ├─ 新告警 → flashId 高亮 2s + 滚动定位（P3 新增）
+   ├─ 低置信度秸秆(&lt;30%) → 折叠组
+   └─ 提示音（T23，仅在 AlertHistoryModal 打开时做 diff）</pre>
+</div>
+
+<!-- ══════════ 五、推送出口 ══════════ -->
+<h2>五、推送出口（驾驶舱往外推的部分）</h2>
+<table>
+  <tr><th>出口</th><th>触发</th><th>实现</th><th>状态</th></tr>
+  <tr><td><b>企业微信群卡片</b></td><td>秸秆告警入库后 <code>strawWorkflow</code></td><td>乡镇/街道 → 责任单位 webhook（<code>area_responsibility</code>）→ 卡片 + 复核直达链接</td><td><span class="tag t-straw">已上线</span></td></tr>
+  <tr><td><b>城运中心平台</b></td><td><code>smart_push</code> 规则/平台订阅</td><td>模板变量填充 → POST 主接口 + 副接口 → 回执闭环（<code>X-Push-Id</code>）</td><td><span class="tag t-idle">规则已配·无真实告警触发</span></td></tr>
+  <tr><td><b>短信</b></td><td>气体预警 / 报告</td><td><code>sms_history</code> / <code>sms_reports</code></td><td><span class="tag t-idle">表结构就绪</span></td></tr>
+</table>
+
+<!-- ══════════ 六、结论与风险 ══════════ -->
+<h2>六、关键结论与风险点</h2>
+<div class="card">
+  <h3>6.1 三句话结论</h3>
+  <ol>
+    <li><b>累计占比≠日常占比</b>：iotcloud 累计占 96.5%（28,988 / 30,035），但<b>正常日均三通道量级接近</b>（近 4 天：iotcloud 22~111、cq_api 5~28、straw 0~25 条）。该占比被 09-06~09-10 的 5 天异常爆发（合计约 20,567 条）严重拉高。</li>
+    <li><b>频率三档</b>：视频=事件驱动；气体=固定 5 分钟整点；秸秆=事件驱动（有烟才有）。<b>正常日均总计约 50~120 条</b>，但一旦某通道抖动，单日可冲到 5,000 条量级。</li>
+    <li><b>接收以轮询为主</b>：4 种机制里只有 SSE（无人机）是真推送，告警本身全靠 <b>10s 轮询</b> → <b>告警可见延迟最坏 10s</b>。</li>
+  </ol>
+</div>
+
+<div class="card warn">
+  <h3>6.2 值得注意的风险 / 缺口</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>影响</th></tr>
+    <tr><td>1</td><td><code>created_at</code> <b>两种时间格式混存</b>（本地串 / UTC ISO）</td><td>排序、24h 窗口、跨天分区都要靠兜底解析；历史踩过"通道 null"、"聚合误判过期"等坑</td></tr>
+    <tr><td>2</td><td><b>告警无 WebSocket 推送</b>（仅 SSE 给无人机）</td><td>大屏值班最坏 10s 后才看到；提示音只在历史弹窗打开时才 diff</td></tr>
+    <tr><td>3</td><td><b>首次进页仅回灌 10 条</b>（DashboardContext <code>slice(0,10)</code>）</td><td>告警多时早期聚合告警不显示（P2 已修 AlertPanel 侧不被挤出，但源头仍是 10 条窗口）</td></tr>
+    <tr><td>4</td><td><b>过滤规则 0 条</b></td><td>无前置降噪，仅靠聚合折叠；一旦某通道噪声升高会直接刷屏</td></tr>
+    <tr><td>5</td><td><b>MQTT 未连接</b>（UI 显示"未连接"）</td><td>MQTT 通道配置存在但未实际使用，采集预警的浏览器直推能力闲置</td></tr>
+    <tr><td>6</td><td>城运通道 <b>0 条数据</b></td><td>代码/规则/推送链路都就绪，缺真实对端数据 → 该通道等于未验证</td></tr>
+    <tr><td>7</td><td><b>09-06~09-10 异常爆发未复盘</b>（连续 5 天 3,373~5,220 条/天，合计约 20,567 条，占累计 68%）</td><td>若复发会直接刷屏并压垮前端（10s 轮询 + 列表渲染），且掩盖真实告警</td></tr>
+  </table>
+</div>
+
+<div class="card acc">
+  <h3>6.3 若要"更实时"的改造方向（供参考，未开工）</h3>
+  <ul>
+    <li><b>告警统一改 SSE/WS 推送</b>：后端入库后广播，前端订阅 → 延迟 10s → &lt;1s（复用现有 SSE 基建，改动量中等）</li>
+    <li><b>提示音移到全局</b>：不必打开历史弹窗才 diff，直接在 externalAlerts 层 diff 新告警</li>
+    <li><b>统一时间格式</b>：入库时全部转 UTC ISO（或全部本地），消除兜底解析</li>
+    <li><b>补几条 alert_filter_rules</b>：把已知稳定误报（如夜间某通道）前置屏蔽，减少刷屏</li>
+  </ul>
+</div>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:22px 0;border-top:1px dashed var(--border);margin-top:30px">
+  梳理基于 jsc.db 实测 + server/ 与 src/ 代码全量清点 · 2026-09-14<br>
+  📂 docs/驾驶舱实时推送与预警通道梳理_20260914.html
+</div>
+</div>
+</body>
+</html>

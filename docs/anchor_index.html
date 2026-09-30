@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆轻烟标注 · 工作区</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.8;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 72px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.2px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:16px;border-bottom:3px solid var(--ink);margin-bottom:26px}
+  h2{font-size:19px;margin:34px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0 8px}
+  a.cd{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;text-decoration:none;color:inherit;transition:.15s}
+  a.cd:hover{border-color:var(--brand);transform:translateY(-1px);box-shadow:0 6px 18px rgba(31,111,235,.10)}
+  a.cd .n{font-family:var(--mono);font-size:11.5px;color:var(--brand);font-weight:700;letter-spacing:.5px}
+  a.cd .t{font-size:17px;font-weight:700;margin:4px 0 6px}
+  a.cd .d{font-size:13.2px;color:var(--ink2);line-height:1.65}
+  ol,ul{padding-left:24px;margin:8px 0}
+  li{margin:6px 0}
+  code{font-family:var(--mono);font-size:12.7px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  pre{background:#1f2430;color:#e6edf3;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+  pre code{background:none;color:inherit;padding:0}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.6px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.6px}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.6px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+  .mono{font-family:var(--mono);font-size:12.6px}
+  @media(max-width:640px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>秸秆轻烟标注 · 工作区</h1>
+<div class="sub">
+  万州区秸秆焚烧监控 &nbsp;|&nbsp; 「远方轻烟」迭代 · P0-① 标注口径校准 &nbsp;|&nbsp;
+  <b>协议 v1.2</b> · 2026-09-29
+</div>
+
+<div class="cards">
+  <a class="cd" href="protocol.html">
+    <div class="n">STEP 1</div>
+    <div class="t">轻烟判定与标注协议 v1.2</div>
+    <div class="d">先读这份。尺度分档、5 步判定流程、<b>五档判定（含明火/明火+烟）</b>、易混淆清单、画框规则、一致性门禁。<b>不读协议直接标等于白标。</b></div>
+  </a>
+  <a class="cd" href="anchor_workbench.html">
+    <div class="n">STEP 2</div>
+    <div class="t">锚点确认工作台（39 张）</div>
+    <div class="d">两位标注员各自独立标注：<b>五档判定</b> + 尺度档 + 理由码。含内置一致性校验与导出/导入进度。</div>
+  </a>
+</div>
+
+<h2>怎么用（3 步）</h2>
+<ol>
+  <li><b>先读协议</b> —— 点左边那张卡。重点看 §3 判定流程 与 §4 <b>判定档口径（五档）</b>。</li>
+  <li><b>两名标注员各标一遍</b> —— 打开工作台，右上角切到「标注员 A」或「标注员 B」，
+      <b>两人请互不通气</b>，各自把 <b>39 张</b>都填完（每张要选：<b>五档判定</b> + 尺度档，理由码尽量选）。</li>
+  <li><b>点「一致性」看结果</b> —— 页面右下角会弹出面板，给出两项指标与 PASS/FAIL。
+      同时点「导出 A+B」把 JSON 存下来交回。</li>
+</ol>
+
+<div class="ok">
+  <b>放行门槛</b>：<b>粗口径一致率 ≥ 80%</b> 且 <b>尺度档一致率 ≥ 80%</b>（两项都是硬门槛）。<br>
+  <b>粗口径 = 焚烧 / 疑似 / 非焚烧</b>三分类 —— 即 v1.2 起把「确定烟 / 明火+烟 / 明火」<b>先合并为「焚烧」</b>再比对。
+  门禁只问"<b>烧没烧</b>"；五档细口径（能区分出是纯烟还是明火）<b>只作参考、不卡门禁</b> ——
+  否则两人「都认定在烧、只是对火烟成分看法不同」会被误判成口径失守。<br>
+  达标即可开始正式标注；<b>未达标不要开标注</b>——先针对<b>粗口径</b>分歧最大的几张把口径谈清楚（协议升版）再重测。
+</div>
+
+<div class="note">
+  <b>v1.2 新增了「火」档，为什么？</b> —— 秸秆焚烧<b>夜间常先见火光、后起烟</b>，
+  原来的「确定烟 / 疑似轻烟 / 非烟」三级<b>装不下"有火"这件事</b>；标成"非烟"会让模型学错，
+  标成"确定烟"又掩盖了火的证据。所以拆成五档：
+  <table style="margin:8px 0 0">
+    <thead><tr><th style="width:130px">档位</th><th>什么时候选</th></tr></thead>
+    <tbody>
+      <tr><td><b>明火+烟</b></td><td>画面里<b>同时</b>能看到明火/亮核 <b>和</b>烟柱（最常见于起燃阶段、夜间）</td></tr>
+      <tr><td><b>明火</b></td><td>只有明火/亮核，<b>看不到明显烟</b></td></tr>
+      <tr><td><b>确定烟</b></td><td>有明确烟柱，<b>看不到火</b>（多见于燃烧中后段、白天）</td></tr>
+      <tr><td><b>疑似轻烟</b></td><td>像烟但太淡/太小/太远，<b>拿不准</b>（宁可选这个，别硬判）</td></tr>
+      <tr><td><b>非烟</b></td><td>确定的云、扬尘、水汽、反光、近场机场本体等</td></tr>
+    </tbody>
+  </table>
+  <span style="font-size:12.8px;color:#7a828a">
+    三档火/烟的选择本身<b>不影响门禁</b>（都算"焚烧"），但对下一轮训练数据有直接价值 —— 别随手乱选。</span>
+</div>
+
+<h2>两个重要提醒</h2>
+<div class="note">
+  <b>① 进度存在本机浏览器里</b>（按「标注员 A / B」分开存），关掉页面不会丢，可随时中断续做。<br>
+  若你要<b>换电脑或换浏览器</b>：先在原机器点「导出 A+B」存成 JSON，到新机器打开本页 →
+  点<b>「导入进度」</b>选那个 JSON → 就能接着标。
+</div>
+<div class="warn">
+  <b>② 页面刻意不显示"程序算出来的档位和亮度"</b>。这是故意的 —— 一旦给了提示，
+  两人的一致性数据就失真了，这次校准就白做了。<b>只看图判断。</b>
+</div>
+
+<h2>为什么要先做这一步</h2>
+<table>
+  <thead><tr><th style="width:150px">背景</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>要解决的问题</td>
+      <td>现网模型对<b>"远方轻烟"（等效边长 &lt; 40px）</b>几乎没有召回——因为它的训练集里
+        <b>1041 个框中小于 40px 的只有 18 个（1.7%）</b>，模型从没见过这种目标。</td></tr>
+    <tr><td>所以要补数据</td>
+      <td>要按"尺度档 × 昼夜"把远烟样本补上来，目标：<b>&lt;40px 占比提到 15–20%</b>。</td></tr>
+    <tr><td>但先要对齐口径</td>
+      <td>"多远算远、多淡算轻"如果两人理解不同，标出来的标签就是噪声，而且<b>不可逆</b>。
+        所以先用 39 张锚点样本把两人的判定口径校准到一致。</td></tr>
+    <tr><td>本次锚点覆盖</td>
+      <td class="mono">D(远) 白天 12 / 夜间 <b>0</b> ｜ M(中) 白天 12 / 夜间 2 ｜ N(近) 白天 12 / 夜间 1</td></tr>
+  </tbody>
+</table>
+<div class="warn" style="margin-bottom:0">
+  <b>顺带说明</b>：筛选锚点时发现 <b>夜间的小目标样本几乎为零</b>（D 档夜间 <b>0 张</b>，夜间小目标总数只有 5 个）。
+  这意味着"夜间远烟"目前<b>没有数据可用</b>，需要专门安排夜航采集/标注。这一点会在下一轮排期里单独处理。
+</div>
+
+<h2>交回什么</h2>
+<ul>
+  <li>两人各自的导出 JSON：<span class="mono">anchor_annot_v12_A.json</span> / <span class="mono">anchor_annot_v12_B.json</span>（或一份 <span class="mono">anchor_annot_v12_both.json</span>）</li>
+  <li>若能顺便记录：<b>两人各自觉得"最难判"的 3 张</b>是哪几张，以及卡在哪（这比指标更有用）</li>
+</ul>
+<p>收到的 JSON 会用配套脚本复核归档：</p>
+<pre><code>python check_agreement.py anchor_annot_v12_A.json anchor_annot_v12_B.json
+# 或（合并导出）
+python check_agreement.py anchor_annot_v12_both.json</code></pre>
+
+<div class="foot">
+  万州区秸秆焚烧监控 · 「远方轻烟」迭代 P0-① · 锚点口径校准 · 协议 v1.2 · 2026-09-29<br>
+  本工作区为标注口径校准用途，不涉及生产配置。&nbsp;|&nbsp;
+  本页与《协议》《工作台》三者版本号必须一致，改一处需同步另外两处。
+</div>
+
+</div>
+</body>
+</html>

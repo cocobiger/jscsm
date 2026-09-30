@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="4tImbGVB368law5zN0mS9f">
+<head data-page-node-id="DQtkiXhI8i77p1RDpNjBks">
+<meta charset="UTF-8" data-page-node-id="LhKU9NgfG9RnKBUgDTotHo">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="gfBY8uAHXOVjqkBWztQiXY">
+<title>无人机 OSD 同步地图 + 画中画小地图 · 需求评估与排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="k0dEvRP5R3SFpvTob7IoEm">
+<div class="page" data-page-node-id="Kd3wgMUpXvGWfvJ2mrELI6">
+
+<div class="doc-head" data-page-node-id="Fu757CQydNJA9vlDThQERq">
+  <div class="org" data-page-node-id="6lAvFwKoiCYljC0uBkPYd7">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="7PIIeY0dLSFoV45eb0559K">无人机 OSD 同步地图 + 画中画小地图 · 需求评估与排期</div>
+  <div class="subtitle" data-page-node-id="YTJQiDbbXsAj6rBaEwyJwR">—— 视频放大后左下角显示无人机实时位置/朝向的小地图</div>
+  <div class="meta" data-page-node-id="w8EyhGiKVcYH47IpSjczr5"><span data-page-node-id="MHstnNj2wAjGFu7l4M7VdC">编制时间：2026-09-08</span><span data-page-node-id="E5ofTbdlTnpBIiGQ1kNWxU">评估方式：现状代码级盘点</span><span data-page-node-id="EDQAOm6hyrlI2ijmekaXhC">性质：可行性 + 排期</span></div>
+</div>
+
+<h2 data-page-node-id="NvwF1HJFVOeP4MfU909dIg">一、结论摘要</h2>
+<div class="box green" data-page-node-id="M9o9i9mjmXfUjVOglKUr5q">
+  <p data-page-node-id="Ph16RSVSKaSCSqdQeW7IUq"><b data-page-node-id="0GHTvXAn9RZrM0iEICJTuJ">① OSD 同步地图：已实现</b>——驾驶舱电子地图已实时显示无人机位置（MapView 15s 轮询 <code data-page-node-id="MoQ5ESxN7oUc1CMgEEnUbW">/api/sikong/devices</code>，无人机飞行实时位置标记）。可增强：提高刷新频率、加飞行轨迹、加朝向箭头。</p>
+  <p data-page-node-id="qn4vEvebdoJDlc1zXnyIBm"><b data-page-node-id="Qte2HBFp4bpfJ0xnHfl7HH">② 画中画小地图：可实现，约 1.5~2 天</b>——视频放大后，左下角加一个 Leaflet 小地图实例，实时显示无人机位置 + 朝向箭头，让用户"一边看画面一边知道无人机在哪、朝哪飞"。</p>
+  <p data-page-node-id="YPnMeTVsFCgOQec4NsBw0Y"><b data-page-node-id="hVXb1bRrYjmLB5jlZIYVw4">关键数据源已就绪</b>：OSD 经纬度/朝向（Redis <code data-page-node-id="PpDM13eq1lJbPY5nwpkMQl">osd_dock_drone</code>）+ Leaflet 地图引擎（与主地图一致）。</p>
+</div>
+
+<h2 data-page-node-id="HLmn0esTeQN74yzXNPTKJE">二、需求理解</h2>
+<table data-page-node-id="JwS1CDgezNQjxF2HSUbmi6">
+  <tr data-page-node-id="ABbgntLsweaifCv1kQVNuy"><th style="width:6%" data-page-node-id="sfLYoFG5oSHuNrZf3i1DaD">#</th><th data-page-node-id="ZHWBOX34Xcc7krjsqhmmkS">需求</th></tr>
+  <tr data-page-node-id="dPZodQysj2DClkonDBXzgn"><td data-page-node-id="JCFSUOd1tCICrPBs8zSFxA">①</td><td data-page-node-id="Urs80AxAcSI2WHFi65Fa3f">把无人机飞行的 OSD 信息（经纬度等）实时同步到驾驶舱电子地图上</td></tr>
+  <tr data-page-node-id="qRhY5AA69de1pPPximDDQD"><td data-page-node-id="fM2Az225ZnPUioyWfLj3aV">②</td><td data-page-node-id="wCHwCHovTsCKS74xIwEhZ0">视频放大后，能在放大视频的左下角显示缩小的电子地图（画中画地图，显示无人机实时位置/朝向）</td></tr>
+</table>
+
+<h2 data-page-node-id="R4uxC7qEbjCCE87ezn4h0F">三、现状盘点</h2>
+<table data-page-node-id="yNx7x9MdAaJGkTPFcdRwnb">
+  <tr data-page-node-id="ScBFMxdI71QPpvdoptak1t"><th style="width:26%" data-page-node-id="tnT6yMgsu6bkGTwUGprTur">对象</th><th data-page-node-id="DCS18dGqWmV9Vvbj58al4A">现状</th></tr>
+  <tr data-page-node-id="OakHub0YVbmzFBKuXvsAQh"><td data-page-node-id="q757R8BRp4j7W4kXn3LrBQ"><b data-page-node-id="SoVt5n97uC5kXDJbUskoaV">OSD 同步地图</b></td><td data-page-node-id="Wm9VFUuepY3DcKdqUIjQVl"><span class="tag s-green" data-page-node-id="XE4aDHOqDq2BmvJlX46n4w">已实现</span> MapView 司空机场标记 + 无人机飞行实时位置标记（<code data-page-node-id="mOfrEPqmTZm447GhhPFdo0">drone.latitude/longitude</code>，OSD deviceType=1 帧回填），15s 轮询 <code data-page-node-id="Io1oA7BeHAD3ov6WHRKiYf">/api/sikong/devices</code></td></tr>
+  <tr data-page-node-id="9xfMxmJANsEyLXjWC1mSMm"><td data-page-node-id="nKIMExCO8NDCaVHZBKA0uJ"><b data-page-node-id="Sxm77CnFEmXtPnGLxjp0Jw">OSD 数据源</b></td><td data-page-node-id="9CF2KOkLbcpoejKH03QV8S"><span class="tag s-green" data-page-node-id="IJVxzW20vNEgaFQwz6lbzy">就绪</span> Redis <code data-page-node-id="lxt0UjFYAi5GHBIQnEzuuO">system:osd_dock_drone:&lt;deviceSn&gt;</code> 实时遥测（latitude/longitude/height/attitudeHead/gimbalYaw/电量等，已实测完整）</td></tr>
+  <tr data-page-node-id="rkYGP3VR57hAjZD6ly68fB"><td data-page-node-id="aKXL3lq0gVq8lWmqXgcU1m"><b data-page-node-id="HwgLh93RxwlX9GSSPRV1Bd">地图引擎</b></td><td data-page-node-id="Ga5599zXldjtY0DZi6OZ2G">Leaflet + 天地图瓦片（<code data-page-node-id="77JgvS8cuInNP8vLE54NcL">initMap</code> 适配层，VITE_MAP_ENGINE=amap 可回退高德）</td></tr>
+  <tr data-page-node-id="n0FKL0wPbqsm0LjXcNDgj6"><td data-page-node-id="wp4VWdB2HnPXVNCAF87rbu"><b data-page-node-id="hwdH1znkSkPqtGNxoG3RYD">放大层结构</b></td><td data-page-node-id="G6WtFCQNKOFFf7cvAAUYm8">DronePopupWindow 的 zoomed 全屏层（position:relative 画面容器，可加 absolute 定位小地图）</td></tr>
+  <tr data-page-node-id="05oCUk1fiGj2MqqHNdvdmX"><td data-page-node-id="hIYzjGIYglpAUDuada9Wpj"><b data-page-node-id="SueI2GBfWFbikWRnS5VVUd">画中画小地图</b></td><td data-page-node-id="FAa6OsD705FKKhCHBULEhe"><span class="tag s-red" data-page-node-id="A5tn2kTQLTFpb5uAlecseC">未实现</span>——需新建组件</td></tr>
+</table>
+
+<h2 data-page-node-id="r0NAV2wYAQ7u5voxnp5726">四、技术方案</h2>
+<h3 data-page-node-id="F6osgPo2PNPYEMWWwFFXyE">4.1 整体链路</h3>
+<div class="code" data-page-node-id="NbufgnkD86QCOdCwugnZFb">司空 OSD → Redis osd_dock_drone（经纬度/朝向/高度）
+  → 后端 /api/drone-events/osd?deviceSn=（读 Redis，实时返回）
+  → 前端 MiniDroneMap 轮询（2~3s）
+  → Leaflet 小地图：位置标记 + 朝向箭头 + 地图跟随
+  → 放大层左下角 absolute 定位显示</div>
+
+<h3 data-page-node-id="zMnS6pVTwVJUxloVa1CkF2">4.2 三个组成部分</h3>
+<table data-page-node-id="mCmrMBJrYXpNr7WuElqR9b">
+  <tr data-page-node-id="6ljJZwPU3uFuBrekBhsxLJ"><th style="width:22%" data-page-node-id="7sqvZqNwgERRgjhii0Kyv3">组成</th><th data-page-node-id="ZGnKME39deuR5tNFEZMCBR">内容</th></tr>
+  <tr data-page-node-id="fGcQqxEMtzGOVDd9CqEOeO"><td data-page-node-id="pTDITe5Aa1Zg4nGBfdO5Sx"><b data-page-node-id="Omv4eSfu5axZZ17UQGQlhl">① 后端 OSD 接口</b></td><td data-page-node-id="km5ZsABFCHyfHWQjqctWp7"><code data-page-node-id="flRGHTQ6gDEiDh5QDSGO98">GET /api/drone-events/osd?deviceSn=</code>，从 Redis <code data-page-node-id="LqxWN7Lof84nIkzKlaA8Uk">osd_dock_drone:&lt;deviceSn&gt;</code> 读实时遥测，返回经纬度/高度/朝向(attitudeHead/gimbalYaw)/速度/电量/目标点 measureTarget</td></tr>
+  <tr data-page-node-id="ZLMDSEaIBEf9U059klW1h6"><td data-page-node-id="O6Bn5AfyMGS949EpyZHce5"><b data-page-node-id="VMQKcei66BNDzbdoKWEIaZ">② 前端 MiniDroneMap 组件</b></td><td data-page-node-id="MpEmgknEMCEbeDbMYtxjTw">Leaflet 小地图实例（~220×160px），天地图瓦片；轮询 OSD 接口（2~3s），渲染无人机位置标记 + 朝向箭头（按 attitudeHead 旋转），地图中心跟随无人机位置</td></tr>
+  <tr data-page-node-id="zxDGmIbtYpXmiYyCHhg5ol"><td data-page-node-id="cIj8gPujnlYC1ZhjxWOrDs"><b data-page-node-id="nSSYQWI2Vr1XEE5m256Rns">③ 集成到放大层</b></td><td data-page-node-id="iQO9OsaaKUKtEmysKkwvUf">DronePopupWindow 的 zoomed 放大层画面容器左下角，absolute 定位放 MiniDroneMap</td></tr>
+</table>
+
+<h3 data-page-node-id="azBodgZtEJoDUR8ybDtzxY">4.3 小地图显示内容</h3>
+<table data-page-node-id="9UwanPvrLG4Kk8YFG6a13W">
+  <tr data-page-node-id="upi6Anu6jACXehuzRoX5L6"><th style="width:24%" data-page-node-id="8Iy6cR1kHuknD9dEHTDAPL">元素</th><th data-page-node-id="8VcKHo808SrpD5vF70cmaJ">说明</th></tr>
+  <tr data-page-node-id="TgXUattkZnF8uEzyWuATTg"><td data-page-node-id="PHqjMuEDWfZN2bK3hEvy44">无人机位置标记</td><td data-page-node-id="8S8xGVAR98GGlqWnwCXN2t">当前经纬度，醒目图标（脉动圆点）</td></tr>
+  <tr data-page-node-id="aIRaGyjJQqBAeuxOGFWFp0"><td data-page-node-id="j8Qm6Hr6MvNnCzakkAebiY">朝向箭头</td><td data-page-node-id="y6X8bZ4kVbRohlQLj7MXAb">按 attitudeHead（机头朝向）旋转的箭头，指示飞行方向</td></tr>
+  <tr data-page-node-id="1MDyhX9MrZduJWqvkgDogK"><td data-page-node-id="wxqRVx7uodMYMrA2YS9Qv9">机场位置（可选）</td><td data-page-node-id="y0WvJBRD0j21LEsxSAUa25">所属机场 dock 位置（参照点）</td></tr>
+  <tr data-page-node-id="KtCRDJYIjNexvUTJCHGTlH"><td data-page-node-id="LNAWFOm8BGdLQ7TQjI1E5M">高度/速度标签（可选）</td><td data-page-node-id="3JblEuEKKXRisGeSu3fGHn">小地图角落显示 height/horizontalSpeed</td></tr>
+  <tr data-page-node-id="w4xzXaD2UktJrDWBzBS7Bj"><td data-page-node-id="N2icA86Ntk8wuaeq4BpKcL">地图跟随</td><td data-page-node-id="4BmB8klcQn9DuGyJ82Bwre">地图中心实时跟随无人机位置（setView），保持无人机在视野中心</td></tr>
+</table>
+
+<h2 data-page-node-id="4OIbCxiRxef63oo6Anf80q">五、任务排期</h2>
+<table data-page-node-id="9WxYLGUBW4W5IpNFC6lCQT">
+  <tr data-page-node-id="JqDaDrKQPYOkLsYFykEszt"><th style="width:6%" data-page-node-id="0ELdDSgCJ2AzSEX8fLbI42">序</th><th style="width:34%" data-page-node-id="tTdFMFuBjJZ1an1wHwSOFg">任务</th><th style="width:12%" data-page-node-id="2lUmCSOkRGQ1VEWIrwpBDo">工作量</th><th data-page-node-id="uaTSgvXitRcNZEKVS3LNYd">说明</th></tr>
+  <tr data-page-node-id="rvVMlzO9CZbQ8sdBHxIK8h"><td data-page-node-id="pV9sUMMinSGaipJHlFQrDJ">1</td><td data-page-node-id="aUx4BOm5YzfUfhqAnozTJm"><b data-page-node-id="9MF2zOZGidsEa61908VvQU">后端 OSD 接口</b>（/api/drone-events/osd?deviceSn=，读 Redis）</td><td data-page-node-id="MGUWfuj4SsxhbFKDNDnt9G">0.3 天</td><td data-page-node-id="G97UXixZMT16NKqPa3Iknc">实时返回经纬度/朝向/高度/速度/电量</td></tr>
+  <tr data-page-node-id="Eayf2VMRN0cV0LreHXFYCw"><td data-page-node-id="CM13NavElcBlKOCS3YMYYO">2</td><td data-page-node-id="IyBVjZAYf4snFWZWrKDvkd"><b data-page-node-id="Fi1UTsPXh3d2iqduqho7Pl">MiniDroneMap 组件</b>（Leaflet 小地图 + 位置标记 + 朝向箭头 + 地图跟随）</td><td data-page-node-id="NURCUVK2uQKm2P9txoFoZL">0.8 天</td><td data-page-node-id="j6rqlUeHBYkVCY3IvC7D1T">核心工作——小地图引擎 + OSD 数据渲染</td></tr>
+  <tr data-page-node-id="G5HP5zI8gqv7fnVuj0rZJe"><td data-page-node-id="XgjSrl7yduFJQU0TfVHjxo">3</td><td data-page-node-id="Q3UgEOpV9FFGTA6gtuPubG"><b data-page-node-id="OlC1Cqm6FyFZinMOAd5ppy">集成到放大层左下角</b></td><td data-page-node-id="w4SRiqjEGCXEUV1owApqcM">0.2 天</td><td data-page-node-id="orXYsDcFDDyJWM1DBrj3QJ">absolute 定位 + 样式</td></tr>
+  <tr data-page-node-id="knRV9n4GFXHvIQhXtC4gXn"><td data-page-node-id="2x7PakgKFlJVUAHIpprUgw">4</td><td data-page-node-id="IfSmYEEqhO9KDtV7aHw5Ca">联调验证（真飞时验证小地图位置/朝向/跟随）</td><td data-page-node-id="KBbVWsYh4cIY3YH4fA65f3">0.3 天</td><td data-page-node-id="FQpacGC5wFfwLa3Tl0Bv8t">真飞验证</td></tr>
+  <tr data-page-node-id="c4VQK5BKedttgved9NPx2h"><td colspan="2" data-page-node-id="hYftncjzY35AAujkTQNUU0"><b data-page-node-id="WaArgxg4bRi8WPvdHMZH78">小计（画中画小地图）</b></td><td data-page-node-id="oHGVq8YNMhn4w3QiBLVWtu"><b data-page-node-id="kAf2bzoGatMbkM03zvnB6V">~1.6 天</b></td><td data-page-node-id="CybDrQygeaMhkwaXpEJCrr">核心需求</td></tr>
+  <tr data-page-node-id="5xpL9nUUwGiJhvY4wEuT1m"><td data-page-node-id="ziLaLLJjuaKOFtPpj24Mss">5</td><td data-page-node-id="N0vRZdUqvHmuun6MAZZVqv"><b data-page-node-id="GDWGgRSA2Kd2r9eqRb9OYz">（可选增强）OSD 同步地图增强</b>：主地图刷新 15s→5s + 飞行轨迹线 + 朝向箭头</td><td data-page-node-id="UnzWFDKeCptSTvFv6N6WCH">0.5 天</td><td data-page-node-id="pKtuLmfunwipFBDMSszAnH">提升主地图 OSD 体验</td></tr>
+</table>
+
+<h3 data-page-node-id="ebDeRtK04NDYlxNSgGyvm2">5.1 排期甘特图</h3>
+<table data-page-node-id="aMPc5fLljJ09FbXgb8z7cg">
+  <tr data-page-node-id="MMg28FOBNpHrKpj7gYmcjo"><th style="width:30%" data-page-node-id="xF1fNoYvIT7AHhszReesXq">任务</th><th data-page-node-id="TGPcJbVlrJwoOCTWbCyAjS">工期</th></tr>
+  <tr data-page-node-id="zzZeerBGx0820C6gM9QJTK"><td data-page-node-id="tPkBhhzmjzBrEL4PFrEDNW">任务1 后端 OSD 接口</td><td data-page-node-id="EDCnuM0ig7X0NHR04ToAFE">0.3 天</td></tr>
+  <tr data-page-node-id="HCcFcR3FQhatjqVCPXTgGw"><td data-page-node-id="FwhGdnSMojZZfI3exWlu8B">任务2 MiniDroneMap 组件</td><td data-page-node-id="hV7jOPTx87b89ZJWFm2GCM">0.8 天</td></tr>
+  <tr data-page-node-id="qLbLRZx4EKcHjuJCnxtoWu"><td data-page-node-id="r0WS9VaS14dK8nP67IjAqL">任务3 集成放大层</td><td data-page-node-id="z6lOy085oL6HwEi52ZBfhq">0.2 天</td></tr>
+  <tr data-page-node-id="5Z3CyV51LWqPNQrW3xXMD0"><td data-page-node-id="3ZCGcGjNaUZ7DEabIj6DA6">任务4 联调验证</td><td data-page-node-id="i3AXimElTTnIa35Ax5wpIV">0.3 天</td></tr>
+  <tr data-page-node-id="3Achiw9JvvfsHTRCOEXPoY"><td data-page-node-id="ZnSbZa0bGUY9fKeBjB5HZH">任务5（可选）OSD 地图增强</td><td data-page-node-id="uvMQuLkPlaqKGBgI0RNlKl">0.5 天</td></tr>
+</table>
+
+<h2 data-page-node-id="VnWOu5uphAt0qPaVowppJN">六、关键设计决策点</h2>
+<table data-page-node-id="iaGup9KpjoEFWZVivVhhCK">
+  <tr data-page-node-id="AKgDjKXfJ9UvqK3ACn4xkt"><th style="width:26%" data-page-node-id="E2RFDkmVagPMiwVNYmkDk3">决策点</th><th data-page-node-id="PhTwGIFBwmdax6khnZpZTS">选项</th><th data-page-node-id="EC5esGZ2lurWywfFBkZ0CI">建议</th></tr>
+  <tr data-page-node-id="WA9QRzbvmvczJDP3ZeXw1W"><td data-page-node-id="Z8X15da1dye18D7lMRnM9U">小地图引擎</td><td data-page-node-id="UkfrBONCMo00QP82UyCbxz">A. Leaflet（与主地图一致）B. 静态瓦片+标记 C. 新地图库</td><td data-page-node-id="ZNDSH1epmvr7ILtd2JY1XL"><b data-page-node-id="6z5yiCz4IZvnQB639trYL3">A Leaflet</b>——与主地图一致，交互/瓦片复用，开发量小</td></tr>
+  <tr data-page-node-id="edQd4xqN0I8ESKnlBCTV3l"><td data-page-node-id="vIffBxsEJ9ziBgDUdF7TJA">OSD 数据接口</td><td data-page-node-id="C0i816YBW4533WJFaQMJHq">A. 新增 /api/drone-events/osd B. 复用 /api/sikong/devices</td><td data-page-node-id="iuprnMv6VjeEFRbhHzEPsG"><b data-page-node-id="3Pyyu2heTBA3piX1TptJAN">A 新增</b>——直接读 Redis osd_dock_drone，实时性强（devices 是 15s 聚合，不够实时）</td></tr>
+  <tr data-page-node-id="OF8J9Vdl8doU8ofiD7xXdb"><td data-page-node-id="Ys3IRCodhJXh0mCnPBjPys">朝向显示</td><td data-page-node-id="EcYS2r5JBmXadxmASsyMJ1">A. attitudeHead（机头）B. gimbalYaw（云台）</td><td data-page-node-id="L7K7Z4u70HYUvhukVYkAmb"><b data-page-node-id="QIG6Dc17VROCKKPOFtYmcB">A attitudeHead</b>——机头朝向更直观反映飞行方向</td></tr>
+  <tr data-page-node-id="Tl1xwmfLw7M3U73KgVe0ZF"><td data-page-node-id="CxFI5ikgC8WjlgyiTCuGea">刷新频率</td><td data-page-node-id="CmaqA8RJdnTrcWBsA3YMVQ">小地图 OSD 轮询</td><td data-page-node-id="Im8NkG6UcCMFhCttHuQgWS"><b data-page-node-id="EQ1DrmmKm7LYrUmSfZhveM">2~3s</b>——与 OSD 推送频率匹配，兼顾实时与性能</td></tr>
+</table>
+
+<h2 data-page-node-id="J7l1TGVSdR8l1A9HqFLqm1">七、风险与注意点</h2>
+<table data-page-node-id="mPrWggQSrQup2Cg2lFc57W">
+  <tr data-page-node-id="HA2BPpg6qVFFnTmbOvyKMn"><th style="width:24%" data-page-node-id="EKPrOi38lgqGyzk2Ds810n">风险</th><th data-page-node-id="amOc3iw8JflekNeXbqeuLF">说明 + 对策</th></tr>
+  <tr data-page-node-id="2lAJpaTP4nU3e58fSBY0OM"><td data-page-node-id="EL77f7RQLrOzdtjEhExOWs">小地图性能</td><td data-page-node-id="5GxV7MZhRX98A7VGUKZHkP">放大层已有一个大地图（Leaflet 实例），再加小地图是第二个实例——注意内存/性能；小地图用轻量配置（少交互、固定缩放级别）</td></tr>
+  <tr data-page-node-id="3OUR50y7dflhiwjcO6Yi98"><td data-page-node-id="AYpDn5aYEcueL9Dvqe5clN">瓦片加载</td><td data-page-node-id="0ynRF2aozLB0YYt4KPrH0d">小地图在放大层（全屏覆盖），瓦片需在线加载天地图；离线场景需用本地瓦片</td></tr>
+  <tr data-page-node-id="GzbQVTYcX0r5eMrqaQqwKj"><td data-page-node-id="h9brsRjkwmvaGD7wCfA7aP">OSD 数据延迟</td><td data-page-node-id="90NciJZNzLypmIXohUGFDT">OSD 推送有延迟（几秒），小地图位置非严格实时——可接受（监控场景）</td></tr>
+  <tr data-page-node-id="B88QW0YKrSD89RXT1r8nme"><td data-page-node-id="H9IfdEiPHFHb5iQFkIzsGp">地图跟随抖动</td><td data-page-node-id="fGT2xZkMu3QQ1qqyvqJx2D">无人机高速移动时地图频繁 setView 可能抖动——加平滑过渡/阈值（位置变化>X 才跟随）</td></tr>
+</table>
+
+<h2 data-page-node-id="W1W1b60ekrGly1WO0XXBJE">八、结论</h2>
+<div class="box green" data-page-node-id="ZmBJtHVxnA9bpFyk9HOC34">
+  <p data-page-node-id="UCaxYGWHZILXlbmeTz9ErY">① <b data-page-node-id="ldiWk6PesV3KyBAmWO8F9P">OSD 同步地图已实现</b>（无人机实时位置已在主地图显示），可选增强（刷新提速+轨迹+朝向）；<br data-page-node-id="KPgOTISAnH8gxRqT6CaQjO">
+  ② <b data-page-node-id="45GXBsTBzu5gLbdGX0jDD4">画中画小地图可实现，约 1.6 天</b>（后端 OSD 接口 0.3 + MiniDroneMap 组件 0.8 + 集成 0.2 + 联调 0.3）；<br data-page-node-id="Y5kWedHUMMr5qy7YXI3oxQ">
+  ③ <b data-page-node-id="SRtMcDTJoCC0QrXzIaOGSY">技术方案清晰</b>：Leaflet 小地图 + Redis OSD 实时数据 + 朝向箭头 + 地图跟随；<br data-page-node-id="4kERPqfmPtUnbugW6cKvWi">
+  ④ <b data-page-node-id="sMs8HhncSBCo7VhHB2xOXz">核心价值</b>：用户放大视频时，左下角小地图实时显示"无人机在哪、朝哪飞"，解决"看画面不知道位置"的痛点。</p>
+</div>
+
+<div class="foot" data-page-node-id="jQZMh656XHyGY8zZ5cDCKu">
+  本报告基于 2026-09-08 现状代码级盘点（MapView OSD 同步已实现 / Leaflet 地图引擎 / 放大层结构 / Redis osd_dock_drone 实时遥测）。核心结论：画中画小地图可实现，约 1.6 天，技术方案清晰。
+</div>
+
+</div>
+</body>
+</html>

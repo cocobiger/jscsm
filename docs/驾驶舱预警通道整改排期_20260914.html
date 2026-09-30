@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱预警通道整改排期（2026-09-14）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1280px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:24px}
+h1{font-size:23px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+.meta{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.meta span{padding:3px 10px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.25);border-radius:3px}
+h2{font-size:19px;margin:36px 0 14px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:15px;margin:20px 0 10px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px;margin-bottom:14px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:8px 11px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 11px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 6px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-p0{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-p1{background:rgba(255,112,67,.16);color:#ff9b75;border:1px solid rgba(255,112,67,.45)}
+.t-p2{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-ext{background:rgba(167,139,250,.16);color:#c4b5fd;border:1px solid rgba(167,139,250,.45)}
+.t-idle{background:rgba(107,135,168,.16);color:#8fa9c4;border:1px solid rgba(107,135,168,.4)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:12px 0;font-size:13px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:14px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:4px}
+.kpi .big{font-size:21px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+ul{margin:8px 0;padding-left:22px}li{margin-bottom:5px}
+.tl{border-left:2px solid var(--accent);padding-left:20px;margin:14px 0}
+.tl .it{position:relative;padding-bottom:16px}
+.tl .it:before{content:'';position:absolute;left:-25px;top:8px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.tl .it b{color:var(--accent)}
+.batch{border:1px solid var(--border);border-radius:6px;margin-bottom:14px;overflow:hidden}
+.batch .hd{padding:11px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.batch .bd{padding:0 16px 14px}
+.b1 .hd{background:rgba(255,82,82,.12);color:#ff8a80}
+.b2 .hd{background:rgba(255,112,67,.12);color:#ff9b75}
+.b3 .hd{background:rgba(255,183,77,.12);color:#ffd180}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>驾驶舱预警通道整改排期</h1>
+  <div class="subtitle">依据：《驾驶舱实时推送与预警通道梳理（2026-09-14）》7 项风险 · 工作量基于现有代码基线估算</div>
+  <div class="meta">
+    <span>📅 2026-09-14 22:45</span>
+    <span>🔢 8 项整改 · 共 ~7.5 人日</span>
+    <span>🚦 3 批实施（P0 立即 / P1 架构 / P2 通道）</span>
+  </div>
+</header>
+
+<div class="card warn">
+  <h3>先更正一处梳理数据（已回改原报告）</h3>
+  <p style="margin:0;font-size:13px">
+    原梳理报告称 iotcloud「日均数千条」——<b>这是基于累计条数的错误推断</b>。按天实测：<b>正常日均仅 22~111 条</b>（09-11~09-14），但 <b>09-06~09-10 连续 5 天异常爆发</b>（3,373 / 4,376 / 5,220 / 3,804 / 3,794），单日最高为正常水平的 <b>200 倍+</b>。<br>
+    因此本排期把「<b>异常爆发复盘</b>」单列一项（原报告未列），并把「补过滤规则」的定位从"日常防刷屏"修正为"<b>防洪峰</b>"。
+  </p>
+</div>
+
+<!-- ══════ 一、整改项总表 ══════ -->
+<h2>一、整改项总表（8 项）</h2>
+<table>
+  <tr><th>#</th><th>整改项</th><th>对应风险</th><th>性质</th><th>工作量</th><th>优先级</th><th>依赖</th></tr>
+  <tr>
+    <td>1</td><td><b>统一 created_at 时间格式</b><br><span style="color:var(--muted);font-size:12px">入库侧统一 UTC ISO；读取侧保留双兼容兜底</span></td>
+    <td>风险①</td><td>后端 · 治本</td><td>1.0d</td><td><span class="tag t-p0">P0</span></td><td>—</td>
+  </tr>
+  <tr>
+    <td>2</td><td><b>提示音全局化</b><br><span style="color:var(--muted);font-size:12px">externalAlerts 新 id diff 即响，不依赖历史弹窗打开</span></td>
+    <td>风险②</td><td>前端 · 体验</td><td>0.5d</td><td><span class="tag t-p0">P0</span></td><td>—</td>
+  </tr>
+  <tr>
+    <td>3</td><td><b>补 alert_filter_rules（防洪峰）</b><br><span style="color:var(--muted);font-size:12px">表已支持 sources / locations / min_confidence / severities</span></td>
+    <td>风险④</td><td>配置 · 零代码</td><td>0.5d</td><td><span class="tag t-p0">P0</span></td><td>需先做 #4 定噪声源</td>
+  </tr>
+  <tr>
+    <td>4</td><td><b>09-06~09-10 异常爆发复盘</b><br><span style="color:var(--muted);font-size:12px">20,567 条（占累计 68%）的根因定位</span></td>
+    <td>风险⑦（新增）</td><td>调研 · 只读</td><td>0.5d</td><td><span class="tag t-p0">P0</span></td><td>—</td>
+  </tr>
+  <tr>
+    <td>5</td><td><b>告警 SSE 推送</b><br><span style="color:var(--muted);font-size:12px">入库即广播，替代 10s 轮询（延迟 10s → &lt;1s）</span></td>
+    <td>风险②</td><td>前后端 · 架构</td><td>2.0d</td><td><span class="tag t-p1">P1</span></td><td>可复用 drone-events SSE 基建</td>
+  </tr>
+  <tr>
+    <td>6</td><td><b>首屏回灌策略优化</b><br><span style="color:var(--muted);font-size:12px">10 条 → 按「未处置优先 + 时间窗」取 ~30 条</span></td>
+    <td>风险③</td><td>前端</td><td>1.0d</td><td><span class="tag t-p1">P1</span></td><td>—</td>
+  </tr>
+  <tr>
+    <td>7</td><td><b>MQTT 通道明确化</b><br><span style="color:var(--muted);font-size:12px">确认可用后联调，或明确弃用并移除 UI 误导</span></td>
+    <td>风险⑤</td><td>联调 / 决策</td><td>1.0d</td><td><span class="tag t-p2">P2</span></td><td>需 broker ws 端口确认</td>
+  </tr>
+  <tr>
+    <td>8</td><td><b>城运通道联调验证</b><br><span style="color:var(--muted);font-size:12px">产生 ≥1 条真实告警入库，验证全链路</span></td>
+    <td>风险⑥</td><td>联调</td><td>1.0d</td><td><span class="tag t-p2">P2</span></td><td><span class="tag t-ext">依赖城运对端</span></td>
+  </tr>
+</table>
+
+<div class="kpi">
+  <div><div class="lbl">总工作量</div><div class="big">7.5d</div></div>
+  <div><div class="lbl">P0（立即见效）</div><div class="big">2.5d</div></div>
+  <div><div class="lbl">P1（架构升级）</div><div class="big">3.0d</div></div>
+  <div><div class="lbl">P2（依赖外部）</div><div class="big">2.0d</div></div>
+</div>
+
+<!-- ══════ 二、分批计划 ══════ -->
+<h2>二、分批实施计划</h2>
+
+<div class="batch b1">
+  <div class="hd"><span class="tag t-p0">批 1</span> 立即见效 · 低风险 · 不依赖任何外部条件 <span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:13px">2.5 人日</span></div>
+  <div class="bd">
+    <table>
+      <tr><th>顺序</th><th>任务</th><th>为什么先做</th><th>验收标准</th></tr>
+      <tr>
+        <td>1.1</td><td>#4 异常爆发复盘（只读）</td>
+        <td>零风险纯调研，且<b>是 #3 的前置</b>——不知道噪声长什么样就配不出有效规则</td>
+        <td>输出一页结论：爆发日告警的通道/类型/置信度/时间分布特征 + 根因判断（外部抖动 or 我方配置）</td>
+      </tr>
+      <tr>
+        <td>1.2</td><td>#1 统一时间格式</td>
+        <td>历史多次踩坑的总根源（"通道 null"、"聚合误判过期"都源于此）；改动集中在 <code>insertWarning</code> 一处</td>
+        <td>新入库记录 <code>created_at</code> 全部 UTC ISO；<code>tsc</code> + 前端排序/跨天分区回归无异常；历史数据读取不受影响</td>
+      </tr>
+      <tr>
+        <td>1.3</td><td>#2 提示音全局化</td>
+        <td>前端小改动，直接提升值班感知（当前不打开历史弹窗就听不到）</td>
+        <td>新告警到达时（无需打开任何弹窗）提示音响应；同一告警不重复响</td>
+      </tr>
+      <tr>
+        <td>1.4</td><td>#3 补过滤规则</td>
+        <td>配置层，0 代码改动；配在爆发通道上可直接防洪峰</td>
+        <td>驾驶舱列表不再出现被屏蔽的告警；被屏蔽记录在 DB 中仍可追溯（不物理删除）</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="batch b2">
+  <div class="hd"><span class="tag t-p1">批 2</span> 架构升级 · 解决"最坏 10s 延迟" <span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:13px">3.0 人日</span></div>
+  <div class="bd">
+    <table>
+      <tr><th>顺序</th><th>任务</th><th>关键设计</th><th>验收标准</th></tr>
+      <tr>
+        <td>2.1</td><td>#5 告警 SSE 推送</td>
+        <td>新建 <code>GET /api/warnings/stream?token=</code>（复用 drone-events 的 SSE + 心跳 + 断线重连模式）；后端在 <code>insertWarning</code> 后广播；前端 EventSource 订阅，<b>10s 轮询降级为 60s 兜底</b>（双轨，不裸切）</td>
+        <td>告警入库到前端可见 <b>&lt;1s</b>；断网重连后不丢告警（兜底轮询补齐）；SSE 断开时功能不退化</td>
+      </tr>
+      <tr>
+        <td>2.2</td><td>#6 首屏回灌优化</td>
+        <td>当前 <code>slice(0,10)</code> 只取最新 10 条 → 改为「未处置优先 + 24h 时间窗」取 ~30 条；与 P3 已做的折叠/滚动配合</td>
+        <td>进页即可见全部未处置聚合告警；列表不因条数增加而卡顿（滚动容器已固定高度）</td>
+      </tr>
+    </table>
+    <div class="quote" style="margin-bottom:0">
+      <b>批 2 是本次整改的核心价值</b>：SSE 一旦上线，"实时告警"才真正实时；且它复用已有 SSE 基建，不是从零造轮子，风险可控。
+    </div>
+  </div>
+</div>
+
+<div class="batch b3">
+  <div class="hd"><span class="tag t-p2">批 3</span> 通道补强 · 依赖外部条件 <span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:13px">2.0 人日</span></div>
+  <div class="bd">
+    <table>
+      <tr><th>顺序</th><th>任务</th><th>卡点</th><th>验收标准</th></tr>
+      <tr>
+        <td>3.1</td><td>#7 MQTT 通道明确化</td>
+        <td>需先确认 broker 是否开放 ws/wss（8083/8084）—— 若不可用则<b>直接决策弃用</b>，移除 UI 上的"MQTT 未连接"误导</td>
+        <td>要么接通并订阅到真实 topic（日志可见），要么从 UI 移除该模块</td>
+      </tr>
+      <tr>
+        <td>3.2</td><td>#8 城运通道联调</td>
+        <td><span class="tag t-ext">需城运中心对端配合</span> —— 我方代码/规则/推送链路已就绪，缺真实数据</td>
+        <td>≥1 条城运告警入库并在驾驶舱显示；推送回执闭环跑通</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════ 三、时间线 ══════ -->
+<h2>三、实施时间线（按 1 人全时投入）</h2>
+<div class="card">
+  <div class="tl">
+    <div class="it"><b>Day 0.5</b> · #4 异常爆发复盘（只读）→ 产出结论，决定 #3 的规则怎么配</div>
+    <div class="it"><b>Day 1.5</b> · #1 统一时间格式 → 部署 + 回归</div>
+    <div class="it"><b>Day 2.0</b> · #2 提示音全局化 → 部署 + 验收</div>
+    <div class="it"><b>Day 2.5</b> · #3 补过滤规则 → 配置 + 生效验证　<b style="color:var(--green)">【批 1 完成：噪声与精度问题收口】</b></div>
+    <div class="it"><b>Day 4.5</b> · #5 告警 SSE 推送 → 后端 stream + 前端订阅 + 双轨切换验证　<b style="color:var(--green)">【核心价值交付：延迟 10s → &lt;1s】</b></div>
+    <div class="it"><b>Day 5.5</b> · #6 首屏回灌优化　<b style="color:var(--green)">【批 2 完成】</b></div>
+    <div class="it"><b>Day 6.5</b> · #7 MQTT 决策/联调</div>
+    <div class="it"><b>Day 7.5</b> · #8 城运联调（视对端配合）　<b style="color:var(--green)">【批 3 完成】</b></div>
+  </div>
+</div>
+
+<!-- ══════ 四、决策点 ══════ -->
+<h2>四、开工前需拍板的 4 个决策点</h2>
+<table>
+  <tr><th>#</th><th>决策点</th><th>选项</th><th>我的建议</th></tr>
+  <tr>
+    <td>1</td><td><b>历史 30k 条数据要不要一起迁移</b>（统一时间格式）</td>
+    <td>① 只对新数据生效（历史保持原样，读取侧继续兜底）<br>② 连历史 30,035 条一起 UPDATE 迁移</td>
+    <td><b>①只对新数据生效</b> —— 零风险；历史数据兜底解析已经稳定运行，没必要动它（如要彻底可另起单独任务，带备份）</td>
+  </tr>
+  <tr>
+    <td>2</td><td><b>SSE 是否完全替代轮询</b></td>
+    <td>① SSE 主 + 轮询降级 60s 兜底（双轨）<br>② 纯 SSE，去掉轮询</td>
+    <td><b>①双轨</b> —— SSE 断线/被代理缓冲时轮询兜底，避免"单一信道挂了就全瞎"</td>
+  </tr>
+  <tr>
+    <td>3</td><td><b>MQTT 通道：启用还是弃用</b></td>
+    <td>① 排查 broker ws 端口并接通<br>② 明确弃用，移除 UI 模块</td>
+    <td>倾向 <b>②弃用</b>（若无人依赖）—— 当前显示"未连接"对值班人员是干扰；如确有下游依赖再选①</td>
+  </tr>
+  <tr>
+    <td>4</td><td><b>城运通道联调是否本周推进</b></td>
+    <td>① 本周发起对端联调<br>② 待对端排期</td>
+    <td>取决于你与城运的沟通进展；技术上我方已 100% 就绪，只差一条真实数据</td>
+  </tr>
+</table>
+
+<!-- ══════ 五、建议 ══════ -->
+<h2>五、推荐执行方式</h2>
+<div class="card good">
+  <p style="margin-top:0"><b>推荐：批 1 + 批 2 连做（5.5 人日）</b>，一把解决两个根本问题：</p>
+  <ul style="margin-bottom:0">
+    <li><b>批 1</b> 消除"时间格式坑"（历史多次事故的总根源）并把噪声/洪峰压住</li>
+    <li><b>批 2</b> 把"实时告警"从轮询升级为真推送（延迟 10s → &lt;1s），这是驾驶舱作为"值班大屏"的核心体验</li>
+  </ul>
+  <p style="margin:12px 0 0">批 3 的 MQTT 是"决策项"不是"开发项"（半小时能定），城运依赖对端，二者都不该卡住前两批。</p>
+</div>
+
+<div class="card acc">
+  <h3>与既有计划的衔接</h3>
+  <ul style="margin-bottom:0">
+    <li>本次整改<b>不冲突</b>已完成的「驾驶舱实时告警改造 P0~P4」—— P3 做的"告警区增高 + 新告警滚动高亮"正好为 #5/#6 打好载体</li>
+    <li>唯一注意：<b>#5 SSE 上线后</b>，P3 的"新告警滚动高亮"触发时机要从"轮询 diff"改为"SSE 事件"，属批 2 内部改动</li>
+    <li>仍挂着的 <b>D（责任单位补数据）</b>与本排期无依赖，可并行（只需你给一份镇街责任人清单）</li>
+  </ul>
+</div>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:22px 0;border-top:1px dashed var(--border);margin-top:30px">
+  依据 jsc.db 实测（30,035 条告警按天/按通道分布）+ server/、src/ 代码清点 · 2026-09-14<br>
+  📂 docs/驾驶舱预警通道整改排期_20260914.html
+</div>
+</div>
+</body>
+</html>

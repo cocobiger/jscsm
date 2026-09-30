@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱重建安装记录 · /data/HBJSC · 2026-09-30</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;--bad:#b3261e;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.75;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:24px}
+  h2{font-size:18px;margin:34px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  code{font-family:var(--mono);font-size:12.6px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  pre{background:#1f2430;color:#e6edf3;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.3px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .bad{border-left:4px solid var(--bad);background:#fdecea;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .t-ok{background:#e8f7ee;color:var(--ok);border:1px solid #bfe3cd}
+  .t-bad{background:#fdecea;color:var(--bad);border:1px solid #f3c4c0}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>驾驶舱重建安装记录</h1>
+<div class="sub">
+  安装根 <code>/data/HBJSC</code>（选在空间最充裕的 <code>sdb1</code>=5.0T 上；系统盘 <code>/</code> 仅 1T）
+  &nbsp;|&nbsp; 主机 <code>111.10.220.226:22233</code>（<code>172.16.8.12</code>，hostname <code>dajiang</code>）
+  &nbsp;|&nbsp; 2026-09-30 &nbsp;|&nbsp; 方案 A
+</div>
+
+<div class="ok">
+  <b>成果：驾驶舱已在新机跑起来，访问地址</b><br>
+  <span class="mono" style="font-size:15px"><b>http://111.10.220.226:81/jsc/</b></span>
+  &nbsp;&nbsp;登录：<code>admin</code> / <code>admin123</code>（本次实测 <code>ok:true</code>）
+</div>
+
+<h2>1. 已安装组件</h2>
+<table>
+  <thead><tr><th style="width:150px">组件</th><th style="width:250px">路径</th><th style="width:210px">版本 / 来源</th><th>服务</th></tr></thead>
+  <tbody>
+    <tr><td>前端驾驶舱</td><td class="mono">/data/HBJSC/frontend</td><td>git 源码构建 · vite 6.3.5（<code>base=/jsc/</code>）</td><td>nginx</td></tr>
+    <tr><td>后端 jsc-backend</td><td class="mono">/data/HBJSC/backend</td><td><b>9 月代码 + 7/9 node_modules/data</b></td><td><code>jsc-backend.service</code></td></tr>
+    <tr><td>业务库</td><td class="mono">/data/HBJSC/backend/data/jsc.db</td><td>2026-07-09 快照（22 表）</td><td>—</td></tr>
+    <tr><td>ZLMediaKit</td><td class="mono">/data/HBJSC/zlm</td><td><b>源码编译</b>（Release，非 Docker）</td><td><code>zlmediakit-jsc.service</code></td></tr>
+    <tr><td>Node 运行时</td><td class="mono">/data/HBJSC/tools/node22</td><td><b>v22.23.3</b>（官方 tarball）</td><td>—</td></tr>
+    <tr><td>nginx</td><td class="mono">/etc/nginx</td><td>1.18.0（apt）</td><td><code>nginx</code></td></tr>
+  </tbody>
+</table>
+<p><b>端口</b>：80 / 81 nginx ｜ 7170 后端 ｜ 6080 / 5540 / 1936 / 4443 ZLM（<b>已确认不占 443</b>）</p>
+
+<h2>2. 验收门禁（全部实测）</h2>
+<table>
+  <thead><tr><th style="width:210px">层</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td>服务</td><td><code>nginx</code> active ｜ <code>jsc-backend</code> active ｜ <code>zlmediakit-jsc</code> active</td></tr>
+    <tr><td>静态一致性</td><td><code>index.html</code> <b>磁盘 md5 == HTTP md5</b>；首页引用 5 个资源<b>逐个 200</b>；<code>dist/assets</code> 全量 5 个全 200</td></tr>
+    <tr><td>ZLM</td><td><code>getServerConfig</code> → <b>HTTP 200</b>；监听 6080/5540/1936/4443</td></tr>
+    <tr><td>接口</td><td>公开 <code>/api/map-points?type=air</code> → 200；受保护接口未授权时 401（正常）</td></tr>
+    <tr><td><b>端到端</b></td><td><b>登录成功拿 token（64 位）</b> → 带 token：<code>/api/streams</code> 200、<code>/api/enterprises</code> 200、<code>/api/warnings</code> 200、<code>/api/sikong/devices</code> 200</td></tr>
+    <tr><td><b>数据真实性</b></td><td><b><code>/api/streams</code> → 34 条</b>；<b><code>/api/enterprises</code> → 10 条</b> ⇒ 7/9 的库真的在读</td></tr>
+    <tr><td>外网</td><td><code>http://111.10.220.226:81/jsc/</code> → <b>200</b>（<code>:80</code> 502、<code>/qitijsc/</code> 403 与原状一致）</td></tr>
+  </tbody>
+</table>
+
+<h2>3. 关键决策（为什么这么做）</h2>
+<table>
+  <thead><tr><th style="width:230px">决策</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td>安装根放 <code>/data/HBJSC</code>（不是 <code>/opt</code>）</td>
+      <td>系统盘 1T、数据盘 5T；并把 <b><code>/video</code> 做成软链 → <code>/data/video</code></b>，
+        实测写文件落 <code>sdb1</code> ⇒ 后续大数据不会写满系统盘。</td></tr>
+    <tr><td>后端用「9 月代码 + 7/9 数据库」</td>
+      <td>7/9 库只有 <code>coll_*</code> 旧表；9 月版多 14 张表且都用 <code>CREATE TABLE IF NOT EXISTS</code> ⇒
+        能自动补建缺表、基础表沿用 7/9。<b>反之若用 7 月代码，会和 9 月前端大量 404。</b></td></tr>
+    <tr><td>Node 装 22（不是 apt 的 12，也不是 20）</td>
+      <td>后端 <code>store-db.js</code> 用 <code>require('node:sqlite')</code>，该内置模块 <b>Node 22.5+ 才有</b>；
+        apt 只提供 12.22.9。</td></tr>
+    <tr><td>ZLM 源码编译 + 只配 <code>on_publish</code></td>
+      <td>ZLM 的 <b>hook 返回非 200 会拒绝推流/播放</b>；本机后端只有 <code>/api/zlm/publish-check</code> 这一个路由，
+        其余 hook 必须置空。基线改用 release 自带官方完整默认配置。</td></tr>
+  </tbody>
+</table>
+
+<h2>4. 施工中踩到的坑（已修，记录备查）</h2>
+<table>
+  <thead><tr><th style="width:250px">坑</th><th>现象与修法</th></tr></thead>
+  <tbody>
+    <tr><td><code>--strip-components=1</code> 包无目录前缀</td>
+      <td>打包时用了 <code>cd server &amp;&amp; tar czf … *.js</code>（tar 里无 <code>server/</code>），解包时把<b>文件名也剥掉</b> → 一个文件都没落地，
+        <b>且 tar 退出码 0，<code>set -e</code> 不拦</b>。改为在仓库根打包，并回看 <code>tar -tzf</code> 结构。</td></tr>
+    <tr><td>Node 20 → <code>ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite</code></td>
+      <td>服务不断重启（restart counter 17）。装 Node 22.23.3 并把 systemd <code>ExecStart</code> 指过去后正常。</td></tr>
+    <tr><td>CMake 产物目录 + <code>|| true</code></td>
+      <td>写成 <code>release/linux/Debug/*</code>，实际是 <code>Release/</code>；而 <code>cp … || true</code> 把失败吞了 →
+        systemd <code>status=203/EXEC</code>。<b>关键拷贝不能用 <code>|| true</code>，拷完必须验存在。</b></td></tr>
+    <tr><td>ZLM 端口键名记错</td>
+      <td>SSL http 端口其实是 <code>[http] sslport</code>（不是 <code>[https] port</code>），RTP 区间是 <code>port_range</code>。
+        修正后监听正确、不再占 443。</td></tr>
+    <tr><td>7/9 备份里的 <code>config.ini</code> 是默认模板</td>
+      <td>里面是 <code>80/554/1935/8080</code>（docker 时代默认），而生产是 <code>6080/5540/1936/4443</code> ⇒ 改用软件自带默认做基线。</td></tr>
+    <tr><td>npm 在 pnpm 结构上崩</td>
+      <td><code>Cannot read properties of null (reading 'matches')</code> ⇒ 补单个包改用「临时目录 <code>npm i</code> 再 <code>cp -r</code>」。</td></tr>
+  </tbody>
+</table>
+
+<h2>5. 已知缺口（诚实边界）</h2>
+<table>
+  <thead><tr><th style="width:60px">状态</th><th style="width:250px">缺口</th><th>说明 / 下一步</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag t-bad">未装</span></td><td><code>straw-engine</code>（:7200，秸秆 AI 引擎）</td>
+      <td>属<b>方案 B</b>；本地无完整 <code>app/main.py</code>（约 750 行），需重写（估 8–12 人时）。</td></tr>
+    <tr><td><span class="tag t-bad">未装</span></td><td><code>dji-openapi</code>（:17810）</td>
+      <td>源码在 Git，但<b>依赖司空2 网段 <code>172.28.0.0/24</code>，当前不通</b>（4 个端口全超时）。</td></tr>
+    <tr><td><span class="tag t-bad">未装</span></td><td>dock-guard / chengyun-mock / flight-monitor</td>
+      <td>方案 A 收尾项，脚本都在本机，可直接复用。</td></tr>
+    <tr><td><span class="tag t-bad">缺数据</span></td><td><code>wanzhou_towns.geojson</code></td>
+      <td>镇街反查 / <code>area_boundary</code> / 告警责任单位依赖它；<b>新增于 8–9 月，未进任何备份</b>。
+        候选来源：OSM Overpass（<code>admin_level=8</code>）／天地图 key／从同事机器找回原文件（1 分钟可恢复，
+        <code>WANZHOU_TOWNS_GEOJSON</code> 环境变量也可指到别处）。<b>DataV 的乡镇级 <code>500101_full.json</code> 已不存在（404）。</b></td></tr>
+    <tr><td><span class="tag t-bad">不通</span></td><td><code>172.16.8.11:6881</code>（IoTCloud）、<code>172.28.x</code>（司空2）</td>
+      <td>IoTCloud 采集模块报错（预期内）；司空2 决定视频/遥测链路能否恢复。</td></tr>
+    <tr><td><span class="tag t-bad">待核</span></td><td><code>/api/warnings</code> 返回 0</td>
+      <td>7/9 库 <code>warnings</code> 表有 83 行，接口返回 0（疑被时间窗/状态过滤）→ 需人工确认是否正常。</td></tr>
+    <tr><td><span class="tag t-bad">数据缺口</span></td><td>业务数据停留在 <b>2026-07-09</b></td>
+      <td>之后约 2.5 个月的告警/事件/复检/点位改动<b>无副本</b>。建议继续排查其它来源（同事导出 / 微信桥 VM / 邮件附件）。</td></tr>
+  </tbody>
+</table>
+
+<h2>6. 复跑与归档</h2>
+<pre><code># 施工脚本（本机，按序执行，均可复跑）
+tmp/p0_01_skeleton.sh    # 建 /data/HBJSC + /video 软链 + 磁盘隔离校验
+tmp/p0_02_deps.sh        # nginx/ffmpeg/python3-pip + Node 22（装到 /data/HBJSC/tools/node22）
+tmp/p0_03_install.sh     # 落地后端底座/代码/前端/nginx/systemd
+tmp/p0_04_fix.sh         # 修 Node 版本与代码叠加
+tmp/p0_05_zlm.sh         # 源码编译 ZLM
+tmp/p0_06_zlm_cfg.sh     # ZLM 配置（端口/secret/hook）
+tmp/p0_07_finalize.sh    # 端口修正 + 逐文件 md5 门禁 + 落安装清单
+
+# 归档
+服务器：/data/HBJSC/backups/INSTALL_MANIFEST_20260930_0300.md
+本机  ：backups/HBJSC_install/HBJSC_snapshot.tgz + HBJSC_configs.tgz   ← 已按"同机备份等于没备"的教训拉回</code></pre>
+
+<div class="note">
+  <b>下一步建议</b>：① 先确认新机不会再被对方占用（现在几乎是空的，是窗口期）；
+  ② 解决 <code>172.28</code> 网段可达性（决定视频链路）；③ 排期 <code>wanzhou_towns.geojson</code> 与 straw-engine 重写（方案 B）。
+</div>
+
+<div class="foot">
+  万州区秸秆焚烧监控 jsc · 驾驶舱重建安装记录 · 2026-09-30 · 方案 A<br>
+  全部结论均为实测；施工脚本与安装清单已归档，可复跑复核。
+</div>
+
+</div>
+</body>
+</html>

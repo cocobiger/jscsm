@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>锚点集缺陷审计与处置建议 · 2026-09-29</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;--bad:#b3261e;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.8;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:26px}
+  h2{font-size:19px;margin:36px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--ink2)}
+  code{font-family:var(--mono);font-size:12.7px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.6px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .bad{border-left:4px solid var(--bad);background:#fdecea;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  img.sh{width:100%;border:1px solid var(--line2);border-radius:8px;margin:8px 0;background:#fff}
+  .cap{font-size:12.8px;color:var(--ink3);margin:-2px 0 18px}
+  .mono{font-family:var(--mono);font-size:12.6px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;margin-right:4px}
+  .t-bad{background:#fdecea;color:var(--bad);border:1px solid #f3c4c0}
+  .t-warn{background:#fff6e5;color:var(--warn);border:1px solid #f0d9a8}
+  .t-ok{background:#e8f7ee;color:var(--ok);border:1px solid #bfe3cd}
+  .t-blue{background:#eaf2ff;color:var(--brand);border:1px solid #c3dafc}
+  .foot{margin-top:44px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>锚点集缺陷审计与处置建议</h1>
+<div class="sub">
+  万州区秸秆焚烧监控 · 「远方轻烟」迭代 P0-① &nbsp;|&nbsp; 对象：锚点确认工作台的 39 张锚点
+  &nbsp;|&nbsp; 2026-09-29 &nbsp;|&nbsp; 协议 v1.2
+</div>
+
+<div class="bad">
+  <b>先说结论（含对我此前说法的纠正）</b>
+  <ol style="margin-bottom:0">
+    <li><b>我此前的判断错了。</b> 我曾说「<code>v5_train_v5</code> 是司空截图污染源，我只保留了其中 19 张干净帧」。
+      实测（39 张联系表逐张看图）：<b><code>v5_train_v5</code> 的 19 张全部是干净航拍，没有一张含司空 UI</b>。</li>
+    <li><b>真正带司空驾驶舱 UI 的是 <code>v6_train</code></b>（3 张），另有 2 张是<b>标注平台截图</b>、2 张是<b>横向撕裂坏帧</b>。
+      合计 <b>7 张必须剔除</b>。</li>
+    <li>你原话「去掉 <code>v5_train_v5</code> 的图片」<b>如果照字面执行，会删掉 19 张干净帧、却留下 7 张真正脏的帧</b> ——
+      方向刚好相反。成因是「数据集目录名」与「画面里有没有 UI」不是一回事，得看画面本身。</li>
+    <li>但你的<b>意图完全正确、且有量化证据</b>：整个训练集确实混入了大量桌面截图（见 §3）。</li>
+  </ol>
+</div>
+
+<h2>1. 事实依据：生产输入 vs 训练输入</h2>
+<p>先把「生产侧到底有没有 UI」钉死 —— 这决定了 UI 截图算不算域污染。</p>
+<table>
+  <thead><tr><th style="width:170px">侧</th><th>样本</th><th>结论</th></tr></thead>
+  <tbody>
+    <tr><td>生产检测输入</td>
+      <td class="mono">evidence/review/sikong_1581F8HGX258600A0S4J/random_*.jpg<br>（职教中心实飞抽帧）</td>
+      <td><span class="tag t-ok">零 UI</span> 纯相机画面：无参数栏、无遥测、无地图、无虚拟摇杆。
+        且实测分辨率 1024×768 / 1280×720。</td></tr>
+    <tr><td>训练集部分样本</td>
+      <td class="mono">v6_train/images/train/v6_001954.png<br>v6_train/images/val/v6_001888.png</td>
+      <td><span class="tag t-bad">整屏 UI</span> 左侧视频窗 + 右侧地图 + 底部辅助画面 + 顶部相机参数栏
+        <b>都被烧进了图里</b>。</td></tr>
+  </tbody>
+</table>
+<img class="sh" src="anchor_audit/prodframe_S4J.jpg" alt="生产帧">
+<div class="cap">▲ 生产检测帧（职教中心实飞）：纯相机画面，零 UI。已下载自 <code>evidence/review/…/random_1790420594900_491.jpg</code>。</div>
+
+<div class="note">
+  <b>所以 UI 截图确实是域污染</b>：模型在训练时"看得见"参数栏/地图/摇杆这些像素，
+  到了推理时它们不存在。轻则浪费容量，重则学到"有参数栏的地方才有烟"这类伪相关。
+</div>
+
+<h2>2. 39 张锚点逐张核查结果</h2>
+
+<h3>2.1 先看 <code>v5_train_v5</code> 那 19 张（你要求删的那批）</h3>
+<img class="sh" src="anchor_audit/suspect_v5train.png" alt="v5_train_v5 19张">
+<div class="cap">▲ <code>v5_train_v5</code> 的 19 张（来自 live_review / tr0909 / va0909 / day_0911 / day_0911_neg / dilute_20260909 / dji_photo 共 7 个子目录）。
+<b>逐张看：全部是干净航拍，无一张含司空 UI。</b></div>
+
+<h3>2.2 真正有问题的帧（12 张可疑 → 7 张确定必须剔除）</h3>
+<img class="sh" src="anchor_audit/suspect_ui.png" alt="可疑帧">
+<div class="cap">▲ 上排 4 张：司空驾驶舱整屏截图 ×3（<code>v6_train</code>）+ 标注平台截图 ×1。
+下排：机场本体近场 ×3、撕裂坏帧 ×2、标注平台截图 ×1。</div>
+
+<img class="sh" src="anchor_audit/suspect_evidence.png" alt="evidence 帧">
+<div class="cap">▲ 来自 <code>evidence</code> 的 14 张。可见 <code>20260827</code> 那两张是<b>标注平台截图</b>（灰蒙底色 + 满屏黄框），
+<code>review/low</code> 与 <code>20260926</code> 各有一张<b>横向撕裂伪影</b>坏帧。</div>
+
+<table>
+  <thead><tr><th style="width:60px">类别</th><th style="width:150px">锚点 id</th><th>实际文件</th><th style="width:230px">为何不可用</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3"><span class="tag t-bad">必须剔除</span></td>
+      <td class="mono">D_day_b3eaa8</td><td class="mono">v6_train/images/train/v6_001954.png</td>
+      <td>司空驾驶舱整屏截图（左视频+右地图+下辅助画面+顶部参数栏）</td></tr>
+    <tr><td class="mono">D_day_b8e2dc</td><td class="mono">v6_train/images/val/v6_001888.png</td>
+      <td>同上（左地图+中视频+下辅助画面）</td></tr>
+    <tr><td class="mono">M_day_af0fb1</td><td class="mono">v6_train/images/train/v6_001875.png</td>
+      <td>同上（顶部参数栏+右地图+底遥测+虚拟摇杆）</td></tr>
+    <tr><td rowspan="2"><span class="tag t-bad">必须剔除</span></td>
+      <td class="mono">D_day_13bf9d</td><td class="mono">evidence/20260827/sikong_…064U_192320.jpg</td>
+      <td>标注平台截图：画面被去色灰蒙处理 + 满屏黄色标注框，不是无人机原始帧</td></tr>
+    <tr><td class="mono">M_day_2a6fb1</td><td class="mono">evidence/20260827/sikong_…064U_192340.jpg</td>
+      <td>同上</td></tr>
+    <tr><td rowspan="2"><span class="tag t-bad">必须剔除</span></td>
+      <td class="mono">M_day_df90e2</td><td class="mono">evidence/review/…SJM/low_1790357633049_362.jpg</td>
+      <td><b>坏帧</b>：横向撕裂伪影（疑似读帧不完整就落盘）</td></tr>
+    <tr><td class="mono">M_day_58ef22</td><td class="mono">evidence/20260926/sikong_…SJM_013457.jpg</td>
+      <td>同上（还叠加了黄框）</td></tr>
+    <tr><td rowspan="3"><span class="tag t-warn">黄色框泄漏</span></td>
+      <td class="mono">D_day_74e9bd</td><td class="mono">evidence/20260926/sikong_…S4G_172810.jpg</td>
+      <td>画面干净，但<b>已画有历史标注黄框</b> → 给标注员暗示（与"刻意不显示程序算出的档位"同一类问题）</td></tr>
+    <tr><td class="mono">D_day_6713a9</td><td class="mono">evidence/20260831/sikong_…064U_190647.jpg</td>
+      <td>同上，且黄框较多</td></tr>
+    <tr><td class="mono">D_day_647a9d</td><td class="mono">evidence/20260830/sikong_…S4J_184607.jpg</td>
+      <td>同上，黄框 1 个（较轻）</td></tr>
+    <tr><td rowspan="3"><span class="tag t-blue">建议保留</span></td>
+      <td class="mono">D_day_bfbf44</td><td class="mono">evidence/20260828/sikong_…SJM_183656.jpg</td>
+      <td>机场本体/机臂近场。<b>这是协议 §5.2「近场不采集帧」的正面考点</b>（应判 非烟 + 不适用 + NEAR），
+        留着能校准两位标注员是否会用 NEAR 规则。<b>但当前被自动分档放进了 D 档，标签错，需修正说明。</b></td></tr>
+    <tr><td class="mono">N_day_9e987f</td><td class="mono">v6_train/images/train/v6_002453.jpg</td>
+      <td>机场天台/机库盖子开启，同上是 NEAR 考点</td></tr>
+    <tr><td class="mono">N_day_469524</td><td class="mono">v6_train/images/val/v6_002270.jpg</td>
+      <td>机场/机库红色建筑特写，同上</td></tr>
+  </tbody>
+</table>
+
+<h2>3. 顺带查出的更大问题：训练集里混入了成批桌面截图</h2>
+<p>用「分辨率 × 宽高比」当探针扫了整个数据集 ——
+无人机原始视频帧只有固定几种分辨率（960×720 / 1280×720 / 1440×1080，全 4:3 或 16:9），
+而<b>桌面截图</b>是 2968×1732 / 2560×1329 这种非标准宽高比（1.714 / 1.926 / 1.699）。</p>
+<table>
+  <thead><tr><th style="width:150px">数据集</th><th style="width:100px">合计</th><th>可疑子目录（非 16:9 且宽高比异常）</th><th style="width:110px">桌面截图</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">v5_train_v5</td><td>930 张</td>
+      <td class="mono">misc/ 107 张（2968×1732×52、2560×1329×42、2942×1732×5…）<br>
+          wechat_fix/ 1 张（2560×1329）</td>
+      <td><b>108 张</b><br>（11.6%）</td></tr>
+    <tr><td class="mono">v6_train</td><td>3058 张</td>
+      <td class="mono">train/ ：2560×1329×133 + 2968×1732×132 + 2942×1732×25<br>
+          val/ ：2560×1329×16 + 2968×1732×14 + 2942×1732×1</td>
+      <td><b>321 张</b><br>（10.5%）</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <b>这个数字与既有记录对上了</b>：记忆里记着「<code>v5_train_v5</code> 930 张中 108 张是司空截图」——
+  实测 107（<code>misc/</code>）+ 1（<code>wechat_fix/</code>）= <b>108，分毫不差</b>。
+  说明：① 该结论为真；② 但它<b>集中在 <code>misc/</code> 一个子目录里</b>，不是"整个 v5_train_v5 都是截图"。
+  <br><br>
+  <b>另外发现 <code>v6_train</code> 有 321 张（10.5%）同类截图</b> —— 这一条此前没有记录，属于新发现，
+  且 <code>v6_train</code> 是较新的训练集，影响面比 v5 更直接。
+</div>
+
+<h2>4. 影响与代价</h2>
+<table>
+  <thead><tr><th style="width:130px">项</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>对本次锁点校准</td>
+      <td>7 张必剔项会让标注员把力气花在<b>无法判读</b>的图上（整屏 UI / 灰蒙满屏框 / 撕裂帧），
+        且 2 张标注平台截图与 3 张黄框帧会<b>给答案暗示</b>，直接污染一致性数据。</td></tr>
+    <tr><td>对训练</td>
+      <td>训练集每 10 张就有 1 张带 UI 的截图 → 域污染已实锤；这也解释了为什么模型在<b>真实流上框级定位差</b>
+        （记忆里 9/11 的结论：白天召回不是瓶颈，短板是白天框级定位）。</td></tr>
+    <tr><td>删完后的覆盖代价</td>
+      <td>39 → 32 张（只剔 7 者）或 29 张（连黄框 3 张一并剔）。
+        <b>D 档会从 12 掉到 9 或 6</b>，且 <b>夜间只有 3 张</b>（M_night 2 + N_night 1）—— 本来就不足。</td></tr>
+  </tbody>
+</table>
+
+<h2>5. 三个处置方案（请拍板）</h2>
+<table>
+  <thead><tr><th style="width:70px">方案</th><th style="width:230px">做什么</th><th style="width:110px">锚点数</th><th>代价 / 收益</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>A</b><br>最小改动</td>
+      <td>只剔 7 张必剔项；3 张黄框帧保留，在卡片上加一行提示「图上有历史标注框，请忽略，只判红框内的目标」</td>
+      <td>39 → <b>32</b><br>D 9 / M 8 / N 12 / 夜 3</td>
+      <td>立刻可用，改动小。黄框的暗示效应仍在（只是被弱化），一致性数据有一点点噪声。</td>
+    </tr>
+    <tr>
+      <td><b>B</b><br>按铁律从严</td>
+      <td>7 张必剔 + 3 张黄框泄漏帧一并剔（符合「拿不准→暂缓/隔离」）</td>
+      <td>39 → <b>29</b><br>D 6 / M 8 / N 12 / 夜 3</td>
+      <td>口径校准建立在干净样本上，最稳。<b>但 D 档只剩 6 张</b>，D 档一致率会变得很不稳（6 张里错 2 张就掉到 67%）。</td>
+    </tr>
+    <tr>
+      <td><b>C</b><br>彻底重做</td>
+      <td>收紧候选筛选规则（排除桌面分辨率、排除含黄框的 evidence、排除 review/low 撕裂帧、排除机场近场另立分区），
+        再从干净来源补足 D/M/N × 昼/夜，重建一套锚点（含夜航补采）</td>
+      <td>重建为 30–40</td>
+      <td>最彻底、可长期复用（规则沉淀进工具）。代价：需要你再等一轮，且夜间/D 档仍要靠新采集才补得齐。</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="ok">
+  <b>我的建议：先 A、再 C。</b>
+  <br>理由：A 只需要 10 分钟，就能让两位标注员<b>今天</b>在干净样本上开始校准（黄框那 3 张的提示足以弱化暗示）；
+  同时在 A 的基础上把筛选规则收紧（C 的规则部分，不需要等采集）沉淀进 <code>build_anchor_candidates.py</code>，
+  等夜航/远烟采集到位后再补样本重建。
+  <br><b>不建议单独选 B</b>：D 档掉到 6 张会让 D 档一致率失去统计意义，反而得出错误结论。
+</div>
+
+<div class="note">
+  <b>无论选哪个，都请两位标注员刷新页面后先点「清空本员」</b>——
+  v1.2 换了存储键（<code>anchor_wb_v12_*</code>），旧的三级进度不会带过来，也不应该带过来。
+</div>
+
+<h2>6. 附带说明：v1.2 火档已完成并上线</h2>
+<table>
+  <thead><tr><th style="width:190px">项</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr><td>协议 <code>protocol.html</code></td><td><span class="tag t-ok">已上线</span> 五档判定（新增「明火+烟」「明火」）、§7 门禁改为粗口径硬门槛、§6.1 补火烟兼有画法、§5.1 增"夜间亮核"行（以 N_night_263a96 为实例，已按你的意见判为<b>明火+烟</b>）</td></tr>
+    <tr><td>工作台 <code>anchor_workbench.html</code></td><td><span class="tag t-ok">已上线</span> 五档按钮（火档橙色）、理由码新增 <code>FLAME</code>、一致性面板改为「粗口径硬门槛 + 五档参考」</td></tr>
+    <tr><td>入口页 <code>index.html</code></td><td><span class="tag t-ok">已上线</span> 加了一张五档选择速查表（明火+烟 / 明火 / 确定烟 / 疑似轻烟 / 非烟 各在什么时候选）</td></tr>
+    <tr><td>校验器 <code>check_agreement.py</code></td><td><span class="tag t-ok">已改</span> 粗口径硬门槛 + 五档参考项 + 粗口径混淆矩阵；<b>顺带修掉一个真 bug</b>：单文件（导出 A+B）模式下 <code>mA/mB</code> 未定义会直接崩溃 —— 而这正是你最可能用的模式</td></tr>
+    <tr><td>验收</td><td><span class="tag t-ok">全绿</span> 静态审计 71/71；真实页面 CDP 验收 33/33（含点「明火+烟」真的落库 <code>fire_smoke</code>、放大查看器真的加载 1600×830 原图、一致性面板真的显示 粗口径 100.0% / 五档 60.0% 且 PASS）；HTTP 核验 磁盘 md5 == HTTP md5、39 张原图逐个 200</td></tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  万州区秸秆焚烧监控 · 「远方轻烟」迭代 P0-① · 锚点集缺陷审计 · 2026-09-29 · 协议 v1.2<br>
+  本页所有结论均附实测证据；图表由 <code>tmp/</code> 下的审计脚本生成，可复跑复核。
+</div>
+
+</div>
+</body>
+</html>

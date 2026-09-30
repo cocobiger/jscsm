@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jsc 生产入口失联排查 · 2026-09-30</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;--bad:#b3261e;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.75;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:25px;margin:0 0 6px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:24px}
+  h2{font-size:19px;margin:34px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  h3{font-size:15.5px;margin:20px 0 8px;color:var(--ink2)}
+  code{font-family:var(--mono);font-size:12.6px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  pre{background:#1f2430;color:#e6edf3;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.4px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .bad{border-left:4px solid var(--bad);background:#fdecea;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .mono{font-family:var(--mono);font-size:12.5px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .t-bad{background:#fdecea;color:var(--bad);border:1px solid #f3c4c0}
+  .t-warn{background:#fff6e5;color:var(--warn);border:1px solid #f0d9a8}
+  .t-ok{background:#e8f7ee;color:var(--ok);border:1px solid #bfe3cd}
+  .t-blue{background:#eaf2ff;color:var(--brand);border:1px solid #c3dafc}
+  .foot{margin-top:44px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>jsc 生产入口失联排查</h1>
+<div class="sub">
+  目标：<code>111.10.220.226</code>（内网 <code>172.16.8.12</code>，hostname <code>userver</code>）
+  &nbsp;|&nbsp; 2026-09-30 01:22~01:50 &nbsp;|&nbsp; 全程**只读侦察**，未改动任何配置
+</div>
+
+<div class="bad">
+  <b>结论（三句话）</b>
+  <ol style="margin-bottom:0">
+    <li><b>没能登上 8.12</b> —— 它的 SSH 原本就在非标端口 <code>22333</code>，而该端口<b>现在已不再指向它</b>（变成了另一台机器的 TLS 服务）。</li>
+    <li><b>jsc 自己的公网入口已不存在</b> —— 原 <code>:81</code>（jsc HTTP）和 <code>:22333</code>（SSH）都没了；该 IP 上**已无任何 jsc 站点**（vhost 与路径都试过）。</li>
+    <li><b>但网关没有被重置</b> —— <code>:9501/9533</code> 仍然坚实地映射到我方微信桥 Windows VM。⇒ 是 <b>jsc 的那几条映射被单独改了</b>，不是整机丢失。</li>
+  </ol>
+</div>
+
+<h2>1. 这台机器"本来"长什么样（先纠正我自己的误判）</h2>
+<p>项目自己的 <code>docs/Ubuntu服务器系统B调研报告.md</code> 写得很清楚：</p>
+<table>
+  <thead><tr><th style="width:150px">项</th><th>值</th></tr></thead>
+  <tbody>
+    <tr><td>公网 / 内网</td><td class="mono">111.10.220.226 / 172.16.8.12</td></tr>
+    <tr><td>Hostname</td><td class="mono">userver</td></tr>
+    <tr><td>系统 / 规格</td><td>Ubuntu 22.04.5 LTS · 96 核 · 220 GiB</td></tr>
+    <tr><td><b>SSH 端口</b></td><td><b><code>22333</code></b>（已自定义，<b>非默认 22</b>）</td></tr>
+    <tr><td>对外的服务</td><td>只有 nginx(80) 与 sshd(22333)</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <b>我一开始犯的错</b>：探测到 <code>22</code> 端口 <i>Connection refused</i>，就倾向于认为"机器没了"。
+  <b>但 22 本来就不开</b> —— 这台机器一直用 <code>22333</code>。
+  教训：<b>先翻自己仓库里关于这台机器的记录，再判断"变没变"</b>，否则会把正常状态当成故障。
+</div>
+
+<h2>2. 全端口扫描结果（1–65535，共 17 个开放端口；1–1023 全无）</h2>
+<p>逐个抓 banner / TLS 证书 / HTTP 头之后，这些端口的"真身"如下：</p>
+<table>
+  <thead><tr><th style="width:70px">端口</th><th style="width:230px">实测指纹</th><th>真身判断</th><th style="width:96px">归属</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">5000</td><td class="mono">Werkzeug/3.1.3 Python/3.11.10</td>
+      <td><b>渣土车算法服务</b>。<code>/health</code> 直接吐：<code>loaded:{cover:"{0:'spill',1:'covered'}", stack:"{0:'unsoilcover',1:'dust'}"}</code>、
+        <code>registry:{cover:"runs/muck_cover_det_b8.pt", stack:"yolo11m_custom.pt"}</code>、<code>diskFreeGB:1002.6</code></td>
+      <td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">8888</td><td class="mono">nginx/1.26.2</td>
+      <td><b>「云边端一体化智能算法应用平台」</b>（index 文件日期 2026-09-02）。
+        任意路径都回同一份 index（SPA 回落）</td><td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">5001</td><td class="mono">nginx/1.27.4</td>
+      <td>默认 server：<b>对任何 Host 都 404</b></td><td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">6081</td><td class="mono">Spring 风格：<code>{"code":0,"msg":"成功",…}</code></td>
+      <td>平台网关（<code>/actuator/health</code> → <code>status:DOWN</code>）</td><td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">6082<br>6083<br>18083</td><td class="mono">Server: Cowboy</td>
+      <td><b>EMQX Dashboard</b>（18083 首页 title = <code>EMQX Dashboard</code>）</td><td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">18082</td><td class="mono">Server: ZLMediaKit(git hash:c904019/2024-08-10, build 2024-08-14)</td>
+      <td><b>ZLMediaKit 流媒体</b>；项目配置里有 <code>:18082/rtp/gb_play_*.live.flv</code>。
+        拉流回 <code>401 / [network err]:255(host is unreachable)</code> ⇒ 服务在跑，但它的 on_play 钩子主机不可达</td>
+      <td><span class="tag t-warn">与我方相关</span></td></tr>
+    <tr><td class="mono">9501<br>9533</td><td class="mono">TLS，证书 <b>CN=<code>DESKTOP-PAQ2NAV</code></b></td>
+      <td>⭐ <b>映射到我方微信桥 Windows VM（172.16.8.15）</b>。RDP 的 TLS 证书 CN 就是机器名</td>
+      <td><span class="tag t-ok">我方</span></td></tr>
+    <tr><td class="mono">22233</td><td class="mono">SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.17</td>
+      <td rowspan="2">两台不同的 Ubuntu 主机（补丁号不同 ⇒ 不是同一台）。用我方密钥与密码均被拒</td>
+      <td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">22555</td><td class="mono">SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.17</td>
+      <td><span class="tag t-bad">非我方</span></td></tr>
+    <tr><td class="mono">22777</td><td class="mono">SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.<b>10</b></td>
+      <td>第三台 Ubuntu（补丁更旧）</td><td><span class="tag t-bad">非我方</span></td></tr>
+    <tr style="background:#fff8f7"><td class="mono"><b>22333</b></td>
+      <td class="mono">TLSv1.2，证书 <b>CN=<code>DaQiServer</code></b><br>(2026-06-08 → 2026-12-08)</td>
+      <td>⚠️ <b>这里原本是我方 jsc 的 sshd，现在变成了另一台机器的 TLS 服务</b>。HTTP 请求无响应 ⇒ 非 HTTP-over-TLS</td>
+      <td><span class="tag t-bad">已易主</span></td></tr>
+    <tr><td class="mono">33333</td><td class="mono">Server: HTTPD · XHTML 1.1 · ActiveX · 20 年自签证书(2025→2045)</td>
+      <td><b>嵌入式网络设备管理页</b>（title <code>Web managerment Home</code>，301 → <code>/web/index.html</code>）</td>
+      <td><span class="tag t-blue">网关</span></td></tr>
+    <tr><td class="mono">46322</td><td class="mono">SSH-1.99-<b>Comware</b>-7.1.064</td>
+      <td><b>华三（H3C）设备</b>的 SSH —— 与 33333 是同一台网络设备</td>
+      <td><span class="tag t-blue">网关</span></td></tr>
+    <tr><td class="mono">61883</td><td class="mono">裸 TCP 通、TLS 被 RST、无 banner</td>
+      <td>未识别</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2>3. 判断依据链（为什么说是"映射被改"而不是"机器重装丢数据"）</h2>
+<table>
+  <thead><tr><th style="width:330px">观察</th><th>推论</th></tr></thead>
+  <tbody>
+    <tr><td><code>:81</code> 从"外网 200"变成<b>完全未开放</b></td>
+      <td>jsc 的公网 HTTP 映射已被删除或改指</td></tr>
+    <tr><td><code>:22333</code> 从 <code>SSH-2.0-OpenSSH</code> 变成 TLS <code>CN=DaQiServer</code></td>
+      <td><b>该映射被重新指向了另一台机器</b>（不是 8.12 上"换了服务"那么简单）</td></tr>
+    <tr><td><code>:9501/9533</code> 仍映射到我方 <code>DESKTOP-PAQ2NAV</code></td>
+      <td>✅ <b>网关配置没被重置</b>，我方内网机器仍在映射表里 ⇒ 是"个别条目被改动"</td></tr>
+    <tr><td>用 <code>Host: uav-sites / skymonitor / jsc</code> 打 5001、8888 → 全 404 / SPA 回落</td>
+      <td>该 IP 上<b>已无 jsc vhost</b></td></tr>
+    <tr><td><code>index-*.js</code> 里搜到 <code>/dev-api</code> + <code>127.0.0.1:48080</code> + <code>:1880</code>(Node-RED)</td>
+      <td>8888 那套是 <b>yudao / RuoYi-Vue-Plus 血统</b>的平台 —— 与 8.11 那族同源</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>🔑 方法论（已沉淀进 skill）</b>：<br>
+  ① 扫描一个公网 IP，得到的是<b>「端口映射表」而不是「主机监听列表」</b>——一个公网 IP 后面是网关 + 多台内网机，
+  所以"某端口关了"只能说明映射被删/后端没起，<b>不能推"那台机器没了"</b>。<br>
+  ② <b>TLS 证书 CN 能直接认出后端真身</b>（Windows 主机的 RDP 证书 CN = 机器名，如 <code>DESKTOP-PAQ2NAV</code> / <code>DaQiServer</code>）。
+  这是识别"无名端口"最快的一招。
+</div>
+
+<h2>4. ESXi 为什么也查不到</h2>
+<p>ESXi <code>172.16.8.24</code> 的原有访问路径是：<b>本机 → 226(8.12) 跳板 → sshpass 进 ESXi</b>。
+跳板那台机器的 SSH 入口已经不在（<code>22333</code> 易主），链路直接断掉。</p>
+<p>另外本机 <code>route print -4</code> <b>没有任何 172.16.8.0/24 的路由</b>，到该网段的全部连接都是 <i>timeout</i>，
+所以 <b>无法绕过跳板直连</b>。全端口扫描也确认：ESXi 的 443 / 902 / 8006 <b>未在此公网 IP 上暴露</b>。</p>
+<div class="warn"><b>因此"查看 ESXi 设置"这一半任务无法完成</b>，需要先恢复一个到 172.16.8.0/24 的入口（见下节）。</div>
+
+<h2>5. 需要你拍板 / 提供（任一即可让我继续）</h2>
+<table>
+  <thead><tr><th style="width:60px">选项</th><th style="width:300px">你提供什么</th><th>我能立刻做什么</th></tr></thead>
+  <tbody>
+    <tr><td><b>A</b></td><td>8.12 当前可用的 <b>SSH 端口 / 跳板</b>（网关改过映射的话，应该是最新那个）</td>
+      <td>直接登录 → 用下面那组命令把系统/服务/磁盘状态一次查清，并判断 <code>/opt/jsc</code> 与 <code>/video</code> 是否还在</td></tr>
+    <tr><td><b>B</b></td><td>你在控制台（ESXi 控制台 / 物理显示器）跑下节命令，把输出贴回</td>
+      <td>我按输出定位故障点，并给出恢复步骤</td></tr>
+    <tr><td><b>C</b></td><td>华三网关（<code>:33333</code> 或 <code>:46322</code>）的登录凭据</td>
+      <td>看 NAT/端口映射表，确认<b>是谁把 jsc 的映射删了/改了</b>，并核对 8.12 现在映射到哪些端口</td></tr>
+  </tbody>
+</table>
+
+<h3>你可以直接在控制台跑的只读命令（把输出贴回来即可）</h3>
+<pre><code># 身份与资源
+hostname; uptime; ip -4 addr show | grep inet
+
+# ⭐ 本机到底在听什么 —— 与外网扫出来的 17 个端口对照，就能定位"是映射被删还是服务没起"
+ss -lntp
+
+# 服务与关键资产
+systemctl list-units --type=service --state=running | head -40
+ls -la /opt/ 2>&1 | head -30
+ls -la /opt/jsc/ 2>&1 | head -30
+ls /video/ 2>&1 | head -20
+
+# 磁盘是否还挂着（判断数据是否还在）
+lsblk -f; df -h</code></pre>
+
+<div class="ok">
+  <b>关于"数据还在不在"——现在还不能下结论</b>。<br>
+  目前能确证的只是：<b>这些服务当前没有以公网可访问的形式暴露</b>。
+  在拿到 8.12 的 shell（或 <code>lsblk/df</code> 输出）之前，<b>不能断言 /opt/jsc 与 /video 已丢失</b> —— 这两件事必须分开说。
+</div>
+
+<div class="foot">
+  万州区秸秆焚烧监控 jsc · 生产入口失联排查 · 2026-09-30 · 全程只读侦察，未做任何配置改动<br>
+  复跑脚本：<code>tmp/probe_hosts.mjs</code>｜<code>tmp/scan_226_wide.mjs</code>｜<code>tmp/grab_banners.mjs</code>｜
+  <code>tmp/finger_ports.mjs</code>｜<code>tmp/tls_ident.mjs</code>｜<code>tmp/find_jsc.mjs</code>
+</div>
+
+</div>
+</body>
+</html>

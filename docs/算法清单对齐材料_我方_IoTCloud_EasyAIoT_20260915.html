@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算法清单对齐材料 · 我方 / IoTCloud / EasyAIoT（2026-09-15）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1300px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:30px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+pre{background:rgba(0,0,0,.3);padding:11px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:9px 0}
+ul,ol{margin:7px 0;padding-left:22px}li{margin-bottom:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>算法清单对齐材料</h1>
+  <div class="subtitle">用途：与 <b>IoTCloud / EasyAIoT 平台方</b>对齐「到底部署了哪些算法、各自状态如何」。三份清单均来自实测（2026-09-14~15）</div>
+</header>
+
+<h2>一、三份清单对照（核心结论）</h2>
+<div class="card bad">
+  <table>
+    <tr><th>清单</th><th>来源</th><th>内容</th><th>状态</th></tr>
+    <tr>
+      <td><b>① 我方期望</b></td>
+      <td>驾驶舱 <code>ai_types</code> 表（AI分析存档展示）</td>
+      <td>堆场扬尘 / 堆头未覆盖 / 道路扬尘 / 秸秆燃烧 / 违规排污 / 固废与危废违规倾倒 / 固废运输违规 / 侵占岸线与水面漂浮物<br><span style="color:var(--muted);font-size:12px">+ 本次新增登记：机场人员入侵、dust(已弃用)</span></td>
+      <td><span class="tag t-warn">业务愿望清单</span></td>
+    </tr>
+    <tr>
+      <td><b>② IoTCloud 实际产出</b></td>
+      <td>直连 <code>172.16.8.11:6881</code> 实测 21 通道</td>
+      <td><code>unsoilcover</code>（堆头未覆盖，底层类型名 <b>spill</b>）+ <code>plate</code>（车牌识别）</td>
+      <td><span class="tag t-bad">只有 1 类算法</span></td>
+    </tr>
+    <tr>
+      <td><b>③ EasyAIoT 实际部署</b></td>
+      <td>Nacos <code>model-server</code>（172.16.8.11:8100）<code>/model/list</code></td>
+      <td><b>10 个 YOLOv8 模型</b>：安全帽 / 反光衣 / 睡岗 / 火焰 / 吸烟 / 打电话 / 口罩 / 道路积水 / 跌倒检测 / 人脸检测</td>
+      <td><span class="tag t-info">工地/园区安全类</span></td>
+    </tr>
+  </table>
+  <div class="quote" style="border-left-color:var(--red);margin-bottom:0">
+    <b>关键结论</b>：三份清单<b>几乎不重叠</b>。<br>
+    · 我方期望的 8 类<b>环保算法</b> → IoTCloud 只实现了 1 类（堆头未覆盖），其余 7 类<b>未部署</b><br>
+    · EasyAIoT 的 10 个模型全部是<b>工地安全类</b>，与环保业务<b>无关</b><br>
+    · 三者均<b>没有</b>秸秆燃烧（该能力来自我方自研 straw-engine）
+  </div>
+</div>
+
+<h2>二、需要与平台方对齐的 8 个问题</h2>
+<table>
+  <tr><th>#</th><th>问题</th><th>证据</th><th>请求平台方</th></tr>
+  <tr>
+    <td>1</td><td><b>8 类环保算法只部署了 1 类</b></td>
+    <td>IoTCloud 21 通道算法配置全为 <code>unsoilcover</code>；<code>/scene/model/list</code> 只有 1 个"视频轮播"模型</td>
+    <td>确认堆场扬尘/道路扬尘/违规排污/固废×2/侵占岸线 <b>是否计划部署</b>；如不部署，我方将从 UI 撤下这些空壳算法</td>
+  </tr>
+  <tr>
+    <td>2</td><td><b>算法类型命名的三层不一致</b></td>
+    <td>底层 <code>spill</code> → API 输出 <code>unsoilcover</code> → 业务标签「冒装」→ 标注类别「真违规·装载物未覆盖」</td>
+    <td>确认 <code>spill</code> 与 <code>unsoilcover</code> 的<b>准确对应关系</b>；建议统一命名口径，避免下游误解</td>
+  </tr>
+  <tr>
+    <td>3</td><td><b>「未覆盖」检测存在结构性误报</b></td>
+    <td>实测样本：① 空载平板货车（货斗无货）被判"未覆盖" ② 已盖灰色篷布的重载车（渝DP173挂）仍被判"未覆盖"</td>
+    <td><b>请修复检测逻辑</b>：需能区分「空车 / 已盖篷布 / 真未覆盖」三种状态</td>
+  </tr>
+  <tr>
+    <td>4</td><td><b>误报导致单日数千条刷屏</b></td>
+    <td>09-06~09-10 连续 5 天 3,373~5,220 条/天（合计 20,567 条），因路口每辆货车经过都触发</td>
+    <td>配合 #3 修复；修复前我方已实施通道级过滤（见第三节）</td>
+  </tr>
+  <tr>
+    <td>5</td><td><b>3 个通道 channelName 为空</b></td>
+    <td><code>56331706881318000205 / …204 / …305</code> 在 IoTCloud 与 iot_channels 中均无名称，仅 <code>NVR(172.16.8.51)</code></td>
+    <td>补录这 3 路摄像头的<b>点位名称</b>（含实际安装位置）</td>
+  </tr>
+  <tr>
+    <td>6</td><td><b><code>dust</code> 类型来源不明</b></td>
+    <td>存量 125 条 <code>aiType='dust'</code>（07-21~08-31），当前 IoTCloud 无此算法配置</td>
+    <td>确认 <code>dust</code> 是<b>已下线的算法</b>还是<b>别名</b>（我方已按"历史遗留"标记为已处置，不再展示）</td>
+  </tr>
+  <tr>
+    <td>7</td><td><b>通道算法配置与产出不一致</b></td>
+    <td>通道"桐子园码头"配「堆头未覆盖」却产出 dust/AI分析/type；配「道路扬尘」的 7 个通道从未产出道路扬尘</td>
+    <td>确认 <b>通道算法配置是否真的生效</b>于云平台侧（我方已改为"按记录所属通道配置做白名单过滤"，配置即生效）</td>
+  </tr>
+  <tr>
+    <td>8</td><td><b>车牌识别能力未接入我方</b></td>
+    <td>analyseInfo 含 <code>plate</code>（渝A025991）+ <code>plate_conf</code>（0.855）；EasyAIoT 另有 <code>plate-service</code>（7001 端口，catcher+crnn）</td>
+    <td>确认车牌数据<b>是否可开放给我方</b>（当前我方未消费该字段）</td>
+  </tr>
+</table>
+
+<h2>三、我方侧已完成的处理（供平台方了解现状）</h2>
+<div class="card good">
+  <table>
+    <tr><th>处理</th><th>内容</th><th>生效时间</th></tr>
+    <tr><td><b>通道白名单过滤</b></td><td><code>iot-fetcher</code> 改为按<b>记录自身 channelSipId</b> 匹配 <code>iot_channels</code> 配置：① 未登记通道 → 不入库 ② 已登记但 aiType 不在通道配置内 → 不入库。日志实测：「未登记通道跳过 1 条」</td><td>2026-09-15 11:12</td></tr>
+    <tr><td><b>刷屏通道过滤规则</b></td><td>屏蔽 <code>…205 / …204 / …305</code>（这三个通道正是 spill/冒装告警主源），抑制误报刷屏</td><td>2026-09-14 23:30</td></tr>
+    <tr><td><b>历史脏数据清理</b></td><td><code>dust</code> 125 条 + <code>type</code>/<code>AI分析</code> 7 条（测试污染）→ 标记为已处置，不再出现在实时告警</td><td>2026-09-15 11:05</td></tr>
+    <tr><td><b>算法主数据补登</b></td><td>「机场人员入侵」（straw-engine 产出）+「dust(已弃用)」登记进 <code>ai_types</code></td><td>2026-09-15 11:05</td></tr>
+    <tr><td><b>告警实时推送</b></td><td>新增 SSE <code>/api/warnings/stream</code>，告警入库到前端可见延迟从 10s 降至 &lt;1s</td><td>2026-09-14 23:10</td></tr>
+  </table>
+</div>
+
+<h2>四、建议的对齐方式</h2>
+<div class="card acc">
+  <ol style="margin:0">
+    <li><b>先确认「能力清单」</b>：请平台方书面给出——IoTCloud 与 EasyAIoT <b>当前实际部署的算法清单</b>（名称 / 状态 / 适用场景 / 对应通道），与本文第二节 8 个问题逐条答复。</li>
+    <li><b>再定「部署计划」</b>：我方期望的 8 类环保算法中未部署的 6 类，是否有部署计划？若无，我方将从驾驶舱 UI 撤下（避免"点了没数据"的体验问题）。</li>
+    <li><b>最后修「检出质量」</b>：优先修复「未覆盖」误报（问题 #3/#4），这是刷屏的根因；修复后我方撤销通道屏蔽，恢复完整告警。</li>
+    <li><b>可选</b>：车牌识别数据开放（问题 #8）—— 若开放，我方可在告警卡片展示车牌，提升处置效率。</li>
+  </ol>
+</div>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  三份清单均来自实测：IoTCloud 直连 21 通道 + Nacos/EasyAIoT model-server + 5 张待复检样本原图 · 2026-09-15<br>
+  📂 docs/算法清单对齐材料_我方_IoTCloud_EasyAIoT_20260915.html
+</div>
+</div>
+</body>
+</html>

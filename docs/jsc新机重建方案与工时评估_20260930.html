@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jsc 新机重建方案与工时评估 · 2026-09-30</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;--bad:#b3261e;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.75;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:25px;margin:0 0 6px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:24px}
+  h2{font-size:19px;margin:36px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  h3{font-size:15.5px;margin:20px 0 8px;color:var(--ink2)}
+  code{font-family:var(--mono);font-size:12.6px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  td.n{text-align:right;font-family:var(--mono);white-space:nowrap}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .bad{border-left:4px solid var(--bad);background:#fdecea;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .mono{font-family:var(--mono);font-size:12.5px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .t-a{background:#e8f7ee;color:var(--ok);border:1px solid #bfe3cd}
+  .t-b{background:#fff6e5;color:var(--warn);border:1px solid #f0d9a8}
+  .t-c{background:#fdecea;color:var(--bad);border:1px solid #f3c4c0}
+  .t-x{background:#eef2f5;color:var(--ink2);border:1px solid var(--line2)}
+  .foot{margin-top:44px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+  .bar{height:9px;border-radius:5px;background:#e8ecf0;overflow:hidden;min-width:70px;display:inline-block;vertical-align:middle;width:90px}
+  .bar i{display:block;height:100%;background:var(--brand)}
+  .bar i.g{background:var(--ok)} .bar i.o{background:var(--warn)} .bar i.r{background:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>jsc 新机重建方案与工时评估</h1>
+<div class="sub">
+  目标机：<code>111.10.220.226:22233</code>（<code>172.16.8.12</code>，现 hostname <code>dajiang</code>，Ubuntu 22.04.5 / 96vCPU / 188G / <b>RTX 3090</b> / 1T 系统 + 5T <code>/data</code>）
+  &nbsp;|&nbsp; 2026-09-30 &nbsp;|&nbsp; 基于本机记忆 + 7/9 全量备份 + Git 仓库 + 新机实测
+</div>
+
+<div class="ok">
+  <b>一句话结论</b><br>
+  <b>软件全部可重建，约 39–43 人时（5–5.5 人日，熟练单人串行；并行可压到 3–4 天）。</b>
+  <b>但 AI 能力无法"重建"——数据集与模型没有任何副本，必须重新采集与训练。</b><br>
+  两个前置阻塞：① <b>司空2 网段（172.28.0.0/24）从新机不通</b>；② <b>老 7TiB 数据盘无备份</b>。
+</div>
+
+<h2>0. 新机实测能力（决定重建路径的三个硬事实）</h2>
+<table>
+  <thead><tr><th style="width:210px">项</th><th style="width:150px">实测</th><th>对重建的影响</th></tr></thead>
+  <tbody>
+    <tr><td><b>GPU 是否还在</b></td>
+      <td><span class="tag t-a">✅ 在</span> <span class="mono">03:00.0 GA102 [GeForce RTX 3090]</span></td>
+      <td><b>最关键的好消息</b>：显卡是 PCI 直通，没随重装丢失。<br>
+        但 <b>驱动没装</b>（无 <code>nvidia-smi</code>、无 <code>/dev/nvidia*</code>、模块未加载）⇒ 需装驱动 + CUDA 运行时，straw-engine 才能用 GPU。</td></tr>
+    <tr><td><b>能否装依赖</b></td>
+      <td><span class="tag t-a">✅ 能</span> apt 镜像 HTTP 200（清华 0.39s）</td>
+      <td>node / nginx / ffmpeg / python-pip 等可 <code>apt</code> 装。<br>
+        <b>但工具链现在几乎是空的</b>：无 pip3、node、npm、ffmpeg、ffprobe、docker、nginx；python3 只有 <code>requests</code>。</td></tr>
+    <tr><td><b>司空2 网段可达吗</b></td>
+      <td><span class="tag t-c">❌ 不通</span> <span class="mono">172.28.0.108:48089 / 172.28.0.103:48081 / 172.28.0.81:6379 / :3306 全超时</span></td>
+      <td><b>最大阻塞</b>。路由上走默认网关（<code>172.28.0.108 via 172.16.8.1</code>，网关本身 ping 通 0.39ms），但端口不通 ⇒ 要么司空2 服务不在，要么网关不放行该网段。<br>
+        <b>dji-openapi（拉 OSD/遥测/事件/webhook）与 ZLM mirror 抽帧链路的全部上游都在这里</b> ⇒ 不解决就只能重建"大屏 + 历史数据"，视频 AI 链路起不来。</td></tr>
+    <tr><td>本网段其它</td>
+      <td><span class="tag t-a">✅</span> 172.16.8.15(微信桥 Win VM) 3389/445 通｜172.16.8.24(ESXi) 443 通<br><span class="tag t-c">❌</span> 172.16.8.11:22 不通</td>
+      <td>微信桥那台 Windows VM <b>没被清掉</b>，告警推送通道可用。</td></tr>
+    <tr><td>磁盘</td><td><span class="mono">/ = 1004G（用 12G）｜/data = 5.0T（空）</span></td>
+      <td>空间充裕。<b>注意：旧机是独立 <code>/video</code> 数据盘，新机对应的是 <code>/data</code></b> ⇒ 需建 <code>/video → /data/video</code> 软链或改所有配置里的路径（否则又会把大数据写进系统盘）。</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 恢复度分级：哪些能"还原"，哪些只能"重做"</h2>
+<table>
+  <thead><tr><th style="width:74px">级别</th><th style="width:230px">组件</th><th style="width:210px">本机现有素材</th><th>结论</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag t-a">A 类<br>可直接还原</span></td>
+      <td><b>jsc-backend</b>（Node，:7170）</td>
+      <td>7/9 备份含 <b>代码 + node_modules + <code>jsc.db</code> 168MB + wal 4.2MB</b>；Git 另有更新代码</td>
+      <td>还原 7/9 版本即可跑；再用 Git 上的后续改动逐项覆盖。<b>数据库是 7/9 状态</b>（见 C 类缺口）。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td><b>nginx</b>（80/81 双 vhost）</td>
+      <td>7/9 备份含 <code>nginx.conf</code>、<code>sites-enabled/uav-sites</code>、<code>conf.d/skymonitor.conf</code></td>
+      <td>直接还原 + 核对 <code>alias /opt/jsc/frontend/</code> 路径。<b>网关 :81 DNAT 需网络方恢复</b>。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td><b>ZLMediaKit</b>（:6080/5540/1936，裸部署）</td>
+      <td>7/9 备份含 <code>/opt/zlm/config.ini</code> + <code>zlmediakit-docker-inspect.json</code>（容器运行时参数）</td>
+      <td>按既有结论<b>裸部署</b>（非 Docker）即可；secret/端口从 config.ini 取。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td><b>dji-openapi</b>（:17810）</td>
+      <td>Git <code>infra/dji-openapi/</code> 12 个文件（index.js + 9 个 lib）</td>
+      <td>源码完整。<b>但依赖司空2 可达（见阻塞①）</b>。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td><b>dock-guard</b>（:7210）、<b>dji-bridge</b></td>
+      <td>Git <code>infra/dock-guard/</code>（含 config.json + service + verify.py）、<code>infra/dji-bridge/</code> + 7/9 备份 1803 条目</td>
+      <td>可直接还原。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td><b>systemd 单元</b></td>
+      <td>7/9 备份含 <code>jsc-backend.service</code></td>
+      <td>其余单元（straw-engine / dji-openapi / dock-guard / zlm）需按记忆中的端口与启动方式重写，模板已有。</td></tr>
+    <tr><td><span class="tag t-a">A</span></td><td>运维脚本簇</td>
+      <td>✅ <code>tmp/flight_monitor6.mjs</code>、<code>tmp/flight_monitor_daemon.mjs</code>、<code>tmp/build_daemon.cjs</code>、<code>tmp/analyze_flight.mjs</code>、<code>scripts/ui-probe.mjs</code>、<code>tmp/restart_wxbridge.sh</code>、<code>outputs/rdp_keep.sh</code>、<code>outputs/wechat-bridge/wechat_bot_server.py</code> + 一批 <code>.ps1</code></td>
+      <td>飞行监控、验收探针、微信桥重启脚本都在，可直接复用。</td></tr>
+    <tr><td><span class="tag t-b">B 类<br>部分 / 需改写</span></td>
+      <td><b>straw-engine</b>（:7200，Python FastAPI + CUDA）</td>
+      <td>✅ <code>tmp/detector_new.py</code>（<b>优化后 260 行</b>）、<code>tmp/detector_cur.py</code>（优化前基线）、<code>tmp/_new_predict.py</code>、<code>tmp/patch_main_skymask.py</code>（天空带）、<code>.workbuddy/tmp/patch_engine_landing.py</code>（落地抑制）、<code>tmp/patch_engine_grace.py</code>、<code>tmp/gate_*.py</code>、<code>deploy_*.sh</code><br>❌ <b>没有完整的 <code>app/main.py</code>（约 750 行）整份</b></td>
+      <td><code>detector.py</code> 可 1:1 还原（含 328→106ms 的向量化优化）。<br><b><code>main.py</code> 需重写</b>——依据：记忆中的完整接口规格（<code>/health</code>/<code>/metrics</code>/<code>/debug/snapshot</code> 字段、confirmer 连 3 帧、夜判、interval、landing_suppress、天空带屏蔽）+ 上述补丁脚本里的锚点与函数体 + 相关 docs。<b>这是本次最重的单点工作。</b></td></tr>
+    <tr><td><span class="tag t-b">B</span></td><td><b>前端构建产物</b></td>
+      <td>Git <code>src/</code> 150 文件（**含 177 个未提交改动**）；7/9 备份的 <code>frontend</code> 仅 12 条目（旧）</td>
+      <td>用 Git 源码<b>重新 build</b>（而不是用 7/9 的旧产物）。验收按既有铁律：<code>tsc --noEmit</code> + <code>vite build</code> 零错误。</td></tr>
+    <tr><td><span class="tag t-b">B</span></td><td>chengyun-mock（:8088）、flight-monitor.service</td>
+      <td>脚本在，配置需重写</td><td>按记忆参数重建即可。</td></tr>
+    <tr><td><span class="tag t-c">C 类<br>无副本，必须重做</span></td>
+      <td><b>烟雾模型</b>（现网 <code>stage9_1920</code> / <code>stage3_0909</code>）</td>
+      <td>❌ 本机无任何 <code>.onnx/.pt</code> jsc 模型<br>（只有 EasyAIoT 的通用 <code>yolo11n/v8n</code> 预训练权重，对本项目无用；<code>outputs/v5_smoke27.tar.gz</code> 实为 58 张样本图，**不是模型**）</td>
+      <td><b>必须重新训练</b>。而训练又依赖数据集（下一行）⇒ AI 能力回归时间由采集窗口决定。</td></tr>
+    <tr><td><span class="tag t-c">C</span></td>
+      <td><b>训练数据集</b>（<code>v5_train_v5</code> 930、<code>v6_train</code> 3058、<code>day_0911</code>、hardneg、云彩…）</td>
+      <td>❌ 无副本</td>
+      <td>需重新采集 + 标注。（好消息：<b>协议 v1.2 与标注工作台、锚点工具都还在本机</b>，口径和方法论没丢，可直接复用。）</td></tr>
+    <tr><td><span class="tag t-c">C</span></td><td><b>evidence</b>（约 2G，含 4 机场 + sim 来源）</td><td>❌ 无副本</td>
+      <td>从零积累。</td></tr>
+    <tr><td><span class="tag t-c">C</span></td><td><b>运行数据 2026-07-09 之后**约 2.5 个月增量**</b></td>
+      <td>❌ 只有 7/9 的 <code>jsc.db</code></td>
+      <td>告警 <code>warnings</code>、事件 <code>drone_live_events</code>、复检 <code>straw_detections</code>、点位/企业/责任单位改动 —— 全部回退到 7/9。<br><b>建议先排查是否另有副本</b>（同事机器导出的 json、Windows VM 上的截图/导出、历史邮件附件）。</td></tr>
+  </tbody>
+</table>
+
+<h2>2. 分阶段方案与工时</h2>
+<p>工时口径：<b>熟练单人、串行</b>；不含等待（装机、审批、设备采集窗口）。每阶段末尾都有<b>验收门禁</b>，不通过不进入下一阶段。</p>
+
+<h3>P0 · 环境就绪 <span class="tag t-x">约 7 人时</span></h3>
+<table>
+  <thead><tr><th style="width:330px">任务</th><th style="width:80px" class="n">人时</th><th>验收门禁</th></tr></thead>
+  <tbody>
+    <tr><td>装 NVIDIA 驱动 + CUDA 运行时（RTX 3090）</td><td class="n">2.0</td><td><code>nvidia-smi</code> 出卡、<code>/dev/nvidia*</code> 存在</td></tr>
+    <tr><td>apt 装 node / nginx / ffmpeg,ffprobe / python3-pip / build 工具</td><td class="n">0.5</td><td>各命令 <code>--version</code> 正常</td></tr>
+    <tr><td>建目录骨架 + <code>/video → /data/video</code> 软链（防再次写满系统盘）</td><td class="n">0.5</td><td><code>df</code> 显示大数据落 <code>/data</code></td></tr>
+    <tr><td>还原 nginx（uav-sites + skymonitor.conf）</td><td class="n">1.0</td><td><code>nginx -t</code> 通过；<code>127.0.0.1:80/jsc/</code> 200</td></tr>
+    <tr><td>从 7/9 备份还原 backend（含 node_modules + jsc.db）</td><td class="n">1.5</td><td><code>jsc.db</code> 打开可查；<code>systemctl start jsc-backend</code> 成功</td></tr>
+    <tr><td>裸部署 ZLM + 还原 <code>config.ini</code>（端口/secret）</td><td class="n">1.5</td><td><code>/index/api/getServerConfig</code> 返回；6080/5540/1936 监听</td></tr>
+  </tbody>
+</table>
+
+<h3>P1 · 核心业务恢复（大屏可用） <span class="tag t-x">约 10 人时</span></h3>
+<table>
+  <thead><tr><th style="width:330px">任务</th><th style="width:80px" class="n">人时</th><th>验收门禁</th></tr></thead>
+  <tbody>
+    <tr><td>jsc-backend 配置对接（ZLM 地址/secret、司空2、MinIO）</td><td class="n">2.0</td><td>主要 API 全 200，无 500</td></tr>
+    <tr><td>前端重新 build（Git 源码，含 177 个未提交改动）+ 部署</td><td class="n">2.0</td><td><code>tsc --noEmit</code> 零错误 + build 成功</td></tr>
+    <tr><td>恢复 DB（7/9 <code>jsc.db</code> + wal）并核对表结构</td><td class="n">1.0</td><td>KPI 五项有数、点位/企业/责任单位齐</td></tr>
+    <tr><td>dji-openapi 部署 + 司空2 凭据打通<br><span class="mono">（含排查阻塞①，若网段不通本项会卡住）</span></td><td class="n">3.0</td><td><code>/health</code> 正常；能取到 OSD 遥测</td></tr>
+    <tr><td>真实页面验收（<code>scripts/ui-probe.mjs</code>）</td><td class="n">2.0</td><td>驾驶舱截图 + 文本核对通过</td></tr>
+  </tbody>
+</table>
+
+<h3>P2 · straw-engine 重建 <span class="tag t-x">约 14–18 人时</span> <span class="tag t-c">最不确定</span></h3>
+<table>
+  <thead><tr><th style="width:330px">任务</th><th style="width:80px" class="n">人时</th><th>验收门禁</th></tr></thead>
+  <tbody>
+    <tr><td><b>重写 <code>app/main.py</code></b>（约 750 行）<br>
+      <span class="mono">抽帧 worker / Detector / Confirmer(连3帧) / 告警上报 / /health /metrics /debug/snapshot / 夜判 / interval / landing_suppress / 天空带屏蔽</span></td>
+      <td class="n">8–12</td><td>接口字段与记忆中的规格逐项对齐；<code>/health</code> 结构一致</td></tr>
+    <tr><td>还原 <code>app/detector.py</code>（用 <code>tmp/detector_new.py</code>）</td><td class="n">0.5</td><td>性能基准复现（≈106ms/帧 @1920）</td></tr>
+    <tr><td>建 venv + 装 <code>onnxruntime-gpu</code>（CUDA 版本匹配，易踩坑）</td><td class="n">2.0</td><td><code>CUDAExecutionProvider</code> 可用，不静默回退 CPU</td></tr>
+    <tr><td>无模型下先跑通"空管线"（用占位权重验证抽帧→推理→上报全链路）</td><td class="n">1.0</td><td><code>/debug/snapshot</code> 的 <code>frame_age_s</code> 正常刷新</td></tr>
+    <tr><td>端到端联调（ZLM 拉 stream → 抽帧 → 推理 → <code>/api/straw-alert</code> → 推送）</td><td class="n">3.0</td><td>能产生一条测试告警并落到复检表</td></tr>
+  </tbody>
+</table>
+
+<h3>P3 · 外围与上线 <span class="tag t-x">约 8 人时</span></h3>
+<table>
+  <thead><tr><th style="width:330px">任务</th><th style="width:80px" class="n">人时</th><th>验收门禁</th></tr></thead>
+  <tbody>
+    <tr><td>dock-guard、chengyun-mock、flight-monitor.service</td><td class="n">3.0</td><td>各 <code>is-active</code>=active</td></tr>
+    <tr><td>微信桥恢复（Linux 侧看门狗 + Windows VM 侧 bot 拉起）</td><td class="n">4.0</td><td><code>/ping</code> 通；测试消息发出</td></tr>
+    <tr><td>网关 DNAT 恢复（:81 → 8.12:80）<span class="mono">（需网络方配合，不计我方工时）</span></td><td class="n">1.0</td><td>外网 <code>:81/jsc/</code> 200 + md5 磁盘==HTTP</td></tr>
+  </tbody>
+</table>
+
+<div class="ok">
+  <b>P0+P1+P2+P3 合计 ≈ 39–43 人时 ≈ 5–5.5 人日（串行）</b>。
+  其中 <b>P2 是唯一有显著不确定性的部分</b>（重写 750 行），若中途发现记忆里的接口规格有缺口，每发现一处约 +0.5~1 人时。
+</div>
+
+<h3>P4 · 数据与模型（不计入"软件重建"工时）</h3>
+<table>
+  <thead><tr><th style="width:230px">活动</th><th style="width:150px">依赖</th><th>量级</th></tr></thead>
+  <tbody>
+    <tr><td>重新采集白天/夜间样本</td><td><b>真实飞行窗口</b>（每天 ≤5 飞）</td><td>按既有基线：需覆盖 D/M/N × 昼夜；夜间小目标原为 0，属必须补的短板 → <b>以周计</b></td></tr>
+    <tr><td>标注（协议 v1.2 + 工作台已就绪）</td><td>2 名标注员</td><td>锚点校准 39 张（约 2 人时）→ 正式 500–1000 张 ≈ <b>每人 8–16 人时</b></td></tr>
+    <tr><td>训练 + 评估</td><td>3090（已有）</td><td>单轮 1–2h；含调参与 A/B，按既有经验约 <b>3–5 轮</b></td></tr>
+  </tbody>
+</table>
+
+<h2>3. 三个方案（请拍板）</h2>
+<table>
+  <thead><tr><th style="width:64px">方案</th><th style="width:250px">范围</th><th style="width:110px">工时</th><th>产出与代价</th></tr></thead>
+  <tbody>
+    <tr><td><b>A</b><br>最小可用</td>
+      <td>P0 + P1 + P3（不做 AI）</td><td class="n"><b>22–25 人时</b><br>≈3 人日</td>
+      <td>大屏回来：KPI、点位、摄像头、历史告警（<b>到 7/9</b>）、视频直播（若 172.28 通）。<br>
+        <b>代价</b>：无秸秆 AI 检测；7/9 之后业务数据缺失。<br>
+        <b>价值</b>：让"大屏"这个门面先活过来，且是 B 的必经前置。</td></tr>
+    <tr style="background:#f6fbf7"><td><b>B</b><br>完整恢复<br><span class="tag t-a">推荐</span></td>
+      <td>A + P2（straw-engine 重写）</td><td class="n"><b>39–43 人时</b><br>≈5–5.5 人日</td>
+      <td>技术栈全部回位，AI 链路可跑通（含天空带屏蔽、落地上报抑制、predict 3.1× 优化等既有改进）。<br>
+        <b>代价</b>：<b>引擎里暂时没有模型</b>——链路通但检不出烟，需 P4 补数据训练。</td></tr>
+    <tr><td><b>C</b><br>彻底重建</td>
+      <td>B + P4（采集/标注/训练）</td><td class="n"><b>+1.5~2 周</b><br>（含飞行窗口）</td>
+      <td>恢复到"能真实出秸秆告警"。<br>
+        <b>代价</b>：受飞行窗口与标注人力限制，无法压缩到"人日"尺度。</td></tr>
+  </tbody>
+</table>
+<div class="note">
+  <b>建议：先 A、立刻启动 B；C 的采集环节今天就排期。</b><br>
+  理由：A 的 22–25 人时是 B 的必经前置，早做不浪费；<b>P4 的采集受真实飞行窗口约束、且无法用人力换时间</b>——
+  它是最长的关键路径，越早启动越好。B 完成后引擎可先跑"空管线"，等第一批数据到就训练。
+</div>
+
+<h2>4. 阻塞项与需要确认（按优先级）</h2>
+<table>
+  <thead><tr><th style="width:60px">优先级</th><th style="width:280px">事项</th><th>为什么卡</th></tr></thead>
+  <tbody>
+    <tr><td><b>P0</b></td><td><b>新机是否会被继续占用</b></td>
+      <td>新机现在几乎是空的（系统盘 12G、<code>/data</code> 为 0）⇒ <b>抢回窗口期</b>。一旦对方铺上业务，地址/配置/磁盘再变一次，前面所有工作重做。</td></tr>
+    <tr><td><b>P0</b></td><td><b>172.28.0.0/24（司空2）为何不通</b></td>
+      <td>路由已走默认网关、网关 ping 通，但 4 个端口全超时 ⇒ 需网络方确认是<b>服务不在</b>还是<b>ACL 不放行</b>。<b>不解决则 P1 的 dji-openapi 与全部视频链路无解</b>，方案 A 的"视频直播"也拿不到。</td></tr>
+    <tr><td><b>P1</b></td><td><b>7/9→今天 的业务数据是否有别的副本</b></td>
+      <td>决定"数据损失"是 2.5 个月还是一次导出。建议排查：同事机器导出、Windows VM（172.16.8.15，<b>仍存活</b>）上的文件、历史邮件附件、以及本机 <code>tmp/</code> 下的零散抓取。</td></tr>
+    <tr><td><b>P1</b></td><td><b>网关 DNAT 谁来恢复</b>（:81 → 8.12:80）</td>
+      <td>非我方工时但阻塞外网验收。同时 <b>22233 这个 SSH 映射是谁加的也要问清</b>（万一后续又被改）。</td></tr>
+    <tr><td><b>P2</b></td><td>straw-engine 的 <code>config.json</code> 取值、venv 依赖清单</td>
+      <td>本地无整份配置。已能从记忆恢复关键项（inputSize=1920、modelDay/modelNight 路径、maskSky* 三项、nc=1、CUDA），但需在 P2 中重建并回归验证。</td></tr>
+  </tbody>
+</table>
+
+<h2>5. 实施风险与回滚</h2>
+<table>
+  <thead><tr><th style="width:200px">风险</th><th>应对</th></tr></thead>
+  <tbody>
+    <tr><td><b>又把大数据写进系统盘</b></td>
+      <td>旧机靠独立 7T 数据盘隔离；新机是 <code>/data</code>(5T)。<b>先建 <code>/video → /data/video</code> 软链并确认所有配置走软链路径</b>，再动任何数据。</td></tr>
+    <tr><td>装 GPU 驱动导致重启/失联</td>
+      <td>PCI 直通卡在新内核上装驱动需重启；安排在可控窗口，且事先确认 <code>22233</code> 映射稳定、能重新登录。</td></tr>
+    <tr><td>还原 7/9 配置带回过期假设</td>
+      <td>7/9 的 nginx/ZLM/backend 配置里含旧 IP、旧 secret、旧凭据。<b>逐项核对再启动</b>，尤其：ZLM secret、司空2 凭据、MinIO 地址、<code>iotcloud.env</code>。</td></tr>
+    <tr><td>onnxruntime-gpu 与 CUDA 版本错配 → 静默回退 CPU</td>
+      <td>既有教训：<b>手动 venv python 推理必须带 systemd 的 <code>LD_LIBRARY_PATH</code></b>。<br>门禁：显式打印 provider 列表，确认 <code>CUDAExecutionProvider</code> 在首位。</td></tr>
+    <tr><td>重写 <code>main.py</code> 与既有行为不一致</td>
+      <td>用记忆中的<b>可观测契约</b>做回归：<code>/health</code> 字段、<code>cfm.{hits,need,status}</code>、<code>frame_age_s</code>、<code>landing_suppress</code>、夜判阈值（亮度&lt;25 或 19–05）。不满足不算完成。</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <b>通用回滚原则（延续既有铁律）</b>：① 每阶段结束把配置与代码打 tar 存本机（<b>不许只留在服务器上</b>）；
+  ② 改配置前先 <code>cp</code> 原版；③ 大数据只写 <code>/data</code>，不动系统盘；
+  ④ <b>本次事故的直接教训——同机备份等于没备</b>，关键产物必须有<b>离开该主机</b>的副本。
+</div>
+
+<h2>6. 结论</h2>
+<div class="ok">
+  <ol style="margin-bottom:0">
+    <li><b>软件可重建</b>：39–43 人时（5–5.5 人日）；最重单点是 <b><code>straw-engine/app/main.py</code> 的重写</b>（8–12 人时）。</li>
+    <li><b>GPU 保住了</b>（RTX 3090 直通仍在），这是本次唯一的大运气——否则 AI 链路要换机器。</li>
+    <li><b>AI 能力不可"重建"</b>：数据集与模型零副本，只能重新采集+训练 ⇒ 这是关键路径，越早排期越好。</li>
+    <li><b>两个前置阻塞</b>：新机归属（抢回窗口）+ 司空2 网段可达性。<b>这两件事没结论前，P1 无法真正收尾</b>。</li>
+    <li>方法论资产全在（协议 v1.2、标注工作台、锚点工具、验收探针、109 份评估文档、skill）——<b>口径和经验没有丢，这比代码值钱</b>。</li>
+  </ol>
+</div>
+
+<div class="foot">
+  万州区秸秆焚烧监控 jsc · 新机重建方案与工时评估 · 2026-09-30<br>
+  事实来源：本机记忆（MEMORY.md / REF_* / 日志）＋ 7/9 全量备份 <code>jsc-full.tar.gz</code>（4543 条目）＋ Git 仓库 ＋ 新机 SSH 实测（只读）。<br>
+  核查脚本：<code>tmp/check_env_dajiang.sh</code>｜<code>tmp/check_net_dajiang.sh</code>｜<code>tmp/diag_dajiang.sh</code>｜<code>tmp/forensics_dajiang.sh</code>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="qnbYGLZaao9qVTGc23PZa5">
+<head data-page-node-id="vVkmyOo6zVDzj01bnlgD6T">
+<meta charset="UTF-8" data-page-node-id="Ht5qaAPkkU774ewy7epPZl">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="QHW8eIpTl5P65EtFoXmh6B">
+<title>直播弹窗视频连接超时 · 排查 + 评估 + 排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .gantt{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .gantt-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .gantt-name{width:200px;flex-shrink:0;color:var(--ink)}
+  .gantt-bar{height:18px;border-radius:3px;background:var(--blue);color:#fff;font-size:11px;line-height:18px;padding:0 8px;white-space:nowrap}
+  .gantt-bar.warn{background:var(--amber)}.gantt-bar.red{background:var(--red)}
+</style>
+</head>
+<body data-page-node-id="73gh1d1pvZ2uY0iQbyDh5Y">
+<div class="page" data-page-node-id="Mczesn9a8KG0U2yd0G5C50">
+
+<div class="doc-head" data-page-node-id="7cwt0kdMMmViH6CCc6mZTP">
+  <div class="org" data-page-node-id="7dMIBmFaN4jkDFqeRyTNqL">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="bhVQFHHnAuYmaTxOyNwl4z">直播弹窗「视频连接超时」· 排查 + 评估 + 排期</div>
+  <div class="subtitle" data-page-node-id="Jc2qGPPXP1oqQLIQBNXENa">—— 无人机真飞时弹窗出现但视频流无法接入</div>
+  <div class="meta" data-page-node-id="x37GUl9gdvTr78xzxDAX39"><span data-page-node-id="PHKEd3AyTq0NJYMJvs83bn">编制时间：2026-09-08</span><span data-page-node-id="fMYGaIR8rtUFvZtei9VtJo">排查方式：OSD/ZLM/nginx/NAT 四层交叉</span><span data-page-node-id="xoYwNqEVIBA4UNlLPxWhti">性质：根因定位 + 排期</span></div>
+</div>
+
+<h2 data-page-node-id="TLyRAsvIvR5wyiWr1Ho3hF">一、排查结论（根因）</h2>
+<div class="box danger" data-page-node-id="Ed7NQyVeTjTC8aHSWJ7k8o">
+  <p data-page-node-id="z32A9H3gofqVa9XNBPHbdu"><b data-page-node-id="TIFHcSn8SwLJe40SDI6EuM">根因：弹窗播放地址错误地指向了公网未开放的 6080 端口，导致浏览器拉流超时。</b></p>
+</div>
+
+<h3 data-page-node-id="4bevz04VUL4le21AIzznU3">1.1 四层证据链</h3>
+<table data-page-node-id="GFIytLCjXrhldvtcnZ57KB">
+  <tr data-page-node-id="CbTIfyuSPivxLb4cMLIEJg"><th style="width:20%" data-page-node-id="T1yUGgF2kpko72PCDJ7Wn9">层</th><th style="width:45%" data-page-node-id="pwgA8uGFKosrOeKhMYHXCs">实测</th><th data-page-node-id="YL6FZRBhAc8rRlUU97KW4C">结论</th></tr>
+  <tr data-page-node-id="jWHiFj9gjMmgPfSdW769rV"><td data-page-node-id="gXRkXz6rGfuxjyjS8mDRdL">OSD / 司空 ZLM</td><td data-page-node-id="RIeN4o7VfFjMu1Ck9FXy2t">三峡学院无人机 0S4G 真飞（droneInDock=0），司空推 <code data-page-node-id="jG5LjJxyKkoJYO4yz2DDXz">live/1581F8HGX258600A0S4G</code></td><td data-page-node-id="HIa340YsWAB5jN7RhwKdn9"><span class="tag s-green" data-page-node-id="2g8kSA56MBYfFrFlgjozdu">真飞 + 流正常</span></td></tr>
+  <tr data-page-node-id="KpcMWVSeXRCuF2yDPgOacG"><td data-page-node-id="XJVslw26iHCFxh5dyf2kxP">我方 ZLM mirror</td><td data-page-node-id="fE14Xj8n1sYifVNye6JfwX"><code data-page-node-id="wttetfF3PozyjB1lW4zpzS">jsc/sikong_1581F8HGX258600A0S4G</code> alive=189s，mirror 成功</td><td data-page-node-id="ZlF9qvN2unMYBmtVwcEQsb"><span class="tag s-green" data-page-node-id="3UCrsO0IZJ1DacVnuzl2ea">镜像成功</span></td></tr>
+  <tr data-page-node-id="MT0z5FVWLjJLluhKXofeR9"><td data-page-node-id="RpUqdYumwNsj9cl6Z7cfwM">stream-status 接口</td><td data-page-node-id="KbBrbA3XHFbm3cej4DCc9r">返回 <code data-page-node-id="hDWRbYLepwBmOfGTNb5n5Q">hls = "http://111.10.220.226:6080/jsc/sikong_.../hls.m3u8"</code>（<b data-page-node-id="sE4XQvLaaRzWb1tLVncjTl">绝对地址 + 6080 端口</b>）</td><td data-page-node-id="29YVWoBBPBZAQthG43CQbb"><span class="tag s-red" data-page-node-id="19IXojwZGDBlG2xgPFnBBN">地址错误</span></td></tr>
+  <tr data-page-node-id="8VfV6B3NTk4cOfkYWQL4gi"><td data-page-node-id="KIzYaT5jGVQMO2xPQ7Ux93">外网 6080 可达性</td><td data-page-node-id="AeZxMV8oDbmvvvY6ZRH7e2">iptables NAT 无 6080 DNAT 映射；外网访问 <code data-page-node-id="qZcvGocZ7cbaMYvi1zze12">111.10.220.226:6080</code> 超时（000）</td><td data-page-node-id="N97Ycak4KFCRuXiqnLZz18"><span class="tag s-red" data-page-node-id="tBBkqXi2x7LlbXbWvD2kJ8">端口不通</span></td></tr>
+</table>
+
+<h3 data-page-node-id="lM1Jesus2h8ah6NZ6EpB9o">1.2 根因链</h3>
+<div class="code" data-page-node-id="qyB9TSmU5kbIrsxFWjGRe4">stream-status 返回 hls = "http://111.10.220.226:6080/jsc/sikong_.../hls.m3u8"
+   ↓ （绝对地址 + 6080 端口）
+前端 SinglePlayer 直接 loadSource 该地址
+   ↓
+浏览器访问 111.10.220.226:6080
+   ↓
+6080 端口公网未开放（无 DNAT）→ 连接超时
+   ↓
+「视频连接超时」</div>
+
+<div class="box warn" data-page-node-id="roPFzm1kZVhNG0MKfRvxmp">
+  <p data-page-node-id="c9DMCUOOHcG5OFKcRLiOch"><b data-page-node-id="67ZJF9RhEjvKbfDXAF9Hmx">正确做法</b>：hls 地址应返回走 nginx 反代的<b data-page-node-id="qUyFmgB8KFtfe0lgCbrLyp">相对路径</b> <code data-page-node-id="iKPql57XczxvmZjSP68hOi">/jsc/sikong_.../hls.m3u8</code>（浏览器走当前域名 :80/:81，nginx 反代到 127.0.0.1:6080）。nginx 的 <code data-page-node-id="ykzb50h0STxWrkOxjDnAgk">/jsc/sikong_</code> 反代在 :80（uav-sites）和 :81（skymonitor.conf）都已配置，相对路径完全可行。</p>
+</div>
+
+<h3 data-page-node-id="ar5Hxnaurpvp7T9Np2lyoK">1.3 连带发现的第二个 bug</h3>
+<table data-page-node-id="7Gx5RB096CXwl5yvgMNmzu">
+  <tr data-page-node-id="2XDXlUpqsqE3BmBcZ6xBg7"><th data-page-node-id="TbWc1QW6pYNzY6Rskb7THH">问题</th><th data-page-node-id="TpRNnqcnr2PTDFBgAZfRFK">详情</th></tr>
+  <tr data-page-node-id="9IgC1bCtLPB0B4tiVDaI3d"><td data-page-node-id="suIdq0RS5bf66sg0EQeHHt">带框流 stream 名不一致</td><td data-page-node-id="91ebROKnpqJujFXUDdS4qc">straw-engine 的 streamId 是 <code data-page-node-id="dqzp9tcL8NMxpPHtNM8S2s">sikong_1581F...</code>（带 sikong_ 前缀），BboxStreamer 生成 <code data-page-node-id="pXbEAlbR8WAv7X4S1K44xi">straw_bbox_sikong_1581F...</code>；但 stream-status 查的是 <code data-page-node-id="H1qAoMMuDvVW1aYaJtqtDF">straw_bbox_1581F...</code>（不带前缀）→ bboxHls 永远空</td></tr>
+  <tr data-page-node-id="38tu8nB5davG3q2QHwtIRl"><td data-page-node-id="PnnbHUW23AsB3RFAAoBkBS">分辨率 null</td><td data-page-node-id="hTTb3BdiuGAhMopjelH6yU">stream-status 返回 width/height 都是 null（getStreamResolution 未取到），弹窗无法显示分辨率</td></tr>
+</table>
+
+<h2 data-page-node-id="ekKB0RKQY5Kvvc4cNSDllk">二、开发现状评估</h2>
+<table data-page-node-id="f7fUo4R9LLL9ICh9TvHIQS">
+  <tr data-page-node-id="3xCBqIpPkVr1arIIZ4oSCK"><th style="width:28%" data-page-node-id="hcCRdCW1LZ69eqgdE3m6RP">环节</th><th style="width:14%" data-page-node-id="CY7QYzXHKXOgdYH6xRBF7r">状态</th><th data-page-node-id="PDkcmuCrBLZvk7LRxokrQf">说明</th></tr>
+  <tr data-page-node-id="1Wkhd9NOq9EU1ODcgp4Bhd"><td data-page-node-id="GjQiDiCWWSl2imDdMkkgTg">弹窗触发（SSE + OSD兜底）</td><td data-page-node-id="aFZEwaHbFCq6TBj6BGjNOZ"><span class="tag s-green" data-page-node-id="dpIGJD0g4nPkRovb0qWyAK">正常</span></td><td data-page-node-id="DXb8CvtePquH6FaUkwbglS">本次真飞弹窗已出现（P0-2 OSD 兜底生效）</td></tr>
+  <tr data-page-node-id="KSC8srm2aKGAt6IW4q2bM3"><td data-page-node-id="AJQc8gKuglANQutGF5XKoN">拉流 mirror</td><td data-page-node-id="oB5ALzB8UQChWwFUOSPcmD"><span class="tag s-green" data-page-node-id="d3EHvCgBZ8YVyCZJ7Qsl5Z">正常</span></td><td data-page-node-id="NtqK9VAjIymiBZD6ue3ARH">sikong_ 流已 mirror 到我方 ZLM</td></tr>
+  <tr data-page-node-id="HHWeveq6hR70dbJzMou4kH"><td data-page-node-id="RhLX7Tl1Mg8lHRvZ8basHU"><b data-page-node-id="SdBhifUdNdT7zyZtXkFU9Z">播放地址生成</b></td><td data-page-node-id="0QYWqkdj6kf45CG47v92Sb"><span class="tag s-red" data-page-node-id="RPrEbx3Xar1i7qlKYFGBKw">bug</span></td><td data-page-node-id="8jK3yrMd0zYB9SNd678jdK">返回绝对 6080 地址，公网不通 → 超时</td></tr>
+  <tr data-page-node-id="JcDfBCG9v2axbGU3n5QZRc"><td data-page-node-id="CPwV1n7IwcQRSxzrducXHW">带框流名</td><td data-page-node-id="Jg5QmTv8nyfUuo6P4QgPiF"><span class="tag s-amber" data-page-node-id="9cp1y0ZES7TVSAzWBafUHR">bug</span></td><td data-page-node-id="Av5qev1IOZmaAqmZCC81f5">straw_bbox 前缀重复，bboxHls 查不到</td></tr>
+  <tr data-page-node-id="rblmB7OHCTaHH4RJsJWRog"><td data-page-node-id="dzRfFoPuB1JvTpOpt8BdB0">分辨率</td><td data-page-node-id="jPz1zXWxCEIaRazrdHbBJe"><span class="tag s-amber" data-page-node-id="ECHAUgObOfvOF8kRxXd3Nn">缺失</span></td><td data-page-node-id="yI6ji9lT0H3YprrfY7P4KL">getStreamResolution 返回 null</td></tr>
+</table>
+
+<h2 data-page-node-id="XMIGMSVipKK3dVyEmjD5Zf">三、任务排期</h2>
+<div class="gantt" data-page-node-id="l98AFKd3tVfBU6eVtHBsC0">
+  <div class="gantt-row" data-page-node-id="pRIv7zHMFQM6GzRKDhbruS"><span class="gantt-name" data-page-node-id="VX5Ln01u3GEqH9PFp3EbvT">P0 修复 hls 地址（相对路径）</span><span class="gantt-bar red" style="width:30%" data-page-node-id="KF8WqvzPIvfD4i4qzEuoup">0.3 天</span></div>
+  <div class="gantt-row" data-page-node-id="iYMo13M9jaS4DZz2jJHext"><span class="gantt-name" data-page-node-id="aOKnFt6OfxKlwtlFwOTOsE">P0 修复带框流名（去重复前缀）</span><span class="gantt-bar red" style="width:25%" data-page-node-id="jvyBS9grTkoLYbOdWQUzCt">0.2 天</span></div>
+  <div class="gantt-row" data-page-node-id="H4GBcYYzpbaocCkVwgF9sd"><span class="gantt-name" data-page-node-id="Sw0bbxfbfgDDCLdrqelE1R">P1 分辨率取数修复</span><span class="gantt-bar warn" style="width:25%" data-page-node-id="CEnfZEg2dDp3FTBLpeDlYu">0.2 天</span></div>
+  <div class="gantt-row" data-page-node-id="w6fCMVInAA2U0322EZ7G42"><span class="gantt-name" data-page-node-id="9XfYEQrU3kKUBExG6iT84n">P1 真飞回归验证</span><span class="gantt-bar warn" style="width:20%" data-page-node-id="UlWCc8O6MFmFpDOvfGPtgM">1 次飞行</span></div>
+</div>
+
+<table data-page-node-id="7UzkBWTWr5ERXDhlUbRAM6">
+  <tr data-page-node-id="H9BBOS2Z6BdnaGtPl8UkSA"><th data-page-node-id="Imbw8d8k24ELf2zl09MPkr">优先级</th><th data-page-node-id="GAH4SPYhpmIRemdmIA6R24">任务</th><th data-page-node-id="KiAcxxSuHV2HBaD9oMmZNH">内容</th><th data-page-node-id="nxrNIzjPdcFekXuu3InE4Z">工作量</th></tr>
+  <tr data-page-node-id="nPyIDD3lslzQ6XXK7uB1ys"><td data-page-node-id="JumRzNVQQKCuXA2ZZikGsi"><b data-page-node-id="XfastR9AlAhJ4gchgcr3E1">P0</b></td><td data-page-node-id="eLAFcAjxG4vZYBXESuHcGM">修复 hls 地址</td><td data-page-node-id="HehDhZHpYC1U3VNIqHBtCR">stream-status 返回相对路径 <code data-page-node-id="qZuXOcaqNHk2Bs7TrrGl3D">/jsc/sikong_.../hls.m3u8</code> 而非绝对 6080 地址（去掉 domain:6080 前缀，或 playUrls 增加相对路径模式）</td><td data-page-node-id="PVdZrl7sV4rqKx4PpYdc9e">0.3 天</td></tr>
+  <tr data-page-node-id="E3yOxSFdiINSAyZNTU7Axx"><td data-page-node-id="V9hJ6rt5b4OXuzpbYz22Gs"><b data-page-node-id="KVE4mwDUJE2r3QgkoRimNG">P0</b></td><td data-page-node-id="K1i43sfJMnFZ5qbNcvbqE3">修复带框流名</td><td data-page-node-id="xEkpZC5ycL9ERRa0mvXyqc">BboxStreamer 用 deviceSn（去 sikong_ 前缀）生成 <code data-page-node-id="K9zbWs5KdAE5YLMKjl1ZeH">straw_bbox_<deviceSn data-page-node-id="Z3zKSCUUbLaGCJQcdSUMdq"></code>，与 stream-status 查询一致</td><td data-page-node-id="chk5FS6IClgaG0qu8V172r">0.2 天</td></tr>
+  <tr data-page-node-id="OIN9GKqTW6gwjS6M3TB4Qt"><td data-page-node-id="7uhA2EVMI7HkBgBWdSUT3h"><b data-page-node-id="Cc4xRx1GSZoCHCapHW5FX4">P1</b></td><td data-page-node-id="q40MZGF1Z8h04xrExldwbn">分辨率取数</td><td data-page-node-id="yN12434BGBngXOiSIVpzDk">排查 getStreamResolution 返回 null 的原因（ZLM getMediaList 的 video 信息字段）</td><td data-page-node-id="u5KJwvYDokKqB5sd7BD5Ms">0.2 天</td></tr>
+  <tr data-page-node-id="nNXCFUEgGQryykL1jzENcB"><td data-page-node-id="WliTkw3oFTwIbAtptha68O"><b data-page-node-id="I4RvQ5W4zZ0YEnkL4776Je">P1</b></td><td data-page-node-id="fbQg3ELAgzu8G7cHRxNijH">真飞回归</td><td data-page-node-id="uQxgFZ4ju5W8KIsNUS4HUX">下次真飞验证弹窗画面正常播放 + 带框流 + 分辨率</td><td data-page-node-id="DXfDaV2JBs7onZhqnAvGAW">1 次飞行</td></tr>
+</table>
+
+<h2 data-page-node-id="1JfrlFLsONRDrqJw0wZ6oT">四、结论</h2>
+<div class="box green" data-page-node-id="1rnSybEfFzlzPDpXR471oC">
+  <p data-page-node-id="Ua39IXXDnLluUVRRvGOB0a">① <b data-page-node-id="epH52aPitBovMCMLi0nSYR">弹窗触发和拉流 mirror 都正常</b>——本次真飞弹窗已出现、sikong_ 流已镜像到我方 ZLM，说明 P0-2 OSD 兜底已生效；<br data-page-node-id="obtYEKVwpsd8Z4c4PGKU9B">
+  ② <b data-page-node-id="aH41JM68B1di9qbuqaZziQ">唯一阻塞是播放地址错误</b>：返回绝对 6080 地址，而 6080 端口公网未开放，浏览器拉流超时；<br data-page-node-id="PsuDcwvcblV8bKYOX7P3xB">
+  ③ <b data-page-node-id="U5NYgRpS7rPGnHnDqz6f9u">修复简单</b>：hls 地址改走 nginx 反代的相对路径（约 0.3 天），配合带框流名修复（0.2 天），即可打通；<br data-page-node-id="gGHSF0ke8mq9egFOEGCbf1">
+  ④ 这是「一直存在但未暴露」的 bug——此前无人机从未真飞，今天首次真飞才触发。</p>
+</div>
+
+<div class="foot" data-page-node-id="QR9ohU8IfXm3WWOGTH8YEG">
+  本报告基于 2026-09-08 11:00 四层交叉排查（OSD / 司空 ZLM / stream-status 接口 / iptables NAT）。核心结论：播放地址指向公网未开放的 6080 端口导致超时，修复为走 nginx 反代的相对路径。
+</div>
+
+</div>
+</body>
+</html>

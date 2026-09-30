@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="iqKdXSBq44pQCdVx3Loyj8">
+<head data-page-node-id="O535Q0ZwXIIOEKbgPC34ei">
+<meta charset="UTF-8" data-page-node-id="2Ewkx1dn7VNUusY052ZIkn">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="UmWGhXJF8TNeBsn1GhxbYc">
+<title>预设航线功能 · 对现有系统影响评估与任务排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1040px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .lvl-ok{color:var(--green);font-weight:700}.lvl-low{color:var(--blue);font-weight:700}.lvl-mid{color:var(--amber);font-weight:700}.lvl-high{color:var(--red);font-weight:700}
+</style>
+</head>
+<body data-page-node-id="zvEBB4ucEDDHNFESWryq9s">
+<div class="page" data-page-node-id="brBwFMdYPpkAwfqVilARw2">
+
+<div class="doc-head" data-page-node-id="RiqAmz7vZt4oJbQOeI1v3Q">
+  <div class="org" data-page-node-id="A90PcW1Oekv0x9Nre3bhkb">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="Gzti5cG5ZwuP1JZKy5UO1E">预设航线功能 · 对现有系统影响评估与任务排期</div>
+  <div class="subtitle" data-page-node-id="vSgZR1X8DULqMAzuGpOXmm">—— 评估对驾驶舱 / 气体快检 / 铁路巡护 / 大疆司空私有化平台的影响</div>
+  <div class="meta" data-page-node-id="180McSOquJ5FItTlf67pUC"><span data-page-node-id="lbgG1yQcaxAa7P3qG1TK6U">编制时间：2026-09-08</span><span data-page-node-id="hAaGRSvaTZGsVJJYwUpSBi">评估方式：系统隔离边界盘点 + 改动点影响分析</span><span data-page-node-id="Da1tuQso2bKlbdUMDZXqWF">性质：安全前置评估</span></div>
+</div>
+
+<h2 data-page-node-id="Vxp0lQ24hDOuWCl8G30UwE">一、结论摘要</h2>
+<div class="box green" data-page-node-id="o9GlZHusj3CTSBYftyCvlX">
+  <p data-page-node-id="J2R0CqxbbLQRIX60wt9rdi"><b data-page-node-id="KFG9BppPHCE9pXcURP3fHB">预设航线功能对现有系统的影响可控，且有"零装包风险"的最安全方案。</b></p>
+  <p data-page-node-id="g5nRBpME1TdrfbDLzlrSQS">① <b data-page-node-id="5l4paZMEJxPw6bkKtDHBzI">对气体快检、铁路巡护系统：无影响</b>——它们是独立系统（独立前端 location、独立后端，不共用 jsc-backend 的 node_modules）；<br data-page-node-id="28CGa2dHZMPBJJZLyZiGmV">
+  ② <b data-page-node-id="I0EvFhbRDhlZVQqeVDijJn">对大疆司空私有化平台：低影响</b>——只读 MySQL 小表（37 行）+ 下载小 KMZ 文件（~2.5KB×37，一次性），负载可忽略，不写入/不改表/不锁表；<br data-page-node-id="P5SV9zaHmQMp7tBHVhgFlg">
+  ③ <b data-page-node-id="3E68wQtg6yEBm8qw0gHBMB">对驾驶舱系统：中等影响但可控</b>——主要是"装 mysql2 包"和"重启 jsc-backend"两个风险点，<b data-page-node-id="0G7AlK0tO846QfIdsIsLC6">用"不装包（spawn docker exec mysql）+ 在无飞时重启"可彻底规避</b>。</p>
+  <p data-page-node-id="tMo8KpHCKp6c5UGMj0dwbz"><b data-page-node-id="vMk0H7fieCVpZcAGjcKKg3">最安全方案：不装 mysql2 包</b>（改用 spawn <code data-page-node-id="Q1mLieBbKZLSz5XK0SKkCW">docker exec mysql</code> 命令行查询），其余全部是"只读 + 缓存 + 可控重启"，对 4 个系统均无实质风险。</p>
+</div>
+
+<h2 data-page-node-id="LMa9dN1EIoCbCOy5Kg7Cw8">二、服务器现有系统盘点（隔离边界）</h2>
+<table data-page-node-id="x7EDsegBzICq8sbyPlS9jk">
+  <tr data-page-node-id="nbKOIFvKTsUErAI9Wxqaqj"><th style="width:22%" data-page-node-id="lfGyVsPFPR8sGWXiRZs8PJ">系统</th><th style="width:30%" data-page-node-id="OC8M7R3AkMZrtiOLOaUC8y">部署形态</th><th data-page-node-id="iw4YAyXNFwIgOaIQ7ZHVlL">隔离边界</th></tr>
+  <tr data-page-node-id="EKGWuXNSHPamjjLV893UkA"><td data-page-node-id="QK6DUDDfZji40a6LflQBGG"><b data-page-node-id="lO0iXUpX7Lopl74xENIx9C">驾驶舱系统（CC jsc）</b></td><td data-page-node-id="JGgEf9KahOhnSrw7yHRuYm">jsc-backend :7170（systemd）+ jsc 前端 /opt/jsc/frontend + straw-engine :7200（systemd，GPU）</td><td data-page-node-id="V9VyVFC7FNUbyU1GD5WLN0">独立 systemd 服务 + 独立 node_modules（43M，11 顶层包）</td></tr>
+  <tr data-page-node-id="Cdq12vZTCFGHSmN8q0Ky7f"><td data-page-node-id="iIAbsCIh548MVU1DHGWx90"><b data-page-node-id="sEUOUDM4ifFxBer6eAGKu5">气体快检系统（QITIJC/skymonitor）</b></td><td data-page-node-id="N4nRv7agHn4082oQjRRIFW">nginx :81/qitijsc + :1884 MQTT</td><td data-page-node-id="GN0aF0uWJ5uRR2yq5MLwgP"><span class="tag s-green" data-page-node-id="uCV3jpTWXZtzsu3xLIwxZa">独立前端 location</span>，独立后端，不共用 jsc node_modules</td></tr>
+  <tr data-page-node-id="GQfn2F6HW3jGVD9q6Bc94B"><td data-page-node-id="vThiNQXmPVjzoWzuAVF46P"><b data-page-node-id="09HcI2r6emBJ7h6NMfPFej">铁路巡护系统（tielu）</b></td><td data-page-node-id="DA1IhK64sjN9vgqqu6s45Q">nginx :81/tielu + 独立后端</td><td data-page-node-id="NganqNPyKBMpC0tfxiB35G"><span class="tag s-green" data-page-node-id="FUTIGJbJEbg9LAIK7j5BiK">独立前端 location</span>，独立后端</td></tr>
+  <tr data-page-node-id="ywuTVoU8Z6x8XioDoxgfvq"><td data-page-node-id="Zy3Zf792dGRKYI8Lo0uBLH"><b data-page-node-id="whJZqivixRUrqN7LtB2YXN">大疆司空私有化平台（司空2）</b></td><td data-page-node-id="QOezuHVAVXwH8ps0mb2wkP">docker 容器栈：web:5443 / openapi:48089 / ZLM:9080 / MySQL:3306(v3_private_test) / MinIO:9000 / Redis:6379</td><td data-page-node-id="kPr2rcDwMN1wm19IBdKBX6"><span class="tag s-green" data-page-node-id="YP4Lt1N7mHal3GjWgshE0v">独立 docker 容器栈</span>，与宿主 systemd 服务隔离</td></tr>
+  <tr data-page-node-id="YIMRy6N0Hg1taA3QeBSbUf"><td data-page-node-id="gPpSuWoUtqgbK0D4vjoDFq"><b data-page-node-id="LdZzeQhjhKDVhoYreWf17I">dji-openapi（司空对接）</b></td><td data-page-node-id="LfhfbnGuJVPx4eXPIOB4GB">:17810（systemd）</td><td data-page-node-id="gfp9ndCJNbWrWyRVixsJZ1">独立 systemd 服务，独立 node_modules</td></tr>
+  <tr data-page-node-id="lPIijav5aDRZVm4EFkLGfA"><td data-page-node-id="xIGDULEjGhlE0BAoGfJhfA"><b data-page-node-id="qJWsONLXmQCP6573Y7Enxq">nginx</b></td><td data-page-node-id="f0UjlsHM0PpTgy5wXtRcjt">:80（uav-sites）+ :81（skymonitor.conf）</td><td data-page-node-id="qyg2BONd4OlBI0clJGx7fq">各系统 location 独立（/jsc/、/qitijsc/、/tielu/ 等）</td></tr>
+</table>
+
+<div class="box warn" data-page-node-id="tG42j4joW5EqVi1pF7DI3f">
+  <p data-page-node-id="3rj8F5ZCB3WpzxhIIgcQO6"><b data-page-node-id="ZsMdzxvKdUHN80PEqDDA95">关键认知</b>：服务器上各系统<b data-page-node-id="eQn7wDq1gVlizGXLGvLl6X">隔离良好</b>——jsc-backend/straw-engine/dji-openapi 是独立 systemd 服务（重启互不影响）；气体快检/铁路巡护是独立前端 location + 独立后端；司空2 是独立 docker 容器栈。<b data-page-node-id="K3seovDwUDUGUGFAOYsBau">改动任一系统不会波及其他系统</b>，这是"影响可控"的架构基础。</p>
+</div>
+
+<h2 data-page-node-id="TPfHfwXFklm6uxvB7F0FyB">三、改动点与影响分析</h2>
+
+<h3 data-page-node-id="BZjFd9CCwW4W42zq5Bm5uc">改动点 ①：装 mysql2 包（jsc-backend node_modules）</h3>
+<table data-page-node-id="yYW7lgTrCY7ojNO9xyDYxi">
+  <tr data-page-node-id="OLV78RDjA4JTGum9XB7qWA"><th style="width:22%" data-page-node-id="MTlUPfzanYfmZ7YfDFsOo1">影响系统</th><th style="width:12%" data-page-node-id="uFYWNahw9iphU5IuFNWc2C">风险等级</th><th data-page-node-id="Q7kHvQ3Aikqen6ilrdE8B0">影响说明</th></tr>
+  <tr data-page-node-id="AmA5rCVvHC1H9EQlqwzyUB"><td data-page-node-id="STo5RlONzoU6YGADOHcXTa">驾驶舱（jsc-backend）</td><td class="lvl-mid" data-page-node-id="TPElfpuIt00Qzsawd7RDr8">中</td><td data-page-node-id="WVbobeheeYHz7HvTi6fvQU">npm install 可能污染 node_modules（引入新依赖/版本冲突/装失败），影响 jsc-backend 启动；之前 ioredis 装失败过一次</td></tr>
+  <tr data-page-node-id="Pwe5zrD9OCsJxUYjkk48l1"><td data-page-node-id="LBYpDN2Dk3xqEG4tfNUaO4">气体快检 / 铁路巡护</td><td class="lvl-ok" data-page-node-id="pVMxxVJIEwRfQUfsOaI8FD">无</td><td data-page-node-id="dnZNXpK4TTMaBVf9teBP89">独立 node_modules，不共用</td></tr>
+  <tr data-page-node-id="ZuiM7uJCpSxWVtY99YLLgy"><td data-page-node-id="qlCckSH9Oa1G3NfMS2zNUJ">司空2 平台</td><td class="lvl-ok" data-page-node-id="6ZFVQD7ypdKaSqERVwnR5w">无</td><td data-page-node-id="z1T2NVUUEJAEsCqw4opatf">docker 容器栈，不受影响</td></tr>
+</table>
+<div class="box danger" data-page-node-id="Zo3M5QlnKg0PpdEEL0su1H">
+  <p data-page-node-id="1rQXov1A2o2lBwHHGjPzQd"><b data-page-node-id="Gvs44kYH99CgK9PJa1QeHp">缓解（最安全方案）</b>：<b data-page-node-id="5xbJGRKb53ds99sGSLrOGb">不装 mysql2 包</b>，改用 <code data-page-node-id="RO2zM75rKJmiZJ8RJgbMtx">spawn 'docker exec mysql mysql -uroot -p... -e "SELECT ..."'</code> 命令行查询。<b data-page-node-id="nd0Vq9zcyHqZFgKoc2eqOg">零装包风险</b>——jsc-backend 的 node_modules 完全不动，彻底消除此风险。</p>
+</div>
+
+<h3 data-page-node-id="kNdcQXCCvTuP2NjHINyVIa">改动点 ②：连司空2 MySQL 读 system_route（只读）</h3>
+<table data-page-node-id="JqxPw9LfAmNWy2FlZqmOGI">
+  <tr data-page-node-id="P3Ej3BhzWOrgKaa3HzXYUm"><th style="width:22%" data-page-node-id="LyneOVHNbvLZpNKgYFdOAm">影响系统</th><th style="width:12%" data-page-node-id="7NDoaRsiAKdJotjaTdBJEY">风险等级</th><th data-page-node-id="GPNJd2jkaYakugQnD7WIKD">影响说明</th></tr>
+  <tr data-page-node-id="gmUe6b4ysOx7PoO1DfjIIq"><td data-page-node-id="cbB9osfHY3nFl2n2b0p7lP">司空2 平台（MySQL）</td><td class="lvl-low" data-page-node-id="0uZVleCBXXZqKGJVZ9g963">低</td><td data-page-node-id="mI7YOMWAsr4AXVhiyBKAW5">只读 SELECT 小表（37 行），负载可忽略；不写入/不改表结构/不锁表；连接用后关闭</td></tr>
+  <tr data-page-node-id="MMWuIFP8Se3KtwGF374nFL"><td data-page-node-id="xUVxEmQLdXFNCxsjopyOVl">驾驶舱 / 气体快检 / 铁路巡护</td><td class="lvl-ok" data-page-node-id="dOt4mspnfFH4ZooVlMsTG3">无</td><td data-page-node-id="W6C18aXAGiTlINsHf5FgvI">只读司空2 MySQL，不影响这些系统</td></tr>
+</table>
+
+<h3 data-page-node-id="dHf19sriibuzC7jHocbSr3">改动点 ③：下载 KMZ 航线文件（司空2 5443）</h3>
+<table data-page-node-id="lVHHK1s9FwdxMvao3cp6x0">
+  <tr data-page-node-id="gMZ5Mid4DP9m3vrNKsK8nh"><th style="width:22%" data-page-node-id="vRZIqa6I0DJ7PIdwdTWnw9">影响系统</th><th style="width:12%" data-page-node-id="pPRgzSCceWLadtIvLigNnK">风险等级</th><th data-page-node-id="zUXo1EMurQO3N8DVOBMC2W">影响说明</th></tr>
+  <tr data-page-node-id="uuJRX73c5N7UslZ9GqSkxb"><td data-page-node-id="vU3zfOnLbKmHn8MksEaOl3">司空2 平台（web 5443）</td><td class="lvl-low" data-page-node-id="rU5xhWIKRW1Rth0Vp4D7cl">低</td><td data-page-node-id="h1LFziPJOwGTZAELrm7yrA">小文件（~2.5KB）× 37 条，一次性下载，负载可忽略</td></tr>
+  <tr data-page-node-id="XGLtEeYPtIIFe3ndv09KTz"><td data-page-node-id="des6qClMAawBiuJdbxhJDM">其他系统</td><td class="lvl-ok" data-page-node-id="Ji8tQJN5vtyL8Zk0osiJQV">无</td><td data-page-node-id="RltHec7et4wyjcama3yu5m">—</td></tr>
+</table>
+
+<h3 data-page-node-id="iDlp6NPSPXFzRQNBYW9oNu">改动点 ④：加后端接口 + 重启 jsc-backend</h3>
+<table data-page-node-id="AE4WGiNKNniVGUoDij91hi">
+  <tr data-page-node-id="bTQ0UFoi6vkdp55JSZe8cW"><th style="width:22%" data-page-node-id="IH1riaLCsCx5mP8TjUeVeU">影响系统</th><th style="width:12%" data-page-node-id="0J1564oI79Uth0GXR7bkQx">风险等级</th><th data-page-node-id="vcbtGZu9uJLONIZCnUcPxU">影响说明</th></tr>
+  <tr data-page-node-id="AgeSHQr1CYZRXn7MSUrFNe"><td data-page-node-id="3jZEfE54INYAsgYDoDB0iB">驾驶舱（jsc-backend）</td><td class="lvl-mid" data-page-node-id="pGvxagqWEUEaIyOMJR29y6">中（可控）</td><td data-page-node-id="HIsgwFn0BYoyhm90dDTF2m">重启短暂中断（~3s）：SSE 断开但前端已有 45s 看门狗自动重连；正在进行的请求失败</td></tr>
+  <tr data-page-node-id="9fCVpbYCw9pXhgN9iT8s5C"><td data-page-node-id="d85AMoDUQIu5YPpshk7RkF">驾驶舱（straw-engine/dji-openapi）</td><td class="lvl-ok" data-page-node-id="A7YnmZYjCGe25DSyZC3tb6">无</td><td data-page-node-id="gRCrbel2Qy9EqbLIEqLjBJ">独立 systemd 服务，不重启</td></tr>
+  <tr data-page-node-id="sqBqASxNVRzB0HudUGiaEY"><td data-page-node-id="ogGNmXHXGTFy1qTI8Uj2e2">气体快检 / 铁路巡护 / 司空2</td><td class="lvl-ok" data-page-node-id="Ppbh0NYW0LXLyzLRBdJGFS">无</td><td data-page-node-id="MgTxFqlkpUL58xpmxEXMCx">独立系统/容器，不受影响</td></tr>
+</table>
+<div class="box warn" data-page-node-id="Eo4bJHgk0ZdeNOi7X4HLcV">
+  <p data-page-node-id="ZEozeIeORxHZbIbeZVMLcA"><b data-page-node-id="hrJRbf4Y8rmfkAhE6R5AZb">缓解</b>：在<b data-page-node-id="Xvv3dk3mJnBA3zaZEKQbfj">无无人机飞行时重启 jsc-backend</b>（红线约束），避免中断在飞无人机的检测/弹窗。重启前查 OSD 确认无在飞。</p>
+</div>
+
+<h3 data-page-node-id="hN4AjnVRsIwplqw5UCgqqh">改动点 ⑤：前端 build + 部署</h3>
+<table data-page-node-id="k4OIJ1d7iEx78uXiW6AW49">
+  <tr data-page-node-id="AGGbMDRbMXvYXO5YlR268A"><th style="width:22%" data-page-node-id="Sz9KS8ra6yCKGlXC9XjwkB">影响系统</th><th style="width:12%" data-page-node-id="fnD5PDE3kM4n09Wtv3uKd5">风险等级</th><th data-page-node-id="fODgong8eBtpfQnaZxpvKZ">影响说明</th></tr>
+  <tr data-page-node-id="B9KHFQGcrNGHFnm2ZW9tZ2"><td data-page-node-id="jlrE6nCoAqrfwfAHOMLC1t">驾驶舱（jsc 前端/nginx）</td><td class="lvl-low" data-page-node-id="HA3crWAvTgsQhl6RAS9wU5">低</td><td data-page-node-id="9nFJNJ5FNogCnk1uDTrfSk">build 本地进行；部署覆盖 /opt/jsc/frontend（静态文件，index.html no-cache，nginx 无需重启）</td></tr>
+  <tr data-page-node-id="NgD05HEfQTGgFC4PnGRtSm"><td data-page-node-id="T2XMzTwSFqGm7AWhQkG9Ar">气体快检 / 铁路巡护</td><td class="lvl-ok" data-page-node-id="3woCs4EjWiV0dgfLGvDa8H">无</td><td data-page-node-id="UHPJSvxXVGSbJwe102ykDY">不同 location（/qitijsc/、/tielu/），不动它们的目录</td></tr>
+  <tr data-page-node-id="TQHEZPGL4FGvMCnLEIXWKa"><td data-page-node-id="raN0N6eMR3HYnrKhSHqhhF">司空2 平台</td><td class="lvl-ok" data-page-node-id="yHcedfUAOcpCI0iC30r5Jd">无</td><td data-page-node-id="HxGeTWJCypQWTsvpm0WsIb">—</td></tr>
+</table>
+
+<h3 data-page-node-id="JqJkP2VFuWWyyCrFusz4H6">改动点 ⑥：spawn docker exec mysql / unzip（子进程）</h3>
+<table data-page-node-id="PiN1INmP0u0tzVVijZla9y">
+  <tr data-page-node-id="C947eEStDyBNIVXFxdEkS0"><th style="width:22%" data-page-node-id="LHj0M7wqC1BjjB3EgjLjrW">影响系统</th><th style="width:12%" data-page-node-id="g2A7JKJXisIWE6YWdvKLo7">风险等级</th><th data-page-node-id="Ne1cJYEq1KuCt4o4uVp4P7">影响说明</th></tr>
+  <tr data-page-node-id="xU2T8XqZqWLeosuvhuAw37"><td data-page-node-id="b31AWywRWFEFVpyD8kfdmF">司空2 平台（MySQL 容器）</td><td class="lvl-low" data-page-node-id="pWoTEuwmCm5jgz1Ylw4Vwe">低</td><td data-page-node-id="GzwbydvH83BsunQjDD74w2">spawn docker exec mysql 查询，只读，一次性，负载低</td></tr>
+  <tr data-page-node-id="9WkaprAdV3PRqVYFfGdSea"><td data-page-node-id="ABjgwSmlPFDGI9Is2jBqFT">系统（unzip）</td><td class="lvl-low" data-page-node-id="l7XBPZjEZgTYOnOc42AzLw">低</td><td data-page-node-id="pEk7NfAlQ0js2pMdYCnVC9">spawn unzip 解压 KMZ，CPU 占用低，一次性</td></tr>
+  <tr data-page-node-id="sG5BtGaCwfGoAyF4SNsTg3"><td data-page-node-id="7xWWTow28KCDyXLaKbokR1">其他系统</td><td class="lvl-ok" data-page-node-id="fnegyFsUme6CaDO3RYFgCX">无</td><td data-page-node-id="lqOfMAmQezKd2k4jWOFDF7">—</td></tr>
+</table>
+
+<h2 data-page-node-id="OXWFoP8KGqhpvbi8cyVc6L">四、风险矩阵（改动点 × 系统）</h2>
+<table data-page-node-id="MAduSa0pN9Rop3IiLFTCi5">
+  <tr data-page-node-id="Ipa4Dv4ke4B5QNLQNgByrq"><th style="width:24%" data-page-node-id="VA1qfiGo4plHV89GMFKLbc">改动点</th><th data-page-node-id="zMCBRxMiRGqNWeFJJqrDow">驾驶舱</th><th data-page-node-id="GP86MqUYxbayOwOfrS8Nfx">气体快检</th><th data-page-node-id="zHlCz0nkNgs48k185siG8O">铁路巡护</th><th data-page-node-id="WSqJ5TYni8ApPwQwEzsube">司空2 平台</th></tr>
+  <tr data-page-node-id="ri2IVGkstrMuagWot9lvyI"><td data-page-node-id="F9DIUbpt6wwhxvpLtABSeI">① 装 mysql2 包</td><td class="lvl-mid" data-page-node-id="VEmMq0p1Hd4bdzSLntWOif">中</td><td class="lvl-ok" data-page-node-id="RK94WVEaM36Dw437V3FbG3">无</td><td class="lvl-ok" data-page-node-id="WS9T8hvdwy6hpT8z7TIA0B">无</td><td class="lvl-ok" data-page-node-id="MNA3AUe8Nc6SxcU3QbRL2M">无</td></tr>
+  <tr data-page-node-id="BNjBDEpDuLa9ir76nnxda5"><td data-page-node-id="t0oOzatcTArYVMIGJzkcVO">② 连司空2 MySQL（只读）</td><td class="lvl-ok" data-page-node-id="xNQa5j4OKAgtQd26asPOpe">无</td><td class="lvl-ok" data-page-node-id="HOMuuAnfLuYndGWnpvNgSI">无</td><td class="lvl-ok" data-page-node-id="nKYoxyxtct0tf62bqgIvDO">无</td><td class="lvl-low" data-page-node-id="GsBnFqPtJxRhbEZOrJRbEQ">低</td></tr>
+  <tr data-page-node-id="QUb021n8tjJvk82LMuhCKi"><td data-page-node-id="Y8YqCOT0BYhWENKucBGdtr">③ 下载 KMZ</td><td class="lvl-ok" data-page-node-id="nHzxnAERZDgM7Fdr7Rebpq">无</td><td class="lvl-ok" data-page-node-id="rjEg72xrFC01vQKdssKsai">无</td><td class="lvl-ok" data-page-node-id="n86Rsg7Hhz4AoHXMlTxKfc">无</td><td class="lvl-low" data-page-node-id="lFEsArpUIeGmMsXhWjHw7o">低</td></tr>
+  <tr data-page-node-id="ZE6EZhmhMH4dMMSKWa8YWC"><td data-page-node-id="aHnkEB53KY5NjnkHmG4FFm">④ 重启 jsc-backend</td><td class="lvl-mid" data-page-node-id="maTyvoc4bkYZSTJl2O3Abf">中（可控）</td><td class="lvl-ok" data-page-node-id="gESbaESieyhLwYL1sZWUlm">无</td><td class="lvl-ok" data-page-node-id="G5YFq1gqSkKDQqKdtxM8jI">无</td><td class="lvl-ok" data-page-node-id="7uPnWT6AVMFv77voZHWaOR">无</td></tr>
+  <tr data-page-node-id="YME9lMuQh09wpws327nFu5"><td data-page-node-id="Db5RH3kF6K53ZEGXWVofHH">⑤ 前端 build + 部署</td><td class="lvl-low" data-page-node-id="NAnGulQ5RetILmguFy9atL">低</td><td class="lvl-ok" data-page-node-id="83jKiUAnzYP3xvuBYNSJdM">无</td><td class="lvl-ok" data-page-node-id="dHh1VhE14jJTOSdGsidh4a">无</td><td class="lvl-ok" data-page-node-id="PuEBh2mK1pcGAw87BUKin8">无</td></tr>
+  <tr data-page-node-id="O4eHFQ3gvbcV64zQHhS4gD"><td data-page-node-id="sk34N6MOZAtljMdo53HH7c">⑥ spawn 子进程</td><td class="lvl-low" data-page-node-id="JtzFY89a8KxGJo87sdDjDM">低</td><td class="lvl-ok" data-page-node-id="IJ8CgGaJsW6YWGUCklCRCJ">无</td><td class="lvl-ok" data-page-node-id="XVSsGFdhkvdpMLQflPMmdT">无</td><td class="lvl-low" data-page-node-id="5F3cXj0bwVUpHC8dntKJJC">低</td></tr>
+</table>
+
+<h2 data-page-node-id="kxbQz1yK4AtDgPDW7wa3v8">五、缓解措施（最安全方案）</h2>
+<table data-page-node-id="LVvX54elU2Yw1HPU1qTMHT">
+  <tr data-page-node-id="kokqmve2hN5vQErpC04F0o"><th style="width:6%" data-page-node-id="wYdwyOcntki3kedgEgJnyA">#</th><th data-page-node-id="nwEWgi7wvHoEAHwKaGKEbG">措施</th><th data-page-node-id="7cKCZZvZa0akXWifK0pTbl">消除的风险</th></tr>
+  <tr data-page-node-id="6DqUvFhwDHRjyqQkfpsNn4"><td data-page-node-id="ZyQkb9LRjvBQVquRVbBGc1">1</td><td data-page-node-id="n52yfbO4dsqTrXiw4MY1Gd"><b data-page-node-id="CxNSw5vRR41ZzsIvZNaIHy">不装 mysql2 包</b>，改用 spawn <code data-page-node-id="UsmdEube8Ru5qUMmdXa0Fa">docker exec mysql</code> 命令行查询</td><td data-page-node-id="VFQCgUhmqGsxRDquqGEMTu">彻底消除"装包污染 jsc-backend node_modules"风险（改动点①）</td></tr>
+  <tr data-page-node-id="3El9AICzY1JhpnbMH1bn5i"><td data-page-node-id="qC3srSoGxVLSwHh8wdo4rD">2</td><td data-page-node-id="PakB8gdL6uy0qzM2TDkQz2"><b data-page-node-id="QFRMyat51jXDHsFJ960mYv">只读 + 缓存</b>：MySQL 只读小表（不写入/不改表/不锁表）；航线启动加载一次 + 定时刷新（不频繁查/下载）</td><td data-page-node-id="3BUGnQAbUnv5pPXaxACLZh">对司空2 平台负载可忽略（改动点②③⑥）</td></tr>
+  <tr data-page-node-id="AWyaKD78OoRywbUchOAwnD"><td data-page-node-id="TItcZwIFqoxgnA4A8ZaAPG">3</td><td data-page-node-id="rOcaO6TG8IdxWWmXC4crn9"><b data-page-node-id="ZUiCXIWYuWQb01HkEiMDcC">可控重启</b>：jsc-backend 在无无人机飞行时重启（红线约束）；前端 SSE 已有 45s 看门狗自动重连</td><td data-page-node-id="plKZaouAho6f1ehH85CJwA">消除"重启中断在飞检测"风险（改动点④）</td></tr>
+  <tr data-page-node-id="6bBFpCYzVNWnJDRV5RKpXq"><td data-page-node-id="kmmpK1EUhrWCzDM0fUHaLg">4</td><td data-page-node-id="JDw70gHmX81bFw3GYGDMAR"><b data-page-node-id="yUGgljoGe0DVxuej2MG8sP">部署前备份</b>：jsc-backend 代码 + /opt/jsc/frontend 前端，可回滚</td><td data-page-node-id="42oAdl8h2fxUgaLODy9R5X">任何部署问题可快速回滚</td></tr>
+  <tr data-page-node-id="x7kzEs1eFCg12hZoFlDW3m"><td data-page-node-id="ffjJdjjxQ9Yv2zr8i7XNEw">5</td><td data-page-node-id="0uAeDlPE5itd2iBEwK0ACM"><b data-page-node-id="6Z8yvryY2y0uoNqtmSaG3f">部署后验证 4 个系统</b>：驾驶舱（接口+前端）/ 气体快检 / 铁路巡护 / 司空2 平台，确认都正常</td><td data-page-node-id="pMwFsUkLPTgGxeEefhBUaH">确保改动未波及其他系统</td></tr>
+</table>
+
+<h2 data-page-node-id="J63inxEAdnGg88bzU8nAiP">六、任务排期（含安全前置步骤）</h2>
+<table data-page-node-id="diYLlE8utdLBW4Et2ch9u9">
+  <tr data-page-node-id="No1FQ0XNIzSKx0BwctpMXL"><th style="width:6%" data-page-node-id="Mk6qljIQcMukyIYdEI5SLf">序</th><th style="width:30%" data-page-node-id="YodTahPnT4fTrSFLdDaSnF">任务</th><th style="width:12%" data-page-node-id="1lwyWvrQHmC0M6FCGUKJlx">工作量</th><th data-page-node-id="ssWgJ3HPlYvOrQXLF5AA1B">安全要点</th></tr>
+  <tr data-page-node-id="dzdlC1dQwXEPB9s4a7Qun0"><td data-page-node-id="93DgAJnpLf6bh1jfDUksFf">0</td><td data-page-node-id="G04fdfTLfiLxbQSXrkLBpA"><b data-page-node-id="BqaFz8ZEUCW61ogDqdXjoQ">安全前置：备份</b>（jsc-backend 代码 + 前端 + 确认无在飞）</td><td data-page-node-id="PrpcF3V4HfHRCO0nExvCWm">0.2 天</td><td data-page-node-id="F72o7Fixe9q8U6sTjsD6N0">备份 + 前置守卫</td></tr>
+  <tr data-page-node-id="0qwLJH1ahRxaudKd1xpkDv"><td data-page-node-id="NDzHDengsZTnyWD1cIVFiw">1</td><td data-page-node-id="C0bAmJjhAHUbkN1W49l7uB">后端 MySQL 连接读 system_route（<b data-page-node-id="i6wHHBASC8POGphtvxF8ay">spawn docker exec mysql，不装包</b>）</td><td data-page-node-id="h5kzqCgV16851elsJbBFWL">0.3 天</td><td data-page-node-id="rcgCQDLupgSsM4ckDaeyMg">零装包风险 + 只读</td></tr>
+  <tr data-page-node-id="1GA64wwESi8C7nkDAAnWaC"><td data-page-node-id="8ThQNnTZpSyKeor7i9UUjj">2</td><td data-page-node-id="IOkaK13iPtwZKqMBtkwRhw">后端 KMZ 下载 + spawn unzip 解析航点坐标</td><td data-page-node-id="kj4kBZzJAe2H5sls7FysqM">0.5 天</td><td data-page-node-id="3ExBc5BlP3nDglkvsdVAPK">一次性下载 + 忽略 SSL 自签名</td></tr>
+  <tr data-page-node-id="Gkxm3B7Fj9lauDaV1PwWDg"><td data-page-node-id="XNb1qVE5rcBLfXHvD9abQ0">3</td><td data-page-node-id="G6oVzwaugZNyHKVByeqzd9">后端航线接口（/api/sikong/routes，内存缓存：启动加载+定时刷新）</td><td data-page-node-id="Dgb0LIXph1H75nyoFtEdnC">0.3 天</td><td data-page-node-id="w1XsnGzOHEdw03ofqIRaEo">缓存，不频繁查/下载</td></tr>
+  <tr data-page-node-id="9dnO6tMoQv8c8h4iF8sgNv"><td data-page-node-id="pIPvpg9FLmvmCsBbqmAeGW">4</td><td data-page-node-id="kbRn8xc5sUIJHphdpzbw9L">前端预设航线渲染（MapView addPolyline，4 机场不同颜色虚线 + 图例）</td><td data-page-node-id="qVmfH5BQSG1NJI32rvpGfn">0.5 天</td><td data-page-node-id="cy5mbxUGtnm7358yqxbSF3">纯前端，无风险</td></tr>
+  <tr data-page-node-id="862kn5N2ioS1qsaB3xvpDY"><td data-page-node-id="Viv070lrUA1fWyJTPbfEif">5</td><td data-page-node-id="OyMEq2E1ngX0IeeNbIIXvV">部署（<b data-page-node-id="F0MNymm22lZiw1YyUk86dz">无飞时重启 jsc-backend</b> + 前端部署）+ <b data-page-node-id="axPxdrmTTEb6tCbqyyQEOA">验证 4 个系统</b></td><td data-page-node-id="bUETnDmSV0o0KhKGYM2rGa">0.3 天</td><td data-page-node-id="ntbm4cDTZ45Fiq6Zr8x5uR">前置守卫 + 全系统验证</td></tr>
+  <tr data-page-node-id="duW15yH15TKloUwUOdoMu0"><td colspan="2" data-page-node-id="rrRKi5FnzvDIfYkTPEYnqv"><b data-page-node-id="E2buzm6ZKWnzfHFJvNGMVL">合计</b></td><td data-page-node-id="MNCGG1dNJOQgM90t3tWR4J"><b data-page-node-id="TO92i8v9mwDFtHcnVVeQZg">~2.1 天</b></td><td data-page-node-id="PUrH3mSdMgPKxiay9kg3GJ">—</td></tr>
+</table>
+
+<h2 data-page-node-id="XlPgancoN4KezzmM9UVLEW">七、结论</h2>
+<div class="box green" data-page-node-id="RUlp84fEio9U6iXAh2ZVyo">
+  <p data-page-node-id="AK4AaakgrsRcGlcPI9pjYn">① <b data-page-node-id="R2IvRbjkaPzGGyR45FozCC">系统隔离良好</b>：气体快检/铁路巡护/司空2 平台与驾驶舱各自独立，改动不波及；<br data-page-node-id="zsL3acza0nt6SMVPmQ5SIC">
+  ② <b data-page-node-id="Fwpy79fhBrI6fWbBDz5RGx">对气体快检、铁路巡护：无影响</b>（独立系统）；<br data-page-node-id="LKZAdEkmF9WNUm8o32YqhO">
+  ③ <b data-page-node-id="Zq8UbXPucwUCvr3bUSGMfT">对司空2 平台：低影响</b>（只读小表 + 下载小文件，负载可忽略，不写入/不改表/不锁表）；<br data-page-node-id="HddYzktCj921sgv5PlhmJE">
+  ④ <b data-page-node-id="kVxDdsnVZZ77v9kC9BbYeI">对驾驶舱：中等影响但可控</b>——用"<b data-page-node-id="r6AVLJ6qPOKAuWrVjxfnL3">不装包（spawn docker exec mysql）+ 在无飞时重启 + 备份 + 验证</b>"可彻底规避风险；<br data-page-node-id="LBV8Vv0bDa3Filoizu8ZDE">
+  ⑤ <b data-page-node-id="5VlNGIT9E0FllO6evWdgHW">最安全方案已明确</b>：不装 mysql2 包，其余全部"只读 + 缓存 + 可控重启"，<b data-page-node-id="L6zSxCNKShi3QyaEiXjvtn">对 4 个系统均无实质风险，可放心开工</b>。</p>
+</div>
+
+<div class="foot" data-page-node-id="y1bJ3pR9mQCyHHkzxJWJng">
+  本报告基于 2026-09-08 服务器系统隔离边界盘点（3 个独立 systemd 服务 + 独立 docker 容器栈 + nginx 独立 location + jsc-backend node_modules 43M/11 包）。核心结论：预设航线功能对现有系统影响可控，最安全方案为"不装包 + 只读缓存 + 可控重启"，可放心开工。
+</div>
+
+</div>
+</body>
+</html>

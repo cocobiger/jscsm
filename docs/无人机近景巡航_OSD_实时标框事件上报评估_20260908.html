@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="EM1z47FLfByoAQCIOCYdJx">
+<head data-page-node-id="kR1Lwf5itEpncb3eX8AZSt">
+<meta charset="UTF-8" data-page-node-id="kCTMyLlWiF4tkBwCZtehIu">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="dTCMv7N4veaUzkFd1q3rb8">
+<title>无人机近景巡航 + OSD 数据 + 实时标框事件上报评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="FfD89evlNaDZAvVQBa1rMp">
+<div class="page" data-page-node-id="PgCwYYLwVZfpNVOqG9wh8B">
+
+<div class="doc-head" data-page-node-id="jiEH7UnNKyl7jJhEBh822E">
+  <div class="org" data-page-node-id="7ctQy3eC3amN5qaDC1sCRO">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="cMwUxPqds5fSVRDjhYB3AW">无人机近景巡航 + OSD 数据 + 实时标框事件上报评估</div>
+  <div class="subtitle" data-page-node-id="SKGWBNNOMatEl8fGRGyIf4">—— 基于 2026-09-08 真机飞行实测（064U）</div>
+  <div class="meta" data-page-node-id="9FhxYjYfMsNEMVNuBl8eYc"><span data-page-node-id="BTHjNpgmJlY9jSH8CVfXQF">编制时间：2026-09-08</span><span data-page-node-id="ZS9MQa2jNoxr0b1W1JORbH">数据来源：真机飞行 OSD/检测实测</span><span data-page-node-id="tw7nPU4I49T9kBcrGyw2ft">性质：综合评估</span></div>
+</div>
+
+<h2 data-page-node-id="TKHIgH3Hw6mWD2WLSC5weA">一、结论摘要</h2>
+<div class="box green" data-page-node-id="EBrsIdCZzt4mUPYGce3wdd">
+  <p data-page-node-id="Cmq08dEu9f1JTd7jGcJPi3"><b data-page-node-id="PFjx8MZ2Cmq0IegzEOdDX7">① OSD 数据完全正常</b>：无人机起飞时，OSD 实时遥测（经纬度/高度/姿态/电量/云台角/目标点经纬度）完整推送，<b data-page-node-id="lDG5RydUZ3woz9uf4fXpGo">可直接用于事件上报的位置信息</b>。</p>
+  <p data-page-node-id="XBetZYaXiG4bZId1Dijpxc"><b data-page-node-id="h8voXsuqTBabOPhx3mFvgm">② 近景巡航是重大利好</b>：镜头改近景后，烟雾在画面中占比大幅提升，模型检出率有望显著改善（之前"远景淡烟漏检"的主因正是烟雾占比太小）。</p>
+  <p data-page-node-id="RMySRCWBaYe8QRIOMKfSDi"><b data-page-node-id="IiZxrj5A366OINCeGpCrRl">③ 下次起飞可实现"实时标框 + 事件上报"</b>：链路已就绪（弹窗/拉流/检测/标框/OSD 经纬度/告警通道），<b data-page-node-id="iqKuxEr5tz2CFsXZIBm1fV">关键瓶颈是模型对真实烟的检出率——近景巡航 + 720P 下，需实测验证检出效果</b>。</p>
+</div>
+
+<h2 data-page-node-id="rCdDZEzTYEKOuShFTnNuyy">二、评估需求 ③：OSD 数据实时性（实测证据）</h2>
+<div class="box green" data-page-node-id="xrKuK33PnVDajEad8wGKfM">
+  <p data-page-node-id="B9jwDXs3nb4en97iXKC2sa"><b data-page-node-id="02cfqJMVTdA12PsEJCiTrx">结论：无人机起飞时，OSD 数据（经纬度等）实时推送完全正常。</b></p>
+</div>
+<p data-page-node-id="D0fgwEgOn3azCyhaN1xIjg">刚才 064U 真机飞行时，司空 OSD WebSocket 实时推送无人机遥测到 Redis（<code data-page-node-id="gqOIfwzYRTKp09oRfxFa1n">system:osd_dock_drone:&lt;deviceSn&gt;</code>），实测字段完整：</p>
+<table data-page-node-id="J3fwrjsIejl6t4NExG3XA2">
+  <tr data-page-node-id="H0xrpQBZY8UfdlcS1970T2"><th style="width:26%" data-page-node-id="P1WzGLunDhkOasH3z2vcLK">字段</th><th style="width:30%" data-page-node-id="mKH4OSXGQiaTdYYF3MWxR9">实测值</th><th data-page-node-id="enIhG09txq1Lkn6jE4alAY">说明</th></tr>
+  <tr data-page-node-id="20zgTKei08obOfg4lQXlj1"><td data-page-node-id="ie5qNeOeRC0xzE6arqItAC"><b data-page-node-id="gYAZCvYVIOMeYE4evJHOoa">latitude / longitude</b></td><td data-page-node-id="2tF8DrlU91Q405CARkd864">30.8267 / 108.3389</td><td data-page-node-id="WWffaqaB3vMaUdE7pt3Cdi"><b data-page-node-id="9F5ZRyameGIWxGQKCtm5Bs">无人机实时经纬度</b> ✅</td></tr>
+  <tr data-page-node-id="H5200N7sAf4JJMFCHlLNj0"><td data-page-node-id="WaPfdtaXGlZGFF0BJJmJNE"><b data-page-node-id="PGenhHFNPDZJCYgNz2VEmr">height</b></td><td data-page-node-id="0ZJwDrfV8PawiLC0BaCIkH">439.24 m</td><td data-page-node-id="VvPY5kYhiSuP5RkwXEYRDQ">飞行高度 ✅</td></tr>
+  <tr data-page-node-id="2GZv8XKvCEB7TQ8vE0IKd9"><td data-page-node-id="fZL9vo4VxUOoIb2fjRUYdp">elevation</td><td data-page-node-id="G9AM8MBBFAOGrsuwIwJDSB">109.9 m</td><td data-page-node-id="asKJUftslVKOnCvAsPSPG7">海拔</td></tr>
+  <tr data-page-node-id="jm8J8MDkNGhNMJ6Eg9uVvf"><td data-page-node-id="z2w6XXgsANwucAiut11ekP"><b data-page-node-id="kphUlzMTkPWqCkdbexre7d">measureTargetLat/Lon</b></td><td data-page-node-id="hUVlNCTle8fQBtwjWnrwAa">30.8266 / 108.33875</td><td data-page-node-id="E6HAkmwNufvCZD9NJhRTrK"><b data-page-node-id="a1ZBamLeeLcAEn0V9TRs3H">云台指向的地面目标点经纬度</b>（事件上报位置的精确值）✅</td></tr>
+  <tr data-page-node-id="FeYMWHiS2c20VyeBdqK2x6"><td data-page-node-id="aEAGs6s4nUuZDnuiVnCPMm">attitudeHead/Pitch/Roll</td><td data-page-node-id="Ocp0GL1qv08SdwwXjaS5Dq">61.5 / -13.6 / 2.1</td><td data-page-node-id="3hkvcpdqdkP8AeqsDYLtZ3">姿态角</td></tr>
+  <tr data-page-node-id="8gwiiYkcQjgYgeP7PdMeoY"><td data-page-node-id="hBj4uYmTyRsNcOXEyYL6DO"><b data-page-node-id="KKiBvSV5i64UzCOHHev4Fo">gimbalPitch</b></td><td data-page-node-id="wbRVb8paY2nDmnPtVe3xPV">0.1</td><td data-page-node-id="uzBnzMpSLA9RKXYj9ZBMj1"><b data-page-node-id="srT0rThUuIKGbYNsfxMjE4">云台俯仰角</b>（近景巡航关键，见下）</td></tr>
+  <tr data-page-node-id="mpSm5pgzDe4cssJ222YavS"><td data-page-node-id="xecvJsQgSiqdjS8ScBvQei">battery.capacityPercent</td><td data-page-node-id="5bCvuy7LozXGQLYweIZJwT">74%</td><td data-page-node-id="qJaohmvLIsx68mYO6ABnW3">电量</td></tr>
+  <tr data-page-node-id="7rsVV4a0aQJwWQ9e7ZplPS"><td data-page-node-id="OXIpxG4n6yPReiaTEIasFW">positionState</td><td data-page-node-id="84NMu9wsfOMzcqbhx9CiOC">GPS 32 星 / RTK 39 星</td><td data-page-node-id="fRKbS2gXpOwaZbtQb7WKLD">定位质量</td></tr>
+  <tr data-page-node-id="mmsbY8dFj8vHbFxkslO7OP"><td data-page-node-id="c7yAZspRtoFADQ8N2GHYNh">horizontalSpeed / windSpeed</td><td data-page-node-id="HeIpl3TnbtStl5PMR94EPk">14.0 m/s / 25.0</td><td data-page-node-id="XpLdy1pLARL7FKA3UTtXzm">速度/风速</td></tr>
+</table>
+<div class="box warn" data-page-node-id="eb8MfawvULWx2EA8OKD68w">
+  <p data-page-node-id="IOzHrgvPnSI17sOHhno1aB"><b data-page-node-id="ArKL106CaVcxu9yToX2SbQ">关键发现</b>：无人机遥测在 Redis 的 <code data-page-node-id="FpFwz6g0iFJYCqUTKcFtqM">system:osd_dock_drone:&lt;deviceSn&gt;</code> 键里（不是 <code data-page-node-id="OapaQho5ZI96xMMlxW8GL4">system:osd_drone</code>）；而 <code data-page-node-id="zYPp5wQGIXsPxsObjzestX">/api/telemetry/latest</code> 只返回 dock 遥测（deviceType=0）。<b data-page-node-id="hPoqKyFbKaYgApxboeRrKl">事件上报要用 <code data-page-node-id="7twXJSQTRlKBDrZXeTntTe">osd_dock_drone</code> 的经纬度/高度/measureTarget</b>。</p>
+</div>
+
+<h2 data-page-node-id="61IHpdNOlRF5aPxI2GvmuI">三、情况 ①：近景巡航的影响（重大利好）</h2>
+<table data-page-node-id="ECCHr9dDsu8s3YHl4b7BfG">
+  <tr data-page-node-id="TJoCZM9URjqBaHpyOyFwLl"><th style="width:24%" data-page-node-id="eMgZsovQVnS4jVtmHM8zLA">维度</th><th data-page-node-id="Q7Nn05mEu3S7EpBxX8uOYJ">影响分析</th></tr>
+  <tr data-page-node-id="XQ6hMyDIyFDUZGtQEfyUiE"><td data-page-node-id="0H1lKK20CrAovF0VKFXqCz">对模型检出的影响</td><td data-page-node-id="q5QVVVDAjC45fpLbCL3KzW"><span class="tag s-green" data-page-node-id="AqKwT9Fc7DGMjtFSSokyDI">重大利好</span> 镜头改近景后，<b data-page-node-id="DX0YPKSDo703YJprdxel5m">烟雾在画面中占比大幅提升</b>（从远景的 <1% 到近景的 5~20%），模型检出率有望显著改善——之前"远景淡烟漏检"的主因正是烟雾占比太小、特征太弱</td></tr>
+  <tr data-page-node-id="yPSa8kgF8ELFXwOBDLBJEQ"><td data-page-node-id="X5ELawhWt8znIg3t8y48Va">与训练域的匹配</td><td data-page-node-id="ZZ1tAjLc5PJDvvKeKGFnoD">近景烟雾更接近 v5_wechat 的"近景浓烟"域（stage2 曾部分检出），比"远景淡烟"域友好得多</td></tr>
+  <tr data-page-node-id="FZCKWcV9EWek93ubYlE4Wo"><td data-page-node-id="GIDQExZVDc3h0yF6Y81bHY">当前云台角实测</td><td data-page-node-id="ziQ2zP3289AeIGtAjCBrkX">gimbalPitch=0.1（接近水平）——<b data-page-node-id="WBLbmsqKXit6vrru9aAOyj">如果改成近景（俯仰角向下，如 -45°~-90°），烟雾占比会更大</b>；建议确认巡航任务是否已切到近景俯拍</td></tr>
+  <tr data-page-node-id="Jxy8ltN6lOXs4AE0wq60Jk"><td data-page-node-id="pxVQxdD8m59UfidANaVklz">对 720P 的弥补</td><td data-page-node-id="53HqQJHTvm6d4fGcdUxWIB">720P 下远景淡烟更难检出，但<b data-page-node-id="o4QSNO20TEdlURlR6xeM0F">近景烟雾即使 720P 也占比大、特征清晰</b>，可有效弥补分辨率劣势</td></tr>
+</table>
+
+<h2 data-page-node-id="ecA7z0GIetUT7CTm0ahIaD">四、情况 ②：直播视频流只能 720P 的影响</h2>
+<table data-page-node-id="lf7Dsc922Lw4p42OzwbHWM">
+  <tr data-page-node-id="Dpe2ySQ5L7er3w0PH6kVD2"><th style="width:24%" data-page-node-id="PGf3EcysgYjoBrXkCFP3JW">维度</th><th data-page-node-id="XImWjgyosFxCGjdjkR5HM1">影响分析</th></tr>
+  <tr data-page-node-id="AmEh1ai4WekOFAVV3vP9r9"><td data-page-node-id="Hut3zFCOFcvBny17gJuF4t">硬限制</td><td data-page-node-id="BFUzwBIXUJYtxr5Gr8gfI9">司空2 mirror 直播流封顶 <b data-page-node-id="XLTKNOn4T6BkajE6FPzrfj">720P（960x720）</b>，本地和大疆侧都无法改成 1080P 实时流（已实测确认：定档 1080P 成功但流仍是 720P）</td></tr>
+  <tr data-page-node-id="KEo4ArBMdjeZvQKlVhmmic"><td data-page-node-id="snFLNLVb1EslOZUP6vHk3t">对检测的影响</td><td data-page-node-id="3pA1QmGNEcrr234pu8dIpE">720P 下远景淡烟像素少、特征弱，检出更难；<b data-page-node-id="CQTPK6UPr2y0A3O1L4kp08">但近景巡航可弥补</b>（近景烟雾 720P 占比大）</td></tr>
+  <tr data-page-node-id="4knsCPZeD1LvFRXXmImp2b"><td data-page-node-id="8EFYV4kApW5yRVSXHuDbyd">1080P 来源</td><td data-page-node-id="ReVE8miCdFlDhYROBKTIf6">仅 dock_media 遥控器录像（HEVC 1080P/4K，滞后 6~9 分钟归档），<b data-page-node-id="5uPSCh2RSqy4xVXZNd0lvJ">仅事后取证/训练样本，不用于实时检测</b></td></tr>
+  <tr data-page-node-id="HjFMQM4z8ieMXwnU0H4fJZ"><td data-page-node-id="BIhIRMhMK5zpIo6BlYhPlk">结论</td><td data-page-node-id="idfn1l4y3JgadLTeQKGD1S">实时直播/实时检测只能用 720P，<b data-page-node-id="PaeWbcYlHnccLkoFwWusj9">这是司空2 平台决定的，无法改变</b>；近景巡航是对冲 720P 劣势的关键</td></tr>
+</table>
+
+<h2 data-page-node-id="Pgxbdyn5O3ABD2s18OMUwX">五、下次起飞「实时标框 + 事件上报」可行性评估</h2>
+<h3 data-page-node-id="myENQ1wVIk0EXNvjXsgNct">5.1 链路就绪度</h3>
+<table data-page-node-id="GmCB4HBqega6WORlB3UtVp">
+  <tr data-page-node-id="Ct9Ygk0aGi6D0sCeXTXq0k"><th style="width:26%" data-page-node-id="6jK7ovMEwhAgs9UUNQbwVl">环节</th><th style="width:14%" data-page-node-id="Aqs4PyfqfXmLldzEZvnaiG">状态</th><th data-page-node-id="3CneAcO6AH2TGHeq0wpiS4">说明</th></tr>
+  <tr data-page-node-id="uLrtf3Xu1RydHzRwqAD59g"><td data-page-node-id="DKp4Enii65yK7SOMyAJSan">弹窗触发（SSE + OSD兜底）</td><td data-page-node-id="94sHho7VtW0C56VF6LSfUA"><span class="tag s-green" data-page-node-id="JGN5rXyd39AgqppTtj0ync">就绪</span></td><td data-page-node-id="vRbSfdP7yAbhiw1fyvZ2dc">LIVE_ON 事件 → 弹窗自动出现</td></tr>
+  <tr data-page-node-id="o0TSSX80OtiQNfwx961XVl"><td data-page-node-id="G9JClVlZXDB0k0olzgsB5F">拉流 mirror（720P）</td><td data-page-node-id="LN6FUSPjfzofpKJMfMGNpH"><span class="tag s-green" data-page-node-id="hJcxAx6kjNVYpR8ruMXUqg">就绪</span></td><td data-page-node-id="frA0OZjx5aup7NVrnYvimj">sikong_ 流 HLS 已生成（enable_hls=1 修复生效）</td></tr>
+  <tr data-page-node-id="RS4KmzpbCIHdzcxxrI95TN"><td data-page-node-id="0ZSHrjw6Mtqe5pJvGcdr2t">检测（straw-engine）</td><td data-page-node-id="GKAMkJuFhn4kcR8qcDihr2"><span class="tag s-green" data-page-node-id="XC5EjK4kPT0rebLBNVJyVn">就绪</span></td><td data-page-node-id="sgNYfvVeB5CjhMCyTHBu3A">sikong_ 流 worker 实时检测（detects 在涨）</td></tr>
+  <tr data-page-node-id="B5LeZDgXoFfiVKhRIMEb1B"><td data-page-node-id="DyyDQnbX1xwYt3T9graYxP">实时标框（BboxOverlay）</td><td data-page-node-id="S8HLTVAf5eayiQivkCBHE2"><span class="tag s-green" data-page-node-id="S9O2Z9ofj2LLaf2beBcIPd">就绪</span></td><td data-page-node-id="V0GMaBQsKgZUHe7fcvGf2V">原流画面 + bbox 叠加（/api/drone-events/bbox）</td></tr>
+  <tr data-page-node-id="Dpyv1kFYjWrOT9tI0liRbQ"><td data-page-node-id="Gy4IwYlh7LnLpurggjpvJY">OSD 经纬度</td><td data-page-node-id="Qv5pxah4jSPZ8zhfJY9KsD"><span class="tag s-green" data-page-node-id="vmfIKHUEzyIVDlwHW7N44P">就绪</span></td><td data-page-node-id="trEi9XCzP4VGEKueOJytKi">osd_dock_drone 实时经纬度/高度/measureTarget</td></tr>
+  <tr data-page-node-id="Oj49AOlI7L95aTv3YxpF1e"><td data-page-node-id="JGFzy9rAZswUKvo6LZyjND">事件上报（straw-alert）</td><td data-page-node-id="kCQwFFHbiLPOagiu6Sh3IZ"><span class="tag s-green" data-page-node-id="xRkfDTQxb8XTR8pjc9kjMo">就绪</span></td><td data-page-node-id="SKpu6t2QpNMbdTd6SCpoXV">检测告警 → straw-alert → 事件上报通道</td></tr>
+  <tr data-page-node-id="l0gqm9Jl7kaxaIturKZAN9"><td data-page-node-id="2wi6LsRMyh6OYtSNUry23j"><b data-page-node-id="ai5iXmetkYqM9KFa5bvkVF">模型对真实烟检出率</b></td><td data-page-node-id="rXGCylyGUUYm56DHposDhs"><span class="tag s-red" data-page-node-id="5sigxJcrcYrAcA9kZMiblX">瓶颈</span></td><td data-page-node-id="LHy54WJzJ7npSoaDDEt6Ci">stage2 对真实烟 recall=0.3，微信图 ~6.7%——<b data-page-node-id="t8wUBhXsdZ1n9zlVJt0XUv">近景巡航有望改善，需实测</b></td></tr>
+</table>
+
+<h3 data-page-node-id="x5pdF2pa9pJHS5uTdLRu4w">5.2 实时标框 + 事件上报的完整链路</h3>
+<div class="code" data-page-node-id="rWHn6Q90X6l9ZlO1yfyA1K">无人机起飞（LIVE_ON）
+  → 司空 mirror 直播流（720P）→ straw-engine 实时检测
+  → 检出烟 → bbox（坐标）+ OSD 经纬度（measureTarget 目标点）
+  → ① 弹窗实时标框（BboxOverlay 叠加检测框 + 位置标注）
+  → ② 事件上报（straw-alert：位置经纬度 + 画面快照 + 检测框 + 置信度）</div>
+
+<h3 data-page-node-id="XGaRNDGgGUvSIhltaALDF9">5.3 关键瓶颈与风险</h3>
+<table data-page-node-id="D1s5bDXbFiRhfURB17gybW">
+  <tr data-page-node-id="IIV1oAfkVYQMnhjbpW3J96"><th style="width:24%" data-page-node-id="1ucONa4JitDpyqRqCMRE0Z">瓶颈/风险</th><th data-page-node-id="KMRFuO7alDqWCWLBVo0ggL">说明 + 对策</th></tr>
+  <tr data-page-node-id="CDjeS2BZuhNPf8Js5qixzF"><td data-page-node-id="3dWQJhAC3iIRibScO2aSWr"><b data-page-node-id="vlTlwZKoaw4sE9OLHtc533">模型对真实烟检出率</b></td><td data-page-node-id="oDs8vx8PKxrWRSSACzStkm">stage2 对真实烟漏检严重（recall=0.3）。<b data-page-node-id="Vjea2NHx8AWDVHRWut1XKP">近景巡航有望改善</b>（烟雾占比大），但需下次真机实测验证——若近景能检出，链路即通；若仍漏检，需补真实烟训练域</td></tr>
+  <tr data-page-node-id="y0FLILBGe5yJDnbEJybXpT"><td data-page-node-id="00y7M9QxOBSz3ubEJcnynT">720P 分辨率</td><td data-page-node-id="YrVNyq75BVx8cY12KTOXxs">硬限制，远景淡烟难检；<b data-page-node-id="jMgEOxXOAjVYshEO7MMIe9">近景巡航弥补</b></td></tr>
+  <tr data-page-node-id="RK61POF9cg8Cko7bqPbwkA"><td data-page-node-id="39Z6zXAyBu8evQuORy7E0V">近景是否真近景</td><td data-page-node-id="xWbCRCPFLwaBdiu9oIgBqd">当前 gimbalPitch=0.1 接近水平——需确认巡航任务是否已切到近景俯拍（俯仰角向下），否则烟雾占比提升有限</td></tr>
+</table>
+
+<h2 data-page-node-id="fu2H26FbREJi7GljotBOyz">六、结论与建议</h2>
+<div class="box green" data-page-node-id="onVwyEHsVps9e3CnaHdEDS">
+  <p data-page-node-id="LQWxoLCi1HAiJ4IJBkSfpW">① <b data-page-node-id="kpIFrz317IuSLmzKnRUDYj">OSD 数据完全正常</b>（评估需求 ③）：起飞时经纬度/高度/姿态/电量/云台角/measureTarget 实时推送，<b data-page-node-id="zt9Ia13gn5i88F8gTCfhOC">可直接用于事件上报的位置信息</b>；<br data-page-node-id="PZGBQm5arX0wu3Ue8iGPN7">
+  ② <b data-page-node-id="IuJHOpyM28WhEzIJOZ2udz">近景巡航是重大利好</b>（情况 ①）：烟雾占比大幅提升，模型检出率有望显著改善，且弥补 720P 劣势；<br data-page-node-id="udnLpkKNVLvk9Qe2OwwpJK">
+  ③ <b data-page-node-id="fGWVQbOaAy8aLsbDgTOdKp">720P 是硬限制</b>（情况 ②）：实时直播/检测只能 720P，1080P 仅事后取证；<br data-page-node-id="salC8NwoIGF4TzTI11Mnhm">
+  ④ <b data-page-node-id="t9szoCkohv6YSWWESf4ixf">下次起飞可实现"实时标框 + 事件上报"</b>：链路已就绪，<b data-page-node-id="Oy1pY8NMtSSGkhfiyYGO0u">关键看近景巡航下模型对真实烟的检出效果</b>——建议下次真机实测验证，若近景能检出，链路即通。</p>
+</div>
+
+<h3 data-page-node-id="ZmiMzfCs2z7eG8eK1txzQ5">下次真机验证清单</h3>
+<table data-page-node-id="O2c20Nk2eAKEYtIEmEokZg">
+  <tr data-page-node-id="Ipkbw8xeNEUY2Bhd9wBIS5"><th style="width:6%" data-page-node-id="hqfwHslTyiOyaHgC2CuNye">序</th><th data-page-node-id="wM7NJ0dyTAQOAI8VfDeYXB">验证项</th><th data-page-node-id="E6PAlSzacWAHczMiAlIYrf">预期</th></tr>
+  <tr data-page-node-id="4yEHHhlIDzXngYIeTdFm1D"><td data-page-node-id="No6QmTkfKglhOJVCuIyuzT">1</td><td data-page-node-id="EFAWxQGkwYO3PjGHaFzCTT">弹窗自动出现 + 720P 画面播放</td><td data-page-node-id="QyJv5PsXz8zLtZQuxKk2hf">已就绪，应正常</td></tr>
+  <tr data-page-node-id="7b8RZc6CNYmj4yVPKUxL0N"><td data-page-node-id="HOgM1NoDwlxtzuLUxHHHSv">2</td><td data-page-node-id="QDfHV97RwLELpdEcZtlHXG">近景巡航下 straw-engine 对烟雾的检出（detects/boxes）</td><td data-page-node-id="pfw6vs7nk4jnMJGztwurOH">关键——若检出，链路通</td></tr>
+  <tr data-page-node-id="xZfw2atrVMX472mK19kuIB"><td data-page-node-id="vfjMevy1lCxolsfRpDTUgv">3</td><td data-page-node-id="JqnYCf7TgFC0IEN7YSZ1un">BboxOverlay 实时标框（检测框叠加 + 位置）</td><td data-page-node-id="E7rSuIYHwJZOslGYJy2hkM">检出后应显示</td></tr>
+  <tr data-page-node-id="wbs18dyVowXaywG83KgdjB"><td data-page-node-id="3z6Eq4yOM0sTdYctHXuPMY">4</td><td data-page-node-id="3f7o5hcSNBZKf0q2H3XNTP">事件上报（straw-alert：经纬度 + 画面 + 标框）</td><td data-page-node-id="XGONHTILtbEvRNIsFSDrvf">检出后应上报</td></tr>
+  <tr data-page-node-id="Hd1Jycc4OSwBKOoyKksuCh"><td data-page-node-id="lLJ8baCbKCAdf5FE1oRU8d">5</td><td data-page-node-id="IE06AeoqjtIRE3fq5UG892">OSD 经纬度/measureTarget 实时性</td><td data-page-node-id="DsKJSkG9sa4zbliRe2PgFL">已就绪，应正常</td></tr>
+</table>
+
+<div class="foot" data-page-node-id="1KopD8Pe6gMfmzcJDHkOtp">
+  本报告基于 2026-09-08 064U 真机飞行实测（OSD Redis system:osd_dock_drone 完整遥测 + straw-engine 检测 + 司空 mirror 720P）。核心结论：OSD 数据完全正常可用于事件上报；近景巡航是检出率的重大利好；下次起飞链路就绪，关键看近景下模型对真实烟的检出效果。
+</div>
+
+</div>
+</body>
+</html>

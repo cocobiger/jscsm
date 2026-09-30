@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无人机回传弹窗未弹出 · 根因诊断与修复评估报告（2026-09-02）</title>
+<style>
+  :root{
+    --ink:#1f2937; --ink2:#4b5563; --ink3:#6b7280;
+    --line:#e5e7eb; --line2:#f3f4f6;
+    --bg:#ffffff; --panel:#f9fafb; --panel2:#f3f4f6;
+    --brand:#0f766e; --brand-bg:#ecfdf5;
+    --red:#b91c1c; --red-bg:#fef2f2;
+    --amber:#b45309; --amber-bg:#fffbeb;
+    --blue:#1d4ed8; --blue-bg:#eff6ff;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+       color:var(--ink); background:var(--bg); line-height:1.65; font-size:14px;}
+  .wrap{max-width:1024px; margin:0 auto; padding:36px 40px 80px;}
+
+  /* ── 头部 ── */
+  .doc-head{border-bottom:3px solid var(--brand); padding-bottom:18px; margin-bottom:26px;}
+  .doc-head .kicker{color:var(--brand); font-size:12.5px; letter-spacing:.14em; font-weight:600; margin-bottom:8px;}
+  .doc-head h1{font-size:23px; line-height:1.4; font-weight:700;}
+  .doc-head .meta{margin-top:12px; color:var(--ink3); font-size:12.5px; display:flex; flex-wrap:wrap; gap:6px 18px;}
+  .doc-head .meta b{color:var(--ink2); font-weight:600;}
+
+  /* ── 章节 ── */
+  h2{font-size:17px; margin:34px 0 12px; padding-left:11px; border-left:4px solid var(--brand); font-weight:700;}
+  h3{font-size:14.5px; margin:20px 0 8px; color:var(--ink2); font-weight:700;}
+  p{margin:7px 0;}
+  .sub{color:var(--ink3); font-size:12.5px;}
+
+  /* ── 结论框 ── */
+  .callout{border:1px solid var(--line); border-left-width:4px; border-radius:8px; padding:12px 16px; margin:14px 0; background:var(--panel);}
+  .callout.ok{border-left-color:var(--brand); background:var(--brand-bg);}
+  .callout.warn{border-left-color:#d97706; background:var(--amber-bg);}
+  .callout.err{border-left-color:var(--red); background:var(--red-bg);}
+  .callout .t{font-weight:700; font-size:13.5px; margin-bottom:4px;}
+  .callout.ok .t{color:var(--brand);} .callout.warn .t{color:var(--amber);} .callout.err .t{color:var(--red);}
+
+  /* ── 表格 ── */
+  table{width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:13px;}
+  th{background:var(--panel2); color:var(--ink2); font-weight:700; text-align:left; padding:8px 10px; border:1px solid var(--line); white-space:nowrap;}
+  td{padding:7px 10px; border:1px solid var(--line); vertical-align:top;}
+  tr:nth-child(even) td{background:var(--panel);}
+  .num{font-family:var(--mono); font-size:12px; color:var(--blue); background:var(--blue-bg); padding:0 5px; border-radius:4px; white-space:nowrap;}
+  .badge{display:inline-block; padding:1px 8px; border-radius:10px; font-size:11.5px; font-weight:600; white-space:nowrap;}
+  .b-ok{background:#d1fae5; color:#065f46;}
+  .b-err{background:#fee2e2; color:#991b1b;}
+  .b-warn{background:#fef3c7; color:#92400e;}
+  .b-info{background:#dbeafe; color:#1e40af;}
+
+  /* ── 代码 ── */
+  code{font-family:var(--mono); font-size:12px; background:var(--panel2); padding:1px 5px; border-radius:4px; color:#be185d;}
+  pre{background:#111827; color:#e5e7eb; padding:14px 16px; border-radius:8px; overflow-x:auto; font-family:var(--mono); font-size:12.3px; line-height:1.6; margin:10px 0;}
+  pre .c{color:#9ca3af;} pre .g{color:#34d399;} pre .r{color:#f87171;} pre .y{color:#fbbf24;}
+
+  /* ── 时间线 ── */
+  .timeline{margin:14px 0 18px; border-left:2px solid var(--line); padding-left:0;}
+  .tl-item{position:relative; padding:0 0 16px 22px;}
+  .tl-item::before{content:""; position:absolute; left:-6px; top:4px; width:10px; height:10px; border-radius:50%;
+    background:#fff; border:2.5px solid #9ca3af;}
+  .tl-item.t-red::before{border-color:#dc2626; background:#fee2e2;}
+  .tl-item.t-amber::before{border-color:#d97706; background:#fef3c7;}
+  .tl-item.t-green::before{border-color:#059669; background:#d1fae5;}
+  .tl-item .ts{font-family:var(--mono); font-size:12px; color:var(--ink3);}
+  .tl-item .ev{font-weight:600; font-size:13.5px;}
+  .tl-item .dt{font-size:12.5px; color:var(--ink2); margin-top:2px;}
+
+  ul,ol{margin:6px 0 12px 4px; padding-left:22px;}
+  li{margin:4px 0;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:10px 0 16px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .card{border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:var(--panel);}
+  .card h4{font-size:13.5px; margin-bottom:6px;}
+  .foot{margin-top:44px; padding-top:14px; border-top:1px solid var(--line); color:var(--ink3); font-size:12px;}
+  .severity{font-weight:700;}
+  .s-p0{color:var(--red);} .s-p1{color:#b45309;} .s-p2{color:var(--ink3);}
+  .small{font-size:12px; color:var(--ink3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ═══════════ 头部 ═══════════ -->
+  <div class="doc-head">
+    <div class="kicker">故障诊断报告 · FAULT ANALYSIS &amp; FIX ASSESSMENT</div>
+    <h1>无人机回传弹窗未弹出（2026-09-02 18:00 真实起飞）<br>根因诊断与修复评估报告</h1>
+    <div class="meta">
+      <span><b>系统</b>：万州 JSC 智能驾驶舱</span>
+      <span><b>模块</b>：无人机直播事件 T2 弹窗（v1 线上 / v2 已入库）</span>
+      <span><b>报告日期</b>：2026-09-02 23:50</span>
+      <span><b>状态</b>：<span class="badge b-warn">诊断完成 · 待审批修复</span></span>
+    </div>
+  </div>
+
+  <!-- ═══════════ 1 背景 ═══════════ -->
+  <h2>一、问题背景</h2>
+  <p>2026-09-02 18 时许，大疆司空 2 平台四台机场无人机先后起飞执行巡检任务。驾驶员在驾驶舱（外网入口，页面书签为 <code>/jsc/v5review.html</code>，经 SPA fallback 实际加载驾驶舱主页）全程未看到<b>无人机回传弹窗</b>，也未听到<b>提示音</b>。</p>
+  <p class="sub">预期行为：机场上报 <code>LIVE_ON</code>（直播开始）后，驾驶舱右下角自动弹出该无人机回传画面窗口（≤2 窗 + 3 队列），并发出提示音；窗口满时按既定调度策略折叠。</p>
+
+  <!-- ═══════════ 2 结论 ═══════════ -->
+  <h2>二、诊断结论（先行）</h2>
+  <div class="callout err">
+    <div class="t">后端链路全程正常 —— 事件在服务端"发出去了"，但浏览器"一条都没收到"</div>
+    <p>12 起真实起降事件（18:10~19:24）全部<b>白名单命中、入库、SSE 广播</b>，mirror 拉流也成功（18:10:41 流上线 H264 960×720）。弹窗未出现的根因在<b>前端事件投递层</b>：① 页面挂载"回灌在飞"逻辑硬性要求 <code>zlm_online=1</code>，而真实事件入库时 mirror 流尚未拉起（落后约 9 秒）→ 回灌恒为空；② SSE 通道无心跳、半死连接不被感知、后端重启后浏览器未能自动重连 → 实时广播全部错过。</p>
+  </div>
+
+  <table>
+    <tr><th style="width:150px">链路环节</th><th>验证结果</th><th style="width:90px">状态</th></tr>
+    <tr><td>司空 2 Webhook → 后端 ingest</td><td>18:10:32 起 12 起事件入库（<span class="num">drone_live_events id=32~43</span>），4 机场全部命中白名单（<code>whitelisted=1</code>）</td><td><span class="badge b-ok">正常</span></td></tr>
+    <tr><td>SSE 广播</td><td>事件逐条广播；仅 18:10:32 有客户端在线（ok=1），其余广播时点 0 客户端</td><td><span class="badge b-ok">后端正常</span><br><span class="badge b-warn">前端未收到</span></td></tr>
+    <tr><td>ZLM mirror 拉流</td><td>18:10:41 addStreamProxy → 18:10:42 <code>sikong_1581F8HGX253U00A064U</code> 上线（H264 960×720/30fps）</td><td><span class="badge b-ok">正常</span></td></tr>
+    <tr><td>nginx 代理</td><td>外部 :81 端口在网络层映射至服务器 :80；uav-sites SSE location（buffering off）齐全</td><td><span class="badge b-ok">无需改动</span></td></tr>
+    <tr><td>前端弹窗（v1 线上版）</td><td>SSE 实时事件可弹窗（不依赖 zlm），但<b>回灌依赖 zlm=1</b>；当前生产 23:22 版已含 v2 弹窗代码，v2 回灌<b>同样过滤 zlm=1</b></td><td><span class="badge b-err">缺陷①</span></td></tr>
+    <tr><td>SSE 连接稳定性</td><td>17:26 后连接失效未感知；18:20 后端重启后浏览器<b>无任何自动重连成功记录</b></td><td><span class="badge b-err">缺陷②</span></td></tr>
+  </table>
+
+  <!-- ═══════════ 3 现场时间线 ═══════════ -->
+  <h2>三、现场还原（后端 journalctl + nginx access log 交叉取证）</h2>
+
+  <div class="timeline">
+    <div class="tl-item t-amber">
+      <div class="ts">17:22:27 / 17:26:11</div>
+      <div class="ev">驾驶舱页面 SSE 接入成功（公网 IP 123.144.134.177，Windows Chrome，会话 token 固定）</div>
+      <div class="dt">此后连接保持 —— 但页面处于后台/大屏挂机，TCP 连接逐渐"半死"</div>
+    </div>
+    <div class="tl-item t-green">
+      <div class="ts">18:10:32</div>
+      <div class="ev">第一起 LIVE_ON：环保局机场无人机 <span class="num">1581F8HGX253U00A064U</span>（dock <span class="num">8UUXN7G00A0FDP</span>）入库并广播，<b>ok=1</b></div>
+      <div class="dt">推送到 17:26 那条"半死"连接 —— nginx/后端未感知断开，写缓冲成功即记 ok=1，<b>数据实际未达浏览器</b></div>
+    </div>
+    <div class="tl-item t-green">
+      <div class="ts">18:10:41 ~ 18:10:42</div>
+      <div class="ev">我方 ZLM 从司空侧 172.28.0.90:1935 拉流成功，mirror 流上线（事件后 9 秒）</div>
+      <div class="dt">证明"流可达"——弹窗即使弹出也能出画面；问题不在取流链路</div>
+    </div>
+    <div class="tl-item t-red">
+      <div class="ts">18:14:21 / 18:14:33 / 18:16:27</div>
+      <div class="ev">用户刷新页面 2 次 + 1 次重连 → 触发 v1 挂载回灌</div>
+      <div class="dt">回灌仅取 <code>zlm_online=1</code> 的历史在飞事件 —— 已发生事件 id=32 为 zlm=0 → <b>回灌为空 → 无弹窗</b>（根因①实锤时刻）</div>
+    </div>
+    <div class="tl-item t-red">
+      <div class="ts">18:20:13</div>
+      <div class="ev">jsc-backend 被 systemd 重启（Stopping → 18:20:22 Started）</div>
+      <div class="dt">全部 SSE 连接被切断；此后至 19:30 <b>该浏览器再无任何重连成功记录</b>（根因②实锤时刻）</div>
+    </div>
+    <div class="tl-item t-red">
+      <div class="ts">18:26 ~ 19:23</div>
+      <div class="ev">三峡 / 职教中心 / 经开区 / 环保局机场 5 起 LIVE_ON 广播（id=33/35/37/39/41）</div>
+      <div class="dt">广播时点 0 客户端在线 —— 全部错过，全程无弹窗、无提示音</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 4 根因 ═══════════ -->
+  <h2>四、根因分析</h2>
+
+  <h3>①【P0】回灌"在飞事件"硬性过滤 <span class="num">zlm_online=1</span> —— 结构性缺陷</h3>
+  <p>前端挂载时调用 <code>GET /api/drone-events?limit=80</code> 回灌在飞无人机，v1（<code>DroneLivePopup.tsx</code> L369）与 v2（<code>DronePopupHost.tsx</code> L147）均执行同一过滤：</p>
+  <pre>rows = latest 每机最新记录
+       .filter(whitelisted === '1' &amp;&amp; status 以 'LIVE_ON' 开头 &amp;&amp; <span class="r">Number(zlm_online) === 1</span>)  ← 硬条件</pre>
+  <p>而服务端在 ingest 的<b>同一瞬间</b>查询 ZLM 判定 <code>zlm_online</code>（<code>server/drone-events.js</code> L107：<code>online = on ? await zlmOnline(deviceSn) : 0</code>）。mirror 拉流代理由 dji-openapi 在事件后<b>约 9 秒</b>才建立（18:10:32 事件 vs 18:10:41 addStreamProxy）→ <b>真实事件入库时 zlm 恒为 0</b> → 回灌条件<b>永不满足</b>。</p>
+  <div class="callout err"><div class="t">后果</div><p>只要驾驶员不是"广播瞬间恰好盯着页面且 SSE 存活"，而是<b>起飞后打开或刷新页面</b>，就 100% 看不到弹窗 —— 这正是本次场景。</p></div>
+
+  <h3>②【P0】SSE 无心跳、半死连接不感知、重连不可靠</h3>
+  <ul>
+    <li>连接"半死"（浏览器后台挂机 / 网络路径失效）时，nginx 与后端均不感知，广播 <code>res.write</code> 写缓冲成功即记 <code>ok=1</code>，<b>不代表客户端真实收到</b>（18:10:32 即此情形）；</li>
+    <li>SSE 流无周期心跳注释行，前端无法用"超时无消息"判活；</li>
+    <li>18:20 后端重启切断连接后，浏览器 EventSource 的自动重连<b>未成功</b>（access log 无新接入）——v1 仅处理 <code>readyState===CLOSED</code> 场景，半死→重启 的组合未被覆盖；</li>
+    <li>无 <code>visibilitychange</code> 恢复时强制重连的兜底，大屏切回前台后不会自愈。</li>
+  </ul>
+
+  <h3>③【P2】提示音依赖用户手势解锁（WebAudio 自动播放策略）</h3>
+  <p>提示音经 WebAudio 播放，须有一次 <code>pointerdown/keydown</code> 解锁（<code>unlockAudioOnGesture</code>）。大屏无人操作时浏览器静默拦截 → 事件即使到达也无提示音。本次属次要因素（事件本身未达）。</p>
+
+  <!-- ═══════════ 5 方案对比 ═══════════ -->
+  <h2>五、修复方案对比</h2>
+  <table>
+    <tr><th style="width:110px">方案</th><th>改动内容</th><th>覆盖根因</th><th style="width:130px">工作量 / 风险</th><th style="width:110px">推荐度</th></tr>
+    <tr>
+      <td><b>A · 完整修复</b><br><span class="small">（推荐）</span></td>
+      <td>
+        ① v2 回灌去 <code>zlm_online=1</code> 硬过滤，改按"每机最新事件为 LIVE_ON"判定在飞；流在线与否交给 4s 解析轮询现查（流上线 ~10s 内自动出画面）。<br>
+        ② 后端 SSE 加 20s 心跳注释行；前端 45s 无消息自动断开重建 + <code>visibilitychange</code> 恢复强制重连。<br>
+        ③ 心跳/重连期间事件不丢：重建后再次回灌兜底。
+      </td>
+      <td>① ② 全覆盖</td>
+      <td>前端 2 文件 + 后端 1 文件；约 60 行改动；需重启 jsc-backend（新连接自动恢复）</td>
+      <td><span class="badge b-ok">⭐⭐⭐</span></td>
+    </tr>
+    <tr>
+      <td><b>B · 最小修复</b></td>
+      <td>仅改 v2 回灌过滤（去掉 zlm=1 条件），其余不动</td>
+      <td>仅 ①</td>
+      <td>前端 1 处条件；约 5 行；纯前端部署免重启后端</td>
+      <td><span class="badge b-info">⭐⭐</span></td>
+    </tr>
+    <tr>
+      <td><b>C · 后端补推流就绪</b></td>
+      <td>在后端广播后异步探测 ZLM，流上线后对在飞窗口补推一条 <code>zlm_online=1</code> 事件促即时出画</td>
+      <td>①（补充）</td>
+      <td>后端 1 文件；与 A/B 正交，可叠加</td>
+      <td><span class="badge b-warn">可选增强</span></td>
+    </tr>
+  </table>
+
+  <div class="callout ok"><div class="t">推荐</div><p>采用 <b>方案 A</b>（回灌修正 + SSE 心跳/强重连），一次性消除两类结构性缺陷；方案 C 作为可选的后续增强（A 已含 4s 轮询，流上线 10s 内自动出画，C 非必需）。</p></div>
+
+  <!-- ═══════════ 6 落地步骤 ═══════════ -->
+  <h2>六、落地步骤（方案 A）</h2>
+
+  <h3>① 前置保护（遵循项目铁律）</h3>
+  <ul>
+    <li>改码前先 <code>git fetch origin</code> 确认远端状态（当前本地/远端 master 均 = <span class="num">b088113</span>），<b>避免与并行部署会话的提交窗口冲突</b>；</li>
+    <li>先建立 <span class="num">baseline commit</span> 保护（Windows 沙箱 src/ 消失事故防护，MEMORY 红线）；</li>
+    <li>本地 <code>pnpm build</code> 前先跑 <code>vitest</code> 全量 + <code>tsc --noEmit</code>（typecheck 硬门禁）。</li>
+  </ul>
+
+  <h3>② 代码改动点</h3>
+  <table>
+    <tr><th style="width:230px">文件</th><th>改动</th></tr>
+    <tr>
+      <td><span class="num">src/app/components/drvPopup/DronePopupHost.tsx</span></td>
+      <td>
+        <b>回灌（L141~L160）</b>：移除 <code>Number(r.zlm_online)===1</code> 过滤；改为按每机最新记录取"最新状态为 LIVE_ON"（无后续 OFF）者回灌；回灌条目 <code>zlmOnline:false</code>，交由现有 <code>resolveEntry</code> 4s 轮询现查 <code>stream-status</code>。<br>
+        <b>SSE 断线自愈</b>：维护 <code>lastMsgAt</code>；45s 无消息 → <code>es.close()</code> 重建；监听 <code>visibilitychange</code>（可见时若连接非 OPEN 立即重建）；错误重连退避 1s→2s→4s→8s 上限。
+      </td>
+    </tr>
+    <tr>
+      <td><span class="num">server/drone-events.js</span></td>
+      <td>SSE 响应建立后 <code>setInterval(20s)</code> 写入心跳注释行 <code>:hb\n\n</code>（并 <code>res.flushHeaders</code> 前置）；客户端断开（<code>close</code>）时 clearInterval。</td>
+    </tr>
+    <tr>
+      <td><span class="num">src/app/components/drvPopup/dronePopupModel.ts / .test.ts</span></td>
+      <td>如回灌选择逻辑下沉模型则补单测；否则仅补 Host 级逻辑说明注释。目标：<b>vitest 全量绿</b>（当前 72 用例）。</td>
+    </tr>
+  </table>
+
+  <h3>③ 构建与部署（遵循 dist 部署铁律）</h3>
+  <ol>
+    <li>本地 <code>pnpm build</code>（或 <code>node node_modules/vite/bin/vite.js build</code>）；</li>
+    <li>备份：<code>/opt/jsc/frontend/</code> 引用文件 + <code>server/drone-events.js</code> → <code>/video/backups/jsc_frontend_20260902_dronefix/</code>（写操作只准数据盘）；</li>
+    <li>上传：<code>scp dist/{index.html,assets/*}</code> → <code>/opt/jsc/frontend/</code>（<b>正斜杠、铺根目录</b>，禁止落 dist/ 子目录）；</li>
+    <li>重启后端（心跳改动生效）：<code>systemctl restart jsc-backend</code>；</li>
+    <li><b>curl 核验铁律</b>：从 <code>dist/index.html</code> 提取全部资源引用 → 逐资源 <code>curl -w '%{http_code}'</code> 必须 200；磁盘 md5 == HTTP 返回 md5。</li>
+  </ol>
+
+  <h3>④ 验证</h3>
+  <ul>
+    <li><b>回灌修复验证</b>：向表内插入一条 <code>zlm_online=0</code> 的 LIVE_ON 测试事件 → 刷新页面应回灌弹出（等待视频流接入态），随后 4s 轮询发现流即出画面；</li>
+    <li><b>心跳/重连验证</b>：重启 jsc-backend → 观察 access log 出现浏览器自动重连新接入（≤10s）；断开重连期间注入 LIVE_ON → 重连后回灌弹出；</li>
+    <li><b>真机回归（T4 补测）</b>：下次真实起飞窗口跑 headless 15/15 + 人工目视弹窗/提示音。</li>
+  </ul>
+
+  <!-- ═══════════ 7 冲突排查 ═══════════ -->
+  <h2>七、冲突排查与勘误（本次诊断排除项）</h2>
+  <table>
+    <tr><th style="width:230px">怀疑点</th><th>结论</th></tr>
+    <tr><td>nginx :81 未配 SSE location</td><td><b>排除（勘误）</b>：外部 :81 端口在网络层映射至服务器 :80（uav-sites），SSE location 齐全且 buffering off。服务器本机 curl :81 的 404 是"无映射"造成的假象，勿据此误判。</td></tr>
+    <tr><td>用户访问 /jsc/v5review.html 是复检页而非驾驶舱</td><td><b>排除</b>：v5review.html 已不存在，SPA fallback（<code>try_files … /jsc/index.html</code>）实际加载驾驶舱主页 —— 弹窗组件在跑（17:22~18:16 的 SSE 接入即来自该页面）。建议用户更新书签为 <code>/jsc/</code> 以免混淆。</td></tr>
+    <tr><td>生产前后端版本不同步</td><td><b>排除</b>：生产 23:22 版（index-zoRLADhB.js）已含 v2 弹窗代码（drone-popup-off / stream-status / sikong_ 特征齐全）；后端 stream-status 端点已存在。18:00 线上为 14:28 部署的 v1，两代代码均受根因①影响。</td></tr>
+    <tr><td>18:20 后端重启为异常</td><td><b>确认是人为部署重启</b>（systemd Stopping/Started），非崩溃；但暴露了"重启即断 SSE 且不自动恢复"的缺陷②。</td></tr>
+    <tr><td>白名单漏配 / 事件未入库</td><td><b>排除</b>：4 机场全部命中白名单，12 条事件入库完整（含 raw_json）。</td></tr>
+  </table>
+
+  <!-- ═══════════ 8 风险与回滚 ═══════════ -->
+  <h2>八、风险与回滚</h2>
+  <div class="grid2">
+    <div class="card">
+      <h4>主要风险</h4>
+      <ul>
+        <li><b>并行会话部署窗口</b>：23:12 / 23:22 均有并行部署；改码/提交前先 fetch 对齐，推送冲突以远端为准 rebase；</li>
+        <li><b>Windows 沙箱 src/ 消失</b>：git 写操作前先 baseline commit；大编辑后避免 git 写操作窗口期；</li>
+        <li><b>后端重启瞬时断 SSE</b>：心跳上线后前端具备自动重连自愈，属可接受窗口（&lt;10s）；</li>
+        <li>回灌去掉 zlm 过滤后，页面会回灌"已停飞未收到 OFF"的陈旧在飞（概率低，4s 轮询会以 stream-status 实测纠正）。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>回滚方案</h4>
+      <ul>
+        <li>前端：还原 <span class="num">/video/backups/jsc_frontend_20260902_dronefix/</span> 中 index.html + assets 至 <code>/opt/jsc/frontend/</code> 根；</li>
+        <li>后端：还原 <code>server/drone-events.js</code> 后 <code>systemctl restart jsc-backend</code>；</li>
+        <li>git：本次改动独立 commit，<code>git revert</code> 或 <code>git reset --hard</code> 至 <span class="num">b088113</span> 即可整体回退；</li>
+        <li>数据侧无结构变更（无新表/新字段），DB 零风险。</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ═══════════ 9 结论 ═══════════ -->
+  <h2>九、结论与建议</h2>
+  <ol>
+    <li><b>本次"未见弹窗"非链路故障</b>，而是前端"事件恢复/投递"两个结构性缺陷叠加 SSE 断连所致 —— 代码缺陷，非配置、非白名单、非 nginx 问题；</li>
+    <li>缺陷①（回灌 zlm 硬过滤）v1/v2 同源，<b>必须在 v2 上修复</b>，否则"起飞后开页面"场景将持续失效；</li>
+    <li>缺陷②（SSE 无心跳/不可重连）导致实时广播也可能漏 —— 大屏 7×24 挂机场景下尤为致命；</li>
+    <li><b>建议按方案 A 立即修复并部署</b>（改动集中、风险可控、回滚路径清晰），并在下次真实起飞窗口完成 T4 真机回归；</li>
+    <li>排障遗留建议：用户驾驶舱书签由 <code>/jsc/v5review.html</code> 更正为 <code>/jsc/</code>。</li>
+  </ol>
+
+  <div class="foot">
+    报告生成：2026-09-02 · 证据来源：jsc-backend journalctl / drone_live_events 表 / nginx access.log / ZLM MediaServer 日志 / 本地 git 源码核验 &nbsp;|&nbsp; 万州 JSC 驾驶舱运维
+  </div>
+</div>
+</body>
+</html>

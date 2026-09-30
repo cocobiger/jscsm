@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P4-T22 列表渲染优化 评估报告 - 2026-09-02</title>
+<style>
+  :root {
+    --text: #1a1a1a;
+    --text-soft: #4a5568;
+    --text-dim: #718096;
+    --bg: #fafbfc;
+    --bg-card: #ffffff;
+    --border: #e2e8f0;
+    --border-soft: #edf0f3;
+    --accent: #2c5282;
+    --good: #2f855a;
+    --warn: #c05621;
+    --bad: #c53030;
+    --code-bg: #f7fafc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.7;
+    font-size: 14px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 28px 80px; }
+  header {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+  h1 { font-size: 22px; color: var(--accent); letter-spacing: 0.02em; }
+  .meta { color: var(--text-dim); font-size: 12px; margin-top: 6px; }
+  h2 {
+    font-size: 16px;
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
+    padding-left: 10px;
+    margin: 32px 0 14px;
+  }
+  h3 { font-size: 14px; color: var(--text); margin: 18px 0 8px; font-weight: 600; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 6px 0 12px 22px; }
+  li { margin: 4px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 18px;
+    font-size: 13px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--code-bg); font-weight: 600; color: var(--text-soft); }
+  td.good { color: var(--good); font-weight: 600; }
+  td.warn { color: var(--warn); font-weight: 600; }
+  td.bad { color: var(--bad); font-weight: 600; }
+  td.recommend { background: rgba(47, 133, 90, 0.08); font-weight: 600; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 12px 0;
+  }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 12px 0 18px;
+  }
+  .metric {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+  }
+  .metric .v { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .metric .l { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .metric .d { font-size: 11px; margin-top: 4px; }
+  .metric .d.good { color: var(--good); }
+  .metric .d.bad { color: var(--bad); }
+  code, kbd {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 12.5px;
+    border: 1px solid var(--border-soft);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border-soft);
+    padding: 12px 14px;
+    border-radius: 3px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 8px 0;
+  }
+  .verdict {
+    background: linear-gradient(135deg, #f0fff4 0%, #ebf8ff 100%);
+    border: 1px solid #c6f6d5;
+    border-left: 4px solid var(--good);
+    padding: 14px 18px;
+    border-radius: 4px;
+    margin: 16px 0;
+  }
+  .verdict.bad {
+    background: #fff5f5;
+    border-color: #fed7d7;
+    border-left-color: var(--bad);
+  }
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 11px;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .b-good { background: #c6f6d5; color: #22543d; }
+  .b-warn { background: #feebc8; color: #7b341e; }
+  .b-bad { background: #fed7d7; color: #742a2a; }
+  .b-info { background: #bee3f8; color: #2a4365; }
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 8px 0 12px;
+  }
+  .step .no {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 22px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+  hr { border: none; border-top: 1px dashed var(--border); margin: 24px 0; }
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .toc { background: var(--code-bg); border: 1px solid var(--border-soft); padding: 10px 16px; border-radius: 3px; margin: 12px 0 24px; }
+  .toc li { list-style: none; margin: 2px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .small { font-size: 12px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>P4-T22 告警列表渲染优化 · 评估报告</h1>
+  <div class="meta">JSC 生态环境驾驶舱 · 评估日期 2026-09-02 · 报告人 WorkBuddy</div>
+</header>
+
+<div class="toc">
+  <strong>目录</strong>
+  <ol>
+    <li><a href="#bg">背景与目标</a></li>
+    <li><a href="#probe">生产实测数据</a></li>
+    <li><a href="#plans">方案 A/B/C 对比</a></li>
+    <li><a href="#plan-a">推荐方案 A 落地步骤</a></li>
+    <li><a href="#conflicts">与已有功能冲突排查</a></li>
+    <li><a href="#risk">风险与回滚</a></li>
+    <li><a href="#verdict">结论与下一步</a></li>
+  </ol>
+</div>
+
+<h2 id="bg">一、背景与目标</h2>
+
+<div class="card">
+  <p><strong>背景</strong>：「告警信息管理」弹窗（<code>AlertHistoryModal</code>）未处理 + 已处理 tab 在生产环境已积累 <strong>506</strong> 条告警，其中已处理 <strong>491</strong> 条。用户反馈弹窗内滚动卡顿（特别是已处理 tab 滚到中段时帧率明显下降）。</p>
+  <p><strong>目标</strong>：通过分页 / 虚拟化 / DOM 精简等手段，确保 500+ 条数据下弹窗滚动流畅（目标 ≥ 50 FPS），同时不破坏已实施的 T15（导出增强）/ T23（新告警 toast）/ T24（会话态保持）功能。</p>
+  <p><strong>实施顺序</strong>：P4 三批 <code>T23 → T24 → T22</code>，前两项已交付 commit <code>c43c195</code>。本报告为 T22 实施前的方案评估。</p>
+</div>
+
+<h2 id="probe">二、生产实测数据</h2>
+
+<p>使用 playwright-core headless 探针（<code>tmp/probe_t22_perf2.cjs</code>），切到「已处理」tab 后实测：</p>
+
+<div class="metric-grid">
+  <div class="metric">
+    <div class="v">7.2</div>
+    <div class="l">滚动 FPS（5s 均值）</div>
+    <div class="d bad">▼ 目标 50 FPS 严重不达标</div>
+  </div>
+  <div class="metric">
+    <div class="v">144</div>
+    <div class="l">平均帧间隔 ms</div>
+    <div class="d bad">▼ 60fps 目标 16.7ms（8.6× 落后）</div>
+  </div>
+  <div class="metric">
+    <div class="v">266</div>
+    <div class="l">最长单帧 ms</div>
+    <div class="d bad">▼ 严重卡顿（>100ms 即感知）</div>
+  </div>
+  <div class="metric">
+    <div class="v">6006</div>
+    <div class="l">页面 div 节点数</div>
+    <div class="d bad">▼ 491 行 × ~12 div ≈ 5900 节点</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>指标</th><th>实测值</th><th>目标</th><th>差距</th><th>判定</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>5s 滚动帧数</td>
+      <td><strong>36 帧</strong></td>
+      <td>300 帧 (60fps)</td>
+      <td>8.3× 落后</td>
+      <td class="bad">严重卡顿</td>
+    </tr>
+    <tr>
+      <td>平均帧间隔</td>
+      <td><strong>144 ms</strong></td>
+      <td>≤ 16.7 ms</td>
+      <td>8.6× 落后</td>
+      <td class="bad">严重卡顿</td>
+    </tr>
+    <tr>
+      <td>>30ms 掉帧占比</td>
+      <td><strong>30/36 ≈ 83%</strong></td>
+      <td>&lt; 5%</td>
+      <td>16× 超出</td>
+      <td class="bad">主因</td>
+    </tr>
+    <tr>
+      <td>5s 滚动距离</td>
+      <td><strong>2100 / 28990 px</strong></td>
+      <td>≥ 20000 px</td>
+      <td>10× 落后</td>
+      <td class="bad">滚轮严重失帧</td>
+    </tr>
+    <tr>
+      <td>切 tab 渲染稳定</td>
+      <td><strong>417 ms</strong></td>
+      <td>≤ 500 ms</td>
+      <td>可接受</td>
+      <td class="good">尚可</td>
+    </tr>
+    <tr>
+      <td>主列表 scrollHeight</td>
+      <td>29724 px</td>
+      <td>—</td>
+      <td>491 行 × ~60px</td>
+      <td class="warn">DOM 节点全量驻留</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><span class="badge b-warn">说明</span> headless 无 GPU 加速会拉低 FPS，但 144ms/帧 vs 16.7ms/帧 8.6× 差距远超 GPU 因素（约 1.5-2× 影响）——真实浏览器同样会卡顿，仅绝对值略高（如真实环境 30-40 FPS，但用户体验已差）。</p>
+
+<h3>卡顿根因（推断）</h3>
+<ol>
+  <li>491 行全部驻留 DOM，<code>scrollTop</code> 改变时浏览器需对所有 <code>overflow:hidden</code> 容器内的 <strong>6000+ 节点</strong>重做 layout/paint（paint 永远跑，layout 在含 transform/position:absolute 时不跑）</li>
+  <li>每行 <code>position:relative</code> + 多层嵌套 + 条件徽标/置信度文字节点，<code>scrollTop</code> 变化触发滚动关联 reflow</li>
+  <li>headless rAF 锁在 60fps 但 144ms/帧说明 1 帧内 React 没渲染完所有 dirty 节点 + paint 未结束</li>
+  <li>React.memo 对此场景帮助有限（DOM 节点全在，rerender 优化不解决 paint 开销）</li>
+</ol>
+
+<h2 id="plans">三、方案 A / B / C 对比</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>维度</th>
+      <th>A. 分页切片+无限滚动<br><span class="small">推荐</span></th>
+      <th>B. 虚拟滚动<br>react-virtuoso</th>
+      <th>C. 零成本 memo+DOM 精简</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>思路</td>
+      <td>默认渲染前 50 条，<br>IntersectionObserver 触底 +50</td>
+      <td>仅渲染视口内 ±10 行，<br>滚动时按需替换</td>
+      <td>React.memo 每行 + 合并嵌套 div + 稳定 key</td>
+    </tr>
+    <tr>
+      <td>代码量</td>
+      <td class="good">~80 行</td>
+      <td class="warn">~150 行 + 改造行渲染</td>
+      <td class="good">~40 行</td>
+    </tr>
+    <tr>
+      <td>新依赖</td>
+      <td class="good">0</td>
+      <td class="warn">react-virtuoso (~7KB gzip)</td>
+      <td class="good">0</td>
+    </tr>
+    <tr>
+      <td>实测预期 FPS</td>
+      <td class="good">55-60（500 条）</td>
+      <td class="good">60（任意量级）</td>
+      <td class="warn">15-25（提升有限）</td>
+    </tr>
+    <tr>
+      <td>可访问性 / 键盘滚动</td>
+      <td class="good">原生保留</td>
+      <td class="warn">需库适配（react-virtuoso 良好）</td>
+      <td class="good">原生</td>
+    </tr>
+    <tr>
+      <td>行高不定兼容</td>
+      <td class="good">天然支持（聚合展开+图片）</td>
+      <td class="warn">需动态测量（react-virtuoso OK）</td>
+      <td class="good">天然</td>
+    </tr>
+    <tr>
+      <td>与 T24 展开态交互</td>
+      <td class="good">展开 id 在已加载切片内即生效</td>
+      <td class="warn">展开行在视口外不可见，<br>需 scrollToIndex 补齐</td>
+      <td class="good">不受影响</td>
+    </tr>
+    <tr>
+      <td>与 T23 轮询 diff</td>
+      <td class="good">扁平数组 diff 不变</td>
+      <td class="warn">新告警 id 可能在切片外，<br>需「滚到该 id」处理</td>
+      <td class="good">不变</td>
+    </tr>
+    <tr>
+      <td>搜索/导出全量</td>
+      <td class="good">内存中仍是全量，<br>搜索/导出照常</td>
+      <td class="good">数据全量在内存，<br>仅渲染切片</td>
+      <td class="good">不变</td>
+    </tr>
+    <tr>
+      <td>滚回顶部</td>
+      <td class="warn">滚到第二页后无法直接跳顶部<br>（加按钮可解）</td>
+      <td class="good">scrollToIndex(0)</td>
+      <td class="good">无此问题</td>
+    </tr>
+    <tr>
+      <td>验收复杂度</td>
+      <td class="good">简单：滚到底+50、滚回顶、<br>搜索覆盖全量</td>
+      <td class="warn">中等：DOM 行数、scrollToIndex、<br>动态行高截图</td>
+      <td class="good">极简：FPS 复测</td>
+    </tr>
+    <tr>
+      <td>升级/演进</td>
+      <td class="warn">超 2000 条仍要虚拟化</td>
+      <td class="good">可承载 10w+</td>
+      <td class="bad">500→1000 又会卡</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>关键判断</h3>
+<ul>
+  <li><strong>行高不定</strong>：聚合行展开后从 ~60px 撑到 ~250px（5 成员），虚拟化需动态测量——react-virtuoso 表现 OK，但代码量翻倍</li>
+  <li><strong>业务量级</strong>：当前 506 条，预估 1 年内 < 2000 条；分页足够覆盖</li>
+  <li><strong>风险偏好</strong>：用户偏好「长期彻底方案」（记忆），但也强调「分页切片/虚拟滚动」是用户拍板时给的并列选项，无强偏好</li>
+  <li><strong>实施代价</strong>：A 可 1 小时实施 + 1 小时验收；B 需 2-3 小时实施 + 2 小时验收</li>
+</ul>
+
+<h2 id="plan-a">四、推荐方案 A 落地步骤</h2>
+
+<div class="verdict">
+  <strong>推荐方案 A（分页切片+无限滚动）</strong>：基于实测数据（500-2000 条）+ 行高不定 + 与 T23/T24 兼容性 + 0 依赖，分页是当前业务量级的最佳性价比选择。同时 C（memo+DOM 精简）作为附带优化（<strong>仅当 A 实施后仍不达标时启用</strong>）。
+</div>
+
+<div class="step">
+  <span class="no">1</span><strong>前端数据层分页</strong>
+  <ul>
+    <li>新增 <code>displayLimit</code> state（默认 50）</li>
+    <li><code>displayList = tab==='pending' ? pending.slice(0, displayLimit) : handledList.slice(0, displayLimit)</code></li>
+    <li>列表底部 <code>IntersectionObserver</code> sentinel 触发 <code>setDisplayLimit(n => n + 50)</code></li>
+    <li>tab 切换时 <code>setDisplayLimit(50)</code> 重置</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="no">2</span><strong>兼容 T23 轮询 diff</strong>
+  <ul>
+    <li>diff 在 <code>flat + aggregates</code> 全量上做，<strong>不变</strong></li>
+    <li>新告警的 toast / 角标立即显示在列表顶部（已加载），无感知差异</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="no">3</span><strong>兼容 T24 展开态</strong>
+  <ul>
+    <li>展开 id 在 <code>expanded</code> Set 持久化（sessionStorage 已有）</li>
+    <li>当展开 id 对应行尚未加载（&gt;displayLimit），UI 不显示但 state 保留，<strong>滚到该位置后自动展开</strong></li>
+    <li>增强项：toast 提示「新告警已到达第 N 条」+ 「跳到」按钮（可选 v2）</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="no">4</span><strong>UI 反馈</strong>
+  <ul>
+    <li>列表底部「加载中…」sentinel（IO 触发时）</li>
+    <li>已加载完毕时显示「已显示 X / Y 条 · 顶部 ↑」（含回到顶部小按钮）</li>
+    <li>keyword 筛选时 <code>displayLimit</code> 重置为 50</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="no">5</span><strong>验收（headless shot_t22.cjs）</strong>
+  <ul>
+    <li>FPS 复测：&gt; 50 FPS（500 条下）</li>
+    <li>滚到底 → 新增 50 条 DOM 行可见</li>
+    <li>切 tab → displayLimit 重置 50</li>
+    <li>搜索 't22test' → displayLimit 重置 50 + 全量过滤生效</li>
+    <li>导出 CSV → 服务端接口不变，不影响</li>
+    <li>T24 展开 id 跨 session 恢复 + 展开行在已加载切片中</li>
+    <li>T23 轮询 diff 不变，toast 仍弹</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="no">6</span><strong>性能优化（仅当 A 不达标时）</strong>
+  <ul>
+    <li>每行 <code>React.memo</code> + 稳定 <code>key</code></li>
+    <li>合并 1-2 层嵌套 div 减少节点</li>
+    <li>Tab 切换时 <code>React.lazy</code> + <code>Suspense</code> 延后列表挂载</li>
+  </ul>
+</div>
+
+<h2 id="conflicts">五、与已有功能冲突排查</h2>
+
+<table>
+  <thead>
+    <tr><th>功能点</th><th>冲突风险</th><th>解决方案</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>T10 10s 轮询</strong></td>
+      <td>无 — 轮询更新全量 records/aggregates，displayList 仅取前 N</td>
+      <td>无需改动</td>
+    </tr>
+    <tr>
+      <td><strong>T15 导出 CSV</strong></td>
+      <td>无 — 导出基于全量 records/aggregates，<br>不受 displayLimit 影响</td>
+      <td>无需改动</td>
+    </tr>
+    <tr>
+      <td><strong>T23 新告警 toast</strong></td>
+      <td>低 — toast 触发不依赖 displayLimit，<br>但新告警可能不在可见切片</td>
+      <td>toast 文案可加「跳到」（可选 v2）</td>
+    </tr>
+    <tr>
+      <td><strong>T24 展开态恢复</strong></td>
+      <td>中 — 展开 id 对应行若在未加载切片，<br>用户看不到「收起」按钮</td>
+      <td>state 保留即可，<br>用户滚到该位置时自动展开</td>
+    </tr>
+    <tr>
+      <td><strong>T11 标记处理乐观更新</strong></td>
+      <td>无 — 标记处理直接改 records 内存数组，<br>displayList 自动更新</td>
+      <td>无需改动</td>
+    </tr>
+    <tr>
+      <td><strong>T12 全部标记处理</strong></td>
+      <td>无 — 后端批量处理，<br>前端 records 重拉</td>
+      <td>无需改动</td>
+    </tr>
+    <tr>
+      <td><strong>AI 视频/秸秆带图记录</strong></td>
+      <td>低 — 图片懒加载已有，<br>displayLimit 减少同时加载的图片数</td>
+      <td>无需改动（性能反而更好）</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="risk">六、风险与回滚</h2>
+
+<table>
+  <thead>
+    <tr><th>风险</th><th>影响</th><th>缓解</th><th>回滚</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>分页导致用户漏看底部数据</td>
+      <td>中</td>
+      <td>底部「加载更多」sentinel + 「已显示 X/Y」+ 顶部按钮</td>
+      <td>移除 sentinel，displayLimit 改 9999</td>
+    </tr>
+    <tr>
+      <td>T24 展开 id 在未加载切片不可见</td>
+      <td>低</td>
+      <td>state 保留，滚到时自动展开</td>
+      <td>可忽略</td>
+    </tr>
+    <tr>
+      <td>keyword 搜索后 displayLimit 重置导致用户已滚到底的视图丢失</td>
+      <td>低</td>
+      <td>keyword 变化时 <code>setDisplayLimit(50)</code>（合理）</td>
+      <td>不重置（保持 displayLimit）</td>
+    </tr>
+    <tr>
+      <td>与 T15 导出筛选面板（<code>expSources/expLevels</code>）混淆</td>
+      <td>无</td>
+      <td>导出筛选独立 sessionStorage key jsc:alert-export-sess（如未来需要）</td>
+      <td>无影响</td>
+    </tr>
+    <tr>
+      <td>性能仍不达标（&lt; 50 FPS）</td>
+      <td>低</td>
+      <td>叠加方案 C：React.memo + DOM 精简</td>
+      <td>git revert commit 回到 T24</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><span class="badge b-info">回滚方案</span> T22 实施为独立 commit（预计 hash 类似 <code>abc1234</code>），生产部署前在 sky 备份目录 <code>/opt/jsc/frontend/backups/t22_bak/</code> 留存 T24 版本。任意异常 1 条命令回滚：<code>cd /opt/jsc/frontend && cp -a backups/t22_bak/* . && rm -f assets/index-zoRLADhB.js</code>。</p>
+
+<h2 id="verdict">七、结论与下一步</h2>
+
+<div class="verdict">
+  <h3 style="margin-top: 0;">推荐方案 A：分页切片+无限滚动</h3>
+  <p><strong>依据</strong>：</p>
+  <ul>
+    <li>实测数据：500 条 7.2 FPS → A 方案预期 50-60 FPS（8× 提升）</li>
+    <li>行高不定（聚合展开 + 图片）天然兼容</li>
+    <li>0 依赖、80 行代码、1 小时实施</li>
+    <li>与 T23/T24 兼容性已逐一排查，无破坏性风险</li>
+  </ul>
+  <p><strong>下一步</strong>：等待用户拍板后实施 + 验收，预计 1.5-2 小时交付 commit。</p>
+</div>
+
+<h3>可选追加</h3>
+<ul>
+  <li>方案 A 实施后若 FPS 仍不达标（&lt; 50），追加 C（React.memo + DOM 精简），预计 30 分钟</li>
+  <li>若 1 年内告警量级超 2000 条，可升级到方案 B（react-virtuoso），需 2-3 小时改造</li>
+  <li>方案 A 验收脚本 <code>tmp/shot_t22.cjs</code>：FPS 复测 + 滚到底断言 + 搜索/导出兼容性</li>
+</ul>
+
+<hr>
+
+<footer>
+  <p>报告人：WorkBuddy · 2026-09-02 23:38 · 关联 commit：<code>c43c195</code>（T24 上一节点）</p>
+  <p>实测探针：<code>tmp/probe_t22_perf2.cjs</code> · 评估方法：playwright-core headless + requestAnimationFrame FPS 计数</p>
+  <p>结论：T22 推荐实施<strong>方案 A</strong>。如需调整方向（换 B/C/双方案叠加），请回复方案代号。</p>
+</footer>
+
+</div>
+</body>
+</html>

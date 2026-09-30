@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>9·2 入库视频分辨率实测 × YOLO26 检测升级评估 · 2026-09-03</title>
+<style>
+:root{--bg:#0e1116;--card:#161b22;--line:#21262d;--ink:#e6edf3;--sub:#7d8590;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.65}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 32px}
+h1{font-size:23px;margin:0 0 6px}
+h2{font-size:17px;margin:26px 0 10px;color:var(--blue);border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:14px;margin:16px 0 6px}
+.sub{color:var(--sub);font-size:12.5px;margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.kpi .v{font-size:24px;font-weight:700;line-height:1.2}
+.kpi .l{font-size:11.5px;color:var(--sub);margin-top:2px}
+.kpi.green .v{color:var(--green)}.kpi.blue .v{color:var(--blue)}.kpi.amber .v{color:var(--amber)}.kpi.red .v{color:var(--red)}.kpi.purple .v{color:var(--purple)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:#1c2128;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#14191f}
+.tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.4);margin-right:3px;white-space:nowrap}
+.tag.green{background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.4)}
+.tag.amber{background:rgba(210,153,34,.15);color:var(--amber);border-color:rgba(210,153,34,.4)}
+.tag.red{background:rgba(248,81,73,.15);color:var(--red);border-color:rgba(248,81,73,.4)}
+.tag.gray{background:rgba(125,133,144,.15);color:var(--sub);border-color:rgba(125,133,144,.4)}
+.tag.purple{background:rgba(188,140,255,.15);color:var(--purple);border-color:rgba(188,140,255,.4)}
+ol,ul{padding-left:20px;margin:6px 0}li{margin:3px 0}
+code{background:#0d1117;border:1px solid var(--line);padding:0 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,Consolas,monospace;color:var(--purple)}
+.note{font-size:12px;color:var(--sub);margin-top:5px}
+.verdict{background:#1c2128;border-left:3px solid var(--amber);padding:12px 16px;border-radius:4px;margin:14px 0}
+.verdict.green{border-left-color:var(--green)}
+.step{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:8px 0}
+.step .ph{font-weight:700;font-size:13.5px}
+.step .meta{font-size:11.5px;color:var(--sub);margin:2px 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>9·2 入库视频分辨率实测 × YOLO26 检测升级评估</h1>
+<p class="sub">秸秆检测（straw-engine）· 2026-09-03 · 状态：证据采集完成，待方案拍板（只读，未改任何生产代码）</p>
+
+<div class="grid4">
+  <div class="kpi green"><div class="v">4K</div><div class="l">V 主摄 3840×2160（9/2 18 点入库实测）</div></div>
+  <div class="kpi blue"><div class="v">1080P</div><div class="l">S 广角 1920×1080（同批实测）</div></div>
+  <div class="kpi purple"><div class="v">1280×1024</div><div class="l">T 热成像（M30T 传感器规格）</div></div>
+  <div class="kpi amber"><div class="v">+1.6</div><div class="l">YOLO26m COCO mAP 领先 YOLO11m（同参数级）</div></div>
+</div>
+
+<h2>1. 需求与结论速览</h2>
+<div class="card">
+<p><strong>需求</strong>：① 确认 9/2 18 点左右入库的视频分辨率是否 ≥1080P；② 评估用 YOLO26 做检测是否会有更好结果。</p>
+<p><strong>结论</strong>：</p>
+<ul>
+<li><strong>① 是，且超出预期</strong>——9/2 18 点前后入库的 Remote-Control 批次（MinIO dock_media）：V 主摄 <span class="tag green">3840×2160 (4K)</span>、S 广角 <span class="tag blue">1920×1080</span>、T 热成像 1280×1024，全部 ≥1080P（HEVC、高码率 8~45 Mbps）。</li>
+<li><strong>② YOLO26 值得换，但姿势很关键</strong>——同参数级 YOLO26m 全面 ≥ YOLO11m，且官方明确针对"航拍远景小目标"设计了 STAL/ProgLoss 机制，与本项目 30~130px 远烟场景高度契合；但<b>已下载的 yolo26n 参数仅现役 YOLO11m 的 1/8，直接换 n 大概率倒退</b>。真正瓶颈排序是「源帧分辨率 &gt; 输入 imgsz &gt; 骨干模型」，换 YOLO26 应与"源流提到 1080P"配套做 A/B 实验。</li>
+</ul>
+</div>
+
+<h2>2. 实证一：9/2 18 点入库视频分辨率（MinIO dock_media 实测）</h2>
+<div class="card">
+<p>定位：MinIO bucket <code>test/tenantResource/special/1435364026368000/dock_media/2026/9/2/</code>（大疆司空2 FILE_UPLOAD 媒体归档，EC 分片须走 S3 API 拉取后 ffprobe）。9/2 共 4 个任务批次，其中 3 个落在 18 点前后：</p>
+<table>
+<thead><tr><th>拍摄时间（文件名）</th><th>通道</th><th>编码</th><th>分辨率</th><th>帧率</th><th>码率</th><th>大小</th><th>判定</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">DJI_20260902184407_0001<br><span class="note">18:44:07 · 18:46 上传</span></td><td>V 可见光</td><td>HEVC</td><td><strong>3840×2160</strong></td><td>29.97</td><td>~45 Mbps</td><td>11 MiB</td><td><span class="tag green">4K</span></td></tr>
+<tr><td>S 广角</td><td>HEVC</td><td><strong>1920×1080</strong></td><td>29.97</td><td>—</td><td>4.1 MiB</td><td><span class="tag blue">1080P</span></td></tr>
+<tr><td>T 热成像</td><td>HEVC</td><td>1280×1024</td><td>30</td><td>—</td><td>2.9 MiB</td><td><span class="tag gray">传感器规格</span></td></tr>
+<tr><td rowspan="3">DJI_20260902185333_0001<br><span class="note">18:53:33 · 19:15 上传</span></td><td>V 可见光</td><td>HEVC</td><td><strong>3840×2160</strong></td><td>29.97</td><td>45.0 Mbps</td><td>8.2 MiB</td><td><span class="tag green">4K</span></td></tr>
+<tr><td>S 广角</td><td>HEVC</td><td><strong>1920×1080</strong></td><td>29.97</td><td>15.7 Mbps</td><td>3.2 MiB</td><td><span class="tag blue">1080P</span></td></tr>
+<tr><td>T 热成像</td><td>HEVC</td><td>1280×1024</td><td>30</td><td>9.6 Mbps</td><td>3.0 MiB</td><td><span class="tag gray">传感器规格</span></td></tr>
+<tr><td rowspan="2">DJI_20260902192058_0001<br><span class="note">19:20:58 · 19:25 上传</span></td><td>S 广角</td><td>HEVC</td><td>1920×1080</td><td>—</td><td>—</td><td>96 MiB</td><td><span class="tag blue">1080P</span></td></tr>
+<tr><td>T 热成像</td><td>HEVC</td><td>1280×1024</td><td>—</td><td>—</td><td>57 MiB</td><td><span class="tag gray">传感器规格</span></td></tr>
+<tr><td colspan="8"><span class="note">另：19:10:45 起 T 长段 154 MiB（1280×1024）；同批还含 2 张照片：V=4032×3024（12MP）、T=1280×1024；13:04 批次同构（S 46M/T 28M/V 139M）</span></td></tr>
+</tbody>
+</table>
+<p class="note">⚠️ 记忆纠偏：此前"存档全 720p h264"指的是 <strong>司空 zlm_to_minio 录像归档</strong>；本批 <strong>dock_media（Remote-Control 遥控器端）</strong>是另一条上传通道，HEVC 且 ≥1080P——两条通道分辨率不能混为一谈。</p>
+</div>
+
+<h2>3. 关键辨析：检测链路到底吃哪路视频</h2>
+<div class="card">
+<table>
+<thead><tr><th>视频源</th><th>通道</th><th>实测分辨率</th><th>是否进实时检测</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td>司空存档录像（zlm_to_minio）</td><td>机场端转存</td><td>720p h264</td><td><span class="tag red">否</span></td><td>回放/归档</td></tr>
+<tr><td><strong>直播流（RTMP→ZLM mirror）</strong></td><td>机场→司空→我方 ZLM</td><td><strong>1080p h264</strong>（9/2 13:03 实测）</td><td><span class="tag green">是 · straw-engine 抽帧源</span></td><td>实时检测输入</td></tr>
+<tr><td><strong>dock_media 遥控器录像</strong>（本报告实测）</td><td>司空2 FILE_UPLOAD</td><td><strong>4K / 1080P HEVC</strong></td><td><span class="tag red">否（离线归档）</span></td><td>证据留存 → <strong>可抽帧回流训练 / VLM 预筛 / 难例分析</strong></td></tr>
+</tbody>
+</table>
+<p><strong>含义</strong>：</p>
+<ul>
+<li>实时检测抽帧来自直播流（当前档位下实测可到 1080p，但 8/30~9/1 训练抽帧集为 720p，档位/机型存在差异）——<strong>检测实际像素量 &lt; 这批 4K/1080P 归档</strong>。</li>
+<li>4K 归档虽不进实时链路，但它是<b>真实域高分辨率训练素材的金矿</b>：此前 9/2 分辨率实验已证实「抽帧像素翻倍 → 远烟 conf +62%」，而 v5 训练集的真烟样本恰恰都来自 720p 抽帧。</li>
+</ul>
+</div>
+
+<h2>4. 实证二：YOLO26 官方定位与对比数据</h2>
+<div class="card">
+<p><strong>YOLO26 = Ultralytics 2026-01-14 官方发布</strong>（标语 "Built End-to-End. Built for Edge."），核心变化：</p>
+<ul>
+<li><strong>端到端 NMS-Free</strong>：NMS 内建进模型，推理链路少一步后处理，导出更顺（ONNX/TensorRT）</li>
+<li><strong>去除 DFL</strong>：box 回归简化，边端硬件兼容性更好</li>
+<li><strong>STAL（Small-Target-Aware Label Assignment）+ ProgLoss（渐进损失）</strong>：针对<b>小目标</b>的正样本分配与训练节奏优化——官方明示受益场景含 <em>distant vehicles in aerial imagery</em>（航拍远景小目标）</li>
+<li><strong>MuSGD 优化器</strong>：SGD + Muon 混合，收敛更快、超参更稳</li>
+<li><strong>CPU 推理快 31~43%</strong>（ONNX Runtime）</li>
+</ul>
+<p><strong>COCO val mAP50-95 @640 对照</strong>（Ultralytics 官方文档口径）：</p>
+<table>
+<thead><tr><th>型号</th><th>YOLO11</th><th>YOLO26</th><th>差</th><th>参数量</th><th>CPU ONNX</th><th>与本项目对照</th></tr></thead>
+<tbody>
+<tr><td>n (nano)</td><td>39.5</td><td><strong>40.9</strong></td><td class="tag green">+1.4</td><td>2.6M → 2.4M</td><td>56.1 → 38.9 ms</td><td>已下载 yolo26n.pt（5.3MB）</td></tr>
+<tr><td>s (small)</td><td>47.0</td><td><strong>48.6</strong></td><td class="tag green">+1.6</td><td>9.4M → 9.5M</td><td>90.0 → 87.2 ms</td><td>—</td></tr>
+<tr><td><strong>m (medium)</strong></td><td>51.5</td><td><strong>53.1</strong></td><td class="tag green">+1.6</td><td>20.1M → 20.4M</td><td>183.2 → 220 ms</td><td><strong>≈现役 v5 骨干量级</strong></td></tr>
+<tr><td>l (large)</td><td>53.4</td><td><strong>55.0</strong></td><td class="tag green">+1.6</td><td>25.3M → 24.8M</td><td>238.6 → 286 ms</td><td>精度上限更高</td></tr>
+</tbody>
+</table>
+<p class="note">训练环境实测：生产 venv ultralytics <code>8.4.125</code>（onnx meta 同版本）→ 已原生支持 YOLO26 训练/导出，无需升级。</p>
+</div>
+
+<h2>5. 评估：YOLO26 会更好吗？——分三层拆解</h2>
+<div class="card">
+<h3>5.1 精度瓶颈排序（本项目实测依据）</h3>
+<table>
+<thead><tr><th>瓶颈</th><th>现状</th><th>可提升空间</th><th>依据</th></tr></thead>
+<tbody>
+<tr><td>① 源帧分辨率</td><td>直播抽帧 720p~1080p（档位不定）</td><td><span class="tag green">最大</span>：720p→1080p 像素 ×2.25</td><td>9/2 实验：抽帧像素翻倍 → conf +62%（模拟）</td></tr>
+<tr><td>② 输入 imgsz</td><td>1280（训练/生产一致）</td><td>中：可试 1536，显存/时延成本↑</td><td>v5 以 1280 收敛，小目标受益</td></tr>
+<tr><td>③ 骨干模型</td><td>YOLO11m@1280（v5 stage2）</td><td>中：同量级换 YOLO26m +1.6 COCO + STAL 小目标机制</td><td>官方 benchmark + 架构机制</td></tr>
+</tbody>
+</table>
+<h3>5.2 分模型评估</h3>
+<ul>
+<li><span class="tag red">yolo26n（已下载）</span>：2.4M 参数 = 现役 YOLO11m（20.1M）的 <strong>1/8</strong>。即使 COCO n 级微升 + STAL，<strong>容量差距下对远烟小目标几乎必然倒退</strong>。yolo26n 适合 CPU/边缘高帧率场景，不适合本项目（3090 GPU 不缺算力）。<strong>不建议作为升级目标。</strong></li>
+<li><span class="tag green">yolo26m（推荐实验）</span>：与 YOLO11m 同参数量级（20.4M vs 20.1M），COCO 领先 +1.6，且 STAL/ProgLoss 正是为"小目标难样本"设计 → <strong>理论上有较大概率在本数据上 ≥ v5 stage2</strong>，但需受控实验验证（模型架构收益 ≠ 必然转化，此前 v3→v4 有域差翻车先例）。</li>
+<li><span class="tag amber">yolo26l/x</span>：精度更高但训练/推理成本↑；本项目真烟正样本稀缺（百级），大模型过拟合风险大，暂不优先。</li>
+</ul>
+<h3>5.3 工程适配成本（常被忽略）</h3>
+<ul>
+<li>生产 detector.py 现按 <code>format='yolo'</code>（[1,4+C,N] 列式 + 手写 NMS）解析；<strong>YOLO26 端到端导出的输出格式不同</strong>（NMS-free，近似 [1,N,6] 行式）→ 需新增解析分支或导出时 <code>nms=False</code> 保留列式结构（推荐后者，改动最小）。</li>
+<li>推理时延：YOLO26m@1280 在 3090 上与现役同量级，不影响 2s 抽帧节奏；Confirmer/告警/上报链路无需改动。</li>
+<li>训练：同 v5 数据/同 imgsz/同 conf 口径跑 val → 与 stage2 基线对比（mAP50 + 52 真烟难例召回 + fire FP 73 误报率）。</li>
+</ul>
+</div>
+
+<h2>6. 推荐方案（分期）</h2>
+<div class="step">
+<div class="ph"><span class="tag green">P0 · 源流分辨率固定 1080P（先决条件，成本最低收益最大）</span></div>
+<div class="meta">承接 9/2 已评估的司空2 码流档位方案（setLiveVideoQuality HIGH_DEFINITION≈1080p）+ ffprobe 验证</div>
+<ul>
+<li>当前直播流档位不恒定（720p/1080p 混见）→ 先固定高清档，确保<b>检测输入像素量翻倍</b>（本报告实证：素材端确有 4K/1080P 能力，卡点在传输档位而非采集）</li>
+<li>⚠️ 存储红线前置：1080p 码率≈2×，若同时开录像归档，须先确认 8TB 盘迁移/清理进度（记忆：剩 ~280G、日增 ~20G）</li>
+</ul>
+</div>
+<div class="step">
+<div class="ph"><span class="tag green">P1 · YOLO26m 受控 A/B 实验（约 2~3h GPU + 0.5d 评估）</span></div>
+<div class="meta">严格对照，避免 v3/v4 式"模型换了个寂寞"</div>
+<ul>
+<li>同数据集（v5_train_v5 s2 划分）同 imgsz 1280：YOLO26m 从头/接力训练 vs v5 stage2 基线</li>
+<li>验收口径：val mAP50 ≥ 0.21（基线）且 52 真烟难例召回不降、fire FP 不增 → 达标才进入部署评估</li>
+<li>导出 <code>nms=False</code> ONNX 保持列式输出（复用现有 detector.py 分支）</li>
+</ul>
+</div>
+<div class="step">
+<div class="ph"><span class="tag amber">P2 · 高分辨率真域样本回流（中期数据战略）</span></div>
+<div class="meta">把 4K/1080P 归档变成训练资产——分辨率红利的真正兑现点</div>
+<ul>
+<li>从 dock_media 4K V 通道抽帧（MinIO http Range 抽帧 0.2s/张 已打通）→ VLM 预筛 → 人工整框 → 作为 v6 训练集（当前 v5 全量真烟样本来自 720p 抽帧，存在像素天花板）</li>
+<li>与 9/2 已识别的 v5.6 决策树（伪 GT 修复 / patience / 域失忆补强）合并排期</li>
+</ul>
+</div>
+
+<h2>7. 风险与回滚</h2>
+<div class="card">
+<table>
+<thead><tr><th>风险</th><th>等级</th><th>缓解</th></tr></thead>
+<tbody>
+<tr><td>YOLO26m 换骨干预期不达基线（架构收益 ≠ 必然转化）</td><td><span class="tag amber">中</span></td><td>A/B 实验以 val 硬指标 gate；不达标则维持 v5 stage2（现役）不部署</td></tr>
+<tr><td>P0 高清档位触发存储增长</td><td><span class="tag amber">中</span></td><td>只开直播高清、录像归档暂缓；存储迁移（8TB 转精简/扩容）优先推进</td></tr>
+<tr><td>YOLO26 端到端输出与手写 NMS 逻辑不兼容</td><td><span class="tag gray">低</span></td><td>导出 nms=False 保留列式输出；或新增 e2e 解析分支（detector.py 已具备 rtdetr 行式解析先例）</td></tr>
+<tr><td>真烟正样本稀缺限制大模型训练</td><td><span class="tag gray">低</span></td><td>P2 数据回流持续补强；实验用接力微调（v5 stage2 → yolo26m）控风险</td></tr>
+</tbody>
+</table>
+<p><strong>回滚</strong>：模型切换 = config.json 一行 + onnx 文件替换 + detector.py 分支，旧 onnx 已留档（stage2/weights/best.onnx），回滚分钟级；DB 与前端零改动。</p>
+</div>
+
+<h2>8. 决策点</h2>
+<table>
+<thead><tr><th>决策点</th><th>选项</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td>① 是否采纳「YOLO26m 替换 YOLO11m」方向</td><td>A 先 A/B 实验再定 / B 直接换 yolo26n（不推荐） / C 维持现役</td><td><span class="tag green">A</span>：实验成本低、以硬指标 gate</td></tr>
+<tr><td>② 是否先把直播源流固定 1080P（P0）</td><td>先做（需同步存储评估）/ 仅实验期临时调</td><td><span class="tag amber">建议先做</span>：分辨率是当前第一瓶颈</td></tr>
+<tr><td>③ 4K 归档抽帧回流（P2）排期</td><td>并入 v5.6 / 单独批</td><td>并入 v5.6 决策树，避免重复造数据管线</td></tr>
+</tbody>
+</table>
+
+<div class="verdict green">
+<strong>一句话答复用户</strong>：9/2 18 点左右入库的视频实测 <strong>V=4K、S=1080P、T=1280×1024，全部 ≥1080P</strong>；用 YOLO26 检测<b>有较好预期但需换 m 级而非已下载的 n 级</b>，且要配合源流分辨率提到 1080P 一起做受控 A/B（先 P0 定档 → P1 yolo26m 对比 stage2 基线 → 达标再上线）。
+</div>
+
+<p class="note">附：证据采集 = MinIO S3 API 拉取（mc cat，EC 分片重组）→ ffprobe/PIL 实测；YOLO26 数据源 = Ultralytics 官方文档 + arXiv 2510.09653 综述；诊断未改动任何生产文件。</p>
+
+</div>
+</body>
+</html>

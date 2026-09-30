@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱「无人机」指标接入司空设备数 · 交付报告（2026-09-16）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1300px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:30px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+pre{background:rgba(0,0,0,.3);padding:11px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:9px 0}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+ul,ol{margin:7px 0;padding-left:22px}li{margin-bottom:5px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:13px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:11px 13px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.kpi .big{font-size:20px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+figure{margin:14px 0;text-align:center}
+figure img{max-width:100%;border:1px solid var(--border);border-radius:6px}
+figcaption{color:var(--muted);font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>驾驶舱「无人机」指标接入司空设备数 · 交付报告</h1>
+  <div class="subtitle">
+    状态：<span class="tag t-ok">已上线并通过真实页面验收</span>　·　
+    口径 <b>A（司空接入台账）</b> + 方案 <b>B（提升到 Context）</b> + 保留 uav 点位并加备注 + <b>P2 点击下钻</b>　·　2026-09-16
+  </div>
+</header>
+
+<h2>一、交付结果一览</h2>
+<div class="kpi">
+  <div><div class="lbl">改造前</div><div class="big" style="color:#ff8a80">0 架</div></div>
+  <div><div class="lbl">改造后（实测）</div><div class="big" style="color:#4ade80">4 架</div></div>
+  <div><div class="lbl">司空机场 / 无人机</div><div class="big">4 / 4</div></div>
+  <div><div class="lbl">tsc 类型门禁</div><div class="big" style="color:#4ade80">0 错误</div></div>
+  <div><div class="lbl">资源核验</div><div class="big" style="color:#4ade80">5/5</div></div>
+</div>
+
+<div class="card good">
+  <h3>验收结论</h3>
+  <table>
+    <tr><th>验收项</th><th>预期</th><th>实测</th><th>结果</th></tr>
+    <tr><td>统计条「无人机」</td><td>4 架</td><td><code>4 架 无人机</code>（与 <code>/api/sikong/devices</code> 的 droneCount 一致）</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>其余 KPI 未被影响</td><td>保持原值</td><td><code>2 座 监测站 / 5 个 水质点位 / 27 路 摄像头 / 10 家 重点企业</code></td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>气环境覆盖卡语义</td><td>「无人机机场 4 座」用 dockCount</td><td>拆为「无人机机场 4 座」+「无人机 4 架」两行</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td><b>断链降级（关键）</b></td><td><b>显示「—」，不显示 0</b></td><td><code>4 架</code> → 注入断链 → <b><code>— 架</code></b>（琥珀色 + 警示点），弹窗顶部出现降级告警条，保留最后一次台账 4 行</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>P2 点击下钻</td><td>弹出司空设备清单</td><td>弹窗「司空2 设备清单 机场 4 座 · 无人机 4 架」+ 4 行明细（机场/SN/状态/无人机/机型/SN/电量/风速/温度/高度/坐标）</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>MapView 数据源统一</td><td>改由 Context 供数、地图不回归</td><td>地图 4 机场图标 + 图例「司空机场·实时遥测(4)」正常；重复轮询已消除</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td><b>副指标「在飞 N 架」角标</b><br><span style="color:var(--muted);font-size:11px">（追加需求）</span></td><td>弹窗头部显示在飞数（数据取 <code>osd.droneInDock</code>）</td><td>角标 <code>[data-sikong-flying]</code> = <b>「在飞 0 架」</b>（灰蓝静默，<code>rgb(90,138,170)</code>）；<code>title</code>=「在飞 0 架 · 机场内待命 4 架」；<b>4 行状态全部「机场内待命」，与 <code>dockedCount=4</code> 一致</b>；KPI 悬浮提示同步带「/ 在飞 0 架」</td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>发布门禁</td><td><code>tsc --noEmit</code> + build</td><td><code>TSC_EXIT=0</code> · <code>built in 7.56s</code> · <code>EXIT=0</code></td><td><span class="tag t-ok">通过</span></td></tr>
+    <tr><td>部署核验</td><td>HTTP 200 + md5 磁盘==HTTP</td><td>5/5 资源通过；后端 <code>sikong.js</code> md5 本地==远端 <code>50bf0158…</code></td><td><span class="tag t-ok">通过</span></td></tr>
+  </table>
+</div>
+
+<figure>
+  <img src="ui_kpi_bar_20260916.png" alt="改造后 KPI 条">
+  <figcaption>① 驾驶舱前台统计条：「4 架 无人机」（紫色）—— 其余指标不变</figcaption>
+</figure>
+
+<figure>
+  <img src="ui_kpi_modal_20260916.png" alt="P2 点击下钻弹窗">
+  <figcaption>② P2 点击 KPI 下钻：司空2 设备清单（4 台机场 / 4 架无人机 + 机型 / SN / 电量 / 遥测）</figcaption>
+</figure>
+
+<figure>
+  <img src="ui_kpi_degraded_20260916.png" alt="断链降级态">
+  <figcaption>③ 断链降级态：KPI 显示「—」而非 0，弹窗顶部给出降级说明并保留最后一次成功台账</figcaption>
+</figure>
+
+<figure>
+  <img src="ui_flying_badge_20260916.png" alt="副指标在飞角标">
+  <figcaption>④ 副指标「在飞 0 架」角标（追加需求）：弹窗头部静默展示；若 &gt;0 则转绿色 + 呼吸点，遥测缺失时另出琥珀色「遥测未推送 N」提示</figcaption>
+</figure>
+
+<h2>二、改动清单（文件级）</h2>
+<table>
+  <tr><th>文件</th><th>类型</th><th>改动要点</th></tr>
+  <tr><td><code>server/sikong.js</code></td><td>改</td><td><code>fetchMergedDevices()</code> 返回体新增 <b><code>upstreamOk</code> / <code>degraded</code> / <code>dockCount</code> / <code>droneCount</code> / <code>droneUnpaired</code> / <code>flyingCount</code> / <code>dockedCount</code> / <code>osdMissingCount</code></b>（口径唯一出处；在飞判定与前端 <code>sikongStatus.ts</code> 同规则）</td></tr>
+  <tr><td><code>src/app/lib/api-types.ts</code></td><td>改</td><td>新增 ⑥ <code>SikongDrone</code> / <code>SikongDevice</code> / <code>SikongDevicesResp</code> + <code>SIKONG_DEVICES_REQUIRED</code>（契约单一出处，含该结构陷阱的注释）</td></tr>
+  <tr><td><code>src/app/context/DashboardContext.tsx</code></td><td>改</td><td>新增司空设备<b>全局单例轮询（15s）</b>：<code>sikongDevices / dockCount / droneCount / droneUnpaired / sikongAvailable</code>；<b>5 分钟宽限期</b>沿用上次成功值；<code>upstreamOk===false</code> 视同失败</td></tr>
+  <tr><td><code>src/app/lib/sikongStatus.ts</code></td><td><b>新增</b></td><td><b>「在飞/待命/遥测未推送」判定的单一出处</b>（<code>droneDockState()</code> + <code>DOCK_STATE_LABEL</code>）：原先 MapView 与弹窗各写 <code>droneInDock === 1/0</code> 严格比较，类型一变就会「头部角标说在飞、列表说待命」；现统一 + <code>Number()</code> 容错</td></tr>
+  <tr><td><code>src/app/components/MapView.tsx</code></td><td>改</td><td>删除本地 <code>sikongDocks</code> state 与 <code>/api/sikong/devices</code> 轮询；改用 Context 数据；<code>flying</code> 判定与信息窗状态文案改用 <code>sikongStatus</code>（本地 <code>SikongDock</code> 接口收敛为 <code>api-types</code> 别名）</td></tr>
+  <tr><td><code>src/app/components/CenterPanel.tsx</code></td><td>改</td><td>KPI 取 <code>droneCount</code>（不可达显示 <code>—</code>）；覆盖卡拆出 <code>dockCount</code>；<code>StatsCell</code> 支持 <code>onClick/title/warn</code>（可点击 + 降级琥珀色 + a11y role/tabindex）；挂载下钻弹窗</td></tr>
+  <tr><td><code>src/app/components/SikongDeviceModal.tsx</code></td><td><b>新增</b></td><td>P2 司空设备清单弹窗（机场/无人机/机型/SN/状态/电量/风速/温度/高度/坐标 + 降级告警条 + 脚注说明口径）；<b>头部副指标角标 <code>FlyingBadge</code></b>（在飞 &gt;0 绿色+呼吸点 / =0 灰蓝静默 / 遥测缺失另出琥珀色提示）</td></tr>
+  <tr><td><code>src/app/components/admin/MapPointManage.tsx</code></td><td>改</td><td>页内新增提示条 + 顶部注释：<b>uav 点位只影响地图图标、不再参与 KPI</b>，避免后人误以为改这里能改统计条数字</td></tr>
+</table>
+
+<h2>三、实现要点</h2>
+<div class="card acc">
+  <h3>数据流（改造后）</h3>
+  <pre>司空2 OpenAPI ──(60s)──▶ dji-openapi:17810 ──▶ jsc-backend <b>/api/sikong/devices</b>
+                                                        │  ← 口径唯一出处：dockCount / droneCount
+                                                        ▼
+                                       DashboardContext（<b>全局单例 15s 轮询</b>）
+                                          ├──▶ CenterPanel 统计条「无人机 N 架」(droneCount)
+                                          ├──▶ CenterPanel 覆盖卡「无人机机场 N 座」(dockCount)
+                                          ├──▶ CenterPanel 下钻弹窗「司空2 设备清单」
+                                          └──▶ MapView 地图机场标注 + 实时遥测
+
+断链：15s 轮询失败 ─(≤5min 沿用上次成功值，不闪变)─▶ 超宽限 → sikongAvailable=false → KPI 显示「—」</pre>
+</div>
+
+<div class="card bad">
+  <h3>🔴 过程中发现并修复的隐患（若不修，验收项 4 会失败）</h3>
+  <p style="margin-top:0"><code>fetchMergedDevices()</code> 原本对上游失败用 <code>jget(...).catch(() => null)</code> <b>静默吞掉</b>，于是 dji-openapi 挂掉时会返回 <code>{ok:true, items:[], droneCount:0}</code> —— 前端会把它当成"司空确实没有无人机"，<b>显示 0 架</b>，正是本次要消除的误读。</p>
+  <p style="margin:0"><b>修法</b>：后端显式上报 <code>upstreamOk / degraded</code>；前端把 <code>upstreamOk === false</code> 视同请求失败，走宽限期 → 显示「—」。并通过前端注入（拦截 <code>fetch</code> + 偏移 <code>Date.now</code> 使宽限期过期）完成了真实验证，<b>未对生产做任何破坏性操作</b>。</p>
+</div>
+
+<h2>四、排期对照（评估 → 实际）</h2>
+<table>
+  <tr><th>批次</th><th>评估工作量</th><th>实际</th><th>偏差说明</th></tr>
+  <tr><td>P0 后端口径字段</td><td>0.2d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P0 前端取值替换 + 拆覆盖卡</td><td>0.3d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P1 降级与离线态</td><td>0.2d</td><td><span class="tag t-warn">完成，多一处后端修复</span></td><td>评估时漏判了「上游失败被 <code>.catch</code> 吞掉」这一层 → 追加了 <code>upstreamOk</code> 契约（<b>本报告第三节</b>）</td></tr>
+  <tr><td>P1 MapView 数据源统一</td><td>0.3d</td><td><span class="tag t-ok">完成</span></td><td>顺带消除了一处重复轮询，净减请求</td></tr>
+  <tr><td>P2 KPI 点击下钻</td><td>0.5d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>验收 / 部署 / 核验</td><td>—</td><td><span class="tag t-ok">完成</span></td><td>含 3 张真实页面截图留档</td></tr>
+</table>
+
+<h2>五、回滚方案</h2>
+<div class="quote" style="border-left-color:var(--red);margin-bottom:0">
+  改动涉及 6 个文件（3 个前端组件 + 1 个 Context + 1 个契约 + 1 个后端），均为<b>新增/替换取值</b>，不改数据结构、不迁移数据。<br>
+  <b>备份位置</b>：<code>/opt/jsc/backend/backups/sikong.js.bak_20260916_114208</code>、<code>/opt/jsc/frontend/backups/index.html.bak_20260916_114208</code>（原 <code>sikong.js</code> md5 <code>d42456a4c9dbc67d202b30fac2c60330</code>）。<br>
+  <b>回滚步骤</b>：还原 <code>sikong.js</code> → <code>systemctl restart jsc-backend</code>；前端还原 <code>index.html</code>（旧 assets 因 contenthash 仍在，无需回滚 assets）。<br>
+  <b>注意</b>：若只回滚前端不回滚后端，页面仍正常（新增字段被忽略，KPI 退回取 <code>mapPoints.uav</code> 旧口径 → 又变 0）。
+</div>
+
+<h2>六、遗留与建议</h2>
+<table>
+  <tr><th>#</th><th>事项</th><th>建议</th></tr>
+  <tr><td>1</td><td><b>「当前在飞」副指标</b>（口径 C）</td><td><span class="tag t-ok">已补齐</span> 弹窗头部角标已上线（后端 <code>flyingCount/dockedCount/osdMissingCount</code> + 前端 <code>sikongStatus.ts</code> 单一出处）。<b>仍不参与统计条主值</b>，因为它会随飞行 0↔4 跳变，只宜作副指标</td></tr>
+  <tr><td>2</td><td>「无人机视频」分组与 KPI 口径无关</td><td>视频轮播的「无人机视频」分组仍由 <code>videoStreams.group</code> 决定，与本次 KPI 无耦合，<b>无需改动</b>（此处仅作说明，避免以后混淆）</td></tr>
+  <tr><td>3</td><td>多数 <code>MapPointManage</code> 的 uav 点位仍为 0</td><td>提示条已说明「不影响 KPI」；如无地图补点需求，可后续清理该点类型（非必须）</td></tr>
+  <tr><td>4</td><td>6 个文件未提交 git</td><td>建议与本次交付一并提交（类型门禁相关改动需原子提交）</td></tr>
+</table>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  实测环境：<code>http://111.10.220.226:81/jsc/</code>（外网）· SSH 隧道 <code>-L 18080:127.0.0.1:80</code> 验收（⚠️ 本机 <code>:81/jsc/</code> 恒 404，:81 是 skymonitor vhost）<br>
+  验收工具：<code>scripts/ui-probe.mjs</code>（Edge headless + CDP）· 证据：<code>tmp/ui_kpi*.json</code> / <code>tmp/ui_flying_badge.json</code> / <code>tmp/ui_*.png</code> / <code>tmp/_vd4.txt</code><br>
+  追加需求（副指标角标）验收：<code>badgeText="在飞 0 架"</code> · <code>data-sikong-flying="0"</code> · <code>badgeTitle="在飞 0 架 · 机场内待命 4 架"</code> · 行状态 4/4「机场内待命」与 <code>dockedCount=4</code> 一致<br>
+  📂 docs/驾驶舱无人机指标接入司空设备_交付报告_20260916.html
+</div>
+</div>
+</body>
+</html>

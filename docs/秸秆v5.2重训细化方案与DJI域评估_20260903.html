@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆 v5.2 重训细化方案与 DJI 域评估（2026-09-03）</title>
+<style>
+  :root{
+    --ink:#1f2937; --sub:#6b7280; --line:#e5e7eb; --bg:#f8fafc;
+    --acc:#0f4c81; --acc2:#b45309; --ok:#047857; --warn:#b91c1c;
+    --th:#eef2f7; --hl:#fff7ed;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.75 "Microsoft YaHei","PingFang SC",-apple-system,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+  header.doc{border-bottom:2px solid var(--acc);padding-bottom:14px;margin-bottom:22px}
+  header.doc h1{font-size:22px;margin:0 0 6px;color:var(--acc);letter-spacing:.5px}
+  .meta{color:var(--sub);font-size:12.5px}
+  .meta span{margin-right:18px}
+  h2{font-size:17px;color:var(--acc);border-left:4px solid var(--acc);
+     padding-left:8px;margin:34px 0 12px}
+  h3{font-size:15px;margin:20px 0 8px;color:#111827}
+  p{margin:8px 0}
+  table{border-collapse:collapse;width:100%;margin:10px 0 16px;background:#fff;font-size:13px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:var(--th);font-weight:600;white-space:nowrap}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:nth-child(even) td{background:#fcfcfd}
+  .tag{display:inline-block;padding:0 7px;border-radius:3px;font-size:12px;font-weight:600}
+  .t-red{background:#fee2e2;color:#b91c1c}
+  .t-grn{background:#d1fae5;color:#047857}
+  .t-amb{background:#fef3c7;color:#b45309}
+  .t-blu{background:#dbeafe;color:#1d4ed8}
+  .box{border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin:12px 0;background:#fff}
+  .box.key{border-left:4px solid var(--acc);background:#f5f9ff}
+  .box.warn{border-left:4px solid var(--warn);background:#fef5f5}
+  .box.note{border-left:4px solid var(--acc2);background:var(--hl)}
+  code{background:#f1f5f9;border:1px solid var(--line);border-radius:3px;
+       padding:0 4px;font:12px Consolas,monospace;color:#0f172a}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:10px 12px;overflow:auto;
+      font:12px Consolas,monospace;line-height:1.6}
+  .small{font-size:12.5px;color:var(--sub)}
+  ul,ol{margin:6px 0 10px;padding-left:22px}
+  li{margin:3px 0}
+  .steps{list-style:none;padding-left:0}
+  .steps li{border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:10px 14px;background:#fff}
+  .steps .g{font-weight:700;color:var(--acc)}
+  .steps .a{color:var(--ok);font-weight:600}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:10px;color:var(--sub);font-size:12px}
+  .kpi{font-weight:700;color:var(--acc)}
+  .dc{background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin:12px 0}
+  .dc h4{margin:0 0 6px;color:#1d4ed8}
+  .dc ol{margin:0;padding-left:20px}
+  @media print{body{background:#fff}.wrap{max-width:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>秸秆燃烧检测 · v5.2 重训细化方案与 DJI 域评估</h1>
+  <div class="meta">
+    <span>日期：2026-09-03</span>
+    <span>范围：v5 谱系复盘 / DJI val 构建 / 重训路线决策</span>
+    <span>状态：评估完成，待拍板</span>
+    <span>关联：#100 P0 定档验收（看门狗运行中）、#101 本报告</span>
+  </div>
+</header>
+
+<h2>〇、执行摘要</h2>
+<div class="box key">
+<p><b>三件被钉死的事实（本次服务器取证实证）：</b></p>
+<ol>
+  <li><b>现网生产跑的就是 v5 stage2</b>。config.json（mtime 2026-09-02 00:30）第 102 行
+      <code>model=/video/xunlian/runs/detect/v5_smoke_v5/stage2/weights/best.onnx</code>；
+      app/main.py 于今日 12:12 落盘（#98 NameError 修复）、服务 12:16:44 重启加载。
+      models/ 下 cctv.onnx / yolov8n.onnx 仅为主程序 L265 的兜底默认值，当前未被引用。
+      9/2 白天的"0 告警灰度"正是这个模型。</li>
+  <li><b>9/2 真飞 0 告警的根因是输入缺失，不是模型失效</b>。journalctl 显示 18:00–19:30 期间
+      4 个 <code>sikong_&lt;SN&gt;</code> 镜像流全部"打开失败，5s 重试"，straw-engine 无帧可推。
+      也就是说：v5 stage2 至今<b>没有一次有输入的无人机真飞评测</b>，"对 DJI 全盲"只被
+      182 帧离线样本（max conf 0.122）支持，样本量小且未经人工核验标签。</li>
+  <li><b>"把 DJI 帧混进训练集再训"的路线已被 v52–v55 五轮实验证伪</b>：
+      v52/v53 无有效指标（results.csv 空）；v54 训至 ep28 val mAP50≈0.076、
+      v55 训至 ep21 ≈0.057，远低于 v5 stage2 自身（≈0.21）。混训不涨反崩。</li>
+</ol>
+<p><b>由此得出的定位修正：</b>v5.2 不应是"再混一轮 DJI 帧重训"（v54/55 已证明会崩），而应是一套
+<b>受控的两段式闭环</b>：先恢复输入链路并拿到"有输入的真飞评测基准"（G0），再做
+<b>干净双组 val（DJI unseen 段 vs CCTV 回归段）</b>与标签治理，然后才谈续训与验收。</p>
+<p style="margin-top:6px"><b>推荐：方案 C（两段式）。</b>首个行动是 E1 快评（约 1 小时、只读不改生产）：
+用现网 stage2 模型以 conf 0.05–0.15 重扫 182 帧 live_review 与今日真飞镜像，量化 DJI 域"可达召回"，
+区分"模型无响应"与"工作点锁死"。请拍板见第七节 ①②③。</p>
+</div>
+
+<h2>一、现状钉死（取证证据）</h2>
+
+<h3>1.1 生产引擎与模型真相</h3>
+<table>
+  <tr><th>项目</th><th>实证结果</th><th>取证方式</th></tr>
+  <tr><td>服务单元</td><td>straw-engine.service：<code>uvicorn app.main:app --port 7200</code>，Restart=always</td><td>systemctl cat</td></tr>
+  <tr><td>引擎主体</td><td><code>/opt/jsc/straw-engine/app/</code>（main.py / detector.py / confirmer.py / reporter.py / recorder.py 等），
+      顶层 <code>main.py</code> 不存在</td><td>ls</td></tr>
+  <tr><td>配置</td><td><code>config/config.json</code>（mtime 09-02 00:30）L102：<code>"model": ".../v5_smoke_v5/stage2/weights/best.onnx"</code>；
+      format=yolo / inputSize=1280 / confSmoke=0.15 / confFire=0.45 / confHouse=0.35（多流各自覆盖）</td><td>grep -n model</td></tr>
+  <tr><td>最近重启</td><td>2026-09-03 12:16:44 CST（#98 NameError 修复后），运行中</td><td>systemctl status</td></tr>
+  <tr><td>models/ 目录</td><td>cctv.onnx 12.1MB(8/21)、yolov8n.onnx 12.3MB(8/22)、yolov8n-v1.onnx.bak ——
+      md5 均 ≠ stage2 best.onnx（8674aeff…），<b>stage2 未拷贝入 models/，直接引 /video 原路径</b></td><td>md5sum</td></tr>
+  <tr><td>/health 字段</td><td>返回 model_path=fire-smoke-yolov8n.onnx、model_version=v2 ——
+      <b>硬编码误导值</b>（main.py L311-312：model_path 写死；version 取环境变量默认 v1，现为 v2），不代表实际加载</td><td>grep app/main.py</td></tr>
+  <tr><td>config 历史备份</td><td>bak_rtdetr_0902 / bak_v5e6gray_0830 / bak_v5gray_0829 / bak_v6_0830 → 8/29–9/2 存在多轮切换史</td><td>ls config/</td></tr>
+</table>
+
+<h3>1.2 v5 谱系实验指标（/video/xunlian/runs/detect/）</h3>
+<table>
+  <tr><th>实验</th><th>起点/数据集</th><th>进程</th><th class="num">val mAP50（末行）</th><th>备注</th></tr>
+  <tr><td>v5_smoke_v5 stage1</td><td>合成远烟预训（syn 800 张）</td><td>9/1 23:00 完</td><td class="num">—</td><td>两阶段前段</td></tr>
+  <tr><td>v5_smoke_v5 stage2</td><td>stage1 best 续训，data=v5_train_v5（s2.yaml，nc=1 smoke），imgsz1280/batch8/ep60/close_mosaic50/patience20</td><td>9/1 23:10 完</td><td class="num">≈0.21（止于 ep21）</td><td>best 早停于低点；离线 DJI 182 帧全 0</td></tr>
+  <tr><td>v5_smoke_v52 / v53</td><td>epoch20.pt 续训 / 加密抽帧扩样</td><td>9/2 白天</td><td class="num">无指标</td><td>results.csv 为空（中断）</td></tr>
+  <tr><td>v5_smoke_v54</td><td>v53 best 续训；data=v5_train_v54（DJI 入训）</td><td>至 ep28 早停</td><td class="num">0.07645</td><td>v54 数据集 DJI 占比 train 948/1233(77%)、val 36/136(26%)</td></tr>
+  <tr><td>v5_smoke_v55</td><td>v54 best 续训；data=v5_train_v55</td><td>至 ep21 早停</td><td class="num">0.05743</td><td>加密抽帧 2s 段扩样</td></tr>
+  <tr><td>v5_smoke_v5_26m_s1/s2</td><td>26m 链对照</td><td>—</td><td class="num">更低</td><td>P1 报告已证 26m 完败（另文）</td></tr>
+</table>
+<p class="small">解读：v54/55 是"DJI 帧入训练集"的直接尝试，val 上不升反崩，说明问题不在"样本没进去"，
+而在于<b>域/标签/难度的结构性错配</b>：白天远烟小目标（30–130px @1280）+ 大量预标/AI 预标坏标 +
+train/val 帧级相邻泄漏 + 早停锁死，任何一环都足以使 mAP 塌方。</p>
+
+<h3>1.3 DJI 域数据资产</h3>
+<table>
+  <tr><th>资产</th><th class="num">规模</th><th>说明</th></tr>
+  <tr><td>v5_wechat/</td><td class="num">143 张</td><td>52 正(197 烟框)+73 负+18 候选，人工整框</td></tr>
+  <tr><td>v5_syn/</td><td class="num">800 张</td><td>合成远烟白雾，1199 框，30~130px 小目标</td></tr>
+  <tr><td>v5_train_v5/</td><td class="num">—</td><td>stage1/2 分拆 yaml + splits（stage2_train.txt / val.txt）</td></tr>
+  <tr><td>v5_train_v54/images|labels</td><td class="num">1369 张 / 1494 txt</td><td>train 1233（DJI 948）、val 136（DJI 36）；txt&gt;img 说明含空标签负样本</td></tr>
+  <tr><td>live_review DJI 帧</td><td class="num">984 张含 1581F8HGX…SN</td><td>已并入 v54；其中相当比例为 AI 预标（epoch20 预标 #53）</td></tr>
+  <tr><td>straw_detections</td><td class="num">alert 543 / picall 121</td><td>无 DJI 直采来源记录 → 印证真飞输入断链</td></tr>
+</table>
+
+<h3>1.4 输入链路（ZLM）现状</h3>
+<table>
+  <tr><th>项</th><th>实测</th></tr>
+  <tr><td>ZLM 进程</td><td><code>/opt/zlmediakit-jsc/MediaServer -c config.ini</code>（8/27 起，systemd zlmediakit-jsc）</td></tr>
+  <tr><td>当前在线流</td><td>仅 CCTV：app=jsc，rtsp pull 自 172.16.8.51（berfenrir）→ 夜间无飞行属正常</td></tr>
+  <tr><td>录像</td><td>当前流 isRecordingHLS=true、isRecordingMP4=false</td></tr>
+  <tr><td>9/2 白天</td><td>4 个 sikong_&lt;SN&gt; 镜像流在 straw-engine 侧全部"打开失败，5s 重试"→ 无帧输入 → 0 告警</td></tr>
+  <tr><td>P0 定档修复</td><td>commit 1c17590：dji-openapi LIVE_ON 自动锁定 1080P(HIGH_DEFINITION=3)；dji-openapi :17810 /api/live-quality</td></tr>
+  <tr><td>验收看门狗</td><td><code>/video/xunlian/p0_watch_20260903.sh</code> 12:55:23 启动，30s 轮询至 19:45，捕获 sikong 流即跑
+      verify_p0_quality.sh → 结果落 <code>/video/xunlian/p0_verify_result_20260903.txt</code>（#100）</td></tr>
+</table>
+
+<h2>二、v5.2 要回答的问题与路线修正</h2>
+<div class="box note">
+<p>v5.2 的唯一正确目标（修正后）：<b>在"有输入的真飞"前提下，给出 DJI 白天远烟可检性的量化结论，
+并产出一个经双组干净验收、可替换现网 stage2 的模型</b>。若 G0 拿不到有输入的评测基准，v5.2 训练
+即使跑完也只是一个新的"盲模型"——与 v52–v55 无异。</p>
+</div>
+<p>必须回答的三个子问题：</p>
+<ol>
+  <li><b>检得出吗？</b>（E1 快评）现网 stage2 在低 conf（0.05–0.15）下对 DJI 帧的 recall 到底多少？
+      182 帧 max conf 0.122 暗示模型有微弱响应但被 0.15 阈值整体压掉——若 0.05 档 recall 显著上升，
+      问题只是"工作点"，不动训练；若仍为 0，才是真域缺口，需要重训。</li>
+  <li><b>标得对吗？</b>（G1 治理）v54 的 948 张 DJI 帧有多少是预标/坏标？需抽 100 张双人复核出错误率；
+      按来源视频段重切 train/val 消除帧级泄漏。</li>
+  <li><b>训得稳吗？</b>（G2 受控续训）从 stage2/epoch20.pt 续训、lr0=0.002、以 DJI-A recall@0.15 为主指标、
+      CCTV-B mAP 回归为约束，配 conf 扫描定工作点 + confirmer 3 帧连续降误报。</li>
+</ol>
+
+<h2>三、方案对比</h2>
+<table>
+  <tr><th style="width:16%">方案</th><th>做法</th><th>投入</th><th>产出</th><th>主要风险</th></tr>
+  <tr>
+    <td><b>A｜照旧再训</b><br><span class="tag t-red">不推荐</span></td>
+    <td>从 epoch20.pt 续训，DJI 帧混入 train，组单 val 跑一轮</td>
+    <td>GPU 8–14h + 复核 0.5 天</td>
+    <td>一个指标可能仍&lt;0.1 的模型</td>
+    <td>v54/55 已证此路不涨反崩；无真飞基准，部署即盲盒</td>
+  </tr>
+  <tr>
+    <td><b>B｜只恢复链路不动模型</b></td>
+    <td>P0 定档 + 真飞采集，拿现网 stage2 在有输入下的真机指标；/health 误导值顺手修掉</td>
+    <td>纯运维 0.5 天</td>
+    <td>真飞评测基准 + 输入链路稳定</td>
+    <td>不提升模型本身；若确有域缺口则持续漏报</td>
+  </tr>
+  <tr>
+    <td><b>C｜两段式闭环</b><br><span class="tag t-grn">推荐</span></td>
+    <td><b>段1（G0+G1）：</b>链路恢复 + E1 快评 + DJI 标签审计与双组 val 重建（不训）；
+        <b>段2（G2–G5）：</b>据 E1 结论决定是否重训，受控续训 → 双组验收 → conf 定工作点 → 灰度部署</td>
+    <td>段1：1–2 天（含等真飞窗口）；段2：GPU 8–14h + 复核 1 天</td>
+    <td>可解释、可验收、可回滚的决策链；每一段都有硬 gate</td>
+    <td>周期最长；若今日无真飞需顺延采集窗口</td>
+  </tr>
+</table>
+
+<h2>四、落地步骤（方案 C 展开，G0–G5）</h2>
+<ol class="steps">
+  <li><span class="g">G0 · 链路与基准</span>　<span class="a">验收口径：&ge;1 次有效真飞（mirror 1080p 流建立 &ge;5min）</span><br>
+    等今日 13:00–19:45 窗口（看门狗已挂）；    核 verify_p0_quality.sh 产物 + dji-openapi /api/live-quality 返回
+    videoQuality=3(1080P)；修复 /health 硬编码（main.py L311-312 改读实际 config model_path/version，
+    清 STRAW_MODEL_VERSION env 残留；清理 detector.py 3 类解析残留——均低风险，随批上线）。</li>
+  <li><span class="g">G1 · E1 快评 + 数据治理</span>　<span class="a">验收口径：E1 报告 + 标签审计 100 张 + 双组 val 清单</span><br>
+    E1：现网 stage2 以 conf 0.05/0.10/0.15 重扫 182 帧 live_review + 今日真飞 1080p 抽帧（只读，不改生产，约 1h）；
+    治理：v54 的 948 张 DJI 帧按来源段去重、抽 100 张双人复核坏标率、AI 预标低置信帧降级为负样本候选；
+    重建 <code>v5_2/</code>：train= v5 底集 + DJI 精标子集；val-A=DJI unseen 视频段（时间/SN 隔离）、val-B=CCTV 保持集。</li>
+  <li><span class="g">G2 · 受控续训</span>　<span class="a">验收口径：训练不早停锁死（watchdog 指标下降即停）</span><br>
+    起点 stage2/epoch20.pt；lr0=0.002、imgsz1280、close_mosaic 保持、ep60 上限；best 选择以
+    <b>val-A recall@0.15 为主、val-B mAP50 回归为约束</b>（双指标，不单看 mAP）；记录每 ep 双组曲线。</li>
+  <li><span class="g">G3 · 工作点与回归</span>　<span class="a">验收口径：conf 0.05–0.30 扫描表 + 推荐工作点</span><br>
+    在 val-A/B 上扫 conf；业务侧远烟低 conf 容忍、靠 confirmer 3 帧连续压制误报；输出 PR 表与阈值建议。</li>
+  <li><span class="g">G4 · 真机灰度</span>　<span class="a">验收口径：&ge;1 次真飞在线比对（模型告警 vs 司空回看人工判读）</span><br>
+    部署候选模型至 config 指向（保留备份），真飞窗口观察：召回/误报/时延/落库四指标对照现网 stage2。</li>
+  <li><span class="g">G5 · 决策与收尾</span>　<span class="a">验收口径：灰度达标即转正，未达标回滚</span><br>
+    达标：config 固化 + /health 正确化 + 报告留档；未达标：config 指回 stage2/旧模型，走文件级回滚（禁 ESXi 快照）。</li>
+</ol>
+
+<h2>五、冲突排查清单</h2>
+<table>
+  <tr><th style="width:22%">冲突/陷阱</th><th>现状证据</th><th>处置</th></tr>
+  <tr><td>帧级泄漏（train/val 相邻帧）</td><td>v54 的 2s/加密抽帧来自同源视频，按文件随机分拆会串</td><td>按 视频段/SN/时间窗 切分；审计 gen_v5_stage_splits.py 分拆逻辑</td></tr>
+  <tr><td>标签质量（预标坏标）</td><td>948 张 DJI 帧相当比例为 AI 预标；txt 1494 &gt; img 1369</td><td>G1 抽 100 张双人复核出坏标率；坏标降负/修正后回填</td></tr>
+  <tr><td>早停锁死（patience 陷阱）</td><td>v5 stage2 best≈ep1 锁死低点；v54/55 亦早停</td><td>best 选型改双组指标；必要时 patience 加大/固定 ep 数</td></tr>
+  <tr><td>工作点过紧</td><td>182 帧 max conf 0.122 &lt; confSmoke 0.15</td><td>E1 先低 conf 扫描；定档后真飞帧重扫</td></tr>
+  <tr><td>单类 smoke vs 三 conf 键/告警类别</td><td>stage2 为 nc=1；config 仍配 confFire/confHouse，告警/复检页含 fire/house 历史数据</td><td>部署时明确类别映射与前端兜底，不批量改历史库</td></tr>
+  <tr><td>/health 误导</td><td>L311-312 硬编码（model_path=yolov8n.onnx、version 取 env）；systemd 残留 STRAW_MODEL_VERSION=v2</td><td>改读实际 config；model_version 与模型文件 hash 关联；清 env 残留</td></tr>
+  <tr><td>detector 3 类解析残留</td><td>按 3 类解析单类 onnx，argmax 恒 smoke，confFire/confHouse 永不生效（死配置，行为=单类 smoke）</td><td>单类模型行为已一致；清理解析与注释，防误读日志/告警类别</td></tr>
+  <tr><td>夜间/低亮度</td><td>config 已有 confSmokeNight/nightBright 字段（app/main.py L118-120 支持）</td><td>新模型上线前用 P2 夜判阈值核对一次</td></tr>
+  <tr><td>输入断链反复</td><td>9/2 真飞全断；当前仅 CCTV 在线</td><td>G0 定档验收为硬 gate；考虑 straw-engine 侧 URL 故障自动告警（后续 P）</td></tr>
+  <tr><td>存储/写路径</td><td>模型/数据集全在 /video（8T），系统盘禁写</td><td>训练产物统一 /video/xunlian/runs/detect/v5_smoke_v6*/；不落系统盘、不做快照</td></tr>
+</table>
+
+<h2>六、风险与回滚</h2>
+<div class="box warn">
+<p><b>回滚原则（沿用铁律）：</b>训练产物只增不改源数据集（v5_wechat/syn/v54 只读，新建 v5_2/）；
+部署前备份 config.json + 旧 onnx 至 backups/；回滚 = config model 指回旧文件 + systemctl restart straw-engine（文件级，不做 ESXi 快照、不写系统盘）。</p>
+</div>
+<table>
+  <tr><th>风险</th><th class="num">等级</th><th>缓解</th></tr>
+  <tr><td>今日窗口无真飞 → G0/E1 延后</td><td class="num"><span class="tag t-amb">中</span></td><td>看门狗值守至 19:45；落空则下次飞行补采，段1内其他工作（标签审计/组集）不受阻</td></tr>
+  <tr><td>E1 显示 DJI 域确为硬缺口（0.05 档仍全 0）</td><td class="num"><span class="tag t-amb">中</span></td><td>属"可解释结论"：重训方向明确为真烟扩样（真飞正样本为首要来源），先采集后训</td></tr>
+  <tr><td>重训再次早停/不达标</td><td class="num"><span class="tag t-amb">中</span></td><td>双组看板早发现；不达标即停，不硬凑；保留 stage2 现网不回退</td></tr>
+  <tr><td>误伤 CCTV 域（val-B 回归下滑）</td><td class="num"><span class="tag t-red">高</span></td><td>val-B 为硬约束，下滑 &gt;3pt 即拒收；灰度期双模型并行对比</td></tr>
+  <tr><td>GPU 占用影响其他服务</td><td class="num"><span class="tag t-amb">中</span></td><td>训练与推理错峰（夜间段 22:00–08:00），单卡 3090 batch8</td></tr>
+</table>
+
+<h2>七、结论与决策点（请拍板）</h2>
+<div class="box key">
+<p><b>结论：</b>现网已是 v5 stage2 灰度（config 自 9/2 起指向，今日 12:16 重启确认），v5.2 的真问题
+不是"上不上 v5"，而是 <b>v5 至今没有一次有输入的无人机真飞评测，且 v54/55 已证明"混训"路线无效</b>。
+推荐按方案 C 两段式推进，先 G0+E1（链路/快评，只读低成本），再决定是否重训、如何组集。</p>
+</div>
+<div class="dc">
+<h4>决策点</h4>
+<ol>
+  <li><b>路线：</b>按 C（两段式，推荐）／A（照旧再训一版）／B（只修链路不动模型）？</li>
+  <li><b>E1 快评：</b>是否同意我立即执行（现网 stage2 + conf 0.05/0.10/0.15 扫 182 帧 live_review + 今日真飞帧，
+      约 1h，只读不改生产）？E1 结论直接决定段 2 是否开训。</li>
+  <li><b>DJI 帧治理口径：</b>以 v54 全量 984 帧为底做治理（快，含预标坏标风险）／重新人工整框 300–500 精标帧（纯，约 2–3 天人工）？</li>
+  <li><b>/health 修复：</b>是否随批一起上线（main.py L311-312 改读真实 config，低风险小改）？</li>
+</ol>
+</div>
+
+<footer>
+  <p class="small">本报告取证时间 2026-09-03 12:55–13:05 CST（服务器时钟）。证据来源：systemctl / config.json grep / md5sum / runs results.csv /
+  ZLM getMediaList / journalctl 摘要。相关联：#100 P0 定档验收（看门狗 /video/xunlian/p0_watch_20260903.sh 运行中，结果将落
+  /video/xunlian/p0_verify_result_20260903.txt）；#98 NameError 修复已于 12:16 重启生效。</p>
+</footer>
+</div>
+</body>
+</html>

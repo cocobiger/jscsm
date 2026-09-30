@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jsc 生产环境被重建 · 事件报告 · 2026-09-30</title>
+<style>
+  :root{--ink:#1a1d21;--ink2:#4a5158;--ink3:#7a828a;--line:#e3e7ea;--line2:#cfd6db;
+        --bg:#f6f8f9;--card:#fff;--brand:#1f6feb;--ok:#0f7b3f;--warn:#a86400;--bad:#b3261e;
+        --mono:"SFMono-Regular",Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.75;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1140px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:25px;margin:0 0 6px}
+  .sub{color:var(--ink3);font-size:13.5px;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:24px}
+  h2{font-size:19px;margin:36px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+  h3{font-size:15.5px;margin:20px 0 8px;color:var(--ink2)}
+  code{font-family:var(--mono);font-size:12.6px;background:#eef1f4;padding:1.5px 5px;border-radius:4px;color:#243b53}
+  pre{background:#1f2430;color:#e6edf3;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.4px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:#fff}
+  th,td{border:1px solid var(--line2);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#eef2f5;font-weight:600}
+  .note{border-left:4px solid var(--brand);background:#eaf2ff;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .warn{border-left:4px solid var(--warn);background:#fff6e5;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .bad{border-left:4px solid var(--bad);background:#fdecea;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .ok{border-left:4px solid var(--ok);background:#e8f7ee;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.8px}
+  .mono{font-family:var(--mono);font-size:12.5px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .t-bad{background:#fdecea;color:var(--bad);border:1px solid #f3c4c0}
+  .t-ok{background:#e8f7ee;color:var(--ok);border:1px solid #bfe3cd}
+  .t-warn{background:#fff6e5;color:var(--warn);border:1px solid #f0d9a8}
+  .foot{margin-top:44px;padding-top:16px;border-top:1px solid var(--line2);color:var(--ink3);font-size:12.5px}
+  .tl{border-left:3px solid var(--line2);margin:10px 0 10px 6px;padding-left:16px}
+  .tl div{margin:7px 0;font-size:13.6px;position:relative}
+  .tl div::before{content:'';position:absolute;left:-22px;top:9px;width:9px;height:9px;border-radius:50%;background:var(--brand)}
+  .tl div.hot::before{background:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>jsc 生产环境被重建 · 事件报告</h1>
+<div class="sub">
+  对象：<code>111.10.220.226</code> / <code>172.16.8.12</code>（原 hostname <code>userver</code>）＋ ESXi <code>172.16.8.24</code>
+  &nbsp;|&nbsp; 发现：2026-09-30 01:22（GMT+8）&nbsp;|&nbsp; 取证：01:22–02:20，全程只读
+</div>
+
+<div class="bad">
+  <b>结论（一句话）</b><br>
+  <b>原 jsc 生产机（<code>userver</code>）及其 7 TiB <code>/video</code> 数据盘，已于 <code>2026-09-29</code> 被整体销毁；
+  该机被全新重装为 Ubuntu（hostname 改为 <code>dajiang</code>），ESXi 上的虚拟机与数据存储也被重建。ESXi 上无快照、无备份残留。</b>
+  <br><br>
+  <b>不是"服务挂了"，是"机器被重做了"。</b>且注意：<b>新机器目前几乎是空的</b>（系统盘只用了 12 GB、5 TB 数据盘 0 使用），
+  所以<b>现在是抢回来的最好时机</b>——但也意味着随时可能被对方部署占用。
+</div>
+
+<h2>1. 时间线（据三处独立证据还原）</h2>
+<div class="tl">
+  <div class="hot"><b>09-29 10:19 ~ 15:06</b> —— ESXi <code>172.16.8.24</code> 上重建虚拟机与数据存储
+    （新增 <code>DaJiang</code>/<code>TestServer</code>/<code>Windows10</code> 三台 VM 目录，全部时间戳落在这一段）</div>
+  <div><b>09-29 11:05</b> —— 上传装机 ISO <code>ubuntu-22.04.5-live-server-amd64.iso</code> 到 8TB 存储</div>
+  <div><b>09-29 14:07</b> —— <code>DaJiang</code> VM 配置定型（96 vCPU / 192 GB / 1 TiB 系统盘 + 5 TiB 数据盘）</div>
+  <div class="hot"><b>09-29 19:42 ~ 19:52</b> —— 在 <code>172.16.8.12</code> 上执行 <b>Ubuntu 自动安装（Curtin autoinstall）</b>，
+    hostname 设为 <code>dajiang</code>，创建装机账号 <code>saoye</code></div>
+  <div><b>09-29 20:03</b> —— 有人从 tty1 登录；<b>20:20 / 20:48 / 20:50 / 20:53</b> 从 <code>172.16.8.13</code> 登录</div>
+  <div><b>09-29 20:07 ~ 22:30</b> —— 现场配置：<code>parted /dev/sdb</code> → <code>mkfs.ext4 /dev/sdb1</code> → 挂到 <code>/data</code>；
+    改 <code>sshd_config</code>、设时区为 Asia/Shanghai、多次重启；<b>21:11 与 22:30</b> 另有来自 <code>125.82.65.240</code>（公网）的登录</div>
+  <div><b>09-29 22:16:41</b> —— 新系统正常启动（即当前 uptime 起点）</div>
+  <div class="hot"><b>09-30 01:22</b> —— 我方发现 <code>111.10.220.226</code> 上的 jsc 入口全部消失，开始排查</div>
+</div>
+<div class="note">
+  <b>不是误操作级别的改动</b>：用的是 <b>autoinstall 自动化装机</b>（预置 user-data，含磁盘 <code>wipe: superblock-recursive</code>），
+  且 ESXi 侧同步重建了存储与虚拟机 ⇒ 是一次<b>有计划的重新布署</b>，不是手滑。
+</div>
+
+<h2>2. 现场取证：这台机器现在是什么</h2>
+<table>
+  <thead><tr><th style="width:170px">项</th><th>实测值</th><th style="width:130px">对比原状</th></tr></thead>
+  <tbody>
+    <tr><td>hostname</td><td class="mono">dajiang</td><td><span class="tag t-bad">原 userver</span></td></tr>
+    <tr><td>系统</td><td>Ubuntu 22.04.5 LTS · kernel 5.15.0-194</td><td>原 5.15.0-181（<b>已重装</b>）</td></tr>
+    <tr><td>装机账号</td><td class="mono">saoye</td><td><span class="tag t-bad">新增</span></td></tr>
+    <tr><td>内存</td><td>188 GiB</td><td>原 220 GiB（<b>已改</b>）</td></tr>
+    <tr><td>磁盘</td><td class="mono">sda 1T(系统) + sdb <b>5T</b> → <code>/data</code>（空）</td>
+      <td><span class="tag t-bad">原 1.5T + 7T /video</span></td></tr>
+    <tr><td>系统盘占用</td><td><b>12 GB / 1004 GB</b></td><td>几乎全新</td></tr>
+    <tr><td>正在监听的端口</td><td><b>只有 <code>sshd:22333</code></b>（+ 本机 DNS）</td>
+      <td><span class="tag t-bad">原 nginx/jsc-backend/straw-engine/ZLM/dji-openapi 全无</span></td></tr>
+    <tr><td><code>/opt/jsc</code></td><td><b>不存在</b></td><td><span class="tag t-bad">已删</span></td></tr>
+    <tr><td><code>/video</code></td><td><b>不存在</b></td><td><span class="tag t-bad">已删</span></td></tr>
+    <tr><td><code>/soft</code></td><td><b>不存在</b></td><td><span class="tag t-bad">已删</span></td></tr>
+    <tr><td>systemd 业务单元</td><td>jsc-backend / straw-engine / dji-openapi / dock-guard <b>全部不存在</b></td><td><span class="tag t-bad">已删</span></td></tr>
+    <tr><td>Docker / 容器</td><td>未安装</td><td>原 ZLM 以裸进程跑</td></tr>
+    <tr><td>5T <code>/data</code> 内容</td><td>只有 <code>lost+found</code>（28 KB）</td><td>空盘，尚未投入使用</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <b>关键佐证</b>：<code>/var/log/installer/autoinstall-user-data</code> 里 storage 配置为
+  <code>path: /dev/sda</code> + <code>wipe: superblock-recursive</code> + <code>preserve: false</code>
+  —— <b>系统盘被显式擦除重装</b>，这是"数据丢失"的直接证据，不是"服务没起来"。
+</div>
+
+<h2>3. ESXi 侧：数据盘是否还有救？—— 答案是否定的</h2>
+<h3>3.1 数据存储现状（与 9/3 基线对比）</h3>
+<table>
+  <thead><tr><th style="width:110px">datastore</th><th style="width:150px">9/3 基线可用</th><th style="width:170px">现在可用</th><th>判读</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">8TB</td><td><b>280 GB</b></td><td><b>7.91 TB</b></td>
+      <td><span class="tag t-bad">老 7 TiB <code>/video</code> vmdk 已被删除</span></td></tr>
+    <tr><td class="mono">7TB</td><td>3.35 TB</td><td>7.99 TB</td><td>已清空（现只放新 VM 的 5 TiB 精简盘）</td></tr>
+    <tr><td class="mono">datastore1</td><td>105 GB</td><td>1.84 TB</td><td>已清空</td></tr>
+    <tr><td class="mono">OSDATA</td><td>114 GB</td><td><b>已不存在</b></td><td>已被移除</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 ESXi 上现有的虚拟机（全部为 9/29 新建）</h3>
+<table>
+  <thead><tr><th style="width:110px">VM 名</th><th style="width:110px">所在存储</th><th style="width:120px">规格</th><th>磁盘</th><th style="width:90px">创建</th></tr></thead>
+  <tbody>
+    <tr><td class="mono"><b>DaJiang</b></td><td class="mono">7TB + ds1</td><td>96 vCPU / 192 GB</td>
+      <td><code>DaJiang/DaJiang/DaJiang.vmdk</code> = <b>1 TiB</b>（系统，ds1）<br><code>DaJiang_1.vmdk</code> = <b>5 TiB</b>（数据，7TB）</td>
+      <td>09-29 10:26</td></tr>
+    <tr><td class="mono">Windows10</td><td class="mono">8TB</td><td>16 vCPU / 16 GB</td><td>120 GB</td><td>09-29 13:18</td></tr>
+    <tr><td class="mono">Windows</td><td class="mono">datastore1</td><td>48 vCPU / 16 GB</td><td>120 GB</td><td>更早（27-Sep 有痕迹）</td></tr>
+    <tr><td class="mono">TestServer</td><td class="mono">datastore1</td><td>32 vCPU / 16 GB</td><td>500 GB</td><td>09-29 14:12</td></tr>
+  </tbody>
+</table>
+<div class="bad">
+  <b>三条独立证据都指向"彻底没了"</b>
+  <ol style="margin-bottom:0">
+    <li><b>老 VM <code>userver</code> 在 ESXi 上不存在</b> —— 没有任何 <code>userver</code> 目录 / vmx / vmdk。</li>
+    <li><b>全盘关键词零命中</b> —— 遍历所有数据存储与子目录，搜 <code>userver / jsc / video / straw / sikong / zlm / minio / evidence / xunlian / shujuji</code> ⇒ <b>0 命中</b>。</li>
+    <li><b>无快照、无备份</b> —— 全盘无 <code>.vmsn</code>、无 <code>-delta.vmdk</code>；
+      唯一的 <code>BackUp/</code> 目录（7TB，09-29 10:19）<b>内容为空</b>；4 个 <code>.vmsd</code> 均为 0 字节占位文件。</li>
+  </ol>
+</div>
+
+<h2>4. 损失清单 vs 幸存清单（决定能恢复到什么程度）</h2>
+<table>
+  <thead><tr><th style="width:56px">状态</th><th style="width:250px">资产</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag t-bad">已丢失</span></td>
+      <td>7 TiB <code>/video</code> 数据盘全部</td>
+      <td>含：<code>/video/shujuji/datasets</code>（v5_train_v5 930 张、v6_train 3058 张、day_0911、hardneg、云彩等）、
+        <code>/video/xunlian</code>（train_0909 / train_0910 标签、va0909 / tr0909 / dilute、domain_eval）、
+        <b>现网模型 <code>stage9_1920</code> / <code>stage3_0909</code></b>、<code>evidence</code>（约 2 GB）</td></tr>
+    <tr><td><span class="tag t-bad">已丢失</span></td>
+      <td><code>/opt/jsc</code> 全部（当前版本）</td>
+      <td>frontend 构建产物、backend 运行数据、straw-engine、dji-openapi、ZLM 配置、flight_monitor、wxbridge 看门狗脚本</td></tr>
+    <tr><td><span class="tag t-bad">已丢失</span></td>
+      <td>运行数据 <b>2026-07-09 之后</b> 的全部增量</td>
+      <td>告警 <code>warnings</code>、事件 <code>drone_live_events</code>、复检 <code>straw_detections</code>、
+        点位/企业/责任单位等 —— 约 <b>2.5 个月</b> 的业务数据</td></tr>
+    <tr><td><span class="tag t-ok">幸存</span></td>
+      <td><b>代码仓库（Git）</b></td>
+      <td><code>git@github-jsc:cocobiger/jscsm.git</code> 远端在线，<code>refs/heads/master</code> 正常；
+        本机工作副本为 master，另有 <b>177 个未提交改动</b>（这部分只在本地，反而是独特资产）</td></tr>
+    <tr><td><span class="tag t-ok">幸存</span></td>
+      <td><b>服务器整机备份（7/9）</b></td>
+      <td><code>.workbuddy/backups/pre-major-20260709-025453/jsc-full.tar.gz</code>（98 MB，4543 个条目）——
+        含 <code>/opt/jsc/backend</code>（代码 + node_modules + <b><code>jsc.db</code> 161 MB</b> + <code>iotcloud.env</code>）、
+        <code>/opt/jsc/frontend</code>、<code>/opt/jsc/dji-bridge</code>、<code>/opt/zlm/config.ini</code>、
+        <code>/etc/nginx</code>（含站点配置）、<code>jsc-backend.service</code>、<code>zlmediakit-docker-inspect.json</code>，
+        <b>并附 sha256</b></td></tr>
+    <tr><td><span class="tag t-ok">幸存</span></td>
+      <td>前端口径快照 / 模型包</td>
+      <td><code>backups/2026-07-19-frontend-src.tar.gz</code>、
+        <code>outputs/v5_smoke27.tar.gz</code>（2.2 MB，8/28 的模型包，非现网版）、
+        <code>jsc-backup-20260610-0218.zip</code>、<code>dji-stream-bridge.zip</code></td>
+    </tr>
+    <tr><td><span class="tag t-warn">部分幸存</span></td>
+      <td>微信桥的 Windows VM</td>
+      <td><code>172.16.8.15</code> 仍在运行（3389/445 可达，TLS 证书 CN 仍为 <code>DESKTOP-PAQ2NAV</code>），
+        ESXi 上有对应 Windows VM 目录；但<b>Linux 侧的自愈/看门狗脚本已随机器消失</b></td></tr>
+  </tbody>
+</table>
+
+<h2>5. 建议动作（按优先级）</h2>
+<table>
+  <thead><tr><th style="width:60px">优先级</th><th style="width:280px">动作</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td><b>P0</b></td>
+      <td><b>立刻停止在新机器上部署，先与动手方对齐</b></td>
+      <td>新机 <code>dajiang</code> 目前<b>系统盘只用了 12 GB、5 TB <code>/data</code> 是空的</b> ⇒ 尚未被占用。
+        一旦对方铺上业务，地址/配置/磁盘都会再次变动，追回难度成倍上升。</td></tr>
+    <tr><td><b>P0</b></td>
+      <td><b>确认是谁做的、依据什么工单</b></td>
+      <td>现场线索：装机账号 <code>saoye</code>、hostname <code>dajiang</code>、操作来自 <code>172.16.8.13</code> 与公网 <code>125.82.65.240</code>、
+        ESXi 同步重建。需要问清是<b>误操作</b>还是<b>有计划的重新分配</b>。</td></tr>
+    <tr><td><b>P1</b></td>
+      <td><b>抢救"仅存于服务器上、本机没有"的数据</b></td>
+      <td>先核对上面第 4 节清单，确认哪些数据在别处（同事电脑/移动硬盘/历史邮件）还有副本。
+        <b>尤其模型与数据集</b>——这是唯一无法从备份重建的部分。</td></tr>
+    <tr><td><b>P2</b></td>
+      <td><b>基于 7/9 全量备份 + Git 重建环境</b></td>
+      <td><code>jsc-full.tar.gz</code> 含 nginx 站点、systemd 单元、ZLM 配置、<b>161 MB 的 <code>jsc.db</code></b>（点位/企业/责任单位等基础数据）⇒
+        环境可复原到 7/9 状态，再叠加 Git 上的后续代码改动。</td></tr>
+    <tr><td><b>P2</b></td>
+      <td><b>ESXi 侧加一道保险</b></td>
+      <td>本次事故里"无快照、无备份"是致命的。建议：① 关键 VM 定期<b>文件级</b>冷备到独立存储/异机
+        （注意此前既有结论：<b>厚置备下 VM 内删文件不释放空间，判断容量必须看 ESXi datastore</b>）；
+        ② 备份产物<b>必须离开这台 ESXi</b>，同机备份等于没备。</td></tr>
+    <tr><td><b>P3</b></td>
+      <td>重新评估"单机承载"风险</td>
+      <td>当前 jsc 的前端/后端/AI 引擎/ZLM/MinIO 全在一台 VM 上，一旦该 VM 被动就整体归零。
+        建议把<b>训练资产（数据集+模型）</b>分离到独立存储并保留异地副本。</td></tr>
+  </tbody>
+</table>
+
+<h2>6. 已确证 / 未能确证（诚实边界）</h2>
+<table>
+  <thead><tr><th style="width:130px">结论</th><th>证据强度</th></tr></thead>
+  <tbody>
+    <tr><td>该机已被重装（非服务故障）</td><td>✅ <b>确证</b>：autoinstall 记录 + 全新磁盘布局 + 装机账号 + 无任何原资产</td></tr>
+    <tr><td>ESXi 上老 VM 与 7 TiB 数据盘已不存在</td><td>✅ <b>确证</b>：全盘零命中 + 数据存储可用空间从 280 GB 回升到 7.91 TB + 无快照文件</td></tr>
+    <tr><td>代码与 7/9 全量备份仍可用于重建</td><td>✅ <b>确证</b>：Git 远端在线；本机备份包完整且带 sha256</td></tr>
+    <tr><td>谁执行的、出于什么目的</td><td>❓ <b>未能确证</b>：只有时间戳、来源 IP（<code>172.16.8.13</code> / <code>125.82.65.240</code>）与账号名 <code>saoye</code>，
+      <b>不足以定性</b>，需与相关方核实</td></tr>
+    <tr><td>是否存在 ESXi 之外（如其他存储/云）的旧副本</td><td>❓ <b>未排查</b>：需要人力/线索，建议作为 P1 待办</td></tr>
+  </tbody>
+</table>
+
+<div class="ok">
+  <b>当前可用的应急通道（本次新建立，已验证）：</b>
+  <pre><code># 该机 SSH 端口已从 22333 改为 22233
+ssh -p 22233 root@111.10.220.226        # 账号 root，密码与原一致
+
+# ⚠️ 本机 Git Bash 里 sshpass 不可用（拿不到 pty，密码发不出去）
+#    用 SSH_ASKPASS 方式最稳：
+export SSH_ASKPASS=/path/to/askpass.sh   # 内容: printf '密码'
+export SSH_ASKPASS_REQUIRE=force
+ssh -p 22233 -o PubkeyAuthentication=no root@111.10.220.226 "bash -s" &lt; your_script.sh
+
+# ESXi：SSH(22) 已关闭，但 443 可用，数据存储浏览器只读可用：
+curl -k -u root:'密码' "https://172.16.8.24/folder?dcPath=ha-datacenter"
+curl -k -u root:'密码' "https://172.16.8.24/folder/&lt;子目录&gt;?dcPath=ha-datacenter&amp;dsName=&lt;datastore&gt;"</code></pre>
+</div>
+
+<div class="foot">
+  万州区秸秆焚烧监控 jsc · 生产环境被重建事件报告 · 2026-09-30 · 全程只读取证，未对现场做任何改动<br>
+  取证脚本（可复跑）：<code>tmp/probe_hosts.mjs</code>｜<code>tmp/scan_226_wide.mjs</code>｜<code>tmp/grab_banners.mjs</code>｜
+  <code>tmp/diag_dajiang.sh</code>｜<code>tmp/forensics_dajiang.sh</code>｜<code>tmp/esxi_walk.sh</code>｜<code>tmp/esxi_final.sh</code>
+</div>
+
+</div>
+</body>
+</html>

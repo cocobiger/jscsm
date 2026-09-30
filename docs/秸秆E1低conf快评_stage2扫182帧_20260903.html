@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E1 低置信快评报告 · 现网 stage2 扫 DJI live_review 182 帧 · 2026-09-03</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --line:#e5e7eb; --text:#1f2937; --sub:#6b7280;
+    --red:#dc2626; --green:#059669; --amber:#d97706; --blue:#2563eb;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;font-size:14px}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 20px 60px}
+  .head{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border-radius:12px;padding:26px 30px;margin-bottom:22px}
+  .head h1{font-size:21px;font-weight:600;margin-bottom:6px}
+  .head .sub{font-size:13px;opacity:.85}
+  .head .badges{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);padding:3px 12px;border-radius:20px;font-size:12px}
+  .verdict{background:#fff7ed;border:1px solid #fdba74;border-left:5px solid var(--amber);border-radius:10px;padding:16px 20px;margin-bottom:20px}
+  .verdict b{color:var(--amber)}
+  .verdict.done{background:#ecfdf5;border-color:#6ee7b7;border-left-color:var(--green)}
+  .verdict.done b{color:var(--green)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 24px;margin-bottom:18px}
+  .card h2{font-size:16px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .card h2 .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f3f4f6;font-weight:600;white-space:nowrap}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  .red{color:var(--red);font-weight:600}
+  .green{color:var(--green);font-weight:600}
+  .amber{color:var(--amber);font-weight:600}
+  .blue{color:var(--blue);font-weight:600}
+  .big{font-size:22px;font-weight:700}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:12px;color:var(--sub);margin-top:2px}
+  .note{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px 16px;font-size:12.5px;color:var(--sub);margin-top:12px}
+  .mono{font-family:Consolas,Menlo,monospace;font-size:12px;background:#f3f4f6;padding:1px 6px;border-radius:4px}
+  ul,ol{padding-left:22px}
+  li{margin:4px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .ok{color:var(--green)} .no{color:var(--red)}
+  .footer{color:var(--sub);font-size:12px;text-align:center;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="head">
+  <h1>E1 低置信快评：现网 stage2 重扫 DJI live_review 182 帧</h1>
+  <div class="sub">v5.2 方案 C 两段式 · 段1 决策 gate ① · 只读评测（不改生产） · 报告时间 2026-09-03 14:15 CST</div>
+  <div class="badges">
+    <span class="badge">模型：v5_smoke_v5/stage2 best.onnx（现网生产实载）</span>
+    <span class="badge">素材：live_review 182 帧 DJI 域真烟</span>
+    <span class="badge">三档 conf：0.05 / 0.10 / 0.15</span>
+    <span class="badge">判定：域缺口实锤（非工作点锁死）</span>
+  </div>
+</div>
+
+<div class="verdict done">
+  <b>✅ 决策结论：进入段2 续训路线</b> —— E1 排除「工作点锁死」假设：把阈值从生产 0.15 一路降到 0.05，
+  182 帧中仅 8 帧出现响应且 <b>无一命中人工真值烟框（IoU≥0.3 命中恒 0）</b>；8 个弱响应全部位于画面左下/边缘的固定位置（背景误检），
+  并非对真烟的可定位响应。降阈值救不回 DJI 域 —— <b>段2 必须走「DJI 真烟标签治理 + epoch20.pt 续训」</b>（用户已拍板：v54 全量 984 帧治理）。
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="v red">0</div><div class="l">@conf 0.15（生产档）检出帧</div></div>
+  <div class="kpi"><div class="v amber">2</div><div class="l">@conf 0.10 检出帧</div></div>
+  <div class="kpi"><div class="v">8</div><div class="l">@conf 0.05 检出帧</div></div>
+  <div class="kpi"><div class="v red">0 / 182</div><div class="l">IoU≥0.3 命中真值（三档恒 0）</div></div>
+  <div class="kpi"><div class="v">0.1222</div><div class="l">全帧最高 max conf</div></div>
+  <div class="kpi"><div class="v green">182 / 182</div><div class="l">GT 非空（288 烟框，无空标签干扰）</div></div>
+</div>
+
+<div class="card">
+  <h2><span class="n">1</span>背景与目的</h2>
+  <ul>
+    <li><b>背景</b>：v5 stage2 灰度 24h 对 DJI 域 0 告警，前序离线抽测 182 帧全 0、max conf 0.122，疑似「模型无响应」或「0.15 阈值把微弱响应整体压掉」二选一。</li>
+    <li><b>目的</b>：用现网生产实载的 stage2 best.onnx，以低 conf（0.05/0.10/0.15）重扫 182 帧 DJI live_review，判定到底是 <span class="amber">工作点锁死（调阈值可救）</span> 还是 <span class="red">域缺口（必须重训）</span> —— 这是段2 是否开训、往哪个方向训的决策 gate。</li>
+    <li><b>约束</b>：只读不改生产；与生产 worker 完全一致的推理口径（Detector / format=yolo / input_size=1280 / 与 config.json confSmoke=0.15 对齐）。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>素材与方法</h2>
+  <table>
+    <tr><th style="width:130px">项</th><th>内容</th></tr>
+    <tr><td>素材目录</td><td class="mono">/video/shujuji/datasets/v5_train_v5/images/live_review/</td></tr>
+    <tr><td>帧数 / 来源</td><td>182 帧 DJI 域真烟帧（3 台无人机：1581F8HGX253U00A064U ×80 / 1581F8HGX258600A0S4G ×70 / 1581F8HGX258600A0S4J ×32；2026-08-31 直播镜像抽帧 1280×720 / 960×720）</td></tr>
+    <tr><td>真值</td><td class="mono">labels/live_review/</span> 同名 txt —— <b>182/182 非空、共 288 个烟框</b>（cls=0 smoke，含部分 AI 预标，审计口径见 §5）</td></tr>
+    <tr><td>模型</td><td class="mono">/video/xunlian/runs/detect/v5_smoke_v5/stage2/weights/best.onnx</span>（现网 config.json L102 实载，YOLO11m / 1280 / 单类 smoke）</td></tr>
+    <tr><td>扫描档位</td><td>conf_smoke = 0.05 / 0.10 / 0.15 三档遍历 + 0.001 原始响应收集；生产实例（conf_smoke=0.15）独立复跑对照</td></tr>
+    <tr><td>命中判定</td><td>任一检出框与任一 GT 框 IoU ≥ 0.3（与 gate_ab.py 同口径）→ 记该帧「命中真烟」</td></tr>
+    <tr><td>推理环境</td><td>venv python + onnxruntime 1.23.2，shell 环境 CUDA lib 缺失自动回退 CPU（权重一致不影响检出结论；生产服务内为 CUDA），182×2 实例 ≈ 267s</td></tr>
+  </table>
+  <div class="note">产物：<span class="mono">/video/xunlian/e1_scan_20260903.py</span>（可复用扫描器）+ <span class="mono">e1_result_20260903/e1_live_review182_{summary,perframe}.json</span></div>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>结果：三档检出与真值命中</h2>
+  <table>
+    <tr><th>conf 档位</th><th class="num">检出帧数 /182</th><th class="num">检出帧占比</th><th class="num">IoU≥0.3 命中真烟帧</th><th>解读</th></tr>
+    <tr><td><b>0.15（生产档）</b></td><td class="num red">0</td><td class="num">0%</td><td class="num red">0</td><td>复现灰度 24h 0 告警；max conf 0.1222 &lt; 0.15 全部被压</td></tr>
+    <tr><td><b>0.10</b></td><td class="num amber">2</td><td class="num">1.1%</td><td class="num red">0</td><td>2 帧出现弱响应（0.1222 / 0.1061），均不在真烟框上</td></tr>
+    <tr><td><b>0.05</b></td><td class="num">8</td><td class="num">4.4%</td><td class="num red">0</td><td>响应扩到 8 帧，<b>无一命中真值</b> → 是背景响应非烟响应</td></tr>
+    <tr><td>0.001（原始）</td><td class="num">182 全帧</td><td class="num">100%</td><td class="num">—</td><td>全帧 max conf 分布：&ge;0.05 仅 8 帧，top10 = 0.1222→0.0469（长尾极弱）</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;margin:16px 0 8px">全帧 max conf 分布（182 帧降序前 12）</h3>
+  <table>
+    <tr><th>#</th><th>max conf</th><th>帧（无人机 / 时段）</th><th>该档下检出</th></tr>
+    <tr><td>1</td><td class="num">0.1222</td><td class="mono">S4G_20260831_10-41-07 f00141</td><td>@0.10 命中（误检）</td></tr>
+    <tr><td>2</td><td class="num">0.1061</td><td class="mono">S4G_20260831_10-41-07 f00142</td><td>@0.10 命中（误检）</td></tr>
+    <tr><td>3</td><td class="num">0.0925</td><td class="mono">S4G_20260831_10-41-07 f00148</td><td>@0.05 命中（误检）</td></tr>
+    <tr><td>4</td><td class="num">0.0754</td><td class="mono">S4G_20260831_10-41-07 f00140</td><td>@0.05 命中（误检）</td></tr>
+    <tr><td>5–8</td><td class="num">0.058 / 0.054 / 0.054 / 0.053</td><td class="mono">064U / S4J 各时段</td><td>@0.05 命中（误检）</td></tr>
+    <tr><td>9–12</td><td class="num">0.049 / 0.047 / 0.044 / 0.041</td><td>其余</td><td>低于 0.05 档，无检出</td></tr>
+  </table>
+  <div class="note">注意 0.10 档的 2 帧与 0.05 档的 8 帧<b>全部为「检出但 IoU 未命中」</b> —— 见下节坐标对照，这些响应不在任何人工真值烟框附近。</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>关键证据：弱响应的空间分布 = 背景误检，非烟响应</h2>
+  <p style="margin-bottom:10px">对 8 个「@0.05 有检出」的帧逐帧提取检出框坐标与 GT 烟框坐标对照（原图像素坐标）：</p>
+  <table>
+    <tr><th>帧</th><th>检出框 @conf≥0.05</th><th>GT 真值烟框（首个）</th><th>判定</th></tr>
+    <tr><td class="mono">S4G 10-41-07 f00141</td><td class="num mono">(170,516)-(194,526)</td><td class="num mono">(743,335)-(813,374)</td><td class="no">左下边缘 vs 中上部 → 位置不符</td></tr>
+    <tr><td class="mono">S4G 10-41-07 f00142</td><td class="num mono">(161,517)-(187,528)</td><td class="num mono">(737,341)-(803,377)</td><td class="no">同左（连续帧同一误检点）</td></tr>
+    <tr><td class="mono">S4G 10-41-07 f00148</td><td class="num mono">(1166,416)-(1210,432)</td><td class="num mono">(305,487)-(417,571)</td><td class="no">右侧边缘 vs 左中 → 不符</td></tr>
+    <tr><td class="mono">S4G 10-41-07 f00140</td><td class="num mono">(177,516)-(201,526)</td><td class="num mono">(753,337)-(820,374)</td><td class="no">同 f00141 误检点</td></tr>
+    <tr><td class="mono">064U 10-54-30 f00050</td><td class="num mono">(139,391)-(357,537)</td><td class="num mono">(138,174)-(474,349)</td><td class="no">下半屏 vs 上半屏 → 不符</td></tr>
+    <tr><td class="mono">S4J 10-08-59 f00060</td><td class="num mono">(136,150)-(339,285)</td><td class="num mono">(-43,86)-(351,346) 大框</td><td class="no">部分重叠但 IoU&lt;0.3 且框偏移</td></tr>
+    <tr><td class="mono">064U 10-54-30 f00049</td><td class="num mono">(149,395)-(341,533)</td><td class="num mono">(274,190)-(508,322)</td><td class="no">下半 vs 上中 → 不符</td></tr>
+    <tr><td class="mono">064U 10-54-30 f00048</td><td class="num mono">(335,421)-(573,579)</td><td class="num mono">(474,230)-(695,358)</td><td class="no">下半 vs 上中 → 不符</td></tr>
+  </table>
+  <div class="note">
+    <b>模式识别</b>：S4G 10-41-07 连续帧在画面左下 (≈170,516) 同一位置反复触发 ~0.10-0.12 弱响应（f00140/141/142 三连）——典型<b>固定背景模式误检</b>（如田埂/树影/建筑边缘），
+    而非对动态烟羽的响应。全帧最高仅 0.1222，说明 stage2 对 DJI 域烟目标的特征响应<b>整体缺失</b>，阈值降到 0.05 也只释放背景噪声。
+  </div>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>结论与局限</h2>
+  <table>
+    <tr><th style="width:180px">判定维度</th><th>结论</th></tr>
+    <tr><td><b>工作点锁死？</b></td><td class="no">排除 —— 若仅是阈值问题，降到 0.05 后应出现对真值框的命中；实际 IoU≥0.3 命中恒 0（三档一致）。</td></tr>
+    <tr><td><b>域缺口？</b></td><td class="red"><b>实锤</b> —— 182 帧 DJI 真烟帧对 stage2 无可定位响应；弱响应为固定位置背景误检，非烟。</td></tr>
+    <tr><td><b>降阈值可救？</b></td><td class="no">不可救 —— 0.05 档 8 帧响应无一命中真值，救回的是误报不是召回。</td></tr>
+    <tr><td><b>段2 决策</b></td><td class="green">开训方向明确：DJI 真烟标签治理（v54 全量 984 帧人工治理，用户已拍板）→ stage2 epoch20.pt 续训（lr0=0.002）→ 双组 val 验收。</td></tr>
+  </table>
+
+  <h3 style="font-size:14px;margin:16px 0 8px">局限与风险（诚实标注）</h3>
+  <ol>
+    <li><b>GT 标签质量</b>：live_review 182 帧标签含 AI 预标成分（epoch20 预标 #53 时代产物），未经逐帧人工复核 —— 但即使标签有 ±10% 偏移，8 个检出框与其 GT 的质心距离都在数百像素量级，不影响「无命中」结论。</li>
+    <li><b>域内覆盖面</b>：182 帧来自 2026-08-31 单日 3 机直播抽帧，时段/场景/距离分布有限；「远烟小目标」（30-130px）与「近烟大目标」均有覆盖但非均衡 —— 段1 DJI 标签审计（100 张 + v54 984 治理）会补全。</li>
+    <li><b>推理后端</b>：E1 在 shell 环境无 CUDA lib 自动回退 CPU（onnxruntime 特性），权重与生产一致不影响结论；生产服务内确认 CUDAExecutionProvider。</li>
+    <li><b>今日真飞帧</b>：14:09 起已挂 <span class="mono">e1_fly_watch_20260903.sh</span> 静默值守（至 19:45），一旦 ZLM 出现 sikong_ 镜像流即自动抽帧 40 张并跑同款三档扫描，结果落 <span class="mono">e1_fly_frames_&lt;ts&gt;/ + e1_result_20260903/e1_fly_*.json</span> —— 若窗口内无飞行则跳过（9/3 13-19h 窗口进行中，目前 14:15 尚未见流）。</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>关联状态与下一步</h2>
+  <table>
+    <tr><th style="width:240px">事项</th><th>状态</th></tr>
+    <tr><td>#102 E1 快评（182 帧离线部分）</td><td class="green">✅ 完成（本报告）</td></tr>
+    <tr><td>#102 E1 真飞帧补扫</td><td class="amber">⏳ e1_fly_watch 值守中（13-19h 窗口）</td></tr>
+    <tr><td>#100 P0 定档验收看门狗</td><td class="amber">⏳ p0_watch_20260903.sh 值守中（同样等今日飞行）</td></tr>
+    <tr><td>#103 /health + detector 残留修复</td><td class="green">✅ 随批上线完成（14:08 restart，/health 已真实化：nc=1/classes=[smoke]/model_path 实载，env 残留 v2 已清）</td></tr>
+    <tr><td>段1 G0 链路 / P0 验收</td><td class="amber">⏳ 等今日飞行窗口（P0 定档 + E1 真飞帧共用一次飞行）</td></tr>
+    <tr><td>段1 DJI 标签审计 + 双组 val 重建</td><td class="amber">⏳ v54 全量 984 帧治理口径已定（用户拍板），可并行启动</td></tr>
+  </table>
+  <div class="note">
+    <b>建议下一步（供拍板）</b>：① v54 984 帧治理可立即开工（不依赖飞行窗口，纯标注工作）；② 今日飞行若出现，一次起飞同时完成 P0 定档验收 + E1 真飞帧补扫两项 gate；③ 治理完成 + 双组 val 就绪后启动段2 续训（epoch20.pt + lr0=0.002）。
+  </div>
+</div>
+
+<div class="footer">E1 快评 · 秸秆 v5.2 段1 决策 gate · 2026-09-03 · 数据源：/video/xunlian/e1_result_20260903/</div>
+</div>
+</body>
+</html>

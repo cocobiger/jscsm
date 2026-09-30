@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="TBPsQU9dD2PXyoxRq8N62w">
+<head data-page-node-id="LAtuSWVZj4Ge7Vl0TfCbCy">
+<meta charset="UTF-8" data-page-node-id="3FP2CaFlajdVGGQXG1Q8rl">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="M0O0CgY8S8fHHG6loXMLhY">
+<title>无人机弹窗未出现 · 排查 + UX 评估 + 排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .gantt{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .gantt-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .gantt-name{width:220px;flex-shrink:0;color:var(--ink)}
+  .gantt-bar{height:18px;border-radius:3px;background:var(--blue);color:#fff;font-size:11px;line-height:18px;padding:0 8px;white-space:nowrap}
+  .gantt-bar.warn{background:var(--amber)}.gantt-bar.red{background:var(--red)}
+</style>
+</head>
+<body data-page-node-id="t5OW0mktwlT5siEPIYgQ1y">
+<div class="page" data-page-node-id="UHnfeiIyFx9KK4VHmSa5Ih">
+
+<div class="doc-head" data-page-node-id="IEHkGLn1JZW2tAODH6xw82">
+  <div class="org" data-page-node-id="EZY8hzG3RXfA9giC8lAcgn">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="umYBcjlyLimjxWM9bdj8qr">无人机弹窗未出现 · 排查 + UX 评估 + 排期</div>
+  <div class="subtitle" data-page-node-id="YBwH020F1m9GAgOKkDcDhu">—— 三峡学院无人机起飞后前端无弹窗拉流</div>
+  <div class="meta" data-page-node-id="sGmxZtFdWH4Nhqw0VjRSJ9"><span data-page-node-id="B81HcwU2fOCIZciYoKdCYQ">编制时间：2026-09-08</span><span data-page-node-id="pAadGnauQ8YrjIC7QqyxVQ">排查方式：日志 + DB + OSD + ZLM 四层交叉</span><span data-page-node-id="mAKzHHSiyyf5GE7bZvgFvy">性质：根因定位 + UX + 排期</span></div>
+</div>
+
+<h2 data-page-node-id="iJYbGm55ECI9x3XmWCQmq8">一、排查结论（根因）</h2>
+<div class="box green" data-page-node-id="8T39DHmvPi1Prg1MiK2fU4">
+  <p data-page-node-id="bNYCTJHE5dMPi37gHGAU2T"><b data-page-node-id="7f9f3G6VDHDd3UQpEnhRiG">根因：三峡学院无人机并未真正起飞，司空没有推送 LIVE_ON 直播事件，所以整条弹窗链路没有触发。</b></p>
+  <p data-page-node-id="t2qMEYtDwjUBnIKbisgEhY">这不是代码 bug，而是"无人机状态"与"用户感知"的错位。</p>
+</div>
+
+<h3 data-page-node-id="pYH2CabEuC7S8a0wEDBZGy">1.1 四层证据链（逐层排查）</h3>
+<table data-page-node-id="cxhIKH3jP8xANEr8ZgH2hy">
+  <tr data-page-node-id="pfSSrqXZXbI9UZlbwRC9cX"><th style="width:22%" data-page-node-id="3esj2bobJB0aMn4N3U755M">层</th><th style="width:42%" data-page-node-id="UliaFby7bcgWUjbjHPrBGt">实测</th><th data-page-node-id="nrLJuDFkXoTZDUXBY4jUey">结论</th></tr>
+  <tr data-page-node-id="KOfR7cm2gH0OD5mnEmoiQz"><td data-page-node-id="ielFU06XTweATu5kD9EDdX">司空 OSD（源）</td><td data-page-node-id="AM29t88wI6r5YcGZW0HUVq">三峡学院 OSD：<code data-page-node-id="L3eDZVSPFVAnUazyGgut0U">droneInDock=True</code>（在仓）、<code data-page-node-id="d65Tmw9QHX3z6gB5jqf5Zs">childSn=None</code>（无挂载无人机）</td><td data-page-node-id="ADDiRmV9bKJiHADFAk2wsU"><span class="tag s-red" data-page-node-id="T7WogXe4zA6LT0qcLbyiSE">无人机在仓</span></td></tr>
+  <tr data-page-node-id="E3pJh26fPqAHEKhuNp5QMx"><td data-page-node-id="ryuy3xmN1nN8Euj9aenbtN">司空 ZLM 直播流</td><td data-page-node-id="L0zcp5eLYQSipAc4qPPXLW">只有 <code data-page-node-id="GRBEwShtEA1nMeYmKRar1Z">live/8UUXN8N00A0LS7</code>（机场 dock 流），无 <code data-page-node-id="UbWTZPD4CkiYip9yJkJNRg">1581F8HGX258600A0S4G</code>（无人机流）</td><td data-page-node-id="qEzZq1VvAYMXmDkwn5cGs0"><span class="tag s-red" data-page-node-id="tHADkIKs25gUkZT1ZF1Qjv">无无人机流</span></td></tr>
+  <tr data-page-node-id="VJ2dEuYisoDFKNabq47hFB"><td data-page-node-id="mO3DTXbRG21IHe7aNbmfez">webhook 事件</td><td data-page-node-id="syemcUCwUkLJzkRYCiqSwi">今天 12 条全是 <code data-page-node-id="ylLV69i6trl0wW3xAdIhUo">FLIGHT_TASK_STATUS_CHANGE</code>（且都是经开区），<b data-page-node-id="gaQ0M44FRcibkQl1iDsRRl">0 条 LIVE_STATUS_CHANGE</b></td><td data-page-node-id="TsBXAJ5TFruiyJLXNZW0RM"><span class="tag s-red" data-page-node-id="mwSBrCFSJrJIBm5NGitAQx">无直播事件</span></td></tr>
+  <tr data-page-node-id="TqkkJktr0NXnqLfk12yFek"><td data-page-node-id="qzMKgHAr7yIOx6ok9h4lDA">DB / 前端</td><td data-page-node-id="AsojkLv2eTpdOSnx77sGRs">drone_live_events 今天 0 条 → 无 SSE 广播 → 无弹窗</td><td data-page-node-id="kkE2qQFzoly0NrGghKcqsk"><span class="tag s-red" data-page-node-id="6MuxWHwDLDGglrvGDzghQE">链路未触发</span></td></tr>
+</table>
+
+<h3 data-page-node-id="tvm9z1GxUKRaWV4flGwE57">1.2 发现的真实隐患（昨日过滤改动埋的雷）</h3>
+<div class="box danger" data-page-node-id="0h6Yo9tCjCDtIYGNws4g9A">
+  <p data-page-node-id="BKmoE53Np8jEhZGZbJvC3D"><b data-page-node-id="6my49fL1WUhPkMGUwjSUqQ">昨天的"只拉无人机流"过滤基于错误假设</b>：以为无人机起飞时司空只推 <code data-page-node-id="V6mmHEUj12aYFRafuRxTNN">1581F</code> 无人机流。但昨天历史日志证明——<b data-page-node-id="p6cQyQCOcXKRIqJKzyuxu6">司空在无人机起飞后先后推两种流</b>：</p>
+  <div class="code" data-page-node-id="lgjOflrchxkRjUUxo97tMQ">18:21:28  司空直播流出现: live/8UUXN8N00A0LS7        ← 机场 dock 流（持续存在）
+18:21:43  司空直播流出现: live/1581F8HGX258600A0S4G    ← 无人机流（延迟 ~15s 才出现）</div>
+  <p data-page-node-id="gCds42zl4ivjwnxwkXRR0N"><b data-page-node-id="XS70wk8keEES7Pg5dW7Ds3">风险</b>：若无人机起飞瞬间只推 dock 流、无人机流延迟出现，则过滤规则会把 dock 流跳过，导致起飞初期弹窗"等待视频流接入"卡 15 秒甚至更久；且如果某些机型只在起飞时推 dock 流（不推无人机流），则弹窗永远无流可播。</p>
+  <p data-page-node-id="BxBRdjwuXXVNbeABwv2wGK"><b data-page-node-id="cdqRtabS1Fc2a3Uo2eqW5X">更严重的隐患</b>：昨天"过滤 dock 流"的需求初衷是"不要机场监控画面"，但<b data-page-node-id="kQRERkgnKfXlhua6LLKwQO">无人机飞行时，司空推的流名取决于机场推流配置，未必是 1581F</b>。当前过滤规则 /^1581F/ 是脆弱的硬编码，一旦流名规则变化，弹窗就会静默失效。</p>
+</div>
+
+<h2 data-page-node-id="ukVCa965xBPLU4Msr5QVgk">二、UX 评估（用户旅程痛点）</h2>
+<h3 data-page-node-id="dIbPHScsHA13wxDP6Uc4Hb">2.1 当前用户旅程</h3>
+<table data-page-node-id="dYF3XTsjQPYW6dnNIxBWfG">
+  <tr data-page-node-id="7P62ENgx6CnHE0Sske7oaa"><th style="width:18%" data-page-node-id="70kjnpyelLGTlC0H7W2Cww">步骤</th><th style="width:40%" data-page-node-id="c3wFyfRw8ZoVj41WaOElG8">现状</th><th data-page-node-id="kyHUouM9wfnSFHSK1hoQGx">痛点</th></tr>
+  <tr data-page-node-id="eWv7xCFie4revt8NfA5nt1"><td data-page-node-id="BoYIqSXOHp5NYv4e2StKWg">1. 无人机起飞</td><td data-page-node-id="eHkYXswQMJWza81i9m3H3K">用户在现场/后台看到无人机离开机库</td><td data-page-node-id="KO9M8DOFxRrAYzxCd9IqRf">—</td></tr>
+  <tr data-page-node-id="1XGY67LECs9ytxCQu6TrVb"><td data-page-node-id="EL5nYREREpeyKn0y7UXBqL">2. 司空推直播事件</td><td data-page-node-id="tQaAjIU1cy4vlHk1oVGsWx">依赖司空 LIVE_STATUS_CHANGE webhook</td><td data-page-node-id="OvqTS1vriI8HnDSXNl3EXg"><span class="tag s-amber" data-page-node-id="0w61nAPlxD42hzpXXtkmho">若司空不推则全链路静默</span></td></tr>
+  <tr data-page-node-id="coMSHeH7KVDs0ajpCXAuRm"><td data-page-node-id="A7BXHtvjbnwni4lD2MYe0H">3. 前端弹窗</td><td data-page-node-id="MXoo5NHiTQEfjXFCpIBRxV">依赖 SSE 广播 + zlm-watcher 拉流</td><td data-page-node-id="SA12soNjq7tgeCSExWpgZX"><span class="tag s-amber" data-page-node-id="JJzmWiGNFjKdAHID2kSYrA">拉流延迟 ~9-15s，起飞初期空白</span></td></tr>
+  <tr data-page-node-id="yGyyByBKGuwtz6S4TCikh1"><td data-page-node-id="kjKXrmI7waDZblMOW2NmJA">4. 弹窗显示画面</td><td data-page-node-id="LwHAYg0RjUdce1HrJmvn4D">带框流/原流播放</td><td data-page-node-id="d6dO8oVyKHxUWYodslDXmY"><span class="tag s-amber" data-page-node-id="KogGvfFTpPjtwcsELu6nBX">无"起飞中/准备中"状态反馈</span></td></tr>
+</table>
+
+<h3 data-page-node-id="yDc1AJl3ixVNT2QEiy4OzR">2.2 核心 UX 痛点</h3>
+<table data-page-node-id="szU9YpyuQzqUBnRLSHfv80">
+  <tr data-page-node-id="yGpBLtMYCpdhDonWFp1Ck0"><th style="width:6%" data-page-node-id="JqJThBrdXACJkY2caA0mth">#</th><th data-page-node-id="1eNWpnyAOCg3RFWhjoRFqu">痛点</th><th style="width:20%" data-page-node-id="IbgnE20KWYJNyIHLQ8NbGb">严重度</th></tr>
+  <tr data-page-node-id="ABFw91PPjtiFpZY2pR5pxT"><td data-page-node-id="xVwicxDcInxr2olyDHmAIY">1</td><td data-page-node-id="uRjzzAUM1V5r71ou22wkmw"><b data-page-node-id="xUrhdRE9mERntfxls19lVj">无状态反馈</b>：无人机起飞后到画面出现前，前端无任何"已检测到起飞、正在接入视频流"的提示，用户只能干等，误以为"没反应/坏了"</td><td data-page-node-id="GE82uu1KyGBerQsgbnxz7q"><span class="tag s-red" data-page-node-id="N8DCGGjvMG8Xo7DDcRuzVK">高</span></td></tr>
+  <tr data-page-node-id="iEBx0NTlvpxLOK4VTXvElr"><td data-page-node-id="VbaDu4sCDQrh9c27UoNXGA">2</td><td data-page-node-id="y9alp7uqHa399WTOsTAPuf"><b data-page-node-id="z1NkGDPJOjC38hwwfAEqv1">拉流延迟黑盒</b>：镜像接入滞后 9-15s，期间弹窗停留在"等待视频流接入…"，无倒计时/无预估，体验断裂</td><td data-page-node-id="9EbKr9Twy64GpMXaDr3kza"><span class="tag s-red" data-page-node-id="IB4SgRliSCRLroAeAAA34r">高</span></td></tr>
+  <tr data-page-node-id="Sn7a9O0C4QOcoNBwESx3FK"><td data-page-node-id="ttTHvae8OLWprWHZyZkBzv">3</td><td data-page-node-id="9beNiGeKqaOD27TpeHrTcf"><b data-page-node-id="USzdGo4xjwBcLsrsauCYKE">事件依赖脆弱</b>：弹窗完全依赖司空 LIVE_STATUS_CHANGE webhook，一旦司空不推（本次就是），无任何兜底（如轮询 OSD droneInDock 变化）</td><td data-page-node-id="f3aHcXhvd8yfAxsfzjAAZH"><span class="tag s-amber" data-page-node-id="ckxs9cwYhOKQZamVBAkri0">中</span></td></tr>
+  <tr data-page-node-id="80tmEbHjya17BXn42V3sWR"><td data-page-node-id="U58nwoxzbGSJWJW9R4QdR0">4</td><td data-page-node-id="BGj7guJs3ne3XurJXQc9cY"><b data-page-node-id="QBECUbkhrKgzsXERtchHB4">流名硬编码</b>：zlm-watcher 按 /^1581F/ 过滤流，流名规则变化即静默失效，且无告警</td><td data-page-node-id="g2UGaZcCyGstaH0YZEkia5"><span class="tag s-amber" data-page-node-id="e5T2MQvAEPzIz7RcD1nwsX">中</span></td></tr>
+  <tr data-page-node-id="skoG36iDbOQEc5RMABHiRm"><td data-page-node-id="6i6gsMrSIj8UiDKlx43B3H">5</td><td data-page-node-id="EdRgykCm5KPDvVi17lO3dt"><b data-page-node-id="UlVXKSOZd25uzxPtQ9wBTW">无诊断可见性</b>：用户看到"没弹窗"，但没有任何界面能告诉他"无人机在仓/事件未到/流未接入"是哪一环断了</td><td data-page-node-id="S6VxEDROgRWkOv84t5DqWS"><span class="tag s-amber" data-page-node-id="fc1puYbgsGYS0oba7ulfBr">中</span></td></tr>
+</table>
+
+<h2 data-page-node-id="t0KHYXPqUFY0VmZlUCoJum">三、开发现状评估</h2>
+<table data-page-node-id="QeIuOtubqeC1MsYWpmEdLU">
+  <tr data-page-node-id="wPmdr57bIo888lhwm4XAzL"><th style="width:26%" data-page-node-id="o0ZDSr8ubHKM1nIEem9AEB">环节</th><th style="width:14%" data-page-node-id="AJTWyj4E9VoLX4deDLobXY">状态</th><th data-page-node-id="rev4PjsrFS7WNaWgCuVWn4">说明</th></tr>
+  <tr data-page-node-id="wBbHrKqU9kszFNyLDvMYm9"><td data-page-node-id="IKjQcxLuuAXTKUFEwU8Y3k">弹窗状态机（drvPopup）</td><td data-page-node-id="Dc2WJdSq9YyUEYCDHRFfV2"><span class="tag s-green" data-page-node-id="i7vltOFapjyzOGfPU2Aon1">完善</span></td><td data-page-node-id="vtUGl1RtW2tTRO9UinoNvc">2窗+3队+折叠，SSE 看门狗/退避/visibilitychange 已做</td></tr>
+  <tr data-page-node-id="WVDzDRBO0kYQkf5AYg8Xap"><td data-page-node-id="LPmwECKXtwG8G9UAxBm54e">SSE 链路</td><td data-page-node-id="4qCqOklAmGFIbdEwVXsbPN"><span class="tag s-green" data-page-node-id="4UVtE5A9H5RJ7jPz9G587c">完善</span></td><td data-page-node-id="SMzf0IDel3Pxx7HOFhYh1j">ingest→白名单→SSE 广播，心跳数据帧已修</td></tr>
+  <tr data-page-node-id="ewdItQq49X9wfGWyDuBDNz"><td data-page-node-id="YrnzNCGh22nupL836TvG0o">拉流（zlm-watcher）</td><td data-page-node-id="V4KbJIvJZY7GbQrXvIYlPE"><span class="tag s-amber" data-page-node-id="cKKPnMfW0h6YTpx2KShiDz">脆弱</span></td><td data-page-node-id="Z84H4bflGrc6IA4vicrmcA">流名硬编码过滤 + 拉流延迟无兜底</td></tr>
+  <tr data-page-node-id="uP4P4USkT6dtDA8l8AATUx"><td data-page-node-id="dYtxWYA1Q4pEiTAlCxaWq1">事件兜底</td><td data-page-node-id="1sWrfGFgWphrWlCGcmhkai"><span class="tag s-red" data-page-node-id="C38tWCBT6iBI87sq5ASYXh">缺失</span></td><td data-page-node-id="RZQOjFlW8BuyXszdYWxBjI">无 OSD 轮询兜底，依赖司空 webhook 单点</td></tr>
+  <tr data-page-node-id="APdJ5Ni36VZjjO7r7T2IDm"><td data-page-node-id="gZBACQYS6jTlPFPsQCXMuj">诊断可见性</td><td data-page-node-id="jJCqJQ0Whuy4dB409ohTdq"><span class="tag s-red" data-page-node-id="eOBj84Fv1VlV2OCfygVy2P">缺失</span></td><td data-page-node-id="fRubM7402YGNrlHdt8LU9Y">无"链路断点"可视化</td></tr>
+</table>
+
+<h2 data-page-node-id="pj6tOiG2tARFPkMOsBr01e">四、排期（按优先级）</h2>
+<div class="gantt" data-page-node-id="6IpFvKZW0yjGsVhdHtJEVK">
+  <div class="gantt-row" data-page-node-id="usZRJD2S59p0k5eLDOV8Re"><span class="gantt-name" data-page-node-id="A8NLi6hRnKhHV9CJMuHYTh">P0 修复拉流过滤脆弱性</span><span class="gantt-bar" style="width:40%" data-page-node-id="icGUIB30rlYLiSHvBbi64B">0.5 天</span></div>
+  <div class="gantt-row" data-page-node-id="ZkfXRu8cC6mlLPdGcu9SyQ"><span class="gantt-name" data-page-node-id="Lp0RT136FLVyKMI84VfL5z">P0 事件兜底（OSD 轮询）</span><span class="gantt-bar warn" style="width:60%" data-page-node-id="pIcBVyZHnWTFDI4gCcu9CS">1 天</span></div>
+  <div class="gantt-row" data-page-node-id="eo9KbPTYKUXnjnXPYQeueT"><span class="gantt-name" data-page-node-id="2nElcwGnWWmB4xSuBZ2lEE">P1 弹窗状态反馈</span><span class="gantt-bar warn" style="width:50%" data-page-node-id="AcUW0xkVAIDROULBCWaDCP">0.8 天</span></div>
+  <div class="gantt-row" data-page-node-id="ENCMREtxlgCsSArfqICOBG"><span class="gantt-name" data-page-node-id="ycTWaJL255Fek0YF6gpO0P">P1 链路诊断可视化</span><span class="gantt-bar" style="width:50%" data-page-node-id="pqLn7uzVXfiodClEMrd2C8">0.8 天</span></div>
+</div>
+
+<table data-page-node-id="EVthBMQocAPIAh7SUbavT7">
+  <tr data-page-node-id="F1O1i7njwb2wK0NHRag7ea"><th data-page-node-id="jt8L6dEvdFvX71gKk9VKoi">优先级</th><th data-page-node-id="ckyEu0JMpb6Rjd9pFfwWpi">任务</th><th data-page-node-id="eaV2FdPovB8ijuhYN7glqh">内容</th><th data-page-node-id="rxvF8FO0Zyornj418SU2WR">工作量</th></tr>
+  <tr data-page-node-id="OoDeuiDJWpSnMZWbtoFlq6"><td data-page-node-id="E4dx2Ede6dkYlTElwrX3s8"><b data-page-node-id="MSKOSSG5HSesZliAaTr6mf">P0</b></td><td data-page-node-id="p2ZkG8EM45yJ69cAA3ZJun">修复拉流过滤脆弱性</td><td data-page-node-id="GwdqMqIs8A2hG3X8p81ikK">zlm-watcher 不硬编码 /^1581F/，改为"优先无人机流、无则回退 dock 流"；或按白名单 deviceSn 匹配而非正则前缀</td><td data-page-node-id="I88F1Z7chPajOpjsgCKYcb">0.5 天</td></tr>
+  <tr data-page-node-id="8WsLVMIMl6InBAyl0cmNLP"><td data-page-node-id="GKSUWey9O5LAaXKw2mMrl1"><b data-page-node-id="LpJg9BnW36kO6SqnTYMuxs">P0</b></td><td data-page-node-id="vsFtclEwpS8ntvpvoCcjVc">事件兜底</td><td data-page-node-id="tFwyMD3GeiBd7Pt5kNGjjn">后端轮询司空 OSD（droneInDock 1→0 变化）作为 LIVE webhook 的兜底，触发弹窗</td><td data-page-node-id="dPBDBuiVSSpGYGSbn6zI4j">1 天</td></tr>
+  <tr data-page-node-id="IDvvfFgwQHYxVOtdxcElXd"><td data-page-node-id="hF15Iz1xiiFG8KeaTL3B5D"><b data-page-node-id="Q1lz1Y0kfzJUCMLgrZ7H29">P1</b></td><td data-page-node-id="3MONtTcLTTmKHW5mEICQzq">弹窗状态反馈</td><td data-page-node-id="U6ow4Mou9l0G9Ps8Is1DFO">起飞后立即弹窗显示"已检测到起飞 · 正在接入视频流" + 接入进度/预估</td><td data-page-node-id="FCYbKd9HwwsSNYur1B2JYY">0.8 天</td></tr>
+  <tr data-page-node-id="uSn5JHz1A96PxqEpDlKpcD"><td data-page-node-id="vTOHEEHiBpvrtBRqJ2F3m5"><b data-page-node-id="Mb9Q1FROymfVA2RGQNKVf2">P1</b></td><td data-page-node-id="pNvDVqJKk0HtaGbkxcciyL">链路诊断可视化</td><td data-page-node-id="qP9GktNm699wcPHE1wkRDE">后台/弹窗增加链路状态（事件/拉流/SSE）自检视图，断点一目了然</td><td data-page-node-id="EmzqJNyjT4GhpCIhRVnq1c">0.8 天</td></tr>
+</table>
+
+<h2 data-page-node-id="oMkCJJ7aysITEwzzWsHThO">五、结论</h2>
+<div class="box green" data-page-node-id="8jIgZXCrSviPIciSZDX3yv">
+  <p data-page-node-id="Ua48Znz69w8OPVENcvrwjz">① <b data-page-node-id="VXQ8e1iG0wjssc7VzwA2SH">本次"没弹窗"不是代码 bug</b>：三峡学院无人机实际在仓（OSD droneInDock=True），司空未推 LIVE_ON，链路未触发；<br data-page-node-id="8d4iykbU4GpUTvskiXjLxi">
+  ② <b data-page-node-id="hzWLLKsC5knSVkgHv9sIA9">但暴露了 3 个真实隐患</b>：拉流过滤脆弱（流名硬编码）、事件单点依赖（无 OSD 兜底）、无状态反馈（用户误以为坏了）；<br data-page-node-id="Fl7cVVfxgiCp1OyyzCTFjc">
+  ③ <b data-page-node-id="mYurQ3bur6E76k9Yic25B3">建议先做 P0 两项</b>（过滤修复 + OSD 兜底），从根上提升弹窗可靠性和容错；<br data-page-node-id="ZrbLUhgvz1RD9DVNuZOQGX">
+  ④ 下次真飞验证时，可先用后台/日志确认"OSD droneInDock 是否 1→0"判断无人机是否真起飞，避免误判。</p>
+</div>
+
+<div class="foot" data-page-node-id="F1nAhZkeuJkjf4uVPZ1ZiV">
+  本报告基于 2026-09-08 10:30 四层交叉排查（司空 OSD / 司空 ZLM / webhook 日志 / DB）。核心结论：无人机在仓未起飞，链路未触发；同时发现拉流过滤脆弱 + 事件单点依赖 + 无状态反馈三个隐患。
+</div>
+
+</div>
+</body>
+</html>

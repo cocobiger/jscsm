@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="oIGD4HRMBpI6s0qCLD9ZKP">
+<head data-page-node-id="S5b1gM2pSilNoyxd4B2Uh8">
+<meta charset="UTF-8" data-page-node-id="LawhTW5cWohXT55Amf3WaY">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="juBo3IDgW4baUZHBZ4LYys">
+<title>补真实烟训练域 · 可行路径详细评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1040px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="kzrRxFrSTb5TNw6Ioz5EAJ">
+<div class="page" data-page-node-id="rWVw2rxiotl9uB8I8j2km4">
+
+<div class="doc-head" data-page-node-id="NFi19IwNcpesA7Z3neHm4n">
+  <div class="org" data-page-node-id="28ZFGRzguyJypQNdSrhDpG">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="NTHC7vTELDBfKq1qW8f4zb">补真实烟训练域 · 可行路径详细评估</div>
+  <div class="subtitle" data-page-node-id="DZUiyqHofUFCzGaHxUw8bX">—— 解决「模型对真实烟盲（检出率 ~6.7%）」的训练数据路径</div>
+  <div class="meta" data-page-node-id="SEicudlB1NEnzvtji7Ci1N"><span data-page-node-id="dBFQVZyOEcFPS8svjyQAb0">编制时间：2026-09-08</span><span data-page-node-id="b3Z9Odi24PXYYBbdcKWAqJ">数据来源：stage2 实测 + v5 训练集盘点</span><span data-page-node-id="tB3wUpANsFupmnExBHIyJp">性质：技术路径评估</span></div>
+</div>
+
+<h2 data-page-node-id="sAO2WdmEVbsKjMryuGJiaE">一、结论摘要</h2>
+<div class="box warn" data-page-node-id="8gYi6DOSkKCYhHqiTX7muH">
+  <p data-page-node-id="7FBvKqdH7NoHBEsm7hqoqH"><b data-page-node-id="XlAU11Nm90Z2eCRNkDKYDq">根因确认：模型对真实烟盲，是"训练数据里没有足够的 DJI 真实烟（尤其远景淡烟）样本"，不是模型精度/阈值/分辨率问题。</b></p>
+  <p data-page-node-id="TM23rOwjcDDtO3ZudkDrcL"><b data-page-node-id="6XZw7lnLrGzcKtvhjuTRQm">最快可控路径：主动制造真实烟</b>（烧秸秆/垃圾 + 无人机在典型巡逻高度拍 + 人工标注），1~2 天采集可出 300~500 张真实烟帧，配合 v5_syn 预训 + 真实烟微调，有望把真实烟检出率从 ~6.7% 提升到 60%+。</p>
+  <p data-page-node-id="SO8KsmpGuwHs07X4U01uaP"><b data-page-node-id="LFym2BRJKs8Yk5car2EAIc">总周期约 4~6 天</b>（采集 1~2 天 + 标注 1 天 + 训练 1 天 + 验证 1 天）。</p>
+</div>
+
+<h2 data-page-node-id="OrWl1DCqAVUoaj5pxQTfZj">二、现状诊断（为什么模型对真实烟盲）</h2>
+<h3 data-page-node-id="CaCRrbRQv74iZ8RE52gLJU">2.1 铁证（今天实测）</h3>
+<table data-page-node-id="KtOyMLP9DL1qM2wmMV5isO">
+  <tr data-page-node-id="eFzhuF9DHIIEMi4ZwIwItA"><th data-page-node-id="pHwLlhCN6Vv1XBuhBycSCL">测试集</th><th data-page-node-id="aw8jEiPiW6NtnxUwHvJVGh">样本</th><th data-page-node-id="26gmDisyZAwsqiq5TNOQL5">stage2 检出</th><th data-page-node-id="ckO71MDoS0Ie6cTvCPjCfo">检出率</th></tr>
+  <tr data-page-node-id="4HDDXOTMmTxNKORtUN3NFT"><td data-page-node-id="wCZ9VzUh8yvvJ6zAWVWPO8">微信真烟图（确定有烟 label）</td><td data-page-node-id="bFnWtmFegCENXsg82cKAE7">17 张</td><td data-page-node-id="s8mOgVHaGzsXcwqOrHZ10P">1 张（conf 0.127）</td><td data-page-node-id="mjatbO2lG2GE0cuXNHFOGt"><span class="tag s-red" data-page-node-id="bkGAleqTRUPvHOm5LyKRPe">~6.7%</span></td></tr>
+  <tr data-page-node-id="Or9sQYByncBCVm1Ufw3CAq"><td data-page-node-id="uyB4SLXQ7UlPONL0Dt6pGG">DJI 白天视频 v4/v1</td><td data-page-node-id="aH3g4XUKbxfjljU1Dnuf0r">2 段</td><td data-page-node-id="wJOLVqPrrHrPTZTywPVsYe">0 框</td><td data-page-node-id="Y5F8BxaAVhP0e7Eq00avBg"><span class="tag s-red" data-page-node-id="2U6UjvIHOJ2YEBbF9LXypW">0%</span></td></tr>
+  <tr data-page-node-id="Wn77SNSY5UOWIv1OwFlZLZ"><td data-page-node-id="u4ckAwSQO1echLaIhqfEkR">v5_syn 合成远烟</td><td data-page-node-id="Ue1qielLH17bCTq7Z9e3bW">6 张</td><td data-page-node-id="rbh9FL2bovUgJSFO6nXLGg">6 张（conf 0.27~0.46）</td><td data-page-node-id="pvdv6DyVgkazl6LRi7lZK6"><span class="tag s-green" data-page-node-id="sSU8ZI7t7VTuvG4ElpY1qU">100%</span></td></tr>
+</table>
+
+<h3 data-page-node-id="ilStGpsXaHCN9JljK6xx9p">2.2 训练数据构成（问题根源）</h3>
+<table data-page-node-id="WaH6OIW0EHmIxAdcYTFLAS">
+  <tr data-page-node-id="pvhHxWELsR6757n5YrrnJq"><th style="width:24%" data-page-node-id="FZvkOeDKRf67zCCAj2e85p">数据集</th><th style="width:14%" data-page-node-id="DjAOOSNKTSMCPBpNEVFY8a">规模</th><th data-page-node-id="oe4rFbEYFmQOnI3XuDrupJ">域特征</th></tr>
+  <tr data-page-node-id="Cr9vC2Fq17pOZ9kcqiHIvY"><td data-page-node-id="EFxduOtDrQgQFneN1wLVu8">v5_syn 合成远烟</td><td data-page-node-id="TK3PtAwjIj2HXbnD8A2DaQ">800 张</td><td data-page-node-id="FRML90rGGkDw8XNXT4aEGn">合成白块/雾，<b data-page-node-id="anPdOg4zjxJAqU5blZUD4E">形态不真实</b>，但模型 100% 检出（训练时的主力）</td></tr>
+  <tr data-page-node-id="Q7OkfYdAxN5SL8hWEi96cR"><td data-page-node-id="55o8qV2G797mPPa1x4DGkq">v5_wechat 微信真烟</td><td data-page-node-id="ADkaUGOy8ZdgsYjHCGLByN">18 图 / 69 烟框</td><td data-page-node-id="91dizfx0ouJiOVBeDvzz3F"><b data-page-node-id="LW8x8uw3PPTSdnY5IsNIVV">近景浓烟</b>（微信群收集），与 DJI 的<b data-page-node-id="vYMVGiDS1DcS9wNn1s356v">远景淡烟</b>域不同</td></tr>
+  <tr data-page-node-id="xkZfHBuvr2GOp8b5AAs5AP"><td data-page-node-id="CBr38z2QAQXPA3ifs7Qmt9">v5_train_v5 训练集</td><td data-page-node-id="NOAMqxFDToSzAMPTgXc2d0">196 图 / 382 烟框</td><td data-page-node-id="QXbetCwVZY54UEXtY5Mf5f">两阶段 s2 训练集（合成烟为主 + 少量真实）</td></tr>
+  <tr data-page-node-id="dcwUxz7bxfFaE87LutPeL1"><td data-page-node-id="2GFGQDosgMukAnA2QblbJF"><b data-page-node-id="XTMC4g3EIz06cOu2HqHzFm">DJI 远景淡烟真实样本</b></td><td data-page-node-id="SmfQhdd5yHDIPFFYER8Pbe"><span class="tag s-red" data-page-node-id="2SFGB9OHY42HSzhq4OB8BN">≈0</span></td><td data-page-node-id="7ukBFGNFuwX271GBOEdHMK"><b data-page-node-id="iX8IsGeFPHy0xpgkexnA9V">模型完全没见过的域</b>——这是检出率 ~6.7% 的根因</td></tr>
+</table>
+
+<div class="box danger" data-page-node-id="2WYqnGdB8mO9wG8LpADUSb">
+  <p data-page-node-id="Vp9AlzY9rTQtd0UfcuLGzi"><b data-page-node-id="7qTYqkykh6jB7i9mRyHVGs">核心结论</b>：模型用 v5_syn（合成烟）训练，学会了"识别合成白块的样子"，但<b data-page-node-id="IST1pPpW2V3ESg69LO6dYn">没见过"DJI 远景淡烟的真实样子"</b>。微信真烟图是近景浓烟，域不同，也救不了。这是典型的<b data-page-node-id="Pd5OzCWoYCdXIvktCLVYSG">域偏移（domain gap）</b>。</p>
+  <p data-page-node-id="9zNhO8475nCddR3B65scSi"><b data-page-node-id="PNCwc853HoFmCzw5Z4g2ih">之前所有努力（v52~55 续训 / E1 降阈值 / G1 1080p / 段2续训）都失败</b>，因为它们都在"调模型"，而问题在"缺数据"——模型精度、阈值、分辨率都救不了"没见过的域"。</p>
+</div>
+
+<h2 data-page-node-id="7KNpmWGmIv7EOYADbLirll">三、真实烟样本获取的 3 条路径</h2>
+
+<h3 data-page-node-id="DSbbvgr33wu82FJsR2wYpF">路径 ① 主动制造真实烟（推荐，最快可控）</h3>
+<table data-page-node-id="2m08NwrgP4bg7kjlWJJx2r">
+  <tr data-page-node-id="d21AUUdOTm92BX17fDbDd9"><th style="width:18%" data-page-node-id="g3ZV0D6itacRckJlCvwz8Z">项</th><th data-page-node-id="3gEnkmgGYCYF0NEhCDtx1r">内容</th></tr>
+  <tr data-page-node-id="avk5iB8IT5PGspQuZOlguv"><td data-page-node-id="reARPJ1fUeQluyEu59YmfH">做法</td><td data-page-node-id="EB8VqTjAlB6msWH8uEMXYZ">在空旷安全场地烧秸秆/干草/垃圾，无人机在<b data-page-node-id="4FRhpqKNeaPAnREBs19aH7">典型巡逻高度（100~300m）</b>盘旋拍摄，覆盖不同角度/距离/光照，人工标注烟框</td></tr>
+  <tr data-page-node-id="CBqDDC5t3aAKx2m8Agof72"><td data-page-node-id="FxCBsoQ6apEAGtl7aweB2G">优势</td><td data-page-node-id="4PsrZwxs2xQEMqFF6GLqjX"><span class="tag s-green" data-page-node-id="EWCuNLt2VNwAot1T7xKwLE">可控、快速、烟形态真实</span>——烟是真实燃烧的烟（颜色/动态/扩散形态真实），且能精确控制拍摄距离/角度（模拟真实巡逻的远景淡烟场景）</td></tr>
+  <tr data-page-node-id="CZbzo5YWFLLc74QWGWmEZE"><td data-page-node-id="KYQ4UVaMnwujDIpPmGt8Ok">样本量</td><td data-page-node-id="4m99rmyA9oCb4QKhdevwAB">一次燃烧 + 多机位拍摄可出 <b data-page-node-id="gMK8WqIZibAisPU7b3J5uZ">50~150 帧</b>（不同距离/角度/光照），3~5 次不同场景（白天/黄昏/不同背景）可凑 <b data-page-node-id="JxtAgfzaroaqeFuyAiwdhU">300~500 帧</b></td></tr>
+  <tr data-page-node-id="2m5uOZK77QlD4crcWanSN6"><td data-page-node-id="CNrzpi26w0xfg7D4fFDpuG">成本</td><td data-page-node-id="hpyKsmNVHphnhrBFNO5ZH5">无人机飞行（已有）+ 燃烧材料（秸秆/干草，成本低）+ 人工拍摄 1~2 天</td></tr>
+  <tr data-page-node-id="kFGXGOhaMa3UomFPATz1nb"><td data-page-node-id="VMXwnwMxhldpPjqnG5A4k6">周期</td><td data-page-node-id="hj0htancyWtKBs0yL5CIu6">1~2 天（采集）</td></tr>
+  <tr data-page-node-id="HIW2paXpGbGCaW5ktj6Ge3"><td data-page-node-id="9ljS088bYBg2L9EHW9WjmF">风险</td><td data-page-node-id="fDLGDFrx2BeXXQForEErJr">需选空旷安全场地（防火）；燃烧需少量可控（避免大烟雾污染环境/被投诉）；建议选城郊/厂区空地</td></tr>
+</table>
+
+<h3 data-page-node-id="SQdhtskqHpL9xhmafMHrGw">路径 ② 历史数据挖掘（辅助，补充）</h3>
+<table data-page-node-id="WIeEC0bmEtvXFO7ldk5GlP">
+  <tr data-page-node-id="Sm8jG76jwW8TRImrmPCOmr"><th style="width:18%" data-page-node-id="IK3pC2GCnQb2qKkDo66EJO">项</th><th data-page-node-id="BPXa0N8LcgJiknze3uv2xY">内容</th></tr>
+  <tr data-page-node-id="5hwrprp6bARipsauT9KXQL"><td data-page-node-id="AVrrnDcckgcqF8ctAC7jim">做法</td><td data-page-node-id="kA3tUI3IC8X6TFjcQ4V33J">从 dock_media 取证库（8 段 V 档视频，2.5G）+ 历史告警记录里，抽帧人工筛出"真烟帧"标注</td></tr>
+  <tr data-page-node-id="1ekobehQk5GXyQKKircXXE"><td data-page-node-id="Utlcu0G7QxgNyPeN6jJr1F">现状</td><td data-page-node-id="tR7ZZFGMQNju32bN2YA0Gn">取证库 8 段视频，但<b data-page-node-id="EbFMeF6F5IHAozcory2PXw">大多是误报/无清晰烟</b>（今天实测 v4/v1 烟太淡，模型 0 框）；历史 smoke 告警 153 条，但<b data-page-node-id="zXXklhmZGWmxGomx14YgM4">大多是 fire 误判/干扰</b></td></tr>
+  <tr data-page-node-id="aGjpGTgex5E8NJ1Ox1o4D0"><td data-page-node-id="rXbXSoVWT5ThATA40lIT8b">样本量</td><td data-page-node-id="NisbLhLYtnrWOAaEF9rff8">估计能筛出 <b data-page-node-id="URmboY71oQVs0ZWzKbcoJx">20~50 张</b>真烟帧（有限）</td></tr>
+  <tr data-page-node-id="dZuDvuw9s50aRa7tGwYccl"><td data-page-node-id="HW71YLdMZ4A5MYqiFj72NH">成本</td><td data-page-node-id="m5UpsPAGf1AK8VnxxaTo9c">抽帧 + 人工筛选 ~0.5 天</td></tr>
+  <tr data-page-node-id="3YhOzzNPQz9SrNCiSh6ZYa"><td data-page-node-id="2gAjTHrijmPmOjXhFmNfEj">评价</td><td data-page-node-id="o5zo1t5zlYoCsFp29IXasH"><span class="tag s-amber" data-page-node-id="s6WuwxSJLUnikYR6ts2Xrz">辅助补充</span>——样本少、质量参差，不能作为主力，但可作为真实域的补充多样性</td></tr>
+</table>
+
+<h3 data-page-node-id="boXYwBfxV9WuJ9iUdW3UKF">路径 ③ 真实巡逻遇到（被动，慢）</h3>
+<table data-page-node-id="2LS98J5hx5tyigz1qDsoXx">
+  <tr data-page-node-id="Gcyih7UlQTqbF3A97FgPTx"><th style="width:18%" data-page-node-id="t0wqY6vesRVggPnBPsS3nV">项</th><th data-page-node-id="EbHhByEgpSdIKy2EkC0r3V">内容</th></tr>
+  <tr data-page-node-id="BE6pI5dUNi1QYAW1tWfmOh"><td data-page-node-id="t3tYE13XoBqmCiy1VPb0Cn">做法</td><td data-page-node-id="T0Rrx8qpDBYai9AMkjD7HY">日常无人机巡逻时，遇到真实秸秆焚烧/居民焚烧，手动截图/标记采集</td></tr>
+  <tr data-page-node-id="2M9nEd1gXB8EE6ptVleOTP"><td data-page-node-id="oghPA8leTBG0r05nK6CsGF">评价</td><td data-page-node-id="w9D5lIMeXEvbBDUdHMFjh3"><span class="tag s-red" data-page-node-id="7jbIM9op9XSjqgwPFwzAN0">被动、不可控、慢</span>——真实焚烧可遇不可求（随机、看运气、看季节），无法保证样本量和周期</td></tr>
+  <tr data-page-node-id="o9tjfaVeRzRj9yyEo5vi8i"><td data-page-node-id="wFVrb4mr0fyBB8V4LTDdDs">定位</td><td data-page-node-id="EvbdNVhQBexALuHyMxFk2z">作为<b data-page-node-id="XINZ3mPFX6HTqPzxBthFiS">长期补充机制</b>（巡逻采集常态化），不适合作为"快速补足"的主力路径</td></tr>
+</table>
+
+<h3 data-page-node-id="SVsbwFdGh2M4OjHdkF51EW">3.1 路径对比</h3>
+<table data-page-node-id="Tf5tE8PyPd4QKZZTfOSYqE">
+  <tr data-page-node-id="NsazH3nW7dOGYMeHyF6Sb4"><th data-page-node-id="CP9xeP4q12btWavzlL9gxE">路径</th><th data-page-node-id="b9qM00HNtddWLNIdnKrVOO">可控性</th><th data-page-node-id="sMk1iAdh44SBCWiHmNyFt7">样本量</th><th data-page-node-id="Hph3mTyKrCXc5MvaScakEk">周期</th><th data-page-node-id="ZsupqTfW4pdNu7OHOZtUFF">推荐</th></tr>
+  <tr data-page-node-id="h7LhwcY4eHhB57vizcARAP"><td data-page-node-id="asLlFGMj7pLX0chEuqxYEU">① 主动制造真实烟</td><td data-page-node-id="fNsPGk8jLbYO7rueJw57ZP"><span class="tag s-green" data-page-node-id="HUtfBz0UwP9oW6iBdqv4wa">高</span></td><td data-page-node-id="qy31gwfWu5nNjKHaweoBud">300~500 帧</td><td data-page-node-id="OzCAPhQKGBVuXlXy0kLafr">1~2 天</td><td data-page-node-id="O3utW6gkzGTaoleWZJoBM7"><span class="tag s-green" data-page-node-id="vzAXcEb2MAUm8pdVEeWjwS">主力推荐</span></td></tr>
+  <tr data-page-node-id="jLLq64saptmvXcqDTs8r9h"><td data-page-node-id="9g1zWGy1SAJ6Dz9n7LScv8">② 历史数据挖掘</td><td data-page-node-id="BL17xKEqkHr36GIBTGNIYN"><span class="tag s-amber" data-page-node-id="7rPhD6ia1CYuT6ptI2YtjD">中</span></td><td data-page-node-id="9ia271bLvoMPJT6dF6aFvA">20~50 帧</td><td data-page-node-id="CdFl9XIJp6voRwLIo0HglC">0.5 天</td><td data-page-node-id="4tjjmruSmsHcBSeSFaVxRh"><span class="tag s-amber" data-page-node-id="aHmH2Ylk07oXV9wlDGckOj">辅助补充</span></td></tr>
+  <tr data-page-node-id="adhwrUWgqf6ECXXHdsOiGR"><td data-page-node-id="cDZeKi5FAPiTtDGQMmgG9u">③ 真实巡逻遇到</td><td data-page-node-id="GIvnwGg3SrFSCrBhHhbVeV"><span class="tag s-red" data-page-node-id="LOurzSu11Pn9uibZE4aozr">低</span></td><td data-page-node-id="MDPbTMf2Ml98qGhyb3Wp6J">不可控</td><td data-page-node-id="20kfVWrXJ1obC595deM643">不可控</td><td data-page-node-id="NUma1dKpgHBxltTzy7zsbn"><span class="tag s-red" data-page-node-id="SUA8GwbmKvZFLf9A1eDcHu">长期机制</span></td></tr>
+</table>
+
+<h2 data-page-node-id="riG2VFgmMSnGKs4PqYCtGL">四、标注方案（人工整框，工作量）</h2>
+<table data-page-node-id="2fMqd2l3ong6yQZOevWslD">
+  <tr data-page-node-id="7Sf6tHGjNhCSVunTAbDMti"><th style="width:18%" data-page-node-id="rQzj3uSAaQs0FAqytHKqqq">项</th><th data-page-node-id="rfMTZEHLJDB1GzOD5zOOEw">内容</th></tr>
+  <tr data-page-node-id="tY5F9FEjhdxA2jwhpZpK4D"><td data-page-node-id="Lnnns2O54UO4v9CHrKdVlF">方式</td><td data-page-node-id="AYn8tK8ytxgiQ1ZI9K5rjo"><b data-page-node-id="7uSwREVcjtWmWtWiAeu7tZ">人工整框</b>（AI 预标对 DJI 白天烟失效，无法自动预标）</td></tr>
+  <tr data-page-node-id="DU8Ezrw7E6NdYprC47NJUj"><td data-page-node-id="mjv1mnTtD32FDBKShG29Yx">工具</td><td data-page-node-id="nJEUAqvF3U5ausZLQF9GE4">可复用现有复检/标注流程（或 CVAT/LabelImg 等开源工具，导出 YOLO 格式 txt）</td></tr>
+  <tr data-page-node-id="PjW9L1c05Z6m5T0LpHQOkD"><td data-page-node-id="xeYjWvALlhJ9I60SXbxTp0">标注要点</td><td data-page-node-id="Xzw0sZzORDugkfsHPUiRvX">① 烟柱整框（含烟雾扩散区）② 区分"真烟"vs"雾/云/反光"（负样本）③ 覆盖远景淡烟/近景浓烟不同形态</td></tr>
+  <tr data-page-node-id="8SmluDDV7mreKBcKLvT472"><td data-page-node-id="IjJdhZ0qLiSRHIxk1Ryqm8">工作量</td><td data-page-node-id="yixiN7g2tIe3gnsoPHwbhO">300~500 帧 × ~30s/张 ≈ <b data-page-node-id="1HLdek30RH5dLXlp4uCOE1">3~5 小时人工</b>（约 0.5~1 天）</td></tr>
+  <tr data-page-node-id="CArh3Gp2PLo9K375UFw62I"><td data-page-node-id="m86tjw5iU8vAFADI205QqO">负样本</td><td data-page-node-id="OoxFQGEgrLgDwZqMw1eNTz">同步采集"无烟背景"（房屋/树木/雾/反光）作为负样本，neg:pos 保持 1:2~1:3（沿用 v5 策略）</td></tr>
+</table>
+
+<h2 data-page-node-id="Z5d9xnfxIPhYNPGOROdFHa">五、训练策略（v5_syn 预训 + 真实烟微调）</h2>
+<table data-page-node-id="7f6NWndyLpV0eNEOwtBy11">
+  <tr data-page-node-id="zOsOrTT0lNlBzbgzzqkQ2U"><th style="width:18%" data-page-node-id="rJdqiPzJn9OxCFq90OMihU">项</th><th data-page-node-id="182FMNfDitX5O5FRbsSJei">内容</th></tr>
+  <tr data-page-node-id="14O84ziUNAyjHEqbn66zro"><td data-page-node-id="q1D3ghCjsEvwGONnxaCHdV">框架</td><td data-page-node-id="buwpNrqoVDNymFS8OKTLdt">沿用现有<b data-page-node-id="ZWP9qk5vkekRApPba5OjmB">两阶段训练</b>（stage1 v5_syn 预训 → stage2 真实烟微调），已有成熟流程</td></tr>
+  <tr data-page-node-id="fkMJLfyijE5A0WbJEpU2PG"><td data-page-node-id="xDG7yA18oBxfb1YBH6heKr">数据配比</td><td data-page-node-id="1QPRdKWUb14YvigBPtIgmC">stage2 微调集 = <b data-page-node-id="T6v3I08yyxbu0nM9j63NGO">新增真实烟 300~500 帧 + v5_syn 部分（防遗忘）+ 负样本</b>，真实烟占比提至 40~60%</td></tr>
+  <tr data-page-node-id="8i9JxQpSIkT34GPFBjTlzQ"><td data-page-node-id="k4BWuo3yEhNXywLlYJ2Tuv">关键改动</td><td data-page-node-id="EYWMAckW6NCluHL2pzqOaB">把"DJI 远景淡烟真实样本"作为 stage2 主力，让模型学会真实烟特征</td></tr>
+  <tr data-page-node-id="DViRDCpj7oECh5ziJey8U7"><td data-page-node-id="UvwCKUW2FWF4anG44DbWIL">超参</td><td data-page-node-id="uQVnCZIQsBPkrJoDU1WNSk">沿用 v5 策略：imgsz 1280、无 mosaic、copy_paste 0.3、neg:pos 1:2~1:3</td></tr>
+  <tr data-page-node-id="TuFcLlvNzUlbd2VpirWdWE"><td data-page-node-id="31Sjdk1tRQwFtrZ3UMdd81">训练时长</td><td data-page-node-id="qCyASVWNWz7adX7o7EHALC">stage2 微调 ~1 天（GPU 3090，几百张样本，60 epochs）</td></tr>
+</table>
+
+<h2 data-page-node-id="1N0hp5rTmhVxGOSSbd0Vwq">六、样本需求量估算 + 验收标准</h2>
+<table data-page-node-id="otzKEa4P5VesZeC2G4qbRl">
+  <tr data-page-node-id="ImU9Q5HW62KIvl0iFfEb59"><th style="width:24%" data-page-node-id="yT3tUtbZjtZbwkDGL4WcTm">项</th><th data-page-node-id="6wiToRux51unXQO0Deeg63">内容</th></tr>
+  <tr data-page-node-id="6n1G6Q244r9cNUXH1r1Ltd"><td data-page-node-id="3i3ovm2giIfEAbp8t7opAJ">最低有效量</td><td data-page-node-id="igZYy5uMPLjOjACvMlKBXF"><b data-page-node-id="Yr9RJWSVKOBIQ2NLgCNq0i">~200~300 张</b>真实烟帧（标注）——让模型初步学会真实烟特征，检出率提升至 40%+</td></tr>
+  <tr data-page-node-id="E9adLcmiRpthgEAUQ9cgwD"><td data-page-node-id="e4DuYXIxHEoet4ocBIfVuw">理想量</td><td data-page-node-id="AS2uASiUGWLRNX2Q7QPIdr"><b data-page-node-id="GCUyJiP4OhmKn3loyo0qpO">~500~1000 张</b>——检出率提升至 60~70%+，覆盖不同距离/角度/光照/背景</td></tr>
+  <tr data-page-node-id="yH3IDNzW8qB6FnM7WSiNju"><td data-page-node-id="Em7eDsv2guO1D2MMiLCdPY">验收标准</td><td data-page-node-id="nFoy86M5SOIVEb215yNRB5">① 用今天实测的"DJI 白天视频 v4/v1"复测：从 0 框 → 检出（conf>0.3）② 微信真烟图检出率：从 ~6.7% → 60%+ ③ 真飞验证：实际巡逻遇到真烟能检出</td></tr>
+</table>
+
+<h2 data-page-node-id="QFwEz4pdTA3exjN7fTNh4X">七、推荐路径 + 排期</h2>
+<table data-page-node-id="lwburzG0SN2YnGYNu1jbxu">
+  <tr data-page-node-id="PWD8gEkj3ln5mRdE0m89ho"><th data-page-node-id="Gden7rUjlJEJAD3IZEVH7R">阶段</th><th data-page-node-id="rp1ME1N1wS95nfaqzBU9q9">任务</th><th data-page-node-id="18tikmIPglll3yGEBIX1ut">工作量</th><th data-page-node-id="6QgEfRpJBhV8BGZ2hJQ72L">产出</th></tr>
+  <tr data-page-node-id="rUSemarH6LqCSGdSyFKfm6"><td data-page-node-id="hABIKKZDW7rCjFTinAqYTi">阶段1 采集</td><td data-page-node-id="hrgCR3aCxKJu4Fzw8fYa2X">主动制造真实烟：选空旷场地烧秸秆/干草，无人机 100~300m 多机位拍摄（3~5 场景）</td><td data-page-node-id="dEQQFuj9RWGVYmpCLCxz9F">1~2 天</td><td data-page-node-id="iwuQnWMHCe9p0HIHADGJmx">300~500 帧真实烟视频/帧</td></tr>
+  <tr data-page-node-id="OrjHaj8j4d18XuaTENDljF"><td data-page-node-id="HtgHgf1cfMO7oCg97nW0e3">阶段2 挖掘</td><td data-page-node-id="e1z9fm79lFOpQHgbjAssFd">历史视频挖掘：dock_media 8 段视频抽帧筛真烟</td><td data-page-node-id="C8AdYd6WyUXuUGsBgMxd6V">0.5 天</td><td data-page-node-id="oEHIo8u62dYuJ8WYIVRH94">20~50 帧补充</td></tr>
+  <tr data-page-node-id="rWSwau6BATIlvK6eIHUUxy"><td data-page-node-id="shq4APaFFVxPjDX7kl0CDw">阶段3 标注</td><td data-page-node-id="C8XsayuDkDJHyJh9dQGsBy">人工整框（含负样本）</td><td data-page-node-id="7ITqosnRp6nPXpGKaL5oj9">1 天</td><td data-page-node-id="dAH2enYH5AW9xsvE5e70rd">YOLO 格式标注集</td></tr>
+  <tr data-page-node-id="OjnwMi8pJkb8JFmQMZuAXa"><td data-page-node-id="VwqmdZLfB9E7lNDwnnyHPd">阶段4 训练</td><td data-page-node-id="aS4aJHfG0g8iNC2T4mlUtq">v5_syn 预训 + 真实烟微调（stage2）</td><td data-page-node-id="CZHKoaZAeIVpC6CzlgLEcQ">1 天</td><td data-page-node-id="xQ1BWQ6sqCWiNCUoLqOWQy">新模型（best.onnx）</td></tr>
+  <tr data-page-node-id="2eF7TAlvHkOuMo3ij3nKa9"><td data-page-node-id="dNVy91kJNlVukLveAm3rko">阶段5 验证</td><td data-page-node-id="j2FpwCRNnRWfaBukVFTEWI">离线复测（v4/v1/微信图）+ 真飞验证</td><td data-page-node-id="EWR0fJFy8kIZVXadRPAB9R">1 天</td><td data-page-node-id="ZtYqHdwEd0dqT7AanD7DFq">检出率验证报告</td></tr>
+</table>
+<p data-page-node-id="j8k32EiBrMW5CgFnFtACFk"><b data-page-node-id="Lh9MjaMY1rOJJf3hx0z67e">总周期约 4~6 天</b>（其中主动采集是瓶颈，取决于天气/场地安排）。</p>
+
+<h2 data-page-node-id="o0BA9g0AFPLpHJq8rbW65A">八、结论</h2>
+<div class="box green" data-page-node-id="t5hwVHP3NdXfcGocPLME0b">
+  <p data-page-node-id="NAYCpIt7nw7THGcdwhxGmn">① <b data-page-node-id="8nj4mdDdzN33mvyxaKrmp7">根因确认</b>：模型对真实烟盲 = 训练数据缺"DJI 远景淡烟真实样本"（域偏移），不是模型/阈值/分辨率问题；<br data-page-node-id="AHjLn4Q5fuBtyVLRACK37X">
+  ② <b data-page-node-id="rt2M2CB3hXd6za311bw9iG">最快可控路径 = 主动制造真实烟</b>：烧秸秆/干草 + 无人机巡逻高度拍 + 人工标注，1~2 天出 300~500 帧；<br data-page-node-id="YcDACJrwjFchqcPBfT1BFc">
+  ③ <b data-page-node-id="uUKQcNxhhaOfJwbC6JogXe">训练策略 = v5_syn 预训 + 真实烟微调</b>（沿用现有两阶段框架），真实烟占比提至 40~60%；<br data-page-node-id="URtL0wLYc7J4xoSVFnioA6">
+  ④ <b data-page-node-id="MnkEZjlXnNhvG5BFoBaPYN">预期效果</b>：真实烟检出率从 ~6.7% → 60%+，总周期约 4~6 天；<br data-page-node-id="3pZ4M90prgadDUKsGfTzZZ">
+  ⑤ <b data-page-node-id="enslrXtvmhCgU9g0ORDJ6p">长期机制</b>：巡逻采集常态化（遇到真实焚烧即截图回流），持续补充真实域。</p>
+</div>
+
+<div class="foot" data-page-node-id="EYQd1HieGRzj8eYBEaw7jm">
+  本报告基于 2026-09-08 stage2 实测（微信图 1/15 检出、DJI 视频 0 框、合成烟 100%）+ v5 训练集盘点（v5_syn 800 合成 / v5_wechat 18 真实近景 / stage2 训练 196 图）。核心结论：补"DJI 远景淡烟"真实样本是唯一根治路径，主动制造真实烟最快可控。
+</div>
+
+</div>
+</body>
+</html>

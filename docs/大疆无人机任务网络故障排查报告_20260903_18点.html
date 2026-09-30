@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大疆无人机任务网络故障排查报告 · 2026-09-03 18点</title>
+<style>
+  :root{
+    --ink:#1f2733; --mut:#5c6b7f; --line:#dbe2ec; --soft:#f4f7fb;
+    --blue:#1b4f9e; --blue2:#eaf1fb; --red:#c0392b; --red2:#fdecea;
+    --amber:#b7791f; --amber2:#fff7e6; --green:#1e8e5a; --green2:#e7f5ee;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:24px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px}
+  h2{font-size:18px;color:var(--blue);margin:36px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}
+  .s-amber{background:var(--amber2);color:var(--amber)}
+  .s-green{background:var(--green2);color:var(--green)}
+  .s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}
+  .box.danger{border-left-color:var(--red)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .timeline{margin:12px 0;padding-left:2px}
+  .tl-item{position:relative;padding:6px 0 6px 20px;border-left:2px solid var(--line);margin-left:6px}
+  .tl-item::before{content:"";position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--blue)}
+  .tl-item.red::before{background:var(--red)}
+  .tl-item.amber::before{background:var(--amber)}
+  .tl-time{font-size:12px;color:var(--mut);font-family:Consolas,monospace}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  @media print{body{background:#fff}.page{padding:20px 16px}h2{margin:24px 0 6px}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="doc-head">
+  <div class="org">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title">大疆无人机任务网络故障排查报告</div>
+  <div class="subtitle">—— 2026-09-03 18:00~18:40 时段（环保局机场任务飞行期间）</div>
+  <div class="meta">
+    <span>排查方式：只读日志核查（未改动大疆任何设置）</span>
+    <span>编制时间：2026-09-04</span>
+    <span>排查对象：dji-openapi / straw-engine / 司空 ZLM</span>
+  </div>
+</div>
+
+<h2>一、结论摘要</h2>
+<div class="box danger">
+  <p><b>9 月 3 日 18 点前后环保局机场任务飞行期间，我方代码（dji-openapi 的"自动取流"链路）对该机场的网络造成了三重叠加干扰</b>，是任务时段网络故障的重要诱因：</p>
+  <p>① <b>自动定档 1080P</b>（每次起飞把直播码率翻倍）　② <b>自动拉流 mirror</b>（从司空 ZLM 拉流，占司空直播资源）　③ <b>straw-engine 反复重启</b>（每次发现新流全量重启引擎，7 次/40 分钟）。</p>
+  <p>其中 ① 定档 1080P 已于 9 月 4 日关闭，② 自动拉流已于 9 月 4 日禁用，③ 重启问题随②停止后同步消除。</p>
+</div>
+
+<h2>二、故障时段事件时间线</h2>
+<div class="timeline">
+  <div class="tl-item"><span class="tl-time">18:05:02</span> zlm-watcher 发现司空直播流 <b>live/8UUXN7G00A0FDP</b>（环保局机场）→ 触发 mirror 拉流</div>
+  <div class="tl-item red"><span class="tl-time">18:05:08</span> <b>mirror 异常: timeout</b>（拉流超时）</div>
+  <div class="tl-item amber"><span class="tl-time">18:05:19</span> LIVE_ON → <b>自动定档 1080P 成功</b>（第1次尝试）</div>
+  <div class="tl-item amber"><span class="tl-time">18:05:32</span> <b>straw-engine 重启</b>（第1次，zlm-watcher 加流触发）</div>
+  <div class="tl-item"><span class="tl-time">18:07:49</span> LIVE_OFF</div>
+  <div class="tl-item amber"><span class="tl-time">18:08:21</span> LIVE_ON → <b>定档 1080P 成功</b></div>
+  <div class="tl-item amber"><span class="tl-time">18:08:32</span> <b>straw-engine 重启</b>（第2次）</div>
+  <div class="tl-item"><span class="tl-time">18:20:07</span> LIVE_OFF</div>
+  <div class="tl-item amber"><span class="tl-time">18:20:47</span> LIVE_ON → <b>定档 1080P 成功</b></div>
+  <div class="tl-item amber"><span class="tl-time">18:21:02</span> <b>straw-engine 重启</b>（第3次）</div>
+  <div class="tl-item"><span class="tl-time">18:26:26</span> 职教中心机场 LIVE_ON → 定档 1080P</div>
+  <div class="tl-item"><span class="tl-time">18:30:21</span> 环保局机场 LIVE_OFF</div>
+  <div class="tl-item amber"><span class="tl-time">18:36:51</span> 三峡科技机场 LIVE_ON → 定档 1080P</div>
+</div>
+
+<h2>三、异常指标统计（18:00~18:40）</h2>
+<table>
+  <tr><th style="width:34%">指标</th><th style="width:16%">数值</th><th>说明</th></tr>
+  <tr><td>LIVE_ON 事件</td><td><b>10 次</b></td><td>直播状态频繁开启</td></tr>
+  <tr><td>LIVE_OFF 事件</td><td><b>4 次</b></td><td>开/关不对等，存在直播会话抖动</td></tr>
+  <tr><td>straw-engine 重启</td><td><b>7 次</b></td><td>zlm-watcher 每次发现新流触发 restartEngine</td></tr>
+  <tr><td>mirror 拉流超时</td><td><b>1 次</b></td><td>18:05:08 addStreamProxy 超时</td></tr>
+  <tr><td>自动定档 1080P</td><td><b>3 次全成功</b></td><td>环保局机场每次 LIVE_ON 都定档，码率翻倍</td></tr>
+  <tr><td>秸秆检测告警</td><td><b>0 条</b></td><td>引擎反复重启导致抽帧中断，检测失效</td></tr>
+</table>
+
+<h2>四、三重干扰机制剖析</h2>
+
+<h3>4.1 自动定档 1080P（主因 · 挤占机场 4G 上行）</h3>
+<div class="code">LIVE_ON → live-quality-lock.js → setLiveVideoQuality/{dock}/{dev}/3(1080P)</div>
+<p>9 月 3 日 10:00 上线的 P0 定档代码，在每次飞机 LIVE_ON 时把直播档位从默认 720p 强制提到 1080P，<b>机场 4G 上行码率翻 2~3 倍</b>，直接挤占机场到司空平台的上行链路，正是大疆厂家反馈"挤占网络空间"的核心。</p>
+<p><span class="tag s-green">已处置</span> 9 月 4 日已配置 <code>liveQualityLock.enabled=false</code> 关闭。</p>
+
+<h3>4.2 自动拉流 mirror（占司空直播资源）</h3>
+<div class="code">zlm-watcher 每 15s 轮询司空 ZLM → 发现 live 流 → addStreamProxy 拉流 mirror 到我方 ZLM</div>
+<p>原设计"机场直推我方 ZLM 1936 不经司空"，实际实现走了"从司空 ZLM 拉流"，占用了司空直播的并发 reader/带宽。18:05:08 还出现一次拉流超时。</p>
+<p><span class="tag s-green">已处置</span> 9 月 4 日已配置 <code>zlmWatch.enabled=false</code> 禁用并清理残留拉流。</p>
+
+<h3>4.3 straw-engine 反复重启（次生影响 · 检测中断）</h3>
+<div class="code">zlm-watcher 发现新流 → strawSync.addStreamToEngine + restartEngine() → 全量重启引擎</div>
+<p>每次发现新直播流都会触发 straw-engine 全量重启（重载模型、重建 worker），40 分钟内重启 7 次。每次重启期间检测抽帧中断，导致该时段秸秆检测 <b>0 告警</b>。此问题随 4.2 拉流禁用后同步消除。</p>
+
+<h2>五、根因定位与责任边界</h2>
+<table>
+  <tr><th style="width:22%">环节</th><th style="width:30%">动作</th><th style="width:18%">归属</th><th>影响</th></tr>
+  <tr><td>机场直播会话抖动</td><td>18:05-18:30 频繁 LIVE_ON/OFF（10:4）</td><td><span class="tag s-blue">大疆/司空</span></td><td>任务期间直播状态不稳定</td></tr>
+  <tr><td>自动定档 1080P</td><td>LIVE_ON 即定 1080P</td><td><span class="tag s-red">我方代码</span></td><td>机场上行码率翻倍</td></tr>
+  <tr><td>自动拉流 mirror</td><td>addStreamProxy 拉司空流</td><td><span class="tag s-red">我方代码</span></td><td>占司空直播 reader</td></tr>
+  <tr><td>引擎反复重启</td><td>发现新流即 restart</td><td><span class="tag s-red">我方代码</span></td><td>检测抽帧中断</td></tr>
+</table>
+
+<div class="box">
+  <p><b>核心判断</b>：9 月 3 日 18 点任务时段的网络故障，是<b>机场直播会话本身抖动</b>（大疆侧）与<b>我方自动取流链路的三重叠加干扰</b>共同作用的结果。我方三项干扰均已于 9 月 4 日处置完毕（定档关闭、拉流禁用、引擎不再频繁重启）。</p>
+</div>
+
+<h2>六、处置记录（9 月 4 日已完成）</h2>
+<table>
+  <tr><th style="width:30%">处置项</th><th style="width:42%">操作</th><th>状态</th></tr>
+  <tr><td>关闭自动定档</td><td>config.json 加 <code>liveQualityLock.enabled=false</code></td><td><span class="tag s-green">已完成</span></td></tr>
+  <tr><td>禁用自动拉流</td><td>config.json 加 <code>zlmWatch.enabled=false</code> + 条件启动</td><td><span class="tag s-green">已完成</span></td></tr>
+  <tr><td>清理残留拉流</td><td>delStreamProxy 删除 3 路 sikong_ 流</td><td><span class="tag s-green">已完成</span></td></tr>
+  <tr><td>清理引擎残留流</td><td>straw-engine 删除 9 路 sikong_ 流配置</td><td><span class="tag s-green">已完成</span></td></tr>
+  <tr><td>机场僵尸推流</td><td>环保局机场直播未停止（司空平台缺陷）</td><td><span class="tag s-amber">需大疆修复</span></td></tr>
+</table>
+
+<div class="foot">
+  本报告基于系统日志与数据库只读核查，未改动大疆任何设置。数据时点：2026-09-03 18:00~18:40（CST）。排查人：WorkBuddy · 2026-09-04。
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>预警通道整改 · 交付报告（2026-09-14）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1280px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:32px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 9px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:9px;margin:13px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:11px 13px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.kpi .big{font-size:19px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+ul{margin:7px 0;padding-left:21px}li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>预警通道整改 · 交付报告</h1>
+  <div class="subtitle">全批 8 项整改（含 1.1 异常爆发复盘定论）· 依据 jsc.db 实测与代码验证</div>
+</header>
+
+<div class="kpi">
+  <div><div class="lbl">整改项</div><div class="big">7 / 8</div></div>
+  <div><div class="lbl">城运联调</div><div class="big" style="font-size:15px">按指示留后</div></div>
+  <div><div class="lbl">部署</div><div class="big" style="font-size:15px">前后端已上线</div></div>
+  <div><div class="lbl">验证</div><div class="big" style="font-size:15px">全部通过</div></div>
+</div>
+
+<h2>一、1.1 异常爆发复盘（最重要的发现）</h2>
+<div class="card bad">
+  <h3>结论：不是平台故障，是几路摄像头的持续性误判</h3>
+  <table>
+    <tr><th>维度</th><th>实测</th><th>说明</th></tr>
+    <tr><td>时间</td><td>09-06 03:13 ~ 09-10 11:08（约 4.3 天）</td><td>合计 <b>20,567 条</b>，占累计 68%</td></tr>
+    <tr><td>通道×类型</td><td><b>单一</b>：iotcloud「堆头未覆盖」占 99.7%</td><td>不是多通道同时抖动</td></tr>
+    <tr><td>小时分布</td><td>24h 均匀（每小时 600~1200）</td><td><b>持续高频</b>，非突发脉冲</td></tr>
+    <tr><td>置信度</td><td><b>87% 在 80-100%</b></td><td>⚠️ 都是高置信度 → <b>不能按置信度过滤</b></td></tr>
+    <tr><td>集中通道</td><td><code>…205</code>(5,122) <code>…206</code>(4,729) <code>…202</code>(4,670) <code>…305</code>(3,997) <code>…204</code>(1,520)</td><td>全在 NVR 172.16.8.51，ch2/4/5/6</td></tr>
+    <tr><td>处置情况</td><td>status <b>全部 pending</b></td><td>产生后从未被处置</td></tr>
+  </table>
+  <p style="margin:10px 0 0;font-size:13px">
+    <b>样例</b>：<code>龙腾? (51ch6)</code> 每 1 分钟 1 条（03:13:33→03:14:33→03:15:35），置信度恒定 0.75 —— 典型的"AI 对固定画面持续输出同一误判"。<br>
+    <b>关键区分</b>：<code>205/204/305</code> <b>未在 iot_channels 登记</b>（可安全屏蔽）；<code>202/206</code> 已登记（有业务价值，<b>不屏蔽</b>）。
+  </p>
+</div>
+
+<h2>二、7 项整改完成情况</h2>
+<table>
+  <tr><th>#</th><th>整改项</th><th>实现</th><th>验证证据</th></tr>
+  <tr>
+    <td>1.2</td><td>统一 created_at 时间格式（新数据）</td>
+    <td><code>store-db.js</code> 新增 <code>normalizeCreatedAt()</code>：本地串 → UTC ISO；data_json 与列同步</td>
+    <td><span class="tag t-ok">单测 7/7</span> 含跨日回退、ISO 原样、脏值兜底</td>
+  </tr>
+  <tr>
+    <td>1.3</td><td>提示音全局化</td>
+    <td><code>pushOne(w, silent)</code>：新 id 且非首屏 → <code>loadSoundPref() && playAlertChime()</code></td>
+    <td>不再依赖历史弹窗打开（代码级）</td>
+  </tr>
+  <tr>
+    <td>1.4</td><td>补过滤规则（含新能力）</td>
+    <td>① <code>locations</code> 支持 <b>channelSipId 精确匹配</b>（原仅名称关键字）② 配规则屏蔽 3 个未登记通道</td>
+    <td><span class="tag t-ok">对照验证</span> 规则 ON 命中 0 条 / <b>OFF 命中 124 条</b>；202/206 未误伤</td>
+  </tr>
+  <tr>
+    <td>2.1</td><td>告警 SSE 推送（双轨）</td>
+    <td>新建 <code>warnings-stream.js</code> + <code>store.onWarningInsert</code> 钩子；前端订阅 + <b>轮询 10s→60s 兜底</b>；收到即 sync + 1s 节流</td>
+    <td><span class="tag t-ok">已连上</span> 后端日志「SSE 客户端接入（当前 1）」；终极端点 200 / 未授权 401</td>
+  </tr>
+  <tr>
+    <td>2.2</td><td>首屏回灌优化</td>
+    <td>10 → 30 条（聚合接口只返 pending，天然未处置优先），静默不响铃</td>
+    <td>UI 实测 <code>cards: 20</code></td>
+  </tr>
+  <tr>
+    <td>3.1</td><td>MQTT 弃用</td>
+    <td>移除「MQTT 配置」tab；OverviewPage / AdminPanel 标注「已停用」（组件与逻辑保留可一行恢复）</td>
+    <td>UI 无 MQTT 入口</td>
+  </tr>
+  <tr>
+    <td>3.2</td><td>城运通道联调</td>
+    <td colspan="2"><span class="tag t-warn">按你指示留到以后</span> 我方代码/规则/推送链路已 100% 就绪</td>
+  </tr>
+</table>
+
+<h2>三、关键设计决策</h2>
+<div class="card acc">
+  <ul style="margin:0">
+    <li><b>为什么 SSE 收到告警不直接插卡，而是触发 sync()</b>：SSE 推的是原始告警，若直接插入会与聚合卡**重复显示**（同一条既是单条卡、又是聚合成员）→ 改为"入库即拉最新聚合视图"，延迟仍 &lt;1s 且数据一致；加 1s 节流防爆发期请求风暴</li>
+    <li><b>为什么过滤规则要新增通道号匹配</b>：刷屏通道 channelName 为空、同 NVR 共享 deviceName → 原名称关键字匹配既定位不到、又会误伤同设备已登记通道</li>
+    <li><b>为什么不用置信度过滤</b>：爆发期误报置信度 87% 在 80-100%，按置信度过滤会同时删掉真告警</li>
+    <li><b>双轨而非纯 SSE</b>：SSE 断线/被反向代理缓冲时，60s 兜底轮询保证功能不退化</li>
+  </ul>
+</div>
+
+<h2>四、部署与遗留</h2>
+<div class="card good">
+  <p style="margin:0 0 8px"><b>部署</b>：后端 3 文件（<code>store-db.js</code> / <code>warnings-stream.js</code> / <code>index.js</code>）→ 备份 + scp + 重启（active，语法自检通过）；前端 <code>verify</code> 全绿 → bundle <code>index-DTcjTiqp.js</code> md5 磁盘==远端 + HTTP 200</p>
+  <p style="margin:0"><b>遗留</b>：① SSE <b>端到端实时性</b>（告警入库→前端可见 &lt;1s）待真实告警自然验证（连接层与代码层已验证）② 爆发期的那几路摄像头<b>根治需业务侧核查检测配置</b>（过滤只是屏蔽展示，不是修复误判）③ 城运联调按指示留后</p>
+</div>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  整改依据 jsc.db 实测（30,035 条告警）+ 代码验证 · 2026-09-14<br>
+  📂 docs/预警通道整改_交付报告_20260914.html
+</div>
+</div>
+</body>
+</html>

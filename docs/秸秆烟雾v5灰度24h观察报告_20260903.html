@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSC 秸秆烟雾 v5 灰度 24h 观察报告</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#101a2e; --panel2:#152238; --line:#223354;
+    --tx:#d7e3f4; --mut:#8aa0bf; --cy:#4dd7ff; --red:#ff5d5d; --yel:#ffc24d;
+    --grn:#3ddc97; --pur:#b388ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:"Microsoft YaHei",system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.65;padding:28px 20px 60px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:22px;letter-spacing:.5px}
+  h2{font-size:16px;margin:26px 0 10px;padding-left:10px;border-left:3px solid var(--cy);color:#eaf3ff}
+  h3{font-size:14px;margin:14px 0 6px;color:var(--cy)}
+  .sub{color:var(--mut);font-size:12.5px;margin-top:6px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+  .tag{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 10px;font-size:12px;color:var(--mut)}
+  .banner{border-radius:10px;padding:14px 18px;margin:18px 0;background:linear-gradient(135deg,rgba(255,93,93,.16),rgba(255,93,93,.05));border:1px solid rgba(255,93,93,.5)}
+  .banner .big{font-size:17px;font-weight:700;color:var(--red)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+  th{color:var(--cy);text-align:left;font-weight:600;border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
+  td{border-bottom:1px solid rgba(34,51,84,.5);padding:6px 8px;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .r{color:var(--red);font-weight:600} .g{color:var(--grn)} .y{color:var(--yel)} .c{color:var(--cy)} .m{color:var(--mut)}
+  .num{font-variant-numeric:tabular-nums;font-family:Consolas,Menlo,monospace}
+  .kv{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:12px}
+  ul{margin:6px 0 6px 18px} li{margin:3px 0}
+  code{background:#0d1830;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:12.5px;color:#9fe8ff}
+  .box{border:1px solid var(--line);border-left:3px solid var(--cy);background:var(--panel2);border-radius:0 8px 8px 0;padding:10px 14px;margin:10px 0}
+  .verdict{font-size:15px}
+  .foot{margin-top:34px;color:var(--mut);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+  .step{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;background:var(--panel)}
+  .prio{display:inline-block;border-radius:4px;padding:0 7px;font-size:12px;font-weight:700;margin-right:6px}
+  .p1{background:var(--red);color:#fff}.p2{background:var(--yel);color:#1a1205}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="head">
+  <div>
+    <h1>🌾 JSC 秸秆烟雾生产系统 · v5 灰度 24h 观察报告</h1>
+    <div class="sub">观察窗口：2026-09-02 00:30（YOLO11m 单类 smoke@1280 替换 RT-DETR 上线）→ 2026-09-03 09:00 ｜ 服务器 111.10.220.226 ｜ 只读诊断，未改动生产</div>
+  </div>
+  <div class="kv">
+    <span class="tag">straw-engine :7200</span>
+    <span class="tag">模型 v5_smoke_v5/stage2/best.onnx</span>
+    <span class="tag">confSmoke=0.15</span>
+  </div>
+</div>
+
+<div class="banner">
+  <div class="big">🔴 核心结论：v5 stage2 对 DJI 无人机域「全盲」实锤 —— 且有双重静默根因，0 新记录 ≠ 正常</div>
+  <ul>
+    <li><b>模型全盲（生产实证）</b>：灰度窗口内 09-02 13:58~19:23 确有 4 架无人机多批真实飞行，引擎确已开流推理，但 <span class="num">0</span> 条告警落库、<span class="num">0</span> 条 <code>[alert:</code> 日志；离线抽测生产 best.onnx 抽 10 帧真烟 <span class="r">10/10 全 0 检出</span>。</li>
+    <li><b>新发现代码 Bug（雪上加霜）</b>：<code>main.py L249</code> else 分支引用未赋值 <code>label</code> → 每个非告警帧抛 <code>NameError</code>（整窗 1805 次，恰好聚集在飞行时段），复检/随机抽帧收集恒为 0，DB 完全静默。</li>
+    <li><b>当前状态</b>：4 架无人机全部在仓（机库盖子），ZLM 无 <code>sikong_</code> mirror 流 → worker 持续「打开失败重试」，此刻引擎无任何输入源。</li>
+  </ul>
+</div>
+
+<h2>① 服务与配置状态</h2>
+<div class="grid2">
+  <div class="panel">
+    <h3>服务</h3>
+    <table>
+      <tr><td>straw-engine</td><td class="g">active（systemd）</td></tr>
+      <tr><td>/health</td><td><code>{"ok":true}</code>，6 worker 全 <code>running:true</code></td></tr>
+      <tr><td>stream_ok</td><td class="r">全部 false（无可用输入源）</td></tr>
+      <tr><td>OSD</td><td>4 机 tracked，skip 原因「在仓(机库盖子)」</td></tr>
+      <tr><td>当前进程</td><td>pid 2791368，启动于 09-02 19:14:10（恰逢末批飞行）</td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <h3>生产配置核对（config/config.json）</h3>
+    <table>
+      <tr><td>model</td><td><code>/video/xunlian/runs/detect/v5_smoke_v5/stage2/weights/best.onnx</code>（9/2 00:26）</td></tr>
+      <tr><td>format / inputSize</td><td><code>yolo</code> / <code>1280</code></td></tr>
+      <tr><td>confSmoke / Fire / House</td><td><code>0.15 / 0.45 / 0.35</code></td></tr>
+      <tr><td>useGpu</td><td>true（启动日志 provider=CUDAExecutionProvider）</td></tr>
+    </table>
+    <div class="sub">⚠️ /health 返回的 model_path/version 为硬编码展示值（v2 字样），以 config.json 为准 —— 已知失真项。</div>
+  </div>
+</div>
+
+<h2>② 检测记录（straw_detections，时间列 ts）</h2>
+<div class="panel">
+  <table>
+    <tr><th>指标</th><th>数值</th><th>判读</th></tr>
+    <tr><td>全表范围</td><td class="num">2026-08-25 00:00 → <b>2026-09-01 18:43:59</b></td><td class="r">自 9/2 00:30 换模型后 0 条新记录</td></tr>
+    <tr><td>ts ≥ 09-02 00:30 记录</td><td class="num r">0</td><td>灰度窗口完全静默</td></tr>
+    <tr><td>source 分布（全表 668）</td><td class="num">alert 545 / picall 121 / picall_random 2</td><td class="r">无 'low' → maybe_record 复检路径从未成功（Bug 佐证）</td></tr>
+    <tr><td>max_conf 0.15~0.25 激增？</td><td class="num">无（0 记录）</td><td class="g">无误报激增 —— 连误报都没有，因为全盲</td></tr>
+    <tr><td>对照组 09-01（RT-DETR 时代）</td><td class="num">11h=2 / 13h=1 / 18h=8</td><td>旧模型当日确有产出（含 0.48~0.55 fire 疑似误报），证明链路本身能落库</td></tr>
+  </table>
+</div>
+
+<h2>③ 「0 记录」vs「无飞行」辨析 —— 真实飞行对照</h2>
+<div class="panel">
+  <p>drone_live_events（<code>event_time</code> 为 <b>UTC</b>，下表换算为北京时间 CST）证明窗口内发生多批真实作业：</p>
+  <table>
+    <tr><th>CST 时间</th><th>无人机</th><th>动作</th><th>straw-engine 同期日志</th></tr>
+    <tr><td class="num">09-02 13:58~14:06</td><td>A0S4G / A064U</td><td>ON→OFF ×2</td><td>NameError ×288（13-14h）</td></tr>
+    <tr><td class="num">09-02 18:10~18:52</td><td>A064U / A0S4G / A0S4J / SJM</td><td>ON→OFF 多轮</td><td>NameError ×897（18h）</td></tr>
+    <tr><td class="num">09-02 19:14~19:23</td><td>A0S4J</td><td>ON→OFF</td><td>NameError ×620（19h，进程 19:14 重启后）</td></tr>
+    <tr><td class="num r">整窗</td><td colspan="2"><b>[alert: 日志 = 0 条</b>｜ DB 新记录 = 0 条</td><td class="r">NameError 合计 1805 次</td></tr>
+  </table>
+  <div class="box">➡️ <b>判定</b>：引擎在真实飞行中确实收到了镜流、逐帧跑了 v5 推理，却从未产生一次 ≥0.15 的连续 3 帧确认告警。<b>「0 记录」直接坐实模型 DJI 域全盲，而非「没飞/没推流」。</b></div>
+</div>
+
+<h2>④ 代码级根因（本次观察新发现）</h2>
+<div class="panel">
+  <h3>🐛 main.py L249 NameError：非告警帧必崩，复检收集恒 0</h3>
+  <pre style="background:#0d1830;border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;font-size:12.5px;line-height:1.5"><code>if res[0] == 'alert':
+    ...
+    label = CLASSES[cls_id]        # ← L203 label 仅在此分支赋值
+    ...
+else:
+    # 复检记录：单帧命中（未确认）+ 随机抽帧
+    recorder.maybe_record(sid, frame, boxes, res, label, ...)   # ← L249 引用未定义 label</code></pre>
+  <ul>
+    <li>非告警帧（模型未确认 = 常态，v5 全盲下即<b>每一帧</b>）走 else 分支 → <code>NameError: local variable 'label' referenced before assignment</code> → 每帧打印错误并 sleep 2s → <b>复检记录/低置信抽帧永远无法落库</b>，且实际拖慢 worker 帧率。</li>
+    <li>告警路径（if 分支）不受影响：若模型真能检出 ≥3 连续帧，仍会正常落库+上报 —— 所以「0 落库」依然是模型全盲的硬证据。</li>
+    <li>Bug 自 8/31 16:27 版 main.py 即存在（本次 v5 部署仅换了 detector.py + config）；RT-DETR 时代靠告警路径产出行，掩盖了此 Bug。</li>
+    <li>影响面：straw_detections 复检收集链（P2 scene / P3 straw_neg_reviews 负样本）自该版本起即断供。</li>
+  </ul>
+</div>
+
+<h2>⑤ 离线抽测复核（生产 best.onnx 现行参数）</h2>
+<div class="panel">
+  <p>用与生产 worker 完全一致的 Detector（best.onnx / format=yolo / input_size=1280 / conf_smoke=0.15）对 <code>live_review/</code>（182 帧 DJI 真烟）等距抽 10 帧：</p>
+  <table>
+    <tr><th>帧</th><th>≥0.15 检出</th><th>原始框</th><th>max_conf</th></tr>
+    <tr><td class="num">A064U_…f00036 / f00034 / f00054 / f00085</td><td class="r num">0</td><td class="num">0</td><td class="num">0.0000</td></tr>
+    <tr><td class="num">A0S4G_…f00025 / f00067 / f00117 / f00142</td><td class="r num">0</td><td class="num">0</td><td class="num">0.0000</td></tr>
+    <tr><td class="num">A0S4J_…f00060 / f00036</td><td class="r num">0</td><td class="num">0</td><td class="num">0.0000</td></tr>
+    <tr><td><b>合计 10/10</b></td><td class="r num"><b>0</b></td><td class="num">0</td><td class="r num">最高 0.0000</td></tr>
+  </table>
+  <div class="sub">注：本次 shell 环境 CUDA lib 缺失自动回退 CPU（onnxruntime 特性，权重一致不影响检出结论）；生产服务内为 CUDA。与 01:40 全量 182 帧结论（全 0、最高 0.122）一致。</div>
+</div>
+
+<h2>⑥ ZLM 流在线（现时）与误报核查</h2>
+<div class="grid2">
+  <div class="panel">
+    <h3>ZLM getMediaList（:6080 API）</h3>
+    <ul>
+      <li>返回 60 条（每流按 schema 重复）→ 去重约 20 个唯一流，<b>全部为 jsc app 的普通摄像机 RTSP 拉流</b>。</li>
+      <li class="r">无任何 <code>sikong_&lt;SN&gt;</code> mirror 流在线 → 无人机当前不在飞。</li>
+      <li>worker 持续「打开失败，5s 后重试」轮询（sim 流亦无源）→ <b>此刻引擎零输入、零推理</b>。</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>误报激增核查</h3>
+    <ul>
+      <li>conf 0.15~0.25 区间记录：<span class="num">0</span> —— 无低置信激增。</li>
+      <li class="g">结论：v5 阶段不存在「误报问题」；现状是「全盲漏报」——漏报远比误报危险。</li>
+      <li>历史 RT-DETR 残留误报倾向（09-01 18:32-33 fire 0.516~0.557 on dock 场景）已随换模型消失。</li>
+    </ul>
+  </div>
+</div>
+
+<h2>⑦ 待人工复核提醒</h2>
+<div class="panel">
+  <table>
+    <tr><th>项</th><th>数量</th><th>说明</th></tr>
+    <tr><td>灰度窗口新增 pending</td><td class="num">0</td><td>本就没有新记录</td></tr>
+    <tr><td>全表 pending（历史遗留）</td><td class="num y">520</td><td>含 09-01 18:32-33 A0S4G fire 0.516/0.535/0.557、08-30/31 smoke 0.30~0.47 等疑似机库/降落误报，建议在复检页批量清理</td></tr>
+    <tr><td>review_status 分布</td><td class="num">pending 520 / false 91 / true 57</td><td>处理率偏低，配合 v5.2 上线一并消化</td></tr>
+  </table>
+</div>
+
+<h2>⑧ 结论：无人机作业后到底能不能告警？</h2>
+<div class="banner" style="border-color:rgba(255,93,93,.8)">
+  <div class="big verdict">❌ 不能 —— 在当前 v5 stage2 模型下，即便无人机起飞作业，也无法产生秸秆烟雾告警。</div>
+  <div style="margin-top:8px">
+    三重证据链：① 09-02 真实飞行期间引擎确在推理（NameError 聚集飞行时段）却 0 告警；② 生产 best.onnx 离线抽测 10/10 真烟帧全 0 检出；③ 已知根因 = 训练 val 无 DJI 帧 → early-stop 锁死 best=ep1 低点。叠加代码 Bug 后，DB 层面完全静默，任何「0 记录 = 正常」的解读都是错误的。
+  </div>
+</div>
+
+<h2>⑨ 处置建议（按优先级）</h2>
+
+<div class="step">
+  <span class="prio p1">P0</span><b>立即安排 v5.2 重训（不要轻信「0 记录=正常」继续灰度）</b>
+  <ul>
+    <li>从 <code>stage2/epoch20.pt</code> 续训（勿再从头/勿复用 best=ep1 早停路径），<b>val 集必须加入 DJI 真烟帧（live_review 182 帧等）</b>，lr0=0.002 微调。</li>
+    <li>验收 gate：val mAP 达标 + live_review 182 帧全量至少检出部分烟 + fire FP 不增；参考 9/3 03:0x 的 YOLO26m A/B 评估（受控对比同数据集）。</li>
+    <li>排期建议 ≤2 天；期间系统保持现状（全盲静默），如需应急见 P2。</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="prio p1">P0</span><b>修复 main.py L249 NameError（与重训并行，独立小改动）</b>
+  <ul>
+    <li>else 分支调用 <code>maybe_record</code> 前补 <code>label = ''</code> 兜底（或把 label 解析下沉到函数内）；部署后 curl /health + 观察日志不再刷 NameError。</li>
+    <li>收益：复检/低置信收集恢复，为 v5.2 提供真烟负样本回流通道；消除每帧 2s 无效 sleep。</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="prio p2">P2</span><b>应急回滚备选（若短期必须恢复「有告警」能力）</b>
+  <ul>
+    <li>回退 RT-DETR：<code>config/config.json.bak_rtdetr_0902</code> + 对应 detector.py（08-23 版），代价 = 回到高误报（机库/降落 fire 假阳性 0.45~0.55 会复现）。</li>
+    <li>不推荐长期回退；仅作 v5.2 训练空窗期的临时手段，且须同时修 L249 防复检断供。</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="prio p2">P2</span><b>v5.2 部署后的灰度复验 protocol（固化）</b>
+  <ul>
+    <li>① 部署后先跑 live_review 182 帧全量离线推理（全 0 = 拒绝上线）；② 真机 1 次起飞 smoke 场景 → 断言出现 <code>[alert:</code> 日志 + straw_detections 落库 + 驾驶舱告警闭环；③ 观察 24h 确认无 conf 0.15~0.25 误报激增。</li>
+  </ul>
+</div>
+
+<div class="foot">
+  数据来源：systemctl / curl 127.0.0.1:7200/health · /opt/jsc/backend/data/jsc.db（straw_detections / drone_live_events）· journalctl -u straw-engine（09-02 00:25 起）· ZLM :6080 getMediaList · 离线 Detector 推理（/opt/jsc/straw-engine/venv）｜ 生成时间：2026-09-03 09:00 GMT+8 ｜ 本报告为只读诊断，未修改任何生产文件
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱 KPI 下钻（5 项）· 交付报告（2026-09-16）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1340px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:30px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+pre{background:rgba(0,0,0,.3);padding:11px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:9px 0}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+ul,ol{margin:7px 0;padding-left:22px}li{margin-bottom:5px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px;margin:13px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:11px 13px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.kpi .big{font-size:20px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+figure{margin:14px 0;text-align:center}
+figure img{max-width:100%;border:1px solid var(--border);border-radius:6px}
+figcaption{color:var(--muted);font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>驾驶舱 KPI 下钻（5 项）· 交付报告</h1>
+  <div class="subtitle">
+    状态：<span class="tag t-ok">已上线并通过真实页面验收</span>　·　
+    <b>通用骨架（①）+ 摄像头「筛选 + 统计条标注」都要（③）+ 水质点位分组（①）+ 统一 5 项降级语义（①）+ 无人机弹窗迁移（①）+ 行内地图定位（①）</b>　·　2026-09-16
+  </div>
+  <div style="margin-top:12px;padding:11px 14px;background:rgba(255,82,82,.1);border:1px solid rgba(255,82,82,.45);border-left:4px solid #ff5252;border-radius:5px;font-size:13px;color:#ffb3b3">
+    <b>🔴 勘误（2026-09-17）：</b>本报告中「重点企业 10 家均配摄像头 / 4 家有离线」及问题 5 的结论<b>有误，已被复查推翻</b> ——
+    ① 匹配键本应支持 <code>location</code>（九龙万博两路流的 <code>location</code> 本来就是企业全称），<b>不必改生产数据</b>；
+    ② 漏配「万源玻璃大门干道」（万源玻璃实际 2 路）；
+    ③ 「N 家有离线」混淆了「巡检离线（自动恢复）」与「人工下线（不自动恢复）」；
+    ④ 离线是实时量，本报告数字为 9/16 13:25 快照，<b>9/17 16:39 已变为 6 家 / 7 路</b>。
+    详见 <b><code>docs/重点企业摄像头联动_复核勘误_20260917.html</code></b>。
+  </div>
+</header>
+
+<h2>一、交付结果</h2>
+<div class="kpi">
+  <div><div class="lbl">可下钻 KPI</div><div class="big" style="color:#4ade80">5 / 5</div></div>
+  <div><div class="lbl">新增文件</div><div class="big">4</div></div>
+  <div><div class="lbl">改动文件</div><div class="big">4</div></div>
+  <div><div class="lbl">tsc 类型门禁</div><div class="big" style="color:#4ade80">0 错误</div></div>
+  <div><div class="lbl">明文口令泄露</div><div class="big" style="color:#4ade80">0 条</div></div>
+</div>
+
+<div class="card good">
+  <h3>验收结论（真实页面 · Edge headless + CDP）</h3>
+  <table>
+    <tr><th>KPI</th><th>统计条</th><th>下钻行数</th><th>分组</th><th>只看异常</th><th>地图定位</th><th>结果</th></tr>
+    <tr>
+      <td>监测站</td><td><code>2 座</code></td><td>2</td><td>—</td><td>—</td><td>✅</td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)">联动实时值：周家坝 AQI 78 / PM2.5 18 / PM10 45 / SO₂ 12 / NO₂ 28</span></td>
+    </tr>
+    <tr>
+      <td>水质点位</td><td><code>5 个</code></td><td>5</td>
+      <td><b>2 组</b>：流域监测站 4 + 水质监测点 1</td><td>—</td><td>✅</td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)">解决"5 由异类相加不可解释"</span></td>
+    </tr>
+    <tr>
+      <td>摄像头</td><td><code>27 路 ·7 离线</code></td><td>27</td><td>—</td>
+      <td><b>✅ 27 → 7</b></td><td>✅</td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)">20 条 URL 全部脱敏为 <code>rtsp://***:***@</code>；离线置顶</span></td>
+    </tr>
+    <tr>
+      <td>无人机</td><td><code>4 架</code></td><td>4</td><td>—</td><td>—</td><td>✅</td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)">迁到通用骨架后角标「在飞 0 架」仍正常</span></td>
+    </tr>
+    <tr>
+      <td>重点企业</td><td><code>10 家</code></td><td>10</td><td>—</td>
+      <td><b>✅ 10 → 4</b></td><td>—<span style="font-size:11px;color:var(--muted)">（无经纬度）</span></td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)"><b>10 家有视频监控</b>（数据治理后已补齐）、4 家有离线</span></td>
+    </tr>
+    <tr>
+      <td><b>降级语义（5 项统一）</b></td>
+      <td colspan="5">注入断链（拦截 <code>fetch</code> + 偏移 <code>Date.now</code> 使宽限期过期）后：<code>2 座</code> → <b><code>— 座</code></b>（非 0），<code>title</code>=「监测站接口不可达，数值未知（非 0）」</td>
+      <td><span class="tag t-ok">通过</span><br><span style="font-size:11.5px;color:var(--muted)">弹窗顶部出现降级条 + 保留最后 2 行数据</span></td>
+    </tr>
+    <tr><td>发布门禁</td><td colspan="5"><code>tsc --noEmit</code> <b>0 错误</b> · build <code>7.73s</code> · 资源 5/5 HTTP 200 + md5 磁盘==HTTP</td><td><span class="tag t-ok">通过</span></td></tr>
+  </table>
+</div>
+
+<figure>
+  <img src="kpi_drill_camera_20260916.png" alt="摄像头下钻弹窗">
+  <figcaption>① 摄像头下钻：27 路（离线置顶）、「只看异常」筛选、播放地址已脱敏、每行可「地图定位」</figcaption>
+</figure>
+
+<figure>
+  <img src="kpi_drill_degraded_20260916.png" alt="降级态">
+  <figcaption>② 降级态：统计条显示「— 座」（非 0），弹窗顶部给出不可达说明并保留最后一次台帐</figcaption>
+</figure>
+
+<h2>二、架构（一处骨架 + 一处口径）</h2>
+<div class="card acc">
+  <pre>统计条 5 格（StatsCell · onClick）
+        │
+        ▼
+components/<b>KpiDrilldownModal</b>.tsx          ← 唯一骨架：头部 / 降级条 / 分组 / 异常置顶+筛选 / 定位 / 口径脚注
+        ▲  列定义 + 分组 + 脚注
+        │
+lib/<b>kpiDrilldown</b>.ts                      ← 5 份描述符（specMonitorStations / specWaterPoints /
+        │                                        specCameras / specEnterprises / specSikongDevices）
+        │
+lib/<b>maskUrl</b>.ts  · lib/<b>sikongStatus</b>.ts    ← 脱敏单一出处 · 在飞判定单一出处
+        │
+DashboardContext：<b>useAvailability()</b>       ← 5 项统一「不可达 → —」语义（5min 宽限）
+        └── 轮询单一出处：streams / map-points / stations / enterprises / sikong</pre>
+</div>
+
+<div class="card">
+  <h3>三条既有铁律在本次强制执行</h3>
+  <ul style="margin-bottom:0">
+    <li><b>未知 ≠ 0</b>：5 项统一显示「—」；弹窗降级条 + 保留最后一次数据</li>
+    <li><b>口径只在一处</b>：URL 脱敏只在 <code>maskUrl.ts</code>；在飞判定只在 <code>sikongStatus.ts</code>；列与分组只在 <code>kpiDrilldown.ts</code>；可达性只在 <code>useAvailability</code></li>
+    <li><b>口径混装必须分组</b>：水质点位 5 = 流域站 4 + 水质点 1，弹窗内分组 + 脚注说明构成</li>
+  </ul>
+</div>
+
+<h2>三、过程中发现并修复的 5 个问题</h2>
+
+<div class="card bad">
+  <h3>🐛 自引入缺陷 1：<code>useAvailability()</code> 返回新对象 → effect 依赖不稳定（已修）</h3>
+  <p style="margin-top:0">第一版把 5 个定时器的依赖写成 <code>[xxxAvail]</code>（hook 返回的对象）。对象每次渲染都是新引用 → <b>每个 effect 每次渲染都重跑</b>：<code>clearInterval</code> + <code>setInterval</code> 反复重建，<b>同时每次渲染都发一次请求（请求风暴）</b>，降级判定也被拖慢（实测注入断链后 14s 仍不转「—」）。</p>
+  <p style="margin:0"><b>修法</b>：改成返回 <code>[available, mark]</code>，<code>mark</code> 为 <code>useCallback</code> 稳定引用；effect 依赖用 <code>[markXxx]</code>。修后降级在下一个轮询周期（≤10s）正确生效。已在源码注释中标注「<b>勿回退</b>」。</p>
+</div>
+
+<div class="card bad">
+  <h3>🔒 问题 2：URL 明文口令（评估阶段已预判，落地时验证为真）</h3>
+  <p style="margin-top:0">实测 <b>22/27 路</b> <code>url</code> 含 <code>rtsp://用户:密码@…</code>。已强制走 <code>maskStreamUrl()</code>。<br>
+  <b>实测复核</b>：弹窗内 20 条去重 URL 的凭据段取值集合 = <code>["***:***"]</code>，<b>明文 0 条</b>。</p>
+  <div class="quote" style="border-left-color:var(--green);margin-bottom:0">
+    <b>踩坑</b>：我的第一版检测正则 <code>rtsp:\/\/[^\/@\s]+:[^\/@\s]+@</code> 把 <code>***:***@</code> 也判成"明文"（<code>*</code> 满足 <code>[^/@\s]+</code>）→ 误报"泄露"。<b>校验脱敏必须比对凭据段取值，不能用"是否匹配 URL 形态"</b>。
+  </div>
+</div>
+
+<div class="card warn">
+  <h3>🟡 问题 3：重点企业↔摄像头联动漏配（已修 2 家，剩 1 家属台帐命名不一致）</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>原因（实测）</th><th>处理</th></tr>
+    <tr>
+      <td>a</td><td>精确匹配漏配 2 家</td>
+      <td>两表名称<b>差在空白</b>：<code>彼迪正天生化 (重庆) 有限公司</code> vs <code>彼迪正天生化(重庆)有限公司</code>；<code>三峡国际健康城施工工地 - 开挖区</code> vs <code>…工地-开挖区</code></td>
+      <td>✅ 加 <code>normName()</code> 去半角/全角空白归一化</td>
+    </tr>
+    <tr>
+      <td>b</td><td><b>仍有 1 家无法匹配 → 已数据治理</b></td>
+      <td>企业「重庆市九龙万博新材料科技有限公司」的摄像头名为「<b>重庆市九龙万博监控1 / 监控2</b>」——<b>命名本身不同</b>（与全称无前缀关系）</td>
+      <td>见下方「<b>问题 5</b>」：代码加前缀匹配 + 数据统一命名，已修复为 <b>10/10 家有监控</b></td>
+    </tr>
+    <tr>
+      <td>c</td><td>联动数据源口径冲突</td>
+      <td>原用 <code>map-points</code> 的 camera 点位（报 <b>8 家离线</b>），而「摄像头」KPI 用 <code>/api/streams</code>（报 <b>7 路离线</b>）→ 同页面两个口径互相打脸</td>
+      <td>✅ 统一改用 <code>/api/streams</code>（与摄像头 KPI 同源），现为「9 家有监控、4 家有离线」，与摄像头 KPI 自洽</td>
+    </tr>
+  </table>
+</div>
+
+<div class="card acc">
+  <h3>✅ 问题 4：<code>/api/stations</code> 重复轮询（评估阶段已识别，本次消除）</h3>
+  <p style="margin:0">原先 <code>CenterPanel</code>（取数量）与 <code>MapView</code>（取列表）各轮询一次，均 10s。现统一到 <code>DashboardContext</code> 单例，<b>每 10s 仅 1 次请求</b>；MAP 监测站图标 🏠 复测正常。</p>
+</div>
+
+<div class="card good">
+  <h3>✅ 问题 5（追加 · 数据治理）：统一「九龙万博」两路摄像头命名，联动补齐到 10/10</h3>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td><b>为什么不能只改数据</b></td>
+      <td>两路摄像头本来只差后缀（监控1 / 监控2）。若都改成企业全称，<b>两行将完全同名同址，运维无法区分</b>。故采用「<b>代码放开匹配 + 数据补后缀</b>」组合。</td></tr>
+    <tr><td><b>代码</b></td>
+      <td><code>specEnterprises</code> 匹配规则升级为：<b>归一化精确匹配 → 失败再退化前缀匹配</b>（<code>摄像头名.startsWith(企业全称)</code>，含最短长度护栏）。企业全称长且具体，前缀误配风险极低，且可覆盖"同一企业多台摄像头"这一常见命名。</td></tr>
+    <tr><td><b>数据</b></td>
+      <td>两路改名为「<b>重庆市九龙万博新材料科技有限公司（通道102）</b>」「<b>…（通道201）</b>」—— 通道号<b>取自现有 url 的 <code>/Streaming/Channels/&lt;N&gt;</code></b>（事实来源，不臆造）。</td></tr>
+    <tr><td><b>改前备份</b></td>
+      <td><code>/opt/jsc/backend/backups/streams_rename_20260916052330.json</code>（含两条原始记录全文 + 回滚命令）</td></tr>
+    <tr><td><b>副作用复核</b></td>
+      <td>① 视频流总数仍 <b>27</b> ② 无重名冲突 ③ 地图 camera 点位 <b>27 个未受影响</b>（本次只改流名，未动点位）④ 摄像头 KPI 离线数仍 <b>7</b></td></tr>
+    <tr><td><b>效果</b></td>
+      <td>重点企业下钻：<b>10 家 · 其中 10 家有视频监控（4 家有离线）</b>；无监控由 <b>1 家 → 0 家</b>；九龙万博行 = 「<b>2 路 · 在线</b>」</td></tr>
+  </table>
+</div>
+
+<figure>
+  <img src="kpi_enterprise_rename_20260916.png" alt="重点企业下钻（命名统一后）">
+  <figcaption>③ 数据治理后：重点企业 10/10 家有视频监控，九龙万博显示「2 路 · 在线」</figcaption>
+</figure>
+
+<h2>四、改动清单</h2>
+<table>
+  <tr><th>文件</th><th>类型</th><th>要点</th></tr>
+  <tr><td><code>src/app/lib/maskUrl.ts</code></td><td><b>新增</b></td><td><code>maskStreamUrl()</code>（URL 脱敏单一出处）+ <code>relTime()</code>（相对时间）</td></tr>
+  <tr><td><code>src/app/lib/kpiDrilldown.ts</code></td><td><b>新增</b></td><td>5 份口径描述符（列/分组/脚注）+ <code>normName()</code> 归一化；含三条硬约束的注释</td></tr>
+  <tr><td><code>src/app/components/KpiDrilldownModal.tsx</code></td><td><b>新增</b></td><td>通用骨架：分组 / 异常置顶+筛选 / 降级条 / 口径脚注 / 行内地图定位 / a11y</td></tr>
+  <tr><td><code>src/app/lib/sikongStatus.ts</code></td><td>改</td><td>（上一轮新增）在飞判定单一出处，本次被 <code>specSikongDevices</code> 复用</td></tr>
+  <tr><td><code>src/app/context/DashboardContext.tsx</code></td><td>改</td><td>新增 <code>useAvailability()</code>；stations / enterprises 单例轮询；5 项可达性；sikong 轮询重构为同一 hook</td></tr>
+  <tr><td><code>src/app/components/CenterPanel.tsx</code></td><td>改</td><td>删除本组件内 stations / enterprises 轮询；5 格接 <code>onClick</code>；摄像头统计条加「·7 离线」标注；挂 4 个新弹窗；<code>locateRow()</code></td></tr>
+  <tr><td><code>src/app/components/MapView.tsx</code></td><td>改</td><td>stations 改用 Context（消除重复轮询）；<code>stName</code> 加 id 兜底</td></tr>
+  <tr><td><code>src/app/components/SikongDeviceModal.tsx</code></td><td>改</td><td><b>迁移到通用骨架</b>（190 行 → 约 100 行，只留描述符装配 + <code>FlyingBadge</code>），角标/降级条行为不变</td></tr>
+  <tr><td><code>src/app/lib/api-types.ts</code></td><td>改</td><td>新增 ⑦ <code>StationRow</code> / ⑧ <code>EnterpriseRow</code> 契约</td></tr>
+</table>
+
+<h2>五、排期对照（评估 → 实际）</h2>
+<table>
+  <tr><th>批次</th><th>评估</th><th>实际</th><th>偏差说明</th></tr>
+  <tr><td>P0 URL 脱敏基建</td><td>0.2d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P0 通用下钻骨架</td><td>0.4d</td><td><span class="tag t-ok">完成</span></td><td>额外承载了「分组 / 异常筛选 / 行内定位」三项能力</td></tr>
+  <tr><td>P0 摄像头下钻</td><td>0.3d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P0 监测站下钻</td><td>0.2d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P0 水质点位下钻</td><td>0.2d</td><td><span class="tag t-ok">完成</span></td><td>—</td></tr>
+  <tr><td>P1 重点企业下钻</td><td>0.3d</td><td><span class="tag t-warn">完成，多两轮返工</span></td><td>发现联动漏配（空白差异）+ 数据源口径冲突，各修一轮</td></tr>
+  <tr><td>P1 Context 统一</td><td>0.3d</td><td><span class="tag t-ok">完成</span></td><td>含 sikong 轮询一并重构（5 项同构）</td></tr>
+  <tr><td>P1 降级语义统一</td><td>0.3d</td><td><span class="tag t-warn">完成，多一轮返工</span></td><td><b>自引入 hook 依赖 bug</b> 导致降级不生效 → 已修并复验</td></tr>
+  <tr><td>P2 行内地图定位</td><td>0.3d</td><td><span class="tag t-ok">完成</span></td><td>复用既有 <code>onLocate</code>（合成一个仅用 lon/lat 的定位目标）</td></tr>
+  <tr><td>P2 缩略图延迟加载</td><td>0.3d</td><td><span class="tag t-info">未做</span></td><td>首版未渲染图片即无体积问题；实测弹窗文本 6KB，<b>暂不需要</b></td></tr>
+</table>
+
+<h2>六、回滚方案</h2>
+<div class="quote" style="border-left-color:var(--red);margin-bottom:0">
+  本次为<b>纯前端</b>改动（后端 <code>sikong.js</code> 本轮未动），不涉及数据结构与迁移。<br>
+  <b>备份</b>：<code>/opt/jsc/frontend/backups/index.html.bak_pre_kpidrill2_20260916_124155</code>（及 <code>…pre_kpidrill_20260916_123907</code>、<code>…pre_badge_20260916_120531</code>）。<br>
+  <b>回滚步骤</b>：还原 <code>index.html</code>（旧 assets 因 contenthash 仍在，无需回滚 assets）。<br>
+  <b>注意</b>：回滚后「无人机」KPI 仍工作（那是上一轮的后端 + 前端改动，与本次前端无关）。
+</div>
+
+<h2>七、遗留</h2>
+<table>
+  <tr><th>#</th><th>事项</th><th>建议</th></tr>
+  <tr><td>1</td><td><b>企业台帐命名不一致 1 家</b></td><td><span class="tag t-ok">已修复</span> 代码加前缀匹配 + 两路摄像头统一命名为「企业全称（通道N）」，现 <b>10/10 家有监控</b>（见「问题 5」）</td></tr>
+  <tr><td>2</td><td>企业 <code>location</code> / <code>contact</code> 全为 null</td><td>下钻「地址 / 联系人」列现显示「—」；需业务方补企业台账（<b>不阻塞</b>）</td></tr>
+  <tr><td>3</td><td>流域监测站 4 个无水质参数</td><td>下钻已标注「未接入断面水质监测数据」；接入后自动显示，无需改代码</td></tr>
+  <tr><td>4</td><td>本次 10 个文件未提交 git</td><td>建议连同上一轮一并提交（类型门禁相关改动需原子提交）</td></tr>
+  <tr><td>5</td><td>视频轮播/视频流管理里，两路九龙万博卡片标题变长（含「（通道102）」）</td><td>预期变化（可区分性换来的），如需精简可在视频流管理改回短名，但会失去企业联动</td></tr>
+</table>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  验收环境：<code>http://111.10.220.226:81/jsc/</code>（SSH 隧道 <code>-L 18080:127.0.0.1:80</code> 本地验收）·
+  工具 <code>scripts/ui-probe.mjs</code><br>
+  证据：<code>tmp/kpi_drill_all.json</code> · <code>tmp/kpi_degraded_station.json</code> · <code>tmp/kpi_drill_camera.txt</code> · <code>tmp/_tsc10.txt</code> / <code>tmp/_build10.txt</code> · <code>tmp/check_mask.cjs</code><br>
+  <b>数据治理追加</b>：<code>tmp/rename_streams.mjs</code>（改名 + 自测）· <code>tmp/probe_side_effects.mjs</code>（副作用复核）· <code>tmp/kpi_enterprise_after_rename.json</code> · 备份 <code>/opt/jsc/backend/backups/streams_rename_20260916052330.json</code><br>
+  📂 docs/驾驶舱KPI下钻扩展到其余4项_交付报告_20260916.html
+</div>
+</div>
+</body>
+</html>

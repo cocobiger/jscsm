@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 分析算法来源 · 推送链路 · 错漏与排期（2026-09-15）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1300px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:32px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 9px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.t-idle{background:rgba(107,135,168,.16);color:#8fa9c4;border:1px solid rgba(107,135,168,.4)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+ul{margin:7px 0;padding-left:21px}li{margin-bottom:4px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin:13px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:11px 13px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.kpi .big{font-size:19px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+pre{background:rgba(0,0,0,.3);padding:11px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:9px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>AI 分析算法：来源 / 推送链路 / 错漏 · 评估与排期</h1>
+  <div class="subtitle">基于 jsc.db 实测（30,035 条）+ <code>iot-fetcher.js</code> 代码验证 —— 结论：<b>两套字典互不匹配</b></div>
+</header>
+
+<div class="kpi">
+  <div><div class="lbl">算法"字典"</div><div class="big">3 套</div></div>
+  <div><div class="lbl">8 类中真实有数据</div><div class="big" style="color:var(--red)">2 / 8</div></div>
+  <div><div class="lbl">未映射脏值</div><div class="big" style="color:var(--amber)">3 类 132 条</div></div>
+  <div><div class="lbl">配置是否生效</div><div class="big" style="color:var(--red)">否</div></div>
+</div>
+
+<h2>一、算法名到底从哪来？（三层字典，互不打通）</h2>
+<div class="card bad">
+  <table>
+    <tr><th>层</th><th>载体</th><th>内容</th><th>真实作用</th></tr>
+    <tr>
+      <td><b>① 真实来源</b></td>
+      <td><b>IoTCloud 云平台</b><br><code>analyseInfo</code> JSON 的 key</td>
+      <td>英文短名（<code>unsoilcover</code> / <code>dust</code> / …）</td>
+      <td><span class="tag t-bad">唯一决定实际 aiType</span></td>
+    </tr>
+    <tr>
+      <td><b>② 技术映射表</b></td>
+      <td><code>iot-fetcher.js</code> 的 <code>AI_TYPE_MAP</code></td>
+      <td><b>仅 7 个 key</b>：unsoilcover / uncovered / person / vehicle / fire / water / garbage</td>
+      <td><span class="tag t-warn">未命中就 fallback</span></td>
+    </tr>
+    <tr>
+      <td><b>③ 业务字典</b></td>
+      <td><code>ai_types</code> 表（+ 前端 <code>AI_ANALYSIS_TYPES</code>）</td>
+      <td><b>8 类中文</b>（07-10 建 7 类 + 07-13 加"堆场扬尘"）</td>
+      <td><span class="tag t-idle">仅下拉/展示用，不参与映射</span></td>
+    </tr>
+  </table>
+  <h3>决定性代码（iot-fetcher.js:134）</h3>
+  <pre>type: AI_TYPE_MAP[key] || key || 'AI分析'</pre>
+  <p style="margin:0;font-size:13px">
+    <b>含义</b>：云平台返回 key → 查本地映射表 → <b>查不到就原样返回英文 key</b>（← <code>dust</code> 就是这么来的）→ key 也空才落到 <code>'AI分析'</code>。<br>
+    <b>致命点</b>：用户列的 <b>8 类里只有「堆头未覆盖」(unsoilcover) 在映射表内</b>，其余 7 类（堆场扬尘/道路扬尘/秸秆燃烧/违规排污/固废与危废/固废运输/侵占岸线）<b>全都不在</b>。
+  </p>
+</div>
+
+<h2>二、8 类算法的实际"死活"情况</h2>
+<table>
+  <tr><th>算法（AI分析存档展示）</th><th>实际条数</th><th>来源通道</th><th>在映射表?</th><th>诊断</th></tr>
+  <tr><td>堆头未覆盖</td><td><b>28,856</b></td><td>iotcloud</td><td><span class="tag t-ok">是</span></td><td>唯一真正在跑</td></tr>
+  <tr><td>秸秆燃烧</td><td>621</td><td><b>straw-engine</b>（iotcloud 0 条）</td><td>否</td><td>自研引擎产出，非云平台</td></tr>
+  <tr><td>堆场扬尘</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span></td></tr>
+  <tr><td>道路扬尘</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span>（但另有英文 <code>dust</code> 125 条，疑为其未映射值）</td></tr>
+  <tr><td>违规排污</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span></td></tr>
+  <tr><td>固废与危废违规倾倒</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span></td></tr>
+  <tr><td>固废运输违规</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span></td></tr>
+  <tr><td>侵占岸线与水面漂浮物</td><td style="color:var(--red)"><b>0</b></td><td>—</td><td>否</td><td><span class="tag t-bad">空壳</span></td></tr>
+</table>
+<div class="quote">
+  <b>结论</b>：「AI 分析存档」里展示的 8 类算法中，<b>6 类从未产生过任何数据</b>；真正在跑的只有「堆头未覆盖」一类（占 iotcloud 99.6%）。用户看到的"8 类算法"实际是<b>业务愿望清单</b>，不是系统能力清单。
+</div>
+
+<div class="card bad">
+  <h3>🔬 补充：IoTCloud 平台直连实测（2026-09-15 01:15，已登录云平台核验）</h3>
+  <p style="margin-top:0;font-size:13px">为确认"6 类零数据"到底是<b>云平台没部署</b>还是<b>部署了没检出</b>，直连 IoTCloud（<code>172.16.8.11:6881/prod-api</code>）做了三重核验：</p>
+  <table>
+    <tr><th>核验项</th><th>实测结果</th><th>含义</th></tr>
+    <tr>
+      <td>① 全平台通道<b>算法配置</b><br><code>/sip/channel/list</code> → <code>sipChannelAnalyse</code></td>
+      <td><b>21 个通道全部只有 <code>unsoilcover</code></b>（堆头未覆盖）：<br>7 个通道有记录（值 0.41~0.83），14 个为 <code>null</code></td>
+      <td><span class="tag t-bad">云平台只跑 1 类算法</span></td>
+    </tr>
+    <tr>
+      <td>② 算法模型字典<br><code>/scene/model/list</code></td>
+      <td><b>total = 1</b>，唯一模型 <code>sceneModelId=2</code> 名为「<b>视频轮播</b>」（非算法模型）<br>各通道 <code>reSceneModelId/Name</code> <b>全为 null</b></td>
+      <td>平台没有任何算法模型登记</td>
+    </tr>
+    <tr>
+      <td>③ 全站关键字搜 <code>spill</code></td>
+      <td><b>0 命中</b>（通道字段 / 分析记录 / 模型字典全查过）</td>
+      <td><span class="tag t-bad">spill 未在云平台运行</span></td>
+    </tr>
+  </table>
+  <h4 style="color:var(--orange);margin:12px 0 6px">分析记录的真实结构（关键）</h4>
+  <pre>analyseInfo = [{"unsoilcover": 0.55, "plate": "渝A025991", "plate_conf": 0.855}]</pre>
+  <p style="margin:0 0 8px;font-size:13px">
+    云平台实际输出的算法只有两类：<b><code>unsoilcover</code>（堆头未覆盖）</b> + <b><code>plate</code>（车牌识别）</b>。<br>
+    <b>其余 6 类（堆场扬尘/道路扬尘/违规排污/固废×2/侵占岸线）在云平台上根本不存在</b> —— 不是"没检出"，是<b>没部署</b>。
+  </p>
+  <div class="quote" style="margin:0;border-left-color:var(--red)">
+    <b>关于 <code>spill</code>（你专门问的）</b>：存量 4 条 <code>aiType=type</code> 的记录，picUrl 是
+    <code>172.16.8.11:6882/.../t1_spill_inject_..._full.png</code> —— 文件名含 <b><code>inject</code>（注入测试）</b>。
+    结合"云平台无 spill 算法 + 全站 0 命中"可判定：<b>这 4 条不是任何算法的产出，而是人工放到图床的测试图所形成的脏记录</b>（连同 <code>AI分析</code> 3 条，共 7 条测试污染）。
+  </div>
+</div>
+
+<div class="card bad">
+  <h3>🖥 补充二：172.16.8.11 主机层探查（2026-09-15 01:35）</h3>
+  <h4 style="color:var(--orange);margin:8px 0 4px">端口与服务画像（实测 9 个开放端口）</h4>
+  <table>
+    <tr><th>端口</th><th>服务</th><th>与算法关系</th></tr>
+    <tr><td><code>6881</code></td><td>IoTCloud API（nginx/1.26.2）</td><td>算法<b>后端</b> — 已查：只有 unsoilcover</td></tr>
+    <tr><td><code>8888</code></td><td><b>「云端一体化智能算法应用平台」前端</b>（v2.1.0-snapshot，构建于 <b>2026-09-02</b>）<br>含 Jessibuca/EasyWasmPlayer/video.js 播放器</td><td>算法<b>平台前端</b> — 主包 2.27MB <b>搜 spill = 0</b></td></tr>
+    <tr><td><code>6882</code></td><td>IoTCloud 认证网关/后台（响应头 <code>欢迎使用iotcloud后台管理框架 v3.8.5</code>）</td><td>图片需认证；spill 图片返回 <b>401 JSON</b>（非 404）</td></tr>
+    <tr><td><code>1883</code> / <code>8083</code></td><td>MQTT（8083 为 Cowboy/Erlang WS）</td><td>无关</td></tr>
+    <tr><td><code>6379</code></td><td>Redis</td><td>无关</td></tr>
+    <tr><td><code>18082</code></td><td>ZLMediaKit（需 secret）</td><td>流媒体，无关</td></tr>
+    <tr><td><code>5001</code></td><td>nginx/1.27.4（404）</td><td>无算法接口</td></tr>
+    <tr><td><code>10000</code></td><td>非 HTTP / 超时</td><td>无法识别</td></tr>
+    <tr><td style="color:var(--red)"><code>22</code></td><td style="color:var(--red)"><b>SSH 关闭</b></td><td><b>⚠️ 无法登录查进程/容器</b></td></tr>
+  </table>
+  <h4 style="color:var(--orange);margin:12px 0 4px">结论与探查边界（诚实标注）</h4>
+  <ul style="margin:0">
+    <li><b>应用层已 4 重确认无 spill</b>：①21 通道算法配置只有 unsoilcover ②算法模型字典仅"视频轮播" ③全站 API 响应搜 spill = 0 ④<b>算法平台前端主包（2.27MB）搜 spill = 0</b></li>
+    <li><b>无法排除的可能</b>：主机上若存在<b>不监听 HTTP 端口</b>的推理容器/进程（如某个只对内网暴露的 Python 服务），因 <b>SSH(22) 关闭</b>我无法列进程/容器确认 —— 这是本次探查的<b>硬边界</b></li>
+    <li><b>要 100% 确认主机层</b>，需云平台方提供登录方式，或直接询问"是否在 172.16.8.11 部署过 spill 算法"</li>
+    <li><b>新认知</b>：172.16.8.11 除 IoTCloud API(6881) 外，还有 <b>「云端一体化智能算法应用平台」(8888)</b> 这个此前未记录的入口；其构建时间 <code>2026-09-02</code> 与 spill 测试图时间戳（<code>1788348776211</code> ≈ 2026-09-02）<b>仅差 22 分钟</b> —— 同一天有人部署了平台前端并注入了 spill 测试图</li>
+  </ul>
+</div>
+
+<div class="card bad">
+  <h3>🚨 重要修正三：spill 确实在运行 —— 它是 <code>unsoilcover</code> 的内部类型名</h3>
+  <p style="margin-top:0">经 8.12→8.11 <b>全端口穿透扫描（51 个开放端口）</b>后，在算法服务群中找到决定性证据：</p>
+  <h4 style="color:var(--orange);margin:10px 0 4px">证据 ①：<code>:7100</code> 视频告警 API 的原始记录</h4>
+  <pre>{
+  "id": 112613, "time": "2026-09-14 19:14:00",
+  "event": "冒装",                                        ← 业务标签
+  "channel_sip_id": "56331706881318000205",               ← ★ 正是今晚被过滤规则屏蔽的刷屏通道
+  "information": "[{\"unsoilcover\": 0.55, \"plate\": \"渝A025991\", \"plate_conf\": 0.855}]",
+  "detail": [{
+    "type": "spill",                                      ← ★★ spill 在这里！
+    "confidence": 0.55, "label": "冒装",
+    "raw": {"unsoilcover": 0.55, "plate": "渝A025991", "plate_conf": 0.855}
+  }]
+}</pre>
+  <h4 style="color:var(--orange);margin:10px 0 4px">证据 ②：<code>:8101</code>「告警人工复检标注平台」把 spill 作为标注类别</h4>
+  <p style="font-size:13px;margin:0 0 6px">页面按钮：<code>[['spill','真违规·装载物未覆盖'],['empty','空车未覆盖'],['static','静态车'],['noise','树叶/阴影'],['other','其他']]</code>；<code>/api/stats</code> = <code>{done:0, pending:25, total:25}</code>。</p>
+  <h4 style="color:var(--orange);margin:10px 0 4px">证据 ③：那 4 条 <code>t1_spill_inject_*</code> = 投给 8101 标注平台的测试样本</h4>
+  <h4 style="color:var(--green);margin:10px 0 4px">完整映射链（终于闭环）</h4>
+  <pre>底层算法类型名 :  spill                    ← 真实运行的算法类型
+      ↓ 云平台 API 输出 key
+API 输出 key   :  unsoilcover              ← 我方 AI_TYPE_MAP 映射为「堆头未覆盖」
+      ↓ 业务侧标签
+业务中文名     :  冒装                     ← 7100 的 event 字段
+      ↓ 标注平台类别
+标注标签       :  真违规 · 装载物未覆盖     ← 8101 的 spill 按钮
+      ↓
+驾驶舱显示     :  堆头未覆盖  (warnings.aiType)</pre>
+  <div class="quote" style="border-left-color:var(--green);margin-top:10px">
+    <b>修正结论</b>：spill <b>并非"未部署"</b>，而是<b>同一个算法换了三套名字</b>。我之前仅查 IoTCloud 的算法配置（只显示 unsoilcover）就断言"无 spill"，<b>是错的</b> —— 通过 8.12 穿透到 8.11 的 51 个端口才看到底层类型名。
+  </div>
+  <div class="quote" style="border-left-color:var(--red);background:rgba(255,82,82,.10);margin-top:10px">
+    <b>⚠️ 由此暴露一个必须立即复核的风险</b>：今晚我配的过滤规则屏蔽了 <code>…205 / …204 / …305</code>，
+    而 <code>7100</code> 显示 <b>spill（冒装）告警的主源正是 <code>56331706881318000205</code></b> ——
+    <b>这条规则可能屏蔽了真实的渣土车冒装告警</b>。爆发期高频（每分钟 1 条、置信度恒 0.75）更像"同一辆车长时间停留反复触发"而非纯误报。<b>建议复核后再决定是否保留。</b>
+  </div>
+  <h4 style="color:var(--orange);margin:12px 0 4px">附：172.16.8.11 全端口扫描（51 个开放端口）</h4>
+  <table>
+    <tr><th>类别</th><th>端口</th><th>识别结果</th></tr>
+    <tr><td>算法/业务服务</td><td><code>5000</code> <code>5001</code> <code>7001</code> <code>7002</code> <code>7100</code> <code>8100</code> <code>8101</code></td><td><b>Flask 服务群</b>：<code>7001</code>=<b>plate-service</b>（车牌 catcher+crnn）· <code>7100</code>=<b>视频告警 API</b>（/video/alert/page，累计 <b>29,055</b> 条，event=冒装）· <code>8101</code>=<b>告警人工复检标注平台</b>（含 spill 类别）</td></tr>
+    <tr><td>平台前端/后端</td><td><code>6881</code> <code>6882</code> <code>6883</code> <code>6885</code> <code>6886</code> <code>8888</code></td><td>IotCloud 物联网系统 · 后台框架 v3.8.5 · <b>云端一体化智能算法应用平台</b></td></tr>
+    <tr><td>注册中心</td><td><code>8848</code> <code>9848</code> <code>9849</code></td><td><b>Nacos</b> —— 服务清单<b>只有 1 个：<code>model-server</code></b>（算法模型服务）</td></tr>
+    <tr><td>中间件</td><td><code>5432</code> <code>6379</code> <code>16379</code> <code>9092</code> <code>9093</code> <code>9095</code> <code>16060</code> <code>9000</code> <code>9001</code></td><td>PostgreSQL · Redis(+集群) · Kafka · <b>TDengine TSDB</b> · MinIO</td></tr>
+    <tr><td>流媒体</td><td><code>554</code> <code>1935</code> <code>5540</code> <code>6080</code> <code>6081</code> <code>18082</code> <code>18083</code></td><td>RTSP · RTMP · ZLMediaKit ×3 · <b>EMQX Dashboard</b></td></tr>
+    <tr><td>容器/编排</td><td><code>6443</code> <code>4443</code> <code>8443</code></td><td>疑似 <b>Kubernetes API</b></td></tr>
+  </table>
+  <p style="font-size:13px;margin:8px 0 0"><b>结论</b>：172.16.8.11 不是"一台应用机"，而是<b>一整台渣土车冒装算法平台</b>（与 EasyAIoT 主线同源）—— 算法服务群 + Nacos + Kafka + PostgreSQL + TDengine + MinIO + EMQX + 3 套 ZLM + K8s。</p>
+</div>
+
+<div class="card good">
+  <h3>📸 补充三：待复检样本实图取证 + model-server 10 模型清单（2026-09-15 10:20）</h3>
+  <h4 style="color:var(--orange);margin:6px 0 4px">下载了 5 张待复检样本原图（每张 2MB，取其中 2 张定性）</h4>
+  <table>
+    <tr><th>样本</th><th>摄像头位置（水印）</th><th>画面内容</th><th>算法判定</th><th>人工判定</th></tr>
+    <tr><td><code>2_1789436338609</code></td><td><b>龙四路</b></td><td>红色平板货车（东风商用车），<b>货斗空载无货</b></td><td>spill / 装载物未覆盖</td><td style="color:var(--red)"><b>❌ 误报</b>（空车无需覆盖）</td></tr>
+    <tr><td><code>5_1789432599307</code></td><td><b>龙湖路路口</b></td><td>红色自卸货车（渝DP173挂），<b>装满货且已盖灰色篷布</b></td><td>spill / 装载物未覆盖</td><td style="color:var(--red)"><b>❌ 误报</b>（已盖篷布仍报）</td></tr>
+  </table>
+  <div class="quote" style="border-left-color:var(--green)">
+    <b>爆发根因定论</b>：算法对<b>所有经过的货车</b>都触发告警——不管车斗是空的还是已盖篷布。这就是为什么 09-06~09-10 每天能出 3000~5000 条：该路口货运 traffic 密集，<b>每辆货车经过 = 一条告警</b>。算法的"未覆盖"检测逻辑存在<b>结构性缺陷</b>（无法区分空车/已盖/真未盖）。
+  </div>
+  <h4 style="color:var(--orange);margin:14px 0 4px">:8100 model-server 的 10 个 YOLO 模型清单（全部工地/园区安全类）</h4>
+  <table>
+    <tr><th>id</th><th>模型名</th><th>框架</th><th>状态</th><th>与渣土车冒装关系</th></tr>
+    <tr><td>3</td><td>安全帽模型</td><td>YOLOv8 pt + ONNX</td><td>0</td><td>无关</td></tr>
+    <tr><td>5</td><td>反光衣模型</td><td>YOLOv8 pt</td><td>0</td><td>无关</td></tr>
+    <tr><td>6</td><td>睡岗模型</td><td>YOLOv8 pt</td><td>0</td><td>无关</td></tr>
+    <tr><td>7</td><td>火焰模型</td><td>YOLOv8 pt</td><td>0</td><td>无关</td></tr>
+    <tr><td>8</td><td>吸烟模型</td><td>YOLOv8 pt</td><td>0</td><td>无关</td></tr>
+    <tr><td>10</td><td>打电话模型</td><td>YOLOv8 ONNX</td><td>0</td><td>无关</td></tr>
+    <tr><td>11</td><td>口罩模型</td><td>YOLOv8 ONNX</td><td>0</td><td>无关</td></tr>
+    <tr><td>12</td><td>道路积水模型</td><td>YOLOv8 ONNX</td><td>0</td><td>无关</td></tr>
+    <tr><td>13</td><td>跌倒检测模型</td><td>YOLOv8 ONNX</td><td>0</td><td>无关</td></tr>
+    <tr><td>14</td><td>人脸检测模型</td><td>YOLOv8 ONNX</td><td>0</td><td>无关</td></tr>
+  </table>
+  <div class="quote" style="margin:6px 0 0">
+    <b>关键</b>：<code>unsoilcover</code>（堆头未覆盖/冒装）模型<b>不在 model-server 的 10 个模型里</b> → 它由<b>另一个专用模型/服务</b>处理（可能是 IoTCloud 的外挂算法服务，不在 Nacos 注册）。<br>
+    10 个模型全部 status=0（可能=未启用）。全部是<b>工地/园区安全类</b>算法，<b>与环保/渣土车业务无关</b>。
+  </div>
+  <h4 style="color:var(--orange);margin:14px 0 4px">过滤规则的最终建议</h4>
+  <table>
+    <tr><th>决策</th><th>理由</th></tr>
+    <tr>
+      <td><b>保留屏蔽规则（当前状态）</b></td>
+      <td>实测 2 张样本均为<b>确认误报</b>（空车 + 已盖篷布的车都被报）；算法存在结构性缺陷（无法区分空车/已盖/真未盖）；不屏蔽则每天 20~110 条垃圾告警刷屏。<b>如果云平台方修复了算法检测逻辑，再撤销屏蔽。</b>
+      </td>
+    </tr>
+    <tr>
+      <td><b>同时向云平台方反馈</b></td>
+      <td>算法缺陷：空车误报 + 已盖篷布误报 → <b>需要修复检测逻辑（区分空车/重载/已覆盖）</b>；以及 3 个通道（205/204/305）channelName 为空需要补录
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h2>三、推送到驾驶舱"实时告警"的完整链路</h2>
+<div class="card acc">
+  <pre>IoTCloud 云平台（算法检测，返回 analyseInfo）
+   │  ← 后端 iot-fetcher.js 每 30s 拉取（未按通道配置过滤）
+   ▼
+AI_TYPE_MAP[key] 映射 → aiType（未命中则英文原名 / "AI分析"）
+   │
+   ▼  aiType: ai.type（透传）
+insertWarning() → warnings 表（source=iotcloud, warning_type=iot-video-analysis）
+   │
+   ▼
+queryWarningsAggregated()：按 (通道 × aiType) 分组
+   │  ← 命中 push_rules（当前 5 条）才折叠为「聚合告警」，否则平铺
+   ▼
+GET /api/warnings?aggregate=1  ←── 前端 SSE /api/warnings/stream（实时）+ 60s 轮询（兜底）
+   │
+   ▼
+DashboardContext → externalAlerts → AlertPanel「实时告警」列表
+   │
+   ├─ 秸秆类 → 加「🔥 秸秆」标 + 置信度 + 3帧确认 + 📺带框流 + 🔬治理详情
+   ├─ 低置信度(<30%)秸秆 → 折叠组
+   └─ 新告警 → 置顶高亮 + 提示音（全局化后）</pre>
+</div>
+
+<h2>四、错漏清单（7 项，均带实测证据）</h2>
+<table>
+  <tr><th>#</th><th>错漏</th><th>证据</th><th>影响</th><th>严重度</th></tr>
+  <tr>
+    <td>1</td><td><b>两套字典互不匹配</b>：<code>AI_TYPE_MAP</code>(7 英文 key) vs <code>ai_types</code> 表(8 中文类)</td>
+    <td>交集只有「堆头未覆盖」1 项</td>
+    <td>绝大多数算法的中文名无法落地</td><td><span class="tag t-bad">高</span></td>
+  </tr>
+  <tr>
+    <td>2</td><td><b>6/8 类算法零数据</b>（已实测确认<b>云平台未部署</b>，非"没检出"）</td>
+    <td>堆场扬尘/道路扬尘/违规排污/固废×2/侵占岸线 全为 0；IoTCloud 21 通道算法配置只有 <code>unsoilcover</code></td>
+    <td>UI 展示空壳算法，用户以为系统坏了</td><td><span class="tag t-bad">高</span></td>
+  </tr>
+  <tr>
+    <td>3</td><td><b>英文脏值 <code>dust</code> 125 条</b></td>
+    <td>07-21~08-31，映射表无 dust → fallback 原 key</td>
+    <td>前端按中文枚举筛选/统计会漏掉这批；疑为「道路扬尘」未被映射</td><td><span class="tag t-warn">中</span></td>
+  </tr>
+  <tr>
+    <td>4</td><td><b>测试数据污染生产表</b>：<code>type</code> 4 条 + <code>AI分析</code> 3 条</td>
+    <td>picUrl 含 <code>t2_cover_inject_</code>/<code>t1_spill_inject_</code>（注入测试）；<code>AI分析</code> 源自模拟接口兜底值 <code>AI_TYPE_MAP[aiKey] || 'AI分析'</code></td>
+    <td>告警列表出现无意义分类</td><td><span class="tag t-warn">中</span></td>
+  </tr>
+  <tr>
+    <td>5</td><td><b>通道配置形同虚设</b>：<code>iot_channels.ai_types</code> 不参与拉取过滤</td>
+    <td>通道 桐子园码头 配「堆头未覆盖」却实际产出 dust/AI分析/type；配「道路扬尘」的通道产出「堆头未覆盖」</td>
+    <td>用户改配置不生效，无法控制哪些告警进来</td><td><span class="tag t-bad">高</span></td>
+  </tr>
+  <tr>
+    <td>6</td><td><b>「机场人员入侵」20 条未登记</b></td>
+    <td>来自 straw-engine，不在 <code>ai_types</code> 主数据</td>
+    <td>该类型无法在算法管理里看到/配置</td><td><span class="tag t-warn">中</span></td>
+  </tr>
+  <tr>
+    <td>7</td><td><b>push_rules 阈值隐患</b>：道路扬尘 <b>24h/1 条</b>（其他为 20/5）</td>
+    <td>敏感 20 倍；当前 0 数据所以未暴露</td>
+    <td>一旦云平台开跑道路扬尘，会瞬间刷屏</td><td><span class="tag t-warn">中</span></td>
+  </tr>
+</table>
+
+<h2>五、UX 评估（用户视角痛点）</h2>
+<div class="card">
+  <table>
+    <tr><th>#</th><th>痛点</th><th>用户感受</th></tr>
+    <tr><td>1</td><td>「AI 分析存档」列出 8 类算法，点进去 6 类查不到任何数据</td><td>"是不是没启用 / 是不是坏了？"——<b>无法区分"云平台没跑该算法"还是"跑了但没检出"</b></td></tr>
+    <tr><td>2</td><td>告警列表里出现英文 <code>dust</code></td><td>"这是什么？是人看的吗"——值班人员看不懂，无法判断严重性</td></tr>
+    <tr><td>3</td><td>出现分类名 <code>AI分析</code> 的告警</td><td>等于没有分类信息，无法归口处置</td></tr>
+    <tr><td>4</td><td>在通道管理里给摄像头配了算法，告警里却是别的算法</td><td>"我配了没用"——<b>配置不可信，信任崩塌</b></td></tr>
+    <tr><td>5</td><td>「堆场扬尘」在 push_rules 里配了规则，却从无告警</td><td>规则空转，管理员不知道自己配了个永远不触发的规则</td></tr>
+    <tr><td>6</td><td>没有"算法健康度"视图</td><td>客户问"你们这几个算法都在跑吗"，答不上来（只能查到 2/8 有数据）</td></tr>
+  </table>
+  <div class="quote" style="margin-bottom:0">
+    <b>痛点的共同根因</b>：系统把"业务字典（想要什么）"和"技术映射（实际得到什么）"当成同一个东西展示，用户无从分辨。<b>最该补的不是功能，而是"可见性"</b>——让每个算法明确显示"已接入 / 未接入 / 近 7 天无数据"。
+  </div>
+</div>
+
+<h2>六、开发现状评估 + 整改排期</h2>
+<div class="card good">
+  <h3>6.1 有利条件（改动集中在少数文件）</h3>
+  <ul>
+    <li>映射逻辑集中在 <code>iot-fetcher.js</code> 的 <code>AI_TYPE_MAP</code>（1 处）</li>
+    <li>业务字典已有 <code>ai_types</code> 表 + 管理接口（<code>/api/ai-types</code>）</li>
+    <li>过滤规则能力今天刚增强（支持通道号精确匹配），可直接用于屏蔽脏值</li>
+    <li>SSE 推送今天刚上线，脏值问题不涉及链路改造</li>
+  </ul>
+</div>
+
+<table>
+  <tr><th>批次</th><th>任务</th><th>内容</th><th>工作量</th><th>依赖</th></tr>
+  <tr>
+    <td><span class="tag t-bad">P0</span></td>
+    <td><b>字典对齐</b>（治本）</td>
+    <td>把 <code>AI_TYPE_MAP</code> 与 <code>ai_types</code> 表统一为<b>单一出处</b>：映射表从 DB 读（而非硬编码 7 个）；未映射 key <b>落库时打标 + 告警日志</b>，不再静默 fallback 成英文</td>
+    <td>1.0d</td><td>—</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-bad">P0</span></td>
+    <td><b>清理测试数据</b></td>
+    <td>删除/隔离 <code>aiType ∈ (type, AI分析)</code> 的 7 条（picUrl 含 inject 的测试注入）；<code>dust</code> 125 条若确认为"道路扬尘"则改写中文</td>
+    <td>0.5d</td><td>需你确认 dust 语义</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-warn">P1</span></td>
+    <td><b>算法健康度视图</b>（UX 核心）</td>
+    <td>在「AI 分析存档 / 系统设置」加一屏：8 类算法 × 状态（已接入 / 未接入 / 近 7 天 0 条 / 近 30 天 N 条）+ 最后一条时间。让"空壳算法"一眼可见</td>
+    <td>1.0d</td><td>P0 完成</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-warn">P1</span></td>
+    <td><b>通道配置真生效</b>（或明确降级）</td>
+    <td>① 拉取时按 <code>iot_channels.ai_types</code> 过滤（配置即生效）；② 或 UI 上明确标注"仅展示用，不代表云平台已启用"，避免误导</td>
+    <td>1.0d</td><td>需你拍板选 ① 还是 ②</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-info">P2</span></td>
+    <td><b>补登「机场人员入侵」</b></td>
+    <td>写入 <code>ai_types</code> 主数据（straw-engine/dock-guard 产出），并纳入规则配置</td>
+    <td>0.3d</td><td>—</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-info">P2</span></td>
+    <td><b>push_rules 阈值复核</b></td>
+    <td>道路扬尘 24h/1 → 建议 ≥5；并给"长期零触发"的规则加提示（如堆场扬尘）</td>
+    <td>0.2d</td><td>—</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-idle">P3</span></td>
+    <td><b>与云平台对齐算法清单</b></td>
+    <td>向 IoTCloud 侧确认 8 类算法<b>实际部署了哪几类</b>，把"业务愿望清单"收敛为"真实能力清单"</td>
+    <td>外部沟通</td><td>依赖云平台方</td>
+  </tr>
+</table>
+
+<div class="kpi">
+  <div><div class="lbl">总工作量（不含 P3）</div><div class="big">4.0d</div></div>
+  <div><div class="lbl">P0（治本）</div><div class="big">1.5d</div></div>
+  <div><div class="lbl">P1（可见性）</div><div class="big">2.0d</div></div>
+  <div><div class="lbl">P2（收尾）</div><div class="big">0.5d</div></div>
+</div>
+
+<div class="card good">
+  <h3>✅ 已拍板并执行（2026-09-15 11:45）</h3>
+  <table>
+    <tr><th>决策</th><th>执行内容</th><th>验证</th></tr>
+    <tr>
+      <td><b>① dust 不是「道路扬尘」</b><br>→ 按历史遗留处理</td>
+      <td><code>dust</code> 125 条 + <code>type</code> 4 + <code>AI分析</code> 3 → 全部标记 <code>handled</code>（不显示、数据保留）；并补登 <code>ai_types</code>：「机场人员入侵」(sort=7) +「dust(已弃用)」(sort=8)</td>
+      <td><b>pending 里 dust/type/AI分析 = 0 条</b> ✅</td>
+    </tr>
+    <tr>
+      <td><b>② 通道算法配置「真生效」</b></td>
+      <td><code>iot-fetcher.js</code> 改为<b>按记录自身 channelSipId</b> 匹配 <code>iot_channels</code> 配置的白名单过滤：未登记通道 → 不入库；已登记但 aiType 不在配置内 → 不入库（附跳过统计日志）</td>
+      <td>删除 205 通道一条记录后重启，日志实测：<br><code>通道配置过滤：未登记通道跳过 1 条</code> → <b>成功拦截未入库</b> ✅</td>
+    </tr>
+    <tr>
+      <td><b>③ 与平台方对齐</b></td>
+      <td>交付《算法清单对齐材料》（我方 / IoTCloud / EasyAIoT 三清单对照 + 8 个待答复问题 + 4 步对齐建议）</td>
+      <td><code>docs/算法清单对齐材料_我方_IoTCloud_EasyAIoT_20260915.html</code></td>
+    </tr>
+  </table>
+  <div class="quote" style="border-left-color:var(--red);margin-bottom:0">
+    <b>⚠️ 「真生效」的副作用（需管理员处理）</b>：当前有 <b>7 个通道配置的是「道路扬尘」</b>
+    （<code>34020000001310000005/6/7</code>、<code>56331706881318000202</code>、<code>50010100001180000002/3/4</code>）——
+    而 IoTCloud 根本不产出该算法 → 这 7 个通道<b>将完全静默</b>。<b>建议把这些通道的配置改为「堆头未覆盖」或清空（清空=不限算法）。</b>
+  </div>
+</div>
+
+<div class="card good">
+  <h3>✅ 排期执行结果（2026-09-15 13:50 全部落地）</h3>
+  <table>
+    <tr><th>批次</th><th>任务</th><th>执行内容</th><th>验证</th></tr>
+    <tr>
+      <td><span class="tag t-ok">P0</span></td>
+      <td><b>字典对齐（治本）</b></td>
+      <td><code>ai_types</code> 表新增 <code>source_key</code> 列（云平台算法 key）→ 把原硬编码的 7 个 key 全部迁移入库，<b>字典单一出处落地</b>；<code>iot-fetcher</code> 改为<b>每轮热加载本表</b>做 key→中文名 映射（30s 生效，免重启）；未命中 key <b>自动登记到 ai_types（sort_order=90 待补名）+ WARN 日志</b>，不再静默 fallback 成英文</td>
+      <td><code>source_key</code> 列已建 · 7 条映射就位（unsoilcover/uncovered/person/vehicle/fire/water/garbage）· 接口返回 <code>sourceKey</code> · 顺手修正 sort_order 冲突（堆场扬尘 0→9）✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-ok">P0</span></td>
+      <td>清理测试数据</td>
+      <td><code>dust</code> 125 + <code>type</code> 4 + <code>AI分析</code> 3 → 标记 <code>handled</code>；补登「机场人员入侵」「dust(已弃用)」</td>
+      <td>pending 里 = 0 条 ✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-ok">P1</span></td>
+      <td><b>算法健康度视图</b></td>
+      <td>新增 <code>GET /api/ai-types/health</code> + 前端「AI分析存档 → <b>算法健康度</b>」tab：15 类算法 × 4 态（<b>运行中 / 近7天静默 / 从未产出 / 未绑定算法</b>）+ 累计 / 近7天 / 近30天 / 最后一条时间 + 页内说明"为什么要有这一屏"</td>
+      <td>接口实测 15 条（active 2 · unbound 6 · never 6 · idle7d 1）；UI 实测渲染正确（截图 <code>tmp/h_health.png</code>）· <code>verify</code> 全绿 ✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-ok">P1</span></td>
+      <td>通道配置真生效</td>
+      <td><code>iot-fetcher</code> 按<b>记录自身 channelSipId</b> 做白名单过滤（未登记通道 / 算法不匹配 → 不入库）</td>
+      <td>日志实测「未登记通道跳过 1 条」✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-ok">P2</span></td>
+      <td>补登「机场人员入侵」</td>
+      <td>写入 <code>ai_types</code>（sort=7）</td>
+      <td>健康度面板显示「近 7 天静默」（20 条，最后 09-03）✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-warn">P2</span></td>
+      <td>push_rules 阈值复核</td>
+      <td><b>意外发现：「道路扬尘」规则已被删除</b>（现仅 4 条规则）→ 阈值隐患<b>已不存在</b>，无需修改；另发现「<b>堆场扬尘</b>」规则<b>近 30 天零命中（规则空转）</b>，已在算法健康度面板标为「未绑定算法」</td>
+      <td>规则清单实测 4 条；零命中体检：堆头未覆盖 24,068 · 秸秆燃烧 621 · 堆场扬尘 <b>0</b> ⚠️ ✅</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-info">P3</span></td>
+      <td>与平台方对齐</td>
+      <td>交付《算法清单对齐材料》（三清单对照 + 8 个待答复问题 + 4 步对齐建议）</td>
+      <td>待转交平台方</td>
+    </tr>
+  </table>
+  <div class="quote" style="border-left-color:var(--green);margin-bottom:0">
+    <b>部署</b>：后端（<code>store-db.js</code>/<code>index.js</code>）备份 + scp + 重启 active；前端 <code>verify</code> 全绿 → bundle <code>index---iJmNhb.js</code> md5 <code>8bc935e2b97b55fa8282c244eaa9308d</code> 磁盘==远端 + HTTP 200。<br>
+    <b>健康度面板的实际价值</b>：一屏看清「15 类算法里只有 2 类在跑」——<b>运行中 2 · 近7天静默 1 · 从未产出/未绑定 12</b>，正是这套系统"能力 vs 期望"的真实落差，可直接用于对外沟通与平台方对齐。
+  </div>
+</div>
+
+<div class="card warn">
+  <h3>待你拍板 3 项（历史记录，已决策，保留供追溯）</h3>
+  <ol style="margin:0">
+    <li><s><b><code>dust</code> 是不是「道路扬尘」？</b></s> → <b>已确认：不是</b>。按历史遗留处理（标记已处置 + 登记为「dust(已弃用)」）</li>
+    <li><s><b>通道算法配置</b>：要"真生效"还是"明确降级"？</s> → <b>已选：真生效</b>（已实现白名单过滤并验证）</li>
+    <li><s><b>是否发起与 IoTCloud / EasyAIoT 的算法清单对齐</b></s> → <b>已发起</b>（对齐材料已交付，待你转交平台方）</li>
+  </ol>
+</div>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  基于 jsc.db 实测 30,035 条 + iot-fetcher.js / store-db.js 代码验证 · 2026-09-15<br>
+  📂 docs/AI分析算法来源与错漏排查_评估排期_20260915.html
+</div>
+</div>
+</body>
+</html>

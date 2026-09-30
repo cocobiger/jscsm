@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="wAC7nej1AGZUhHik5lgs1U">
+<head data-page-node-id="rsbySkC06KFDTy6k3rFD6X">
+<meta charset="UTF-8" data-page-node-id="hJlxQy7Y573p7vjbrjvZXZ">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="K6rOXSrLMKGE13maIHRnWJ">
+<title>无人机直播弹窗 · 机场网络流量监控评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="lzXBVMB5IdjcJEUkf1n7uM">
+<div class="page" data-page-node-id="T5FyL1rGKPzVGXlKjRfnf4">
+
+<div class="doc-head" data-page-node-id="NBdJTORt3a5TLmJ8QxuH0z">
+  <div class="org" data-page-node-id="pqngYfnr2Kas4ZaMUCLkuT">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="NJszIdMjJXJnwnXLEBGtNy">无人机直播弹窗 · 机场网络流量监控评估</div>
+  <div class="subtitle" data-page-node-id="M5eJcvFWU7EhYbQPWYQgPZ">—— 显示机场上行带宽占用，预警网络拥堵（上行 3MB/s 阈值）</div>
+  <div class="meta" data-page-node-id="XvByDy7TibVjfWudJfARPz"><span data-page-node-id="0L2JcGJd4uJbEgmGnR8w2o">编制时间：2026-09-08</span><span data-page-node-id="jAtL68XJVEirDobRL8aRNg">评估方式：ZLM 码率数据排查</span><span data-page-node-id="SsxPS8eMLtH7LF2qbPtizm">性质：可行性 + 实现方案</span></div>
+</div>
+
+<h2 data-page-node-id="gayLApnw7HdDMaKNXSWoN9">一、结论摘要</h2>
+<div class="box green" data-page-node-id="y2TB9LbcZl1wcD4tKFBdJb">
+  <p data-page-node-id="gjOxRrxnM81LaBb48rIdln"><b data-page-node-id="CKSFqXpeD4tXVWA5nZY6GC">需求完全可行</b>：司空 ZLM 的源流有 <code data-page-node-id="PzNVzil1WHapGGrTAGShM1">bytesSpeed</code> 字段（实时码率，字节/秒），可拿到当前直播流的实时带宽占用。</p>
+  <p data-page-node-id="H01dVQURF5JcJdTQXWz2PV"><b data-page-node-id="obxgr8HszTG7svfX6jg0lP">核心判断</b>：单路 720P 直播流码率 ~0.6 MB/s（占上行 20%），<b data-page-node-id="r7emOUOhcmAFyLQUoICI0o">单独不会占满上行</b>；但 <b data-page-node-id="2STU8C3JlDaAXA1191eTJx">dock_media 录像上传（HEVC 高码率）与直播流同时时，上行可能接近/超过 3MB/s</b>——这是网络拥堵的真实风险点。</p>
+  <p data-page-node-id="1DgU6EEE6mJH7hHW9970og"><b data-page-node-id="E8b6vYRp85SWrpBFBYDTBq">建议实现</b>：弹窗显示"机场上行带宽占用"（实时码率 + 占用百分比进度条 + 拥堵预警），帮助值班人员预判网络风险。</p>
+</div>
+
+<h2 data-page-node-id="v6aOfFcdZckDf0RAuKOqwS">二、需求理解</h2>
+<p data-page-node-id="QMS60c080rR5RD5fMZxwBU">在无人机直播弹窗显示当前起飞无人机所属机场的网络流量数据，监控上行带宽占用，预判是否会造成网络拥堵。机场带宽 20M（下行），上行 3MB/s（约 24Mbps）基本占满。</p>
+
+<h2 data-page-node-id="C0jhIy7TjCGRmQNygLkZCU">三、数据源分析</h2>
+<table data-page-node-id="DPWMGkPGNUxVicH4jl6ghr">
+  <tr data-page-node-id="g2LPcBRM2rvRAYTADCz3hX"><th style="width:24%" data-page-node-id="M5tahnF9XKOwMvuZHuUdu3">数据源</th><th style="width:30%" data-page-node-id="7yQ1nCHy7fPB2q4tFF9HKg">实测</th><th data-page-node-id="eURxLlut5ZpNKC2SXZqcy7">说明</th></tr>
+  <tr data-page-node-id="NczvCREpey9lRW7bG9PBzW"><td data-page-node-id="vFYWCpJ1TXBphRl9bhB1U9"><b data-page-node-id="s3r6V5DfsQnleszgmsIWDC">司空 ZLM 源流 bytesSpeed</b></td><td data-page-node-id="RoOFitlDU9JLxfGk8Xq009">637750 字节/秒 ≈ 0.61 MB/s</td><td data-page-node-id="QoYX7hryuSYnFgkbUXUnVy">无人机 RTMP 推流到司空的实时上行码率（720P 直播流），<b data-page-node-id="aLFr4lkBOAPYtheQu8tnLi">核心数据源</b></td></tr>
+  <tr data-page-node-id="OihnEPqNscsveWRz45t4Fs"><td data-page-node-id="12ui0eAF1DBlK1riVdrvEV">司空源流 tracks（fps/分辨率）</td><td data-page-node-id="BHVQg0GvDfPpYLjsDfgzG1">960x720 fps=30</td><td data-page-node-id="5Z07jVQzMGMFkC29ecLO5D">流的编码参数（辅助）</td></tr>
+  <tr data-page-node-id="5AKrJuRF8ArLwHXSG2NZMD"><td data-page-node-id="TapyJlRfgPn5iYOCyuMqgw">dock_media 录像上传</td><td data-page-node-id="SO1esvEwRaghUbjLROZ2ha">HEVC 1080P/4K，准实时上传（滞后 6-9min）</td><td data-page-node-id="8yptfMcE2Y8RXztbs7G69a"><b data-page-node-id="feuZqTKJ2PrNYfXuCFwD8Y">高码率，是上行占用的大头</b>（飞行中实时分段上传）</td></tr>
+  <tr data-page-node-id="E5UUhYaGq952O4SLsigrIl"><td data-page-node-id="a6VcuOtjsLRccOjyDxcwPD">OSD 遥测</td><td data-page-node-id="SYec9hbU3xirBfFYUPwiwB">WebSocket，极小</td><td data-page-node-id="NRTDm7xdZ7mhfkLjJjXuTJ">可忽略</td></tr>
+</table>
+
+<div class="box warn" data-page-node-id="19elTusiP8eusExojD8W4l">
+  <p data-page-node-id="rE1sIsPGGiQHvnr0NEC0Ll"><b data-page-node-id="owpWEtlH4WABZ7u8IWAMRy">关键认知</b>：<code data-page-node-id="KJNk0g9wVqG8ZEfTiULEGa">bytesSpeed</code> 是<b data-page-node-id="DYu6qQVwC81s2Xm1WBvGR1">单路流的码率</b>，反映"这一路直播流占用的上行带宽"。但机场上行是<b data-page-node-id="BDnFI6p3W38Aw7FYORUNrD">共享的</b>——如果同时有"直播流 + dock_media 录像上传"，总上行 = 各流码率之和。</p>
+</div>
+
+<h2 data-page-node-id="G4gyxHkGserHWax4OnxwSk">四、带宽占用构成与拥堵风险</h2>
+<table data-page-node-id="EAdYc6I2ouw7U2BBBEwntn">
+  <tr data-page-node-id="bUhmc0cx8tXqOalrUnyXx0"><th style="width:28%" data-page-node-id="cVPR6MKFHFX0oBZEuam8p3">占用项</th><th style="width:22%" data-page-node-id="ioK3X0CqkXor54cWYeMVKO">码率（估算）</th><th data-page-node-id="b64VbD9BKRZ87WtPqb0PD0">占上行（3MB/s）比例</th></tr>
+  <tr data-page-node-id="qfAg3Pbza4BB0ZsaOoIq3Z"><td data-page-node-id="RNwqZ6HFkDA8AUZ7FPosqk">直播流（司空 mirror，720P）</td><td data-page-node-id="FoKBGNpFBDjmwFPPX5oG04">~0.6 MB/s/路</td><td data-page-node-id="aH9SchmHigbPDYtgYzqNQ6">~20%</td></tr>
+  <tr data-page-node-id="iasIk0y5ZMrdx1TuOg2zSh"><td data-page-node-id="hCKnVDkqFFoLrrtgOPS17f">dock_media 录像上传（HEVC 1080P）</td><td data-page-node-id="BHsDECYpBa3KbmLnATh5eu">~1~3 MB/s（高码率）</td><td data-page-node-id="YhNE8vWcvEJWtSBJEBTf9o">~33~100%</td></tr>
+  <tr data-page-node-id="MTR4PfXkNYbjxh8SLtqs3k"><td data-page-node-id="CmUYU3kYZOEXbj7ghGPyFc">dock_media 录像上传（HEVC 4K）</td><td data-page-node-id="nHCrufl5FGNlQceWUjmVDG">~3~6 MB/s（更高）</td><td data-page-node-id="g30RHJ7bv3rpbB3jwKdVfN">~100~200%</td></tr>
+  <tr data-page-node-id="UglHjzHzQZ6Z27bofYlQwX"><td data-page-node-id="Y43nLOfClp7W9W35mbevMl">OSD 遥测</td><td data-page-node-id="rDuwEKLdZGmDzjAx6dquvp">~0.01 MB/s</td><td data-page-node-id="GIjvjwimODE6KdcmaTgXbS">可忽略</td></tr>
+</table>
+
+<h3 data-page-node-id="BaGbfs4Qr4tYX9DGbyGuVr">4.1 拥堵风险场景</h3>
+<table data-page-node-id="iPFK2hsmOt6ckSGQtvPbfq">
+  <tr data-page-node-id="rxh8XwKVd29xSYw56uo1EB"><th data-page-node-id="5RZDacxkGFp8DWds4VwlyN">场景</th><th data-page-node-id="zFfYp0dnhKjdLdL3gaPuSW">总上行估算</th><th data-page-node-id="ywCnaFpD162Uf9dOozHTBX">拥堵风险</th></tr>
+  <tr data-page-node-id="Y3Elq452e0JHlvN6H821Pi"><td data-page-node-id="GJL4CIQ796zT2B8Ecbm1AM">仅 1 路直播流（无录像）</td><td data-page-node-id="tViSIWtrg5mdesBwjDOaQL">~0.6 MB/s（20%）</td><td data-page-node-id="dJffJig5GQeABvSpJA6Kb7"><span class="tag s-green" data-page-node-id="rRCRrD6ZMFzBfkRwrdd80x">安全</span></td></tr>
+  <tr data-page-node-id="6nonByGSOSdmcOahpMaSuC"><td data-page-node-id="Gtp0yVIwlosvBt6tOeoWuR">1 路直播流 + 1080P 录像上传</td><td data-page-node-id="LEdBgKfH9urqeSkWtUaxFF">~1.6~3.6 MB/s（53~120%）</td><td data-page-node-id="KygXqxwT0gxzN1xfCp1YsA"><span class="tag s-amber" data-page-node-id="ptc7lEnstb79ri8FPMG6HD">接近/可能占满</span></td></tr>
+  <tr data-page-node-id="hhPnzKECBxEjAPPtAuyp9w"><td data-page-node-id="Y4uDzCUNVXENG1KAsVXYNr">1 路直播流 + 4K 录像上传</td><td data-page-node-id="Ccdzpn8RpyBy3FlqW9sgv8">~3.6~6.6 MB/s（120~220%）</td><td data-page-node-id="3DUS2EINLbq7FZWe26T5hV"><span class="tag s-red" data-page-node-id="lU3h2RSwhpGRNgNDrBnrbU">占满/拥堵</span></td></tr>
+  <tr data-page-node-id="V3AgvNU9dABWGyXWPtkZ1Q"><td data-page-node-id="RvFXtZqbafRrDB73XAXQQK">2 路直播流 + 录像上传</td><td data-page-node-id="wDwA1pDADd76qsGrqg0DBJ">更高</td><td data-page-node-id="EEcbFSXexl5kgzr7tkuCdI"><span class="tag s-red" data-page-node-id="Pau1aaFBj6XOgj6CKXoju2">高风险</span></td></tr>
+</table>
+
+<div class="box danger" data-page-node-id="MhPLureKDhRIF5Gf8bffQd">
+  <p data-page-node-id="RHL7nqYwyZAqEGj24by1Bj"><b data-page-node-id="6fC3NbkD7i9yDkiKNvBTqW">核心结论</b>：网络拥堵的<b data-page-node-id="lliYoMQBwyuEty9GxCSmc1">主要风险不是直播流本身</b>（720P 仅 0.6 MB/s），而是 <b data-page-node-id="zT4toeG3e9znCpFsGCBkCc">dock_media 录像上传（HEVC 高码率）与直播流同时</b>——飞行中录像实时分段上传（准实时），4K 录像 + 直播流同时上行可能直接占满 3MB/s，造成网络拥堵、直播卡顿、甚至推流中断。</p>
+</div>
+
+<h2 data-page-node-id="K1hQq14rcIYf3ErhkbcpeM">五、实现方案</h2>
+<h3 data-page-node-id="4pzJWGX34vPtga5ZBRYocJ">5.1 后端接口</h3>
+<div class="code" data-page-node-id="2yDmdbHB2XUHxG3QkTEHBT">GET /api/drone-events/network-status?dockSn=&lt;机场SN&gt;
+返回：
+{
+  ok: true,
+  dockSn: "8UUXN7G00A0FDP",
+  dockName: "环保局机场",
+  // 实时码率（司空 bytesSpeed 汇总）
+  liveKbps: 4900,        // 直播流码率 kbps（bytesSpeed × 8 / 1000）
+  liveMBps: 0.61,        // 直播流 MB/s
+  recording: true,       // 是否有录像上传中
+  recordKbps: 2000,      // 录像上传码率（估算/实测）
+  totalMBps: 0.61,       // 总上行占用 MB/s
+  uplinkMBps: 3.0,       // 上行带宽阈值 MB/s
+  usagePct: 20,          // 占用百分比
+  level: "safe"          // safe(<60%) / warn(60-90%) / danger(>90%)
+}</div>
+
+<h3 data-page-node-id="2TiJyTB7IqML5SKDDLTScG">5.2 前端弹窗显示</h3>
+<table data-page-node-id="ynyv0BsvSHoPZbh6ib9dBn">
+  <tr data-page-node-id="2J8Tm1mrcjbfo0YwUSuCTr"><th style="width:24%" data-page-node-id="6Pl5OtBCXwdotUTETk3SSV">元素</th><th data-page-node-id="due1UWLDA8TjlBZ9ljyUYm">内容</th></tr>
+  <tr data-page-node-id="lQWNsU3lfvFBvRfgR9obqS"><td data-page-node-id="V65qOICOelm3Dj5hY68dBm">网络流量指示条</td><td data-page-node-id="4siCwAj35PK1EaiCvjyMBI">弹窗底部加"机场上行"指示条：实时码率（MB/s / Mbps）+ 占用百分比进度条</td></tr>
+  <tr data-page-node-id="G8K3WGXYcdqG5H0yASaePs"><td data-page-node-id="xeulohwI0KYPbQERNp4GAQ">拥堵预警</td><td data-page-node-id="S1QAmFRGfWjiCJc75Zi2Ci">占用 >60% 黄色预警、>90% 红色告警（"上行接近占满，可能卡顿"）</td></tr>
+  <tr data-page-node-id="lW22TbBcE6U3jpI6B3Chue"><td data-page-node-id="4Dw3rIXBTsQ29zXIsHiHAR">录像上传提示</td><td data-page-node-id="BVFawhOULLoRxZaqfngAC4">如有 dock_media 录像上传中，显示"录像上传中 +X MB/s"</td></tr>
+</table>
+
+<h3 data-page-node-id="7YivRZ0DCg18H1obb2Gdgr">5.3 数据流</h3>
+<div class="code" data-page-node-id="xSN5EbnCzMVLL6mkARfaaE">司空 ZLM bytesSpeed（源流码率）
+  → 后端汇总（live + dock_media 上传估算）
+  → 计算总上行占用 + 百分比 + 拥堵等级
+  → /api/drone-events/network-status
+  → 前端弹窗轮询（2s）显示 + 预警</div>
+
+<h2 data-page-node-id="q1gcYjXXzmG4mVeIEtOoCg">六、关键设计决策点</h2>
+<table data-page-node-id="9GqCtAmWus0cW7uwUALxJN">
+  <tr data-page-node-id="4FlIdEB2BoskAka0C8JXnw"><th style="width:24%" data-page-node-id="OF9P9MDeK55DI0m6QnHnIM">决策点</th><th data-page-node-id="8krZ25eLV5b66rBVpglAW3">选项</th><th data-page-node-id="OHu3DFpWd3unv7kQvsoK1F">建议</th></tr>
+  <tr data-page-node-id="CRfiqvrp5sF5EAxoo3luty"><td data-page-node-id="KvGTtwVkS84MGEMfW5xg0R">dock_media 上传码率怎么拿</td><td data-page-node-id="pSjB1ruRJbp4jLN3Z7itdZ">A. 从 MinIO 上传速率估算 B. 从司空录像文件大小/时长算 C. 固定估算值</td><td data-page-node-id="AcfHbJep9r729Gc82LZ7yp">先 C（固定估算 1080P~2MB/s、4K~4MB/s），后续接 MinIO 实测</td></tr>
+  <tr data-page-node-id="O56dE7tBLdQkt9aR4bDEmL"><td data-page-node-id="3oRZtDTkUzah876GiKcOkO">bytesSpeed 用哪个</td><td data-page-node-id="6weyO7a1bgIAJlqfjQIwNV">A. 司空源流（无人机推流上行）B. 我方 mirror 流（司空到我方）</td><td data-page-node-id="bkbwYIyTUEpbmBVHE59D0Y"><b data-page-node-id="0sScui0axASRbOeRa94Fa6">A 司空源流</b>——反映机场上行占用；mirror 流是我方下行，不占机场上行</td></tr>
+  <tr data-page-node-id="GtUhI1eikRVoQV5cHxRLt6"><td data-page-node-id="lW8p6L6aRLPz4Q5nbMXW5m">拥堵阈值</td><td data-page-node-id="mV2Y6vdOHONqCpdrTbuQ1v">上行 3MB/s</td><td data-page-node-id="wJX0nIUJdM1DDWT4owfDwf">按用户给定 3MB/s；预警 60%（1.8MB/s）、告警 90%（2.7MB/s）</td></tr>
+</table>
+
+<h2 data-page-node-id="S0wj3qKOApFGgKjqQuBK6c">七、工作量评估</h2>
+<table data-page-node-id="aDsJBIUWSGiymnN0b2yFKS">
+  <tr data-page-node-id="fTV1iGWzQvjFwHFvkrDiuA"><th data-page-node-id="zr1BvMs5TvMz9zVh7T8KZu">任务</th><th data-page-node-id="wu8bLACKgg59ElQUChWQCw">说明</th><th data-page-node-id="gCFvlib1m3XcD4bLmGKr3k">工作量</th></tr>
+  <tr data-page-node-id="BeQwZ1iGkMqTVfZwKLgbsc"><td data-page-node-id="wFhukGhjuvqqX1lNMHl9Aj">后端 network-status 接口</td><td data-page-node-id="WaJZSmHYN9a5k0Exu3CI3m">司空 bytesSpeed 汇总 + 录像上传估算 + 拥堵等级</td><td data-page-node-id="nKfhbNJUqOstOoIKZcdsVJ">0.5 天</td></tr>
+  <tr data-page-node-id="KlLJzWfLxRycKlPAWnQQhV"><td data-page-node-id="NfJuXa9tnpKtiDg8qKoHPf">前端弹窗流量指示</td><td data-page-node-id="q3A1urYkv0y0xx7aHGqD8w">实时码率 + 进度条 + 拥堵预警</td><td data-page-node-id="6J5ysmWdAJYl79nslZGOz6">0.5 天</td></tr>
+  <tr data-page-node-id="ppXwh5wjiCqFhpfjPNRfAh"><td data-page-node-id="9DYQ3iLvqi2Uys0gWWBHq4">联调验证</td><td data-page-node-id="Ilo3IfuK8CffWJo3eN7E38">真飞时验证码率准确性 + 预警触发</td><td data-page-node-id="e7cbloBdAdmp6TUfuhPal7">0.5 天</td></tr>
+</table>
+<p data-page-node-id="IWoP9tKzUOEQXzoKPguPT9"><b data-page-node-id="6YYSLJ4fxuBjrzbL8mV3FU">合计约 1~1.5 天</b>。</p>
+
+<h2 data-page-node-id="Z4LjTZ1xR9s1HxSpyMKV1A">八、结论</h2>
+<div class="box green" data-page-node-id="vjIFK12Y2FV4JTX9TnzRhc">
+  <p data-page-node-id="U6HThsKVSg5LOFcTe40YTP">① <b data-page-node-id="9vF3nl5lBoSNvlOrocm5Qq">需求可行</b>：司空 ZLM 的 <code data-page-node-id="wEOYOqDCsjY1VyxZChRxo3">bytesSpeed</code> 提供实时码率，可监控机场上行占用；<br data-page-node-id="1lMbHU1UNYER1jtyEkheI2">
+  ② <b data-page-node-id="nGs5otXBp1Em3fAy7zP3BB">核心风险是 dock_media 录像上传</b>（HEVC 高码率）与直播流同时——4K 录像 + 直播流可能占满 3MB/s 上行，造成拥堵；<br data-page-node-id="jdjQ9hWQeGHZyOnjC3BTYB">
+  ③ <b data-page-node-id="FmGrqIznNJHeVkhzp49Ebq">建议实现</b>：弹窗显示"机场上行带宽占用"（实时码率 + 占用百分比 + 拥堵预警），预警 60%/告警 90%；<br data-page-node-id="EXXQDECvSeAnNEyzJkfoB7">
+  ④ <b data-page-node-id="BFClIPUHSI4dyeAM4OS5zK">工作量约 1~1.5 天</b>，数据源已就绪（司空 bytesSpeed），dock_media 上传先用估算值、后续接 MinIO 实测。</p>
+</div>
+
+<div class="foot" data-page-node-id="tdPWgS0wVEsNXrzQZJIumg">
+  本报告基于 2026-09-08 ZLM 码率数据排查（司空 bytesSpeed=637750 字节/秒 ≈ 0.61 MB/s，960x720 fps=30）。核心结论：直播流本身不占满上行，dock_media 录像上传（HEVC 高码率）是网络拥堵的主要风险。
+</div>
+
+</div>
+</body>
+</html>

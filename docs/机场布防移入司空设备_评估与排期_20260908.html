@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="iXMZJPBoTyaAzD6K9sZ622">
+<head data-page-node-id="EPdnPdTQF4vljfiAMCGJhz">
+<meta charset="UTF-8" data-page-node-id="ENdHdTqdBTU5hfsiTFIb7x">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="JqwcMrtnDnablNtrDBmYXI">
+<title>机场布防移入司空设备 · 需求评估与排期</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+  .gantt{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .gantt-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .gantt-name{width:200px;flex-shrink:0;color:var(--ink)}
+  .gantt-bar{height:18px;border-radius:3px;background:var(--blue);color:#fff;font-size:11px;line-height:18px;padding:0 8px;white-space:nowrap}
+</style>
+</head>
+<body data-page-node-id="syZQp45TqfJCBjEqd9a3BF">
+<div class="page" data-page-node-id="A36Oju40F3y4QHqhuX1vCN">
+
+<div class="doc-head" data-page-node-id="ETAchLJ2OsbPgOp4LeOHlA">
+  <div class="org" data-page-node-id="Lrr74VymBwKe2b88e8jojX">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="zpeAvLoL0YxMgg4PAQG9Ei">「机场布防」移入「秸秆焚烧监控 → 司空设备」· 需求评估与排期</div>
+  <div class="subtitle" data-page-node-id="PH7KDkkoU21GK3KYSxh3qE">—— 驾驶舱后台菜单结构调整</div>
+  <div class="meta" data-page-node-id="otAhMWdRPHTrLZTtk9lR1X"><span data-page-node-id="YrkukiYSyPfAf9yZjiayKb">编制时间：2026-09-08</span><span data-page-node-id="z0s44ERameGpcTFjtOUr55">评估方式：代码级排查（只读）</span><span data-page-node-id="0mWIVgLLTWoM8PtgtRDWVW">改动范围：纯前端导航/组件结构</span></div>
+</div>
+
+<h2 data-page-node-id="Ghm6ksLycMZhCDlWUU0Tqi">一、结论摘要</h2>
+<div class="box green" data-page-node-id="yOLMudbaFWwQyFCvmrUL1h">
+  <p data-page-node-id="0CAjI4OC1J6hW2QXJALbmB"><b data-page-node-id="8PyURC5LR3QkJJlGDjFGt9">需求清晰、改动小、纯前端、无后端/数据风险</b>。核心动作：把「机场布防」从后台侧边栏的<b data-page-node-id="UaeCBTr9QSlOfNklT1vpdt">独立一级菜单</b>，降级为「秸秆焚烧监控 → 司空设备」面板里的一个<b data-page-node-id="wbgC5Uxw9Hx7TcLTxCVik3">子 Tab</b>。</p>
+  <p data-page-node-id="ZLF6X1X6knXcn7q6C9pD6P">现有代码结构已天然支持（SikongPanel 已有 subTab 机制），工作量约 <b data-page-node-id="L8axpAAhVGOcEtBdlYFAyT">0.5 天</b>。</p>
+</div>
+
+<h2 data-page-node-id="EwdpV2Q4SIl8Tpos7aDBGA">二、现状盘点（代码级）</h2>
+<table data-page-node-id="3XoCrE393miDWioaSdG8EV">
+  <tr data-page-node-id="Hs8muC6D9otMyHGY8Fvls7"><th style="width:28%" data-page-node-id="L1dEFA8ImAHPM9RmkCxiFh">对象</th><th data-page-node-id="H4U6qpI0hygc1Hz7jPAcMM">现状</th></tr>
+  <tr data-page-node-id="Xb6GOEbPgOSfmuyP1fGeYv"><td data-page-node-id="CGJ8317bOGHsmNFF8HrBd1">「机场布防」</td><td data-page-node-id="EFvGVeytVdGPvqTVWfzLcP"><code data-page-node-id="x13gPRE6uorCLuRkdv3NBi">DockGuardPage.tsx</code>（283 行，自包含组件），在 <code data-page-node-id="uvv3q1JxNq5tmozcdEeEgB">AdminPanel.tsx</code> 侧边栏作为<b data-page-node-id="OBROdSaHZIFo1eawLBAg8x">独立一级菜单</b>（key='dockguard'，Shield 图标，minRole=admin）</td></tr>
+  <tr data-page-node-id="tKEd1gsolUPEO9HSOOCBCp"><td data-page-node-id="q8XfjWKLkMaxs6QMKtU1bd">「秸秆焚烧监控」</td><td data-page-node-id="TPZNo2yikrPEYJ6Ioygh27"><code data-page-node-id="td0wiCO1ghuF66Py2HFHcb">StrawMonitorPage.tsx</code>，内部已有 <b data-page-node-id="t063h5EgBhULRXdphVysSf">10 个 Tab</b>，其中「司空设备」Tab 渲染 <code data-page-node-id="mtohNkLHD2j4o2qcBLeEsS">SikongPanel</code></td></tr>
+  <tr data-page-node-id="hvRxhL7XYVhtEAE5whUq7A"><td data-page-node-id="dHRK5Z6GPrX0H0MVR2WQ8J">「司空设备」</td><td data-page-node-id="GFziamKNhq5WyDp2Cwr6Ay"><code data-page-node-id="N6VKX4uJZ5VcLTwA78aSgF">SikongPanel.tsx</code>，内部已有 <b data-page-node-id="HpX42XGW0iLbpyb6he2qUE">subTab 三态</b>（docks 机场状态 / events 司空事件 / media 媒体归档）</td></tr>
+</table>
+
+<div class="code" data-page-node-id="OVyqtKZV6VsHWWcAnPXggB">// AdminPanel.tsx 侧边栏 NAV（现状）
+{ key: 'straw',      label: '秸秆焚烧监控', icon: Flame,  ... }
+{ key: 'dockguard',  label: '机场布防',     icon: Shield, ... }   ← 独立一级菜单
+
+// SikongPanel.tsx 子 Tab（现状）
+const [subTab, setSubTab] = useState&lt;'docks' | 'events' | 'media'&gt;('docks')</div>
+
+<h2 data-page-node-id="TzNXZcpU2BPyJ3xS4Eds8s">三、改造方案</h2>
+<h3 data-page-node-id="HddeSj2l9fjnMUzGeeMQT9">3.1 目标结构</h3>
+<div class="code" data-page-node-id="HTDnyAtbxmaTc4HalWEM6c">后台侧边栏
+├── 秸秆焚烧监控（StrawMonitorPage）
+│   ├── 引擎 / 流水线 / 直播 / 视频流面板 / ...（现有 Tab）
+│   └── 司空设备（SikongPanel）
+│       ├── 机场状态（现有）
+│       ├── 司空事件（现有）
+│       ├── 媒体归档（现有）
+│       └── 机场布防（新增 ← DockGuardPage 嵌入）  ← 本次改动
+└── （删除「机场布防」一级菜单）</div>
+
+<h3 data-page-node-id="Zx4QgclieqNE1bPxsWGp6u">3.2 具体改动点（3 处）</h3>
+<table data-page-node-id="ElptISqxkhnwKW1ffMPeDa">
+  <tr data-page-node-id="n5TQEP0fZzGxCb8YV2YNMH"><th style="width:22%" data-page-node-id="JKmlOwIc1uIjL0h1XJcQ3h">文件</th><th data-page-node-id="FwAjocZ6ZIPGTnMvbR3nf9">改动</th></tr>
+  <tr data-page-node-id="LaO4AnAHQ7lTnQI5UyCS6a"><td data-page-node-id="O8qFBQzGHG9qlTVIbHbIoB">SikongPanel.tsx</td><td data-page-node-id="zU4musMEIHYLXLE9gW8sAN">① subTab 类型加 <code data-page-node-id="c3WWXtJHDPD2VrynwfZbtv">'guard'</code> ② 子 Tab 按钮数组加「机场布防」③ <code data-page-node-id="ZMtNpXGXU0NZdogMZD3x2Y">{subTab==='guard' && &lt;DockGuardPage /&gt;}</code></td></tr>
+  <tr data-page-node-id="76orabaDmbfZSB86WJwfOf"><td data-page-node-id="OSgMrwWG42gIfAwPJR3Gzd">AdminPanel.tsx</td><td data-page-node-id="CZEqH3wTDM2AAUcXSXjb0i">① NAV 数组删除 <code data-page-node-id="z4UNlKtVAeIcXsGVBKDW6P">dockguard</code> 项 ② Page 类型删 <code data-page-node-id="tfQGhCskaJtmUUKDF08gTy">'dockguard'</code> ③ 删 <code data-page-node-id="4AEfMJcxB7my6nIGZeegHZ">{page==='dockguard' && &lt;DockGuardPage /&gt;}</code></td></tr>
+  <tr data-page-node-id="mk2QVzsvqMHpvZluXDAKh5"><td data-page-node-id="dnZODo5lMUbXc6OuCFX1b8">（无后端改动）</td><td data-page-node-id="8D61xPlSMLa4FrozvynCLa">dock-guard 服务(:7210)及其 API 完全不动，DockGuardPage 组件复用，只是换个挂载位置</td></tr>
+</table>
+
+<h2 data-page-node-id="0WSyhIyFHfcjlfhxloqHG6">四、需要注意的点</h2>
+<table data-page-node-id="D8UQCtyNOaqHhmujnziEAT">
+  <tr data-page-node-id="RYGXmskkQki6DlKaDItjiT"><th data-page-node-id="3xFwtA73BNJiLw6SaDOSxu">点</th><th data-page-node-id="o8H8sHPQOx8WMR3ahVvn2p">说明</th></tr>
+  <tr data-page-node-id="C0baht085rm1CvnGGx9WkV"><td data-page-node-id="xFcIXRwJxGfr5mlbGXn5Qh">权限</td><td data-page-node-id="fLqKMHivhvwvqXG7MBSuB2">原「机场布防」minRole=admin；移入后，需确认「秸秆焚烧监控」的 minRole（viewer）是否会导致布防暴露给 viewer。若需保留 admin 限制，需在 SikongPanel 的 guard 子 Tab 加角色判断（SikongPanel 目前不接收 user 参数，需从 StrawMonitorPage 透传）</td></tr>
+  <tr data-page-node-id="VWR2jC60tob1kD12mMk2eG"><td data-page-node-id="mZq6cbSf0eoKsLtHdofnKG">入口路径变化</td><td data-page-node-id="oR5AAua7I4WpIbv4cSeex4">从「一级菜单直达」变成「秸秆焚烧监控 → 司空设备 → 机场布防」三级，多一层点击。若布防是高频入口，需权衡是否值得降级</td></tr>
+  <tr data-page-node-id="HBxq1dps1VHiw5GAZXzIra"><td data-page-node-id="LlslslVbiPxz6Z3cTuyihv">菜单语义</td><td data-page-node-id="xFIJQoETcbWpbQS2wutvXP">「机场布防」本质是「机场人员入侵检测」，与「司空设备」（机场设备状态）语义相关，归入是合理的；但「布防」更偏"安防动作"，「司空设备」偏"设备数据"，需确认用户预期的归类逻辑</td></tr>
+</table>
+
+<div class="box warn" data-page-node-id="CIUCAP9V03AW4PLZyCPz7w">
+  <p data-page-node-id="jDjbH0Yez7gaTwgG6zNGeE"><b data-page-node-id="3e4HfwBWohCUl8ZexvviVq">唯一需要用户确认的决策点</b>：权限。原「机场布防」是 admin 专属，移入后若跟着「秸秆焚烧监控」（viewer 可见）走，会把布防配置暴露给所有登录用户。建议保留 admin 限制（SikongPanel 增加 user 角色判断，或让 StrawMonitorPage 传入 user）。</p>
+</div>
+
+<h2 data-page-node-id="izL9QBEC1sXocc87ycGcfZ">五、任务排期</h2>
+<div class="gantt" data-page-node-id="U6EWCKAsA48fUJjQpmweJR">
+  <div class="gantt-row" data-page-node-id="AjJy8JT093yej0QLPTbq9b"><span class="gantt-name" data-page-node-id="UbIzGtw3KDkY9Xgc3FJG3Z">T1 前端组件迁移 + 菜单调整</span><span class="gantt-bar" style="width:55%" data-page-node-id="YwS6Snu1xXwwJ1gOHyK9j7">0.5 天</span></div>
+  <div class="gantt-row" data-page-node-id="mZcTRVDM4vdGJ5Dhu3G0gg"><span class="gantt-name" data-page-node-id="CqdPM3UDq0dlGdXYjKCpcG">T2 权限透传（如需）</span><span class="gantt-bar" style="width:25%" data-page-node-id="Jlvox19B7F82TBE3PURtJU">0.2 天</span></div>
+  <div class="gantt-row" data-page-node-id="H8fJnLn24qlezaONRw74Sg"><span class="gantt-name" data-page-node-id="lHYekKfk7ba8J2PTE6LHLb">T3 构建部署 + 核验</span><span class="gantt-bar" style="width:20%" data-page-node-id="OHHm07wXEZLYY2gmaAfgCi">0.2 天</span></div>
+</div>
+<table data-page-node-id="31C7Sd59Ayx4K8KG63vC2Y">
+  <tr data-page-node-id="1i04dxFvAXa5FyeSTj116C"><th data-page-node-id="YPL9dCML3IdVyLnClBNzmj">任务</th><th data-page-node-id="pHuojCbD7Ki7CkAcKpNb19">内容</th><th data-page-node-id="Lp3tWHicZUTobJnui1maxH">工作量</th></tr>
+  <tr data-page-node-id="dUKLcm4IacYdhSI8eq1MPz"><td data-page-node-id="Xd3zPZCmEp6AxNKAm1zNBQ">T1</td><td data-page-node-id="RBsu5gkhRZOtdUSwTi3q5M">SikongPanel 加 guard 子 Tab + AdminPanel 删 dockguard 一级菜单 + 组件引用调整</td><td data-page-node-id="YWF51KYNxzI0Ae8EesN0W4">0.5 天</td></tr>
+  <tr data-page-node-id="MD1fcqUIO0X4PbigaAQXVp"><td data-page-node-id="4MI4LwDa0KHJzXDnhBplTv">T2</td><td data-page-node-id="L2IM17IUmxH3E0FktfsiFj">（可选）权限透传：SikongPanel 接收 user，guard 子 Tab 仅 admin 可见</td><td data-page-node-id="kYvIWurHbAP9jPOJ57Dxvk">0.2 天</td></tr>
+  <tr data-page-node-id="xohcVRbX7icVKnF2VfIqDj"><td data-page-node-id="uuaFwVId4rFxrSbIsIvNn4">T3</td><td data-page-node-id="R8PBbYlpDDonJQE4z8ewjN">typecheck + build + scp 部署 + 核验（:80 资源 200 + md5）</td><td data-page-node-id="ClUpgRSjYvX4r1soFcE79o">0.2 天</td></tr>
+</table>
+<p data-page-node-id="mDDge3J9Nf6aIjki57Pp0Z"><b data-page-node-id="C9DQtUqA2T6rFapZwOSIOK">合计：约 0.5~0.9 天</b>（视是否做权限透传）。纯前端改动，无后端/数据/服务影响，风险低。</p>
+
+<h2 data-page-node-id="RoYOUi6sWzd4jeHTfOrru9">六、结论</h2>
+<div class="box green" data-page-node-id="NOWmVaYjBPUPJqCDapnA0W">
+  <p data-page-node-id="MH99kklBLLghVHMrjaKa7n">① 需求明确、改动小，SikongPanel 的 subTab 机制天然支持扩展；<br data-page-node-id="yWmCTCbZcitpS6rcyQ3wdl">
+  ② 纯前端组件迁移，dock-guard 服务(:7210) 与 API 完全不动；<br data-page-node-id="C2QKv9I64hV7oS55X1MaMo">
+  ③ 唯一决策点：<b data-page-node-id="hdnmidnhYMsp2RmEvVXkAE">权限</b>（是否保留 admin 专属）；<br data-page-node-id="iTyRDdq9Lc7LTyo5IK4ELZ">
+  ④ 工作量约 0.5~0.9 天。</p>
+</div>
+
+<div class="foot" data-page-node-id="WZCtpGV0ANzZyutGrQCwBt">
+  本报告基于 2026-09-08 代码级排查（只读）。涉及文件：src/app/components/admin/{AdminPanel,StrawMonitorPage,SikongPanel,DockGuardPage}.tsx。待拍板：是否保留 admin 权限限制，确认后即可开工。
+</div>
+
+</div>
+</body>
+</html>

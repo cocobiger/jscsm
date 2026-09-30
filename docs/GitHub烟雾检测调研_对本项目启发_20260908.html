@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="JglmocdocvCvO8jkdOgO6N">
+<head data-page-node-id="YV37DZ3H35ZZ1FIP5QrXfn">
+<meta charset="UTF-8" data-page-node-id="gLwJnHoiWYmYUZj7DnSAnx">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="g6ETGNBG1pj4eQK5Fc57JA">
+<title>GitHub 烟雾检测项目调研 · 对本项目的启发</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee;--purple:#6d4bd8;--purple2:#f0ecfc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1040px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}.s-purple{background:var(--purple2);color:var(--purple)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}.box.hl{border-left-color:var(--purple);background:var(--purple2)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="cxZtcC9kDMBXvlpgVH8lks">
+<div class="page" data-page-node-id="AvioQLQLGHrTEze7prrl87">
+
+<div class="doc-head" data-page-node-id="PWtMLGHrFZ51ohjfZibJpo">
+  <div class="org" data-page-node-id="yztVS8REFZr95ccEIOcm3d">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="RxICqTi4gB1UoXMdKCTLBY">GitHub 烟雾检测项目调研 · 对本项目的启发</div>
+  <div class="subtitle" data-page-node-id="8nYkCwVZxHoQUGzfbcgVUf">—— 针对「模型对真实烟盲（检出率 ~6.7%）」的可借鉴方案</div>
+  <div class="meta" data-page-node-id="JjVUvuJTMLXaIg1ju5TFCw"><span data-page-node-id="hMidGMohOIkExEVHbOH2Z5">编制时间：2026-09-08</span><span data-page-node-id="mHgjUGtzin8eyr2hZBTUTd">调研范围：GitHub 烟雾/火灾检测项目</span><span data-page-node-id="1JBVIuk5wMILSgIT2Dv66Q">性质：技术调研 + 启发分析</span></div>
+</div>
+
+<h2 data-page-node-id="nmO9X7ZHqQLAwo3tQ5XCrx">一、结论摘要（3 个最有价值的启发）</h2>
+<div class="box hl" data-page-node-id="kEiyNoOWcNQc4EHdHphx5w">
+  <p data-page-node-id="YEUMIdhqjvpwb7sUwb3kti"><b data-page-node-id="zMUc8KFt7LowKYXvCvjQKD">① 直接用 FASDD_UAV 数据集补"DJI 远景淡烟"训练域</b>——武汉大学开源的 2.5 万张无人机航拍火焰+烟雾数据集，专门含"远景/不同距离/不同光照"样本，<b data-page-node-id="IvyEQ9ZObl6ectcv8yLpXT">这是本项目缺的真实域，可直接下载用作训练补充，最快路径</b>。</p>
+  <p data-page-node-id="6IScCPEDgAy9qNJcPE9Cz9"><b data-page-node-id="WfH4VKP7rS6pIBBISsA2ya">② 借鉴"Cycle-GAN 合成逼真烟"改进 v5_syn</b>——当前 v5_syn 是"白色块"（不真实），导致模型只认白块；用 Cycle-GAN 生成逼真烟雾，能缩小合成域与真实域的差距。</p>
+  <p data-page-node-id="Tm8MNAXYOf3wB7ub101LNB"><b data-page-node-id="MSfV3EBrON0cHPCr2Ft4Fj">③ 引入"注意力机制 + 小目标优化 + other 类区分误报"</b>——抑制云/雾/反光干扰（本项目误报率高的根因之一），优化远景淡烟（小目标）检测。</p>
+</div>
+
+<h2 data-page-node-id="sAs9Qff0a8HqOeO7sGFG1a">二、本项目痛点（调研出发点）</h2>
+<table data-page-node-id="jYxsNZA9saZErsQUOo9dzI">
+  <tr data-page-node-id="G4KkUgOMLPd9w45JupA0EH"><th style="width:26%" data-page-node-id="qCTRRc9PwdsyCckMQl8z6s">痛点</th><th data-page-node-id="izMttyO4DyKtj2YraORIiK">现状</th></tr>
+  <tr data-page-node-id="f2hhkuZ8exchk9rXiWz7rk"><td data-page-node-id="WskUQbM4674QtXCjSeb9Pp">模型对真实烟盲</td><td data-page-node-id="SRBFT7FqhfwJLJQDco9KDm">stage2 对 DJI 远景淡烟/微信真烟图检出率 ~6.7%，对合成烟 100%</td></tr>
+  <tr data-page-node-id="c5BGuaVS6Yd42Eofa1VfRf"><td data-page-node-id="OrOTz8qUEUQl7lV1IzJoVA">训练数据域偏移</td><td data-page-node-id="syrFwfiHlF1j4BMBt0l4tg">v5_syn（800 白块合成烟）为主力，真实"DJI 远景淡烟"样本≈0</td></tr>
+  <tr data-page-node-id="jBbrsZuC55voxEI83arBvu"><td data-page-node-id="zGqmHf5snzhxBa10LA4Ag9">误报率高</td><td data-page-node-id="YuyZRKXSe5DnHCzjDnPSiA">云/雾/反光/清晨薄雾干扰，历史 smoke 告警大多是误报</td></tr>
+</table>
+
+<h2 data-page-node-id="uDPIdOdFTJh5pcYsa7Y82j">三、GitHub 调研发现（分三类）</h2>
+
+<h3 data-page-node-id="ddZC46l1GtnrFYQicM74B6">3.1 数据集类（最直接可用）</h3>
+<table data-page-node-id="GPtbx9xrPeNBQ2M9BuEq32">
+  <tr data-page-node-id="oQYAA7SJkYBJ0DzAlXxWNG"><th style="width:26%" data-page-node-id="PdRBLm1ft9uj5mvbGGXCXY">项目/数据集</th><th data-page-node-id="fXf3EjVWDwG2JXjRaM8kjs">规模/特点</th><th data-page-node-id="EgtAyb1R0QD7xNO4u4bLMK">对本项目价值</th></tr>
+  <tr data-page-node-id="Jb5m2ZiatsRkh7S5RVUtP3"><td data-page-node-id="IAgxBTd3vom0mck6ZoNUK4"><b data-page-node-id="rto5CA82DxrFNhG3u4TTZr">FASDD（武汉大学）</b></td><td data-page-node-id="KKQ1b2uVDANroB9zymC5Fq">12.2 万张火焰+烟雾，含 <b data-page-node-id="ppOl5kfn6ACGMrPdMGGVGD">FASDD_UAV 2.5 万张无人机航拍</b>，覆盖近/远距离、昼/夜、监控/无人机/卫星</td><td data-page-node-id="mX0dGuhKgl5dgIZnHKXEDY"><span class="tag s-green" data-page-node-id="EMXcgfnlMfH3oeEwkoaoBX">⭐ 最高价值</span> 直接补"DJI 远景淡烟"真实域，可下载用作训练补充</td></tr>
+  <tr data-page-node-id="ArbHCRZcfn3rZEAXhjKx6d"><td data-page-node-id="gqzXZAv1uld6TUF6AHMI6P"><b data-page-node-id="xWmagMX9j9413QQqe5f2Cp">Smoke-Exp（北林）</b></td><td data-page-node-id="cgpY4eMHPu2FhxpJ6RFmJl">6016 张，真实烟 + <b data-page-node-id="CIA3KrSblJj0UNHbMldMgx">Cycle-GAN 合成烟</b>混合</td><td data-page-node-id="xtLKIFtfYGH3Wvr3kGhDpY">借鉴"Cycle-GAN 合成逼真烟"改进 v5_syn</td></tr>
+  <tr data-page-node-id="fE1cqzDeUoGP8v0Ru9dSAM"><td data-page-node-id="1llqakaoNm769XvK1gZ0U2"><b data-page-node-id="xmbNeDA3Ezl9WNpKwdB0OM">XJTU-RS（西安交大）</b></td><td data-page-node-id="XbXW6xfdLemxUcExONGwtN">真实场景烟雾标注数据库</td><td data-page-node-id="N2U2y6RnLwaXrqDDDOjhee">真实烟样本来源参考</td></tr>
+  <tr data-page-node-id="Yje94EKJ0vRqzKlI5IEbar"><td data-page-node-id="MJPghdk5v7o6HpyqcijUXp"><b data-page-node-id="qkDuvLjsFAgkBEjXTIack1">D-Fire / NEWFireSmokeDataset</b></td><td data-page-node-id="Pkk45tBIe2HyBpRqWDG5YU">2.1万/2.3万张，含无人机航拍火+烟，<b data-page-node-id="kdSV1bBPXKDp3lK6z8S9QV">三类 fire/smoke/other</b>（other 专门区分云/雾/反光误报）</td><td data-page-node-id="Q2KX8PEeA9eFt0R82nE4RC">借鉴"other 类区分误报源"思路，降低误报</td></tr>
+  <tr data-page-node-id="9ObNjt4iPtD5S8LSOO5YZW"><td data-page-node-id="7gYi5wHBnmcZDOGjJuKihs">Pyro-SDIS（Pyronear）</td><td data-page-node-id="zdDu8CJUINPIO8H5kXjd8F">烟雾检测数据集，强调 <b data-page-node-id="mmR2rjGfPhstqxsu4ARsma">recall over precision</b></td><td data-page-node-id="JjtCPXMIqD9erCCTtdGckn">数据集 + 评估策略参考</td></tr>
+</table>
+
+<h3 data-page-node-id="i2AECo5CWtF1qsP5WvhPBX">3.2 模型类（算法改进）</h3>
+<table data-page-node-id="zlkLnpk8HT4zd0QYbHXnf9">
+  <tr data-page-node-id="6dSFXxjAvvXZNzqEomlIIN"><th style="width:26%" data-page-node-id="ImpfAlOefPBo9iqZnbXlDs">方法</th><th data-page-node-id="smjkleUILDrphXsxbI2KoA">核心改进</th><th data-page-node-id="Ja5AIdSFFI6nqC9973F26i">对本项目价值</th></tr>
+  <tr data-page-node-id="kfk9pmO1HZH73dGP3HZ27I"><td data-page-node-id="GWvVBfGGC95cegaUrEfp6C"><b data-page-node-id="hPiQUHNZfzavAKwv1SmHDF">MEDA-YOLO（北林）</b></td><td data-page-node-id="5TUhjnNAQBgeXcMtTfVRp7">YOLOv5 + <b data-page-node-id="hQDmglUx4xmrYcPIOI38Q0">EDA 注意力机制</b>（高效通道+空洞卷积空间注意力），mAP 97.58%</td><td data-page-node-id="QakLei82fmu524WCq3V5Lf">借鉴注意力机制抑制云/雾干扰，聚焦烟雾特征</td></tr>
+  <tr data-page-node-id="eJmOZH3bubXcsk1YkuxhDw"><td data-page-node-id="0D65DsnwYssgvvotQM9OrE"><b data-page-node-id="mXG4gAJaN8nHbow36um4m7">YOLOv7-tiny 输电线路烟雾</b></td><td data-page-node-id="DNO2oY8ippzIvHRKvAvxNS"><b data-page-node-id="B215wQkrIjwWu7MiybCd78">SimAM 无参数注意力 + SPD-Conv</b>（小目标/低分辨率优化）</td><td data-page-node-id="MMatEulnMEOGM3CgqQPrO5">借鉴小目标优化（远景淡烟是小目标）</td></tr>
+  <tr data-page-node-id="YaEjB9ccG3M51DVRmyHNXV"><td data-page-node-id="GLjhdYf1XI1OdxMn4yw8D8"><b data-page-node-id="bFv6hGkvnrybY3e8tGNTBT">SASC-YOLOX（西安交大）</b></td><td data-page-node-id="7pAk2lG3XAhIGCaRkOFMnX">自注意力 + 自协作 + <b data-page-node-id="VE7Fa4gqLvvOFZIWRUoeth">piece-wise focal loss（难例强化）</b></td><td data-page-node-id="1Z9emh5eLsWiLQ69WmhKGO">借鉴难例损失，强化远景淡烟（难例）学习</td></tr>
+  <tr data-page-node-id="N8nW2Cl1fZIQe5EgpnfGHL"><td data-page-node-id="UypJeJHST74q9J5sGtlpVB"><b data-page-node-id="6WKHNQbEl037gNjt8A7MCH">两阶段级联（khangle2101 无人机）</b></td><td data-page-node-id="jke3OyBJa2WVSFTBnnHjzm"><b data-page-node-id="xqrj1jtcCImtWFjbXl3Ayb">smoke 预警（416）→ fire 确认（640）</b>级联，降低误报</td><td data-page-node-id="vb9Bffzf5D9EHyMBMB8RW3">借鉴 smoke→fire 级联（本项目已有 Confirmer 连续3帧，可强化）</td></tr>
+  <tr data-page-node-id="qmK1inwLT7375sAcHYbLUK"><td data-page-node-id="wZ9c6NRQ902d6QFBkWjlrl">Pyronear yolo11s</td><td data-page-node-id="3T1OIAg1UMkDAXc6DMMJnb">单类烟雾，1024 分辨率，RandAugment/mixup/mosaic/erasing</td><td data-page-node-id="0Fr9hFFTztcnkJFqEYBqGq">单类 smoke 训练参考（本项目已是单类）</td></tr>
+</table>
+
+<h3 data-page-node-id="da3DF58bTHSbZ9iFkEpVc8">3.3 训练策略类</h3>
+<table data-page-node-id="GFgtSafxFuGgjhPKDBzMZh">
+  <tr data-page-node-id="BDyKAlcbcVwmQOjAihM52H"><th style="width:26%" data-page-node-id="KNYaj2pxNLfdOzxxlwA2rQ">策略</th><th data-page-node-id="MBnphgd4Wo27BBzQgB1nbU">来源</th><th data-page-node-id="oNEuesm1jUqZrtjcxgwV8t">对本项目价值</th></tr>
+  <tr data-page-node-id="VHlMuGIfFssXxDN0Z3PrKD"><td data-page-node-id="bcYtf8SLovgmeIKOqblZjE"><b data-page-node-id="7HoSYCDbX0GomiLTDpEZ5V">合成烟预训练 + 真实微调</b></td><td data-page-node-id="l8Whi7aVP98HEFHjxrRkl8">YOLOv7-tiny 输电线路（合成虚拟烟雾山林背景预训练 → 真实微调）</td><td data-page-node-id="hZsEZH6gBqnueTzYeYz5uc">正是本项目两阶段框架，可强化（提高真实烟占比）</td></tr>
+  <tr data-page-node-id="7B9ndsoy1b7xaLKxYBbnlO"><td data-page-node-id="ppSDITiJIxc4wczibNWBsx"><b data-page-node-id="40kBNZAyTafXRr7wKzp5JH">Cycle-GAN 合成逼真烟</b></td><td data-page-node-id="RNtpMNToI43kXQDJshEtCS">Smoke-Exp / Vehicle Smoke Synthesis</td><td data-page-node-id="hqKJdIPzQURE1zlRGbYpWk">改进 v5_syn 真实性（当前白块不真实）</td></tr>
+  <tr data-page-node-id="FgPUiWusC8gZVV0NzfJw4M"><td data-page-node-id="0juzL1UZjURSq3S5rWVcMI"><b data-page-node-id="Ad4egqSfaJw6dBjQWlKjjb">recall over precision</b></td><td data-page-node-id="BtwUr10YqEg3EtI4kkm5js">Pyro-SDIS（安全关键，漏检代价高）</td><td data-page-node-id="rtWvPLGKFLh0Z8mZBwUuZa">秸秆监控漏检代价高，应优先 recall（本项目 conf 已偏低 0.15）</td></tr>
+</table>
+
+<h2 data-page-node-id="agu2Qec2x8ENNmTHfos2my">四、最有价值的启发（落地映射）</h2>
+
+<h3 data-page-node-id="rE7aR8ghvvKSWJB3nr0G15">启发①：用 FASDD_UAV 补"DJI 远景淡烟"训练域（最快路径）</h3>
+<div class="box green" data-page-node-id="EC6YnrGEEZWIDihRiX4OM1">
+  <p data-page-node-id="NorvNb1xedlF7J6upvLaec"><b data-page-node-id="jGZtJ3CVEBSK8g3XwLgJsJ">现状</b>：本项目缺"DJI 远景淡烟"真实样本（检出率 ~6.7% 的根因）。主动制造真实烟需 4~6 天（采集+标注+训练）。</p>
+  <p data-page-node-id="LcxK8X9qrRXoc0x3mod6qC"><b data-page-node-id="8cTWbQyEt9DcAD1HDeCxWq">FASDD_UAV 的价值</b>：武汉大学开源，<b data-page-node-id="3Z4Iv6gJood4nHsa95nRxN">2.5 万张无人机航拍火焰+烟雾</b>，专门覆盖"近/远距离、昼/夜、不同传感器"，YOLO/VOC/COCO 格式齐全，可直接下载。</p>
+  <p data-page-node-id="MAq0PWwAYyvYUKlPW7NRIb"><b data-page-node-id="XYMcdiqbEuvQ117ihHp8Vi">落地</b>：下载 FASDD_UAV 子集 → 筛出"烟雾（远景）"样本 → 与 v5_syn 混合微调 → 预期真实烟检出率显著提升。<b data-page-node-id="Tx8Ady1FroxLI4Y4bf2CWt">比"主动制造真实烟"快得多（省去采集+标注），且样本量大、多样性好</b>。</p>
+  <p data-page-node-id="Pb2w9ywYmiQWb1uXJ7RuAN"><b data-page-node-id="bxAtJoQMom6EpHSXkZwxVB">注意</b>：FASDD_UAV 的烟雾场景与本项目"秸秆焚烧"场景可能不完全一致（多为森林/建筑火灾），需筛选匹配场景的子集，或与主动制造的真实烟混合使用。</p>
+</div>
+
+<h3 data-page-node-id="komBJPyEEg5ENJr50hUVHJ">启发②：Cycle-GAN 合成逼真烟改进 v5_syn</h3>
+<div class="box green" data-page-node-id="nvM66GseeQPQtboZFrgJOc">
+  <p data-page-node-id="2GQlNqu3zNH1xZb8JBysi9"><b data-page-node-id="NVZmsHXWUGJKaf8AJQKJfP">现状</b>：v5_syn 是"白色块"（不真实），模型只认白块，对真实烟（颜色/纹理/扩散形态不同）失效。</p>
+  <p data-page-node-id="ZoFALM0C5a3ZghnkyvdGak"><b data-page-node-id="N2iyWV4riqxXSRhCye2Ugu">借鉴</b>：Smoke-Exp 用 <b data-page-node-id="5FDay0YPPxsZhIXCGB7oU2">Cycle-GAN 把"白块烟"转换成"逼真烟"</b>（学习真实烟的颜色/纹理/透明度），Vehicle Smoke Synthesis 用"mask 模式+滤波"生成逼真烟雾。</p>
+  <p data-page-node-id="xG0vt3GPczMB4lqeFabr0s"><b data-page-node-id="7JVhoTKFUTWiygCfV7rRFF">落地</b>：用 Cycle-GAN 或改进的烟雾生成算法，把 v5_syn 的"白块"换成"逼真烟雾"，缩小合成域与真实域的差距。<b data-page-node-id="EDJYkQR3WYyrmedDsym7ee">这样合成烟也能学到真实烟特征，缓解"只认白块"的问题</b>。</p>
+</div>
+
+<h3 data-page-node-id="27GtSCLX7x65FHfw7p6Est">启发③：注意力机制 + 小目标优化 + other 类区分误报</h3>
+<div class="box green" data-page-node-id="gkJVf2M6dbYNvwvx9wkci5">
+  <p data-page-node-id="fWvi1LOKh07JQtZVvqZijB"><b data-page-node-id="gJBRb8iCIfPqXt6gcShhX0">现状</b>：本项目误报率高（云/雾/反光/清晨薄雾干扰），且远景淡烟是小目标难检。</p>
+  <p data-page-node-id="klX6U4bZD7oUy8yy1FJpww"><b data-page-node-id="kTjcgiETOoW6AgrMLa2XT5">借鉴</b>：</p>
+  <p data-page-node-id="WezVT8zv7fcoVirMGxjxFH">① <b data-page-node-id="TvrE4CSA5tnCOGVFRGNHeC">注意力机制</b>（EDA/SimAM/自注意力）：让模型聚焦烟雾特征，抑制云/雾/反光干扰 → 降误报；</p>
+  <p data-page-node-id="vLxyDLoCyzVQAd9x5IU090">② <b data-page-node-id="O3JEv5vNl9Bz1os9u6eXbR">小目标优化</b>（SPD-Conv / 4×下采样检测头 / 多尺度）：远景淡烟是小目标，优化小目标检测头 → 提升召回；</p>
+  <p data-page-node-id="RfAMUyTgA3Ibt4U1QtBbDR">③ <b data-page-node-id="fe7G6rTgI3fK3qBt1f0TGM">other 类区分误报</b>（D-Fire/NEWFireSmoke 三类）：加"other"类专门标注云/雾/反光/灯光等误报源 → 模型学会区分"真烟 vs 像烟的非烟"→ 降误报。</p>
+</div>
+
+<h2 data-page-node-id="F0br616sxUGYyqGrTk1rFv">五、落地建议（结合本项目）</h2>
+<table data-page-node-id="pRiRxPcN40ca88ht1J2yDA">
+  <tr data-page-node-id="2vsJSp32iNWoRsRWMMd9Av"><th style="width:6%" data-page-node-id="fBxcmy25B1B9xdgKIex0ug">#</th><th style="width:30%" data-page-node-id="E5MIBnA0tUKugCxO4TjY1w">建议</th><th data-page-node-id="ZSrH0S9aW7lbcUdK7kORkm">借鉴来源</th><th style="width:14%" data-page-node-id="jty8pPshv15Tw12xMWPYtS">优先级</th></tr>
+  <tr data-page-node-id="C6q3mh9w1YBjlERKeKk2Dz"><td data-page-node-id="jd4PNU7XUtBpnsTRYFiCj7">1</td><td data-page-node-id="EpdIEOXFqaX9Oxjw6fYqMo"><b data-page-node-id="FbbIwAMKATBlPZfl5raTcz">下载 FASDD_UAV 补真实域</b>：筛"远景烟雾"样本，与 v5_syn 混合微调</td><td data-page-node-id="xYEI9eQiOC48BwNLL89zFU">FASDD（武汉大学）</td><td data-page-node-id="KyjMhG8Hiai1Bx6K8AdjHh"><span class="tag s-red" data-page-node-id="lehiwZO3eCIqMozGF1j4AL">P0</span></td></tr>
+  <tr data-page-node-id="gQGc5MCaptvJoCVfEGflcj"><td data-page-node-id="0koETvViCuGjrnsWqHOFlI">2</td><td data-page-node-id="unF4HGJB3PPxDT9AZQacS3"><b data-page-node-id="rZtFIuEWawatJanHVepyIV">用 Cycle-GAN 改进 v5_syn</b>：白块→逼真烟雾，缩小域差距</td><td data-page-node-id="jeNv2OHTDEhqZ2RRDyrC14">Smoke-Exp / Vehicle Smoke</td><td data-page-node-id="bFmBskJq1X4aN3qy1NZ14l"><span class="tag s-amber" data-page-node-id="7i32cUfh0eKk79I6JOIjpK">P1</span></td></tr>
+  <tr data-page-node-id="ADegWWDv7AEDXYpG4IUdfe"><td data-page-node-id="CAKMF13AN0HOZLszQyE7N6">3</td><td data-page-node-id="kJpm3QXuFdo4Z0wvNLSdis"><b data-page-node-id="3MIobxtGUVumxacCxoj6sM">引入注意力机制</b>（SimAM/EDA）：抑制云/雾/反光误报</td><td data-page-node-id="XSA8DvuaZeSeo693YuMp3j">MEDA-YOLO / YOLOv7-tiny</td><td data-page-node-id="gtAsroMFvt7BaCFOx45frQ"><span class="tag s-amber" data-page-node-id="l4a6pU2G2xEaXMdROA8iCv">P1</span></td></tr>
+  <tr data-page-node-id="6zs2n9cabSI9ne3EcSw10s"><td data-page-node-id="rbczMj9fG8GxoIOghsOpyY">4</td><td data-page-node-id="8OcTUn4Tx3G87N6M5WuHq4"><b data-page-node-id="MH3yhdDNasvJ0DWokrEhDH">加"other"类区分误报源</b>：标注云/雾/反光/灯光，三类训练</td><td data-page-node-id="GtESbs72RIxCh0W5uJpdi6">D-Fire / NEWFireSmoke</td><td data-page-node-id="3aqbNs5e0D60wgcGHNvCOY"><span class="tag s-amber" data-page-node-id="gmJetywkqP2fyHFmAHmQef">P1</span></td></tr>
+  <tr data-page-node-id="rzR9dKV778wUSBXipWtSnc"><td data-page-node-id="yxmrS0CDe4LJbLHCbytNoJ">5</td><td data-page-node-id="uJP2PcTnrwgHw5tsaAeiz8"><b data-page-node-id="eViLH59OZatFD5mxxkigSF">小目标优化</b>（SPD-Conv/多尺度检测头）：提升远景淡烟召回</td><td data-page-node-id="6AfCR48HEcckJuuisermd2">YOLOv7-tiny 输电线路</td><td data-page-node-id="9fIaKhfISSqITU26FrA4lP"><span class="tag s-green" data-page-node-id="jGagaE8cPHn1Plk1p4tCBt">P2</span></td></tr>
+  <tr data-page-node-id="3Dcx29MznALiy7speQSdNY"><td data-page-node-id="FH5Dj5sR7Av1BTAopKv0S7">6</td><td data-page-node-id="A2yIOKbyLdWnY2oPv7h5g4"><b data-page-node-id="gZ6wTPB77eO9baIwNInqTb">主动制造真实烟</b>（保留）：烧秸秆+无人机拍，补"秸秆焚烧"特定场景</td><td data-page-node-id="OjwJnmPCprt5W19ZPkqGEw">本项目原评估</td><td data-page-node-id="t8esY4ve1BgxuUIFXvKuzJ"><span class="tag s-green" data-page-node-id="6qCYey2oVwtU2UKA8YRSVN">P2</span></td></tr>
+</table>
+
+<h2 data-page-node-id="D9cEEfIUemIUoeO0EzEcbH">六、结论</h2>
+<div class="box green" data-page-node-id="2zIkPl5AAhpQpZjAGk9EZ1">
+  <p data-page-node-id="OfilQV0B8OEEuPdtEZS9so">① <b data-page-node-id="PeBFU3PbHFealGaIRfyK7Y">最有价值的启发是"FASDD_UAV 数据集"</b>——直接补"DJI 远景淡烟"真实域，比主动制造真实烟快得多（省去采集+标注），且样本量大（2.5 万张）；<br data-page-node-id="S3rikbXDl9y5HxIQq7PkQj">
+  ② <b data-page-node-id="fkjNdHrBbghBykNEYTbVdU">合成烟真实性是次因</b>：v5_syn 白块不真实，可用 Cycle-GAN 改进；<br data-page-node-id="x0KhqS4wp7Rg4Z4IcBCIfo">
+  ③ <b data-page-node-id="oqVFFleYgfAHi70HQvoeR2">误报率的根因是"缺 other 类 + 缺注意力"</b>：云/雾/反光干扰可通过"other 类区分 + 注意力机制"抑制；<br data-page-node-id="5qYjgLSkqLZO9ksz9DTVxy">
+  ④ <b data-page-node-id="URMCDji5POgbaYzy4YyD8X">推荐组合</b>：FASDD_UAV 补真实域（P0）+ Cycle-GAN 改进合成烟（P1）+ 注意力/other 类降误报（P1）+ 主动制造秸秆烟补特定场景（P2）。</p>
+</div>
+
+<div class="foot" data-page-node-id="hw2mPc6uK0xcqNV4sodbzC">
+  本报告基于 2026-09-08 GitHub 烟雾/火灾检测项目调研（FASDD / Smoke-Exp / MEDA-YOLO / YOLOv7-tiny / SASC-YOLOX / D-Fire / NEWFireSmokeDataset / Pyronear 等），结合本项目"模型对真实烟盲"痛点分析。核心结论：FASDD_UAV 数据集是最快补足"DJI 远景淡烟"真实域的路径。
+</div>
+
+</div>
+</body>
+</html>

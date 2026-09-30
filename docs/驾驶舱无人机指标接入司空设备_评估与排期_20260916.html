@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱「无人机」指标接入司空设备数 · 需求评估与排期（2026-09-16）</title>
+<style>
+:root{--bg:#0a1220;--panel:#0f1a30;--border:#1f3556;--text:#d8e7f5;--muted:#6b87a8;--accent:#00aaff;--green:#4ade80;--amber:#ffb74d;--orange:#ff7043;--red:#ff5252;--purple:#a78bfa;--cyan:#22d3ee}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);margin:0;line-height:1.7}
+.wrap{max-width:1300px;margin:0 auto;padding:32px 24px}
+header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:22px}
+h1{font-size:22px;margin:0 0 6px;color:#c8e6ff}
+.subtitle{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:30px 0 12px;color:#c8e6ff;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:14px;margin:18px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:15px 18px;margin-bottom:13px}
+.card.acc{border-left:4px solid var(--accent)}.card.good{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--amber)}.card.bad{border-left:4px solid var(--red)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:9px 0}
+th{background:rgba(0,170,255,.1);color:#c8e6ff;padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid rgba(31,53,86,.5);vertical-align:top}
+tr:hover td{background:rgba(0,170,255,.04)}
+code{background:rgba(0,170,255,.08);padding:1px 5px;border-radius:3px;font-size:12px;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap}
+.t-ok{background:rgba(74,222,128,.16);color:#9ef0b8;border:1px solid rgba(74,222,128,.45)}
+.t-bad{background:rgba(255,82,82,.16);color:#ff8a80;border:1px solid rgba(255,82,82,.45)}
+.t-warn{background:rgba(255,183,77,.16);color:#ffd180;border:1px solid rgba(255,183,77,.45)}
+.t-info{background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.45)}
+.quote{background:rgba(255,183,77,.07);border-left:3px solid var(--amber);padding:10px 14px;margin:11px 0;font-size:13px}
+pre{background:rgba(0,0,0,.3);padding:11px;border-radius:4px;font-size:12px;overflow-x:auto;color:#9ad6f0;margin:9px 0}
+ul,ol{margin:7px 0;padding-left:22px}li{margin-bottom:5px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:13px 0}
+.kpi>div{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:11px 13px}
+.kpi .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.kpi .big{font-size:20px;font-weight:700;color:#c8e6ff;font-family:"JetBrains Mono",monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>驾驶舱「无人机」指标接入司空设备数 · 需求评估与排期</h1>
+  <div class="subtitle">评估结论：<b>数据早已在系统里（司空 4 架已打通），当前取错了源 —— 不是缺数据，是接了"人工点位"而非"司空设备台账"</b></div>
+</header>
+
+<h2>一、需求理解</h2>
+<div class="card acc">
+  <p style="margin-top:0">驾驶舱前台指标条「无人机」当前显示 <b>0 架</b>（截图），诉求改为：<b>取司空设备里的无人机数量</b>。</p>
+  <p style="margin-bottom:0;font-size:13px;color:var(--muted)">评估范围：这个数<b>该从哪来</b>、<b>现在为什么是 0</b>、<b>口径怎么定</b>、<b>改动影响哪些地方</b>。</p>
+</div>
+
+<h2>二、现状排查（均带源码/实测证据）</h2>
+
+<div class="card bad">
+  <h3>🔴 发现 1：当前取的是「人工维护的地图点位」，与司空完全无关</h3>
+  <pre>// src/app/components/CenterPanel.tsx:68
+const uavCount = mapPoints.filter(p => p.type === 'uav').length</pre>
+  <ul style="margin-bottom:0">
+    <li><code>mapPoints</code> 是<b>后台可人工维护</b>的点位集合（<code>MapPointManage.tsx</code> 的 <code>POINT_TYPES</code> 含 <code>'uav'</code>＝无人机机场）</li>
+    <li>现网该类型点位为 <b>0 个</b> → 「无人机」恒显示 0</li>
+    <li>而 <b>司空链路早就打通了</b>（<code>MapView.tsx:98</code> 每 15s 轮询 <code>/api/sikong/devices</code> 画地图机场标注）—— <b>数据在，只是没接到 KPI 上</b></li>
+  </ul>
+</div>
+
+<div class="card good">
+  <h3>🟢 发现 2：司空侧实测「无人机 = 4 架」（2026-09-16 11:14 实测）</h3>
+  <p style="margin-top:0"><code>GET /api/sikong/devices</code>（jsc-backend:7170 → dji-openapi:17810，60s 同步司空 OpenAPI）：</p>
+  <table>
+    <tr><th>机场（dock）</th><th>配对无人机 droneSn</th><th>机型</th></tr>
+    <tr><td>环保局机场</td><td><code>1581F8HGX253U00A064U</code></td><td>M4TD</td></tr>
+    <tr><td>职教中心机场</td><td><code>1581F8HGX258600A0S4J</code></td><td>职教中心无人机</td></tr>
+    <tr><td>经开区机场</td><td><code>1581F8HGX258900A0SJM</code></td><td>经开区无人机</td></tr>
+    <tr><td>三峡科技大学机场</td><td><code>1581F8HGX258600A0S4G</code></td><td>三峡大学无人机</td></tr>
+  </table>
+  <div class="kpi">
+    <div><div class="lbl">机场数 count</div><div class="big">4</div></div>
+    <div><div class="lbl">配对无人机数</div><div class="big">4</div></div>
+    <div><div class="lbl">当前在飞</div><div class="big">0</div></div>
+    <div><div class="lbl">页面现显示</div><div class="big" style="color:#ff8a80">0</div></div>
+  </div>
+  <div class="quote" style="border-left-color:var(--green);margin-bottom:0">
+    结构：<code>devices[]</code> 每项是一台<b>机场</b>，其 <code>drone</code> 字段即配对的<b>无人机</b>（SN 前缀 <code>1581F8HGX…</code>）。
+    ⟹ <b>「司空设备里的无人机数量」= items 中 <code>drone.droneSn</code> 非空的个数 = 4</b>。
+  </div>
+</div>
+
+<div class="card warn">
+  <h3>🟡 发现 3：一个变量被用在两处、语义不同（必须一并处理）</h3>
+  <table>
+    <tr><th>使用处</th><th>代码</th><th>实际语义</th><th>若直接改源会怎样</th></tr>
+    <tr><td>统计条</td><td><code>StatsCell label="无人机" value={uavCount} unit="架"</code></td><td><b>无人机（架）</b></td><td>✅ 正确</td></tr>
+    <tr><td>气环境覆盖卡</td><td><code>OverlayCard "气体快检设备" → 无人机机场 {uavCount}座</code></td><td><b>机场（座）</b></td><td>⚠️ 文案写"机场"但取值变成"无人机数"，语义错位（今日恰好都=4，掩盖问题）</td></tr>
+  </table>
+  <p style="margin:0;font-size:13px">⟹ 改造时需<b>拆成两个变量</b>：<code>droneCount</code>（无人机·架）与 <code>dockCount</code>（机场·座）。</p>
+</div>
+
+<h2>三、口径定义（需先拍板）</h2>
+<table>
+  <tr><th>口径</th><th>取数方式</th><th>今日值</th><th>特征</th><th>建议</th></tr>
+  <tr>
+    <td><b>A. 司空接入台账</b></td>
+    <td><code>/api/sikong/devices</code> 中 <code>drone.droneSn</code> 非空计数</td>
+    <td><b>4 架</b></td>
+    <td>稳定、不随飞行变化，与"设备台账"语义一致；接口轻</td>
+    <td><span class="tag t-ok">推荐</span></td>
+  </tr>
+  <tr>
+    <td>B. 司空通道建流数</td>
+    <td><code>/api/sikong/live-streams</code> 里 <code>role==='drone'</code> 计数</td>
+    <td>4 架</td>
+    <td>数值与 A 一致，但该接口<b>重</b>（含 OSD 遥测 + 签名 URL）、5s 轮询，给 KPI 用会浪费带宽</td>
+    <td>不推荐</td>
+  </tr>
+  <tr>
+    <td>C. 当前在飞</td>
+    <td><code>sikongLive</code> 或 OSD <code>droneInDock!==1</code></td>
+    <td>0 架</td>
+    <td>会随飞行 0↔4 频繁跳变，KPI 视觉抖动，值班人员易误判设备失联</td>
+    <td>可作<b>副指标</b>（角标/悬浮），不做主值</td>
+  </tr>
+</table>
+
+<h2>四、落地方案对比</h2>
+<table>
+  <tr><th>方案</th><th>做法</th><th>工作量</th><th>优点</th><th>风险 / 代价</th></tr>
+  <tr>
+    <td>A. 前端直连（最小）</td>
+    <td><code>CenterPanel</code> 内加一段 15s 轮询 <code>/api/sikong/devices</code> + state</td>
+    <td>0.3d</td>
+    <td>改动面最小，可当天上线</td>
+    <td>与 <code>MapView</code> <b>重复轮询同一接口</b>（两套请求、两套降级逻辑）</td>
+  </tr>
+  <tr>
+    <td><b>B. 提升到全局 Context</b><br><span class="tag t-ok">推荐</span></td>
+    <td>把司空设备轮询提到 <code>DashboardContext</code> 单例（15s），<code>MapView</code> 与 <code>CenterPanel</code> 共用；KPI 取 <code>droneCount</code></td>
+    <td>0.5d</td>
+    <td><b>一处轮询全局共享</b>；降级/兜底统一；符合"长期彻底、不做临时 hack"；顺带消除重复请求</td>
+    <td>需回归地图标注（改数据来源），<code>MapView</code> 依赖项要核对</td>
+  </tr>
+  <tr>
+    <td>C. 后端聚合字段</td>
+    <td><code>/api/sikong/devices</code> 响应补 <code>dockCount</code>/<code>droneCount</code></td>
+    <td>+0.2d</td>
+    <td>口径在后端<b>唯一出处</b>，前端零计算</td>
+    <td>单独做不解决重复轮询；<b>建议与 B 合并执行</b></td>
+  </tr>
+</table>
+<div class="card good">
+  <h3>推荐组合：<b>B + C</b>（后端给口径、前端全局共享），方案 A 作为回滚路径</h3>
+  <p style="margin:0;font-size:13px">B 解决"取对源、不重复轮询"，C 解决"口径只在一处定义（后端）"，两者合计仅比 A 多 0.2d。</p>
+</div>
+
+<h2>五、落地步骤</h2>
+<ol>
+  <li><b>后端（口径唯一出处）</b>：<code>server/sikong.js</code> 的 <code>fetchMergedDevices()</code> 返回体补 <code>dockCount</code> / <code>droneCount</code> / <code>droneUnpaired</code>（未配对无人机，正常为 0，异常可告警）</li>
+  <li><b>前端全局单例</b>：<code>DashboardContext</code> 新增司空设备轮询（15s，与 <code>MapView</code> 现有节奏一致），暴露 <code>sikongDevices / dockCount / droneCount / sikongAvailable</code></li>
+  <li><b>取数替换 + 语义拆分</b>：<code>CenterPanel</code> 统计条 <code>uavCount</code> → <code>droneCount</code>（单位「架」）；气环境覆盖卡「无人机机场 N 座」改用 <code>dockCount</code></li>
+  <li><b>降级策略</b>：司空链路不可达（502/超时）时 KPI 显示 <code>—</code>（<b>不显示 0</b>）+ 离线角标；5 分钟内沿用上次成功值，避免闪变</li>
+  <li><b>类型契约</b>：<code>src/app/lib/api-types.ts</code> 同步新增字段（纯新增，不破坏既有形状）</li>
+  <li><b>发布门禁</b>：<code>npm run verify</code>（tsc + vite build）通过后再 scp 部署</li>
+</ol>
+
+<h2>六、冲突排查（改动影响面）</h2>
+<table>
+  <tr><th>受影响对象</th><th>是否需改</th><th>说明</th></tr>
+  <tr><td><code>MapView.tsx</code> 司空机场标注</td><td><span class="tag t-warn">需回归</span></td><td>走方案 B 时数据源由本地 <code>setSikongDocks</code> 改为 Context；地图 4 个机场图标 + 飞行中绿标 + 轨迹线/航线点击信息窗需复测</td></tr>
+  <tr><td><code>MapPointManage</code> 的 <code>'uav'</code> 点位类型</td><td><span class="tag t-ok">保留不动</span></td><td>历史手工点位能力保留；仅「KPI 不再取它」——需在管理页备注说明，避免以后有人误以为 KPI 由它驱动</td></tr>
+  <tr><td><code>MapView</code> 的 <code>mapPoints.uav</code> 标注层</td><td><span class="tag t-warn">需决策</span></td><td>存在"两套无人机来源"（人工点位 vs 司空设备）。现状二者互不覆盖；建议<b>顺带统一</b>，否则会出现"KPI 4 架、地图却无紫标"的观感不一致</td></tr>
+  <tr><td>其它 KPI（监测站/摄像头/重点企业）</td><td><span class="tag t-ok">不动</span></td><td>来源不变（<code>/api/stations</code>、<code>videoStreams</code>、公开接口）</td></tr>
+  <tr><td>首屏请求数</td><td><span class="tag t-info">注意</span></td><td>方案 B 会少一次重复轮询（净减少），但 Context 挂载时机需与 <code>/api/stations</code> 合并 tick，避免首屏并发尖峰</td></tr>
+</table>
+
+<h2>七、验收标准</h2>
+<ul>
+  <li>统计条「无人机」显示 <b>4 架</b>，且与 <code>/api/sikong/devices</code> 的 <code>droneSn</code> 计数一致（改动后复测）</li>
+  <li>气环境覆盖卡显示「无人机机场 <b>4 座</b>」，文案与数值语义一致</li>
+  <li><b>断开 dji-openapi 验证：KPI 显示「—」而非「0」</b>（关键回归点）</li>
+  <li>司空恢复后 15s 内自动回到 4 架，无需刷新页面</li>
+  <li>地图司空机场标注、飞行中绿标、轨迹线不回归</li>
+  <li><code>npm run verify</code> 通过 + 页面实测截图留档</li>
+</ul>
+
+<h2>八、风险与回滚</h2>
+<table>
+  <tr><th>风险</th><th>概率</th><th>影响</th><th>缓解</th></tr>
+  <tr><td>司空链路抖动 → KPI 在 0/4 间闪变</td><td>中</td><td>值班误判设备失联</td><td>5min 沿用上次值 + 离线角标；<b>严禁用 0 表示"未知"</b></td></tr>
+  <tr><td>Context 轮询引入影响首屏</td><td>低</td><td>首屏多一次请求</td><td>与既有 30s 轮询合并 tick；先 load() 再 setInterval</td></tr>
+  <tr><td>MapView 改源导致地图标注回归</td><td>中</td><td>机场图标/飞行标丢失</td><td>改动前文件级备份；改后逐项复测（4 机场 + 轨迹 + 航线）</td></tr>
+  <tr><td>后端字段名与前端契约不一致</td><td>低</td><td>KPI 恒空</td><td><code>api-types.ts</code> 单一出处 + dev-only <code>checkShape()</code> 体检</td></tr>
+</table>
+<div class="quote" style="border-left-color:var(--red);margin-bottom:0">
+  <b>回滚方案</b>：改动仅涉及 <code>CenterPanel.tsx</code> / <code>DashboardContext.tsx</code> / <code>server/sikong.js</code> 三个文件。
+  scp 前<b>先 cp 原版到 backups/</b>；回滚＝还原三文件 + <code>systemctl restart jsc-backend</code> + 重新 build 前端，恢复为 <code>mapPoints</code> 旧口径。
+</div>
+
+<h2>九、任务排期</h2>
+<table>
+  <tr><th>批次</th><th>任务</th><th>内容</th><th>工作量</th><th>验收</th></tr>
+  <tr>
+    <td><span class="tag t-ok">P0</span></td>
+    <td>后端口径字段</td>
+    <td><code>/api/sikong/devices</code> 补 <code>dockCount</code>/<code>droneCount</code>/<code>droneUnpaired</code></td>
+    <td>0.2d</td>
+    <td>接口实测返回 <code>dockCount:4 droneCount:4</code></td>
+  </tr>
+  <tr>
+    <td><span class="tag t-ok">P0</span></td>
+    <td>前端取值替换</td>
+    <td>Context 单例轮询 + <code>CenterPanel</code> 取 <code>droneCount</code> + 拆出覆盖卡 <code>dockCount</code></td>
+    <td>0.3d</td>
+    <td>KPI 显示 4 架；覆盖卡「机场 4 座」；<code>verify</code> 通过</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-warn">P1</span></td>
+    <td>降级与离线态</td>
+    <td>司空不可达 → 显示 <code>—</code> + 离线角标 + 5min 保持上次值</td>
+    <td>0.2d</td>
+    <td>停 dji-openapi 后 KPI 不显示 0，恢复后自动回填</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-warn">P1</span></td>
+    <td>地图数据源统一</td>
+    <td><code>MapView</code> 改用 Context 数据；回归机场标注/飞行标/轨迹/航线</td>
+    <td>0.3d</td>
+    <td>地图 4 机场 + 飞行中绿标 + 轨迹线正常</td>
+  </tr>
+  <tr>
+    <td><span class="tag t-info">P2</span></td>
+    <td>KPI 点击下钻<span style="color:var(--muted)">（可选）</span></td>
+    <td>点击「无人机」弹出司空设备清单（机场名 / 机型 / SN / 在线态）</td>
+    <td>0.5d</td>
+    <td>可查看 4 台机场与配对机型，便于运维核对</td>
+  </tr>
+</table>
+<div class="kpi">
+  <div><div class="lbl">P0（立即见效）</div><div class="big">0.5d</div></div>
+  <div><div class="lbl">P0~P1（推荐）</div><div class="big">1.0d</div></div>
+  <div><div class="lbl">含 P2 可选</div><div class="big">1.5d</div></div>
+</div>
+
+<h2>十、待你拍板（4 项）</h2>
+<table>
+  <tr><th>#</th><th>决策点</th><th>选项</th><th>建议</th></tr>
+  <tr>
+    <td>1</td><td><b>「无人机数量」取哪个口径</b></td>
+    <td>① 司空接入台账（4 架，稳定）<br>② 司空通道建流数（4 架，接口重）<br>③ 当前在飞（0 架，会跳变）</td>
+    <td><b>①</b> —— 与"设备数量"语义一致且稳定；③ 建议作副指标（角标）而非主值</td>
+  </tr>
+  <tr>
+    <td>2</td><td><b>是否采用方案 B（提升到全局 Context）</b></td>
+    <td>① 采用（顺带统一 MapView 数据源、消除重复轮询）<br>② 只用方案 A（CenterPanel 内直连，改动最小）</td>
+    <td><b>①</b> —— 多 0.2d 换掉一处重复轮询与两套降级逻辑，符合长期方案</td>
+  </tr>
+  <tr>
+    <td>3</td><td><b>「人工维护的 uav 地图点位」是否保留</b></td>
+    <td>① 保留能力但不再参与 KPI（并在管理页加备注）<br>② 直接废弃该点类型</td>
+    <td><b>①</b> —— 保留灵活性；但必须写清"KPI 由司空驱动"，避免后人误改</td>
+  </tr>
+  <tr>
+    <td>4</td><td><b>是否需要 P2 点击下钻</b></td>
+    <td>① 需要（点 KPI 看机场/机型/SN 清单）<br>② 暂不需要</td>
+    <td><b>①</b> —— 运维核对成本低、收益直接；可放 P2 之后再做</td>
+  </tr>
+</table>
+
+<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;border-top:1px dashed var(--border);margin-top:26px">
+  实测依据（2026-09-16 11:14）：<code>/api/sikong/devices</code> → <code>count:4</code>，4 台机场各配对 1 架无人机 · <code>/api/sikong/live-streams</code> → <code>{dock:4, drone:4}</code>，<code>sikongLiveCount:0</code> ·<br>
+  源码核查：<code>CenterPanel.tsx:68/271/286</code> · <code>MapView.tsx:98</code> · <code>server/sikong.js:20-92</code> · <code>MapPointManage.tsx:11</code> · 司空链路 health <code>connected:true</code>（172.28.0.108:48089）
+  <br>📂 docs/驾驶舱无人机指标接入司空设备_评估与排期_20260916.html
+</div>
+</div>
+</body>
+</html>

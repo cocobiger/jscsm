@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秸秆焚烧监控 · 遥控器1080p通道融合评估与排期</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--ink:#1f2937;--sub:#6b7280;--line:#e5e7eb;
+    --red:#dc2626;--green:#059669;--amber:#b45309;--blue:#2563eb;--violet:#7c3aed;
+    --red-bg:#fef2f2;--green-bg:#ecfdf5;--amber-bg:#fffbeb;--blue-bg:#eff6ff;--violet-bg:#f5f3ff;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.75;font-size:14px;padding:24px}
+  .wrap{max-width:1120px;margin:0 auto}
+  .head{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 28px;margin-bottom:18px}
+  .head h1{font-size:20px;margin-bottom:6px}
+  .head .meta{color:var(--sub);font-size:12px}
+  .sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin-bottom:16px}
+  .sec h2{font-size:16px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .sec h3{font-size:14px;margin:14px 0 8px}
+  p{margin:6px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f9fafb;font-weight:600;white-space:nowrap}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;margin-right:4px;white-space:nowrap}
+  .t-red{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+  .t-green{background:var(--green-bg);color:var(--green);border:1px solid #a7f3d0}
+  .t-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+  .t-blue{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+  .t-violet{background:var(--violet-bg);color:var(--violet);border:1px solid #ddd6fe}
+  .warn{background:var(--red-bg);border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .ok{background:var(--green-bg);border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .cmp{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .num{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;background:var(--ink);color:#fff;border-radius:50%;font-size:12px;margin-right:6px}
+  .kv{font-family:Consolas,Menlo,monospace;font-size:12px;background:#f9fafb;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="head">
+  <h1>秸秆焚烧监控 · 遥控器 1080p 通道融合评估与任务排期</h1>
+  <div class="meta">万州 JSC 驾驶舱 · 2026-09-04 · 依据今日真飞实测（遥控器录像 1080p 准实时 + 司空 mirror 720p 实时）</div>
+</div>
+
+<!-- 一、需求与发现 -->
+<div class="sec">
+  <h2>一、需求与关键发现</h2>
+  <p><b>需求</b>：把遥控器录像（1080p，准实时延迟 6-9 分钟）接入现有「秸秆焚烧监控」检测链，自动抽帧→检测→生成秸秆燃烧事件；并与现有「实时直播流检测」融合，避免功能冲突。</p>
+  <p><b>今日真飞实证（数据已落盘）</b>：</p>
+  <table>
+    <tr><th>通道</th><th>分辨率</th><th>延迟</th><th>检测灵敏度（E1 结论）</th><th>状态</th></tr>
+    <tr><td>司空 mirror 直播流</td><td>1280×720（960~1280 宽）</td><td><b>秒级</b></td><td>远烟<b>全盲</b>（stage2 三档 IoU 命中恒 0，弱检出全为背景误检）</td><td><span class="tag t-green">已部署</span></td></tr>
+    <tr><td>遥控器录像（dock_media）</td><td><b>1920×1080</b>（另有 4K/红外档）</td><td><b>6~9 分钟</b></td><td>像素多 2.25 倍，远烟/小目标可辨识度质变（待离线验证量化）</td><td><span class="tag t-amber">取样闭环已通</span></td></tr>
+  </table>
+  <div class="ok">核心判断：两条通道<b>不是冲突，而是互补</b>——720p 是「秒级快筛」，1080p 是「分钟级精筛」。这正是告警检测领域的标准两级架构（实时发现 + 延迟复核）。真正要做的是把「互补」落地成「去重合并 + 统一事件模型」，而非二选一。</div>
+</div>
+
+<!-- 二、现有功能点梳理 -->
+<div class="sec">
+  <h2>二、现有「秸秆焚烧监控」已部署功能点梳理</h2>
+  <h3>2.1 检测引擎 straw-engine（:7200 systemd）</h3>
+  <table>
+    <tr><th style="width:180px">功能点</th><th>实现</th><th>与 1080p 融合关系</th></tr>
+    <tr><td>输入源</td><td>config.json <span class="kv">streams[]</span>：streamId/url(ZLM flv)/interval(2s)/分类别阈值/enabled，已含真机 sikong_8UUXN8P00A0LZ4 + 2 模拟流</td><td>新增源即加一项；1080p 是文件源需改造</td></tr>
+    <tr><td>抽帧</td><td>cv2.VideoCapture 拉 ZLM flv 逐帧读</td><td>1080p 改为 ffmpeg 解录像文件抽帧</td></tr>
+    <tr><td>检测</td><td>Detector（onnx GPU，smoke/fire/house 3 类，confSmoke/confFire/confHouse 独立阈值，nc 动态探测）</td><td>复用（1080p resize 到 inputSize）</td></tr>
+    <tr><td>连续确认</td><td>Confirmer：连续 3 帧命中才告警，60s 同目标抑制，滑窗容忍</td><td>复用，按 streamId 隔离状态机</td></tr>
+    <tr><td>夜判</td><td>每 5 帧亮度&lt;25 判夜 → 动态提阈（confSmokeNight/FireNight）</td><td>复用（1080p 帧同样过夜判）</td></tr>
+    <tr><td>OSD 起飞窗口</td><td>takeoffWindow 内整帧跳过（机库盖/起飞画面）</td><td>录像通常非起飞画面，可跳过</td></tr>
+    <tr><td>人员检测</td><td>告警框外扩检人（nearbyPersons）</td><td>复用</td></tr>
+    <tr><td>证据+复检</td><td>save_evidence 截图 + recorder 入库 straw_detections</td><td>1080p 证据更清晰，直接复用</td></tr>
+    <tr><td>报告</td><td>reporter → POST jsc-backend <span class="kv">/api/straw-alert</span>（admin 登录）</td><td>加 channel 字段即可</td></tr>
+    <tr><td>监控端点</td><td>/health /metrics /debug/snapshot /render_card</td><td>复用</td></tr>
+  </table>
+
+  <h3>2.2 驾驶舱前端（React）</h3>
+  <table>
+    <tr><th style="width:200px">页面/组件</th><th>功能</th><th>融合点</th></tr>
+    <tr><td>StrawMonitorPage</td><td>秸秆监控主面板</td><td>加「1080p 通道」状态</td></tr>
+    <tr><td>StrawLivePage</td><td>实时直播画面</td><td>可切 720p/1080p 源</td></tr>
+    <tr><td>StrawEnginePage</td><td>引擎管理/配置</td><td>加 1080p 通道开关</td></tr>
+    <tr><td>StrawResultsView / ServerReviewPage</td><td>结果查看 / 人工复检</td><td>1080p 帧证据更清晰</td></tr>
+    <tr><td>NegClassifyVerify</td><td>负样本分类验证</td><td>1080p 帧入库负样本</td></tr>
+    <tr><td>TunePage</td><td>调参引擎（algorithms.json）</td><td>复用</td></tr>
+    <tr><td>SmartPushPage / PushLogPage</td><td>智能推送 / 推送日志</td><td>事件合并后推一次</td></tr>
+    <tr><td>AlertFilterPage / AlertFormatPage</td><td>过滤规则 5 维度 / 推送格式</td><td>加 channel 维度过滤</td></tr>
+    <tr><td>BoundaryManagePage</td><td>边界管理</td><td>复用</td></tr>
+    <tr><td>AlertHistoryModal / AlertEvidenceModal</td><td>告警历史聚合 / 研判依据</td><td>同一事件合并展示两通道</td></tr>
+  </table>
+
+  <h3>2.3 后端 jsc-backend（:7170）</h3>
+  <table>
+    <tr><th style="width:220px">功能点</th><th>实现</th></tr>
+    <tr><td>告警入库</td><td>/api/straw-alert → warnings（source=straw-engine）</td></tr>
+    <tr><td>聚合去重</td><td>push_rules：windowHours=24/threshold，具体 aiType 规则 &gt; 通配</td></tr>
+    <tr><td>推送工作流</td><td>strawWorkflow 企微推送 + 复检 gate</td></tr>
+  </table>
+</div>
+
+<!-- 三、冲突点梳理 -->
+<div class="sec">
+  <h2>三、功能冲突点仔细梳理（逐项）</h2>
+  <table>
+    <tr><th style="width:150px">冲突维度</th><th>现象</th><th>等级</th><th>解法</th></tr>
+    <tr><td>① 重复告警</td><td>同一烟事件，720p 实时通道（可能漏）与 1080p 延迟通道（晚 6-9min）先后各报一次 → 驾驶舱看到两个事件</td><td><span class="tag t-red">P0</span></td><td>事件合并键 = 无人机SN + bbox 反投影地理坐标 + 15min 时间窗；1080p 命中已有事件 → <b>升级/补充</b>（附 1080p 证据）而非新建</td></tr>
+    <tr><td>② 时序错位</td><td>720p 秒级 vs 1080p 延迟 9min，Confirmer 连续 3 帧在录像上意义不同</td><td><span class="tag t-amber">P1</span></td><td>两通道独立 Confirmer（已按 streamId 隔离）；录像抽帧对齐 2s 间隔，连续帧确认仍有效</td></tr>
+    <tr><td>③ GPU 资源</td><td>720p 6 worker 全 CUDA 常驻 + 1080p 检测若也上 GPU → 显存/算力叠加</td><td><span class="tag t-amber">P1</span></td><td>1080p <b>HEVC 解码用 CPU</b>（已实测）；检测 onnx 复用 GPU 但限并发/错峰（当前 3090 空闲 19G，6 worker 检测时 util 低）；必要时 1080p 检测降频</td></tr>
+    <tr><td>④ 训练域差异</td><td>模型 v5 stage2 训练图是 720p（960×720/1280×720）；1080p 输入细节更多，域迁移效果未验证</td><td><span class="tag t-amber">P1</span></td><td>段 1 先做「1080p 帧离线喂检测器」量化增益（G1）；增益为正才推进</td></tr>
+    <tr><td>⑤ 源状态语义</td><td>config streams 目前全是「直播流」，1080p 是「文件源」——打开/重连语义不同</td><td><span class="tag t-blue">P2</span></td><td>config 加 <span class="kv">source: 'file'|'live'</span> 字段，worker 分支处理</td></tr>
+    <tr><td>⑥ 夜判/OSD</td><td>录像非实时，OSD 起飞窗口跳过逻辑可能误伤录像帧</td><td><span class="tag t-blue">P2</span></td><td>1080p 文件源关闭 OSD skip（录像无起飞画面），夜判保留</td></tr>
+  </table>
+  <div class="warn"><b>结论</b>：唯一硬冲突是 <b>① 重复告警</b>（需后端合并去重）；其余均为「工程适配」而非「功能冲突」。融合<b>完全可行</b>，且当前架构（streams 数组 + 分类别阈值 + 统一 /api/straw-alert）天然支持多通道扩展。</div>
+</div>
+
+<!-- 四、融合方案 -->
+<div class="sec">
+  <h2>四、融合方案设计（两级检测架构）</h2>
+  <p><b>统一事件模型</b>：所有告警带 <span class="kv">channel</span>（<span class="kv">mirror</span> 720p 实时 / <span class="kv">dock1080</span> 准实时）+ 原 streamId + bbox + 置信度。后端合并键按「SN + 地理 + 时间窗」聚合。</p>
+  <table>
+    <tr><th style="width:120px">方案</th><th>做法</th><th>推荐度</th></tr>
+    <tr>
+      <td><b>A（推荐）</b><br>双通道互补</td>
+      <td>720p 实时通道保持现状（秒级发现）；1080p 通道媒体归档后自动抽帧→检测→上报（channel=dock1080）；后端合并去重（1080p 命中已有事件=升级证据）。告警列表显示通道标签，同一事件可回看 720p 实时 + 1080p 高清双证据</td>
+      <td><span class="tag t-green">推荐</span></td>
+    </tr>
+    <tr>
+      <td><b>B</b><br>1080p 独立事件</td>
+      <td>1080p 通道完全独立上报，不与 720p 合并（会重复告警，仅当「不同地点」才有意义）</td>
+      <td><span class="tag t-amber">不推荐</span></td>
+    </tr>
+    <tr>
+      <td><b>C</b><br>1080p 仅取证不上报</td>
+      <td>1080p 只做「告警后取证」（720p 报了→自动拉 1080p 高清帧附证据），不独立触发检测/告警</td>
+      <td><span class="tag t-blue">保守备选</span></td>
+    </tr>
+  </table>
+  <p><b>推荐 A</b>：兼顾「1080p 能检出 720p 漏掉的远烟」（补召回）+「同一事件不重复」（合并去重）。C 作为 A 的第一阶段可先行（先取证后独立检测）。</p>
+</div>
+
+<!-- 五、任务排期 -->
+<div class="sec">
+  <h2>五、任务排期（两段式，总约 4~5 个工作日）</h2>
+  <table>
+    <tr><th style="width:90px">阶段</th><th style="width:150px">任务</th><th>内容</th><th>产出/验收</th></tr>
+    <tr><td rowspan="3"><b>段1</b><br>验证（1.5 天）</td><td>G0（已完成）</td><td>dock_media S3 GET + CPU 解码 + 抽帧闭环</td><td>✅ 已通（dock_fetch_probe.py + 1080p 帧目检）</td></tr>
+    <tr><td>G1（0.5 天）</td><td>1080p 帧离线喂现有 Detector，量化 vs 720p 检测增益（召回/误报）</td><td>增益报告；负则停（走 C）</td></tr>
+    <tr><td>G2（1 天）</td><td>后端告警合并去重设计 + /api/straw-alert 加 channel 字段 + 合并键实现</td><td>单测：同 SN 双通道合并</td></tr>
+    <tr><td rowspan="3"><b>段2</b><br>落地（3 天）</td><td>G3（1 天）</td><td>1080p 通道自动化：media-watcher 扫新 Remote-Control → S3 GET → ffmpeg 抽帧 → Detector → Confirmer → report(channel=dock1080)；config 加 source:'file'</td><td>端到端：新归档录像自动产事件</td></tr>
+    <tr><td>G4（1 天）</td><td>驾驶舱融合：事件通道标签/合并展示、StrawLivePage 双源切换、AlertFilter 加 channel 维度</td><td>headless 回归 + 人工验收</td></tr>
+    <tr><td>G5（1 天）</td><td>灰度（下次真飞在线验证）→ 部署 + 回滚预案</td><td>真飞双通道无重复告警</td></tr>
+  </table>
+  <p class="small">排期说明：G1 是「值不值得做」的闸门（1080p 若增益不明显，则整条 1080p 检测链改为方案 C「仅取证」省 G3 的独立检测）；G2 可与 G1 并行。</p>
+</div>
+
+<!-- 六、风险回滚 -->
+<div class="sec">
+  <h2>六、风险与回滚</h2>
+  <table>
+    <tr><th style="width:120px">风险</th><th>等级</th><th>缓解/回滚</th></tr>
+    <tr><td>1080p 检测增益不及预期</td><td><span class="tag t-amber">P1</span></td><td>G1 闸门；转方案 C（仅取证）</td></tr>
+    <tr><td>重复告警合并逻辑误伤</td><td><span class="tag t-red">P0</span></td><td>合并键保守（SN+地理+15min）；可关闭 1080p 通道一键回退</td></tr>
+    <tr><td>GPU 争抢影响 720p 实时</td><td><span class="tag t-amber">P1</span></td><td>1080p 解码 CPU；检测错峰/限并发；监控 util</td></tr>
+    <tr><td>架构改动回归</td><td><span class="tag t-amber">P1</span></td><td>straw-engine/config 备份 + systemd 可回滚；前端 pnpm build 前 grep 自检</td></tr>
+  </table>
+  <p><b>回滚路径</b>：1080p 通道开关化（config enabled=false 即关）；后端合并逻辑可 feature-flag 关闭；全程不触碰 ZLM/司空/机场/飞行链。</p>
+</div>
+
+<!-- 七、结论 -->
+<div class="sec">
+  <h2>七、结论与决策点</h2>
+  <div class="ok">
+    ① 现有功能点已梳理（引擎 10 项 + 前端 15 项 + 后端 3 项），架构天然支持多通道；② 冲突唯一硬点是<b>重复告警</b>（后端合并去重可解），其余为工程适配；③ 融合<b>可行且互补</b>（720p 秒级快筛 + 1080p 分钟级精筛两级检测）；④ 排期 4~5 天，G1 为增益闸门。
+  </div>
+  <p><b>决策点</b>：① 方案选 A（双通道互补+合并，推荐）／ C（1080p 仅取证）？② 是否先跑 G1 离线增益验证（0.5 天，决定 1080p 是否独立检测）？③ G2 后端合并去重是否立即并行开工？</p>
+</div>
+
+<!-- 八、G1 闸门结果（2026-09-04 凌晨跑完） -->
+<div class="sec">
+  <h2>八、G1 闸门结果（已执行，2026-09-04 01:10-01:26）</h2>
+  <div class="warn">
+    <b>闸门结论</b>：1080p/4K 对当前 v5 stage2 模型 <b>零检测增益</b>。原因非输入像素不足，而是<b>模型本身能力瓶颈</b>——与 E1（720p IoU 命中恒 0）同根。
+  </div>
+
+  <h3>8.1 测试样本</h3>
+  <table>
+    <tr><th>样本</th><th>来源</th><th>分辨率</th><th>时长</th><th>VLM 判 yes 数</th></tr>
+    <tr><td>今天 18:53 S 档</td><td>dock_media 9/3</td><td>1920×1080</td><td>188s</td><td>0/19（无烟城区）</td></tr>
+    <tr><td>9/2 13:04 S 档</td><td>dock_media 9/2</td><td>1920×1080</td><td>27s</td><td><b>24/27</b></td></tr>
+    <tr><td>9/2 13:04 V 档</td><td>dock_media 9/2</td><td>3840×2160（4K）</td><td>27s</td><td><b>25/27</b></td></tr>
+    <tr><td>9/2 13:04 T 档</td><td>dock_media 9/2</td><td>1280×1024（红外）</td><td>27s</td><td>0/27（红外不判烟）</td></tr>
+    <tr><td>合计</td><td></td><td></td><td></td><td><b>49 yes / 100 总</b></td></tr>
+  </table>
+
+  <h3>8.2 Detector 实测（v5 stage2，onnx GPU CUDAExecutionProvider）</h3>
+  <table>
+    <tr><th>输入</th><th>imgsz</th><th>GPU/CPU</th><th>49 yes 帧检出数</th><th>说明</th></tr>
+    <tr><td>100 帧（全量）</td><td>1280（生产）</td><td>CPU 75s</td><td>0</td><td>cuDNN 缺，自动 fallback</td></tr>
+    <tr><td>100 帧（全量）</td><td><b>1280</b></td><td><b>GPU 15s</b></td><td><b>0</b></td><td>LD_LIBRARY_PATH 配后 CUDA 加速，conf 全帧 &lt;0.05</td></tr>
+    <tr><td>49 yes 帧</td><td>1920</td><td>GPU</td><td>—</td><td>模型 onnx 硬绑 1280×1280，拒收 1920 输入（INVALID_ARGUMENT）</td></tr>
+  </table>
+  <p><b>关键事实</b>：49 张 VLM 100% 确认有烟的 1080p/4K 帧（含右图清晰可见的 4K 山坡冒烟），现有模型 <b>0 检出</b>。截图 g1_v_yes.jpg：长江边工厂区，画面中央偏右树林中清晰可见一缕白色烟雾。</p>
+
+  <h3>8.3 G1 闸门启示 + 方案调整为 C</h3>
+  <div class="cmp">
+    <b>为什么 1080p 救不了？</b>瓶颈在模型，不在输入：
+    <ol>
+      <li><b>训练域缺口</b>：v5 stage2 训练图来自 720p 司空 mirror（城区/工厂视野），对 9/2 山坡远烟（域外）学得不够</li>
+      <li><b>imgsz 硬限</b>：onnx export 锁 1280×1280，4K 输入 letterbox 缩到 1280，关键小目标细节被压缩</li>
+      <li><b>E1 已证同根</b>：720p live_review 182 帧 IoU 命中恒 0 → 不是像素问题是模型能力问题</li>
+    </ol>
+    <b>1080p/4K 仍有的价值（与检测无关）：</b>
+    <ul>
+      <li>✅ <b>取证清晰度</b>：告警后人眼确认、看烟形/位置（7.4MB 单帧 vs 100KB 720p）</li>
+      <li>✅ <b>训练样本</b>：49 张 yes 帧可直接进 v54 治理工作台做训练正样本</li>
+      <li>✅ <b>复检精度</b>：ServerReviewPage 显示 1080p 帧，人工复核置信度更高</li>
+      <li>✅ <b>事后留档</b>：客户/取证/法律用途的清晰证据</li>
+    </ul>
+    <b>方案调整为 C（推荐）</b>：1080p <b>仅取证不检测</b>——告警触发后自动拉 1080p 录像帧附在告警详情（不独立触发新告警）；不需后端合并去重（无重复告警风险）；不需 v54 重训后再启用；零额外模型负载。
+  </div>
+
+  <h3>8.4 调整后排期</h3>
+  <table>
+    <tr><th style="width:120px">任务</th><th>内容</th><th>时间</th></tr>
+    <tr><td>G1 ✅</td><td>离线增益验证（闸门已过）</td><td>已完成</td></tr>
+    <tr><td>G2'</td><td>告警后自动取 1080p 帧（fetcher + 关联）——不需合并去重逻辑</td><td>1 天</td></tr>
+    <tr><td>G3'</td><td>media-watcher 扫新 Remote-Control → S3 GET → ffmpeg 抽帧 → 落 /video/xunlian/dock_media_forensics/</td><td>0.5 天</td></tr>
+    <tr><td>G4'</td><td>驾驶舱：告警详情页 1080p 帧预览 + 取证页筛选 dock 通道</td><td>1 天</td></tr>
+    <tr><td>G5'</td><td>灰度 + 真飞验证（下次飞行）</td><td>1 天</td></tr>
+    <tr><td colspan="2" style="text-align:right"><b>总</b></td><td><b>~3.5 天</b>（比原 A 方案少 1-1.5 天，且无重复告警风险）</td></tr>
+  </table>
+  <p><b>方案 A（独立 1080p 检测）延后到 v54 治理 + 模型续训完成后（段 2 任务）再评估</b>——届时用升级后的模型重跑 G1，若 1080p 检出率显著提升，再切换。</p>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>前端类型门禁失效诊断与清理排期</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --line:#e3e6ea; --text:#1f2937; --sub:#5b6472;
+    --blue:#1a5fb4; --blue-bg:#eaf1fb; --amber:#9a6a00; --amber-bg:#fdf3e0;
+    --red:#c0392b; --red-bg:#fdecea; --green:#1e7d46; --green-bg:#e8f5ee;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","PingFang SC","SimSun",sans-serif; line-height:1.75; padding:32px 16px;}
+  .wrap{max-width:1080px; margin:0 auto;}
+  .head{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:28px 32px; margin-bottom:20px;}
+  .head h1{font-size:22px; font-weight:700; letter-spacing:0.5px;}
+  .head .meta{color:var(--sub); font-size:13px; margin-top:10px; display:flex; gap:18px; flex-wrap:wrap;}
+  .head .badge{display:inline-block; background:var(--blue-bg); color:var(--blue); border-radius:4px; padding:2px 10px; font-size:12px; font-weight:600;}
+  .sec{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 32px; margin-bottom:20px;}
+  .sec h2{font-size:17px; font-weight:700; padding-left:10px; border-left:4px solid var(--blue); margin-bottom:16px;}
+  .sec h3{font-size:15px; font-weight:700; color:var(--blue); margin:18px 0 8px;}
+  .sec p, .sec li{font-size:14px; color:var(--text);}
+  .sec p{margin:8px 0;}
+  ul,ol{padding-left:22px;}
+  li{margin:5px 0;}
+  code{background:#f0f2f5; border:1px solid var(--line); border-radius:3px; padding:0 5px; font-size:12px; color:#c0392b;}
+  pre{background:#f7f8fa; border:1px solid var(--line); border-radius:6px; padding:12px 14px; font-size:12px; line-height:1.6; overflow-x:auto; font-family:"JetBrains Mono",Consolas,monospace; color:#334155; margin:10px 0;}
+  table{width:100%; border-collapse:collapse; font-size:13px; margin:12px 0;}
+  th{background:#f0f2f5; color:#333; font-weight:600; text-align:left; padding:8px 10px; border:1px solid var(--line);}
+  td{padding:8px 10px; border:1px solid var(--line); vertical-align:top;}
+  tr:nth-child(even) td{background:#fafbfc;}
+  .note{border-radius:6px; padding:12px 16px; font-size:13px; margin:12px 0;}
+  .note.blue{background:var(--blue-bg); color:var(--blue);}
+  .note.amber{background:var(--amber-bg); color:var(--amber);}
+  .note.red{background:var(--red-bg); color:var(--red);}
+  .note.green{background:var(--green-bg); color:var(--green);}
+  .note b{font-weight:700;}
+  .batch{border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:12px 0; background:#fafbfc;}
+  .batch .bt{display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px;}
+  .batch .tag{font-size:11px; border-radius:4px; padding:1px 8px; font-weight:600;}
+  .tag.p0{background:var(--red-bg); color:var(--red);}
+  .tag.p1{background:var(--amber-bg); color:var(--amber);}
+  .tag.p2{background:var(--blue-bg); color:var(--blue);}
+  .tag.p3{background:#eef0f3; color:var(--sub);}
+  .batch .desc{font-size:13px; color:var(--sub); margin-top:6px;}
+  .batch ul{margin-top:6px;}
+  .batch li{font-size:13px;}
+  .footer{color:#9aa1ab; font-size:12px; text-align:center; margin-top:16px;}
+  .kpi{display:flex; gap:14px; flex-wrap:wrap; margin:14px 0;}
+  .kpi .box{flex:1 1 150px; border:1px solid var(--line); border-radius:8px; padding:12px 14px; text-align:center;}
+  .kpi .v{font-size:22px; font-weight:700; color:var(--blue);}
+  .kpi .v.red{color:var(--red);} .kpi .v.green{color:var(--green);}
+  .kpi .k{font-size:12px; color:var(--sub); margin-top:2px;}
+  .pill{display:inline-block; border-radius:3px; padding:1px 7px; font-size:11px; font-weight:600;}
+  .pill.bug{background:var(--red-bg); color:var(--red);}
+  .pill.lag{background:var(--amber-bg); color:var(--amber);}
+  .pill.nit{background:#eef0f3; color:var(--sub);}
+  @media print{ body{background:#fff; padding:0;} .sec,.head{page-break-inside:avoid;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 页头 -->
+  <div class="head">
+    <h1>前端类型门禁失效诊断 · 类型错误清理与排期</h1>
+    <div class="meta">
+      <span class="badge">需求评估</span>
+      <span>2026-09-14</span>
+      <span>关联：驾驶舱前端 src/（145 文件 / 30,616 行）· GitHub Actions CI · 手工 scp 发布链路</span>
+    </div>
+  </div>
+
+  <!-- 一、结论速览 -->
+  <div class="sec">
+    <h2>一、结论速览</h2>
+    <p><b>表面需求</b>：把 15 个既有类型报错清掉，并让构建带类型门禁。<br>
+       <b>真实问题</b>：<span style="color:var(--red);font-weight:700">门禁早就存在，但从未对生产发布生效</span>——它只挂在 GitHub CI 上，而实际发布链路是「本地改 → <code>npm run build</code> → <code>scp</code> 直发生产」，<code>vite build</code> 走 esbuild 会直接剥离类型，<b>类型错误可一路进生产</b>。所以本次若只“清零”，一个月后必然重新攒起来（已有数据佐证，见第二节）。</p>
+    <div class="kpi">
+      <div class="box"><div class="v red">15</div><div class="k">当前类型错误</div></div>
+      <div class="box"><div class="v">5</div><div class="k">涉及文件</div></div>
+      <div class="box"><div class="v red">6</div><div class="k">修复点（含 3 处真 bug）</div></div>
+      <div class="box"><div class="v">9.9s</div><div class="k">tsc 全量耗时</div></div>
+      <div class="box"><div class="v green">1 天</div><div class="k">P0+P1 合计工时</div></div>
+    </div>
+    <div class="note red">
+      <b>核心结论（一句话）</b>：这次要做的不是“擦地”，而是“把门装上”——<b>P0 清零 15 个错误（含 3 处真 bug）→ P1 把 typecheck 挂进本地发布前置（<code>npm run verify</code>）</b>。仅做 P0 不做 P1，等于把问题推迟一个月。
+    </div>
+    <p><b>风险等级</b>：低。改动集中在 5 个前端文件、约 20~25 行，<b>不碰后端推理链路、不碰模型、不碰大疆数传/机场通道</b>，且逐文件可回滚。</p>
+  </div>
+
+  <!-- 二、现状盘点（证据链） -->
+  <div class="sec">
+    <h2>二、现状盘点（可复核证据链）</h2>
+    <table>
+      <tr><th style="width:22%">证据项</th><th style="width:52%">实测事实</th><th>来源 / 命令</th></tr>
+      <tr>
+        <td>类型错误规模</td>
+        <td><b>15 个错误 / 5 个文件</b>（BoundaryManagePage 1 · ServerReviewPage 8 · StrawLivePage 2 · TunePage 1 · DronePopupHost 3）；全量 <b>9.9 秒</b></td>
+        <td><code>npx tsc --noEmit</code></td>
+      </tr>
+      <tr>
+        <td>构建脚本无类型门禁</td>
+        <td><code>"build": "vite build"</code>；<code>typecheck</code> 脚本单独存在但<b>构建链路不调用它</b>；esbuild 剥离类型 → 错误零阻塞</td>
+        <td><code>package.json</code></td>
+      </tr>
+      <tr>
+        <td>CI 门禁已存在</td>
+        <td><code>.github/workflows/ci.yml</code> 有独立 <code>typecheck</code> job，注释写明“<i>P1 已将历史类型错误清零（tsc --noEmit 0 错误），现转为严格门禁——任何 TS 错误都会令 job 失败、阻断合并</i>”</td>
+        <td><code>.github/workflows/ci.yml</code></td>
+      </tr>
+      <tr>
+        <td>门禁落地时间</td>
+        <td><code>0dc8ed9</code> 07-27 脚手架（观察期）→ <code>d8c902e</code> <b>07-28 转硬门禁</b></td>
+        <td><code>git log -- .github/workflows/ci.yml</code></td>
+      </tr>
+      <tr>
+        <td>报错代码是否已提交</td>
+        <td><b>5 个文件中 4 个是“干净”的（已提交）</b>，报错行确实存在于 HEAD（已逐行 <code>git show HEAD:&lt;file&gt;</code> 核对：<code>s.last_boxes</code> / <code>alg.evalSet</code> 均在）；仅 DronePopupHost 为未提交改动（<code> M</code>）<br>这些文件的最后提交日期为 08-27 / 08-30 / 08-31 / 09-03，<b>全部晚于 07-28 门禁引入日</b></td>
+        <td><code>git status --porcelain</code> / <code>git log -1 -- &lt;file&gt;</code></td>
+      </tr>
+      <tr>
+        <td>门禁为何没拦住</td>
+        <td>本地仓库<b>只有 <code>refs/heads/master</code>，没有任何 <code>refs/remotes/*</code></b>（从未 fetch/推送可见）；HEAD 停在 <b>2026-09-03</b>，工作区有 <b>225 个未提交文件</b>（9/4 起全部改动未入库）→ 发布靠手工 scp，<b>CI 不在发布链路上</b></td>
+        <td><code>git branch -r</code> / <code>git for-each-ref</code> / <code>git status --porcelain</code></td>
+      </tr>
+      <tr>
+        <td>“清了又攒”的实证</td>
+        <td><code>tmp/typecheck_p2.log</code> 记录历史为 <b>19 个错误 / 8 个文件</b>；现为 <b>15 个 / 5 个</b>：已修掉 7 个（MapCenter 1 · ServerMonitor 2 · SmsWarning 2 · StrawEngine 2），<b>同期新增 3 个</b>（DronePopupHost，来自 9/11 FLV 播放改造）</td>
+        <td><code>tmp/typecheck_p2.log</code> vs 当前 tsc</td>
+      </tr>
+    </table>
+    <div class="note amber">
+      <b>为什么“只清零”没用</b>：证据显示这是一个<b>持续漏水的桶</b>——07-28 上锁，08-27~09-03 的提交仍带错进来，9/11 又新漏 3 个。<b>不接发布前置，清理只是周期性返工。</b>
+    </div>
+  </div>
+
+  <!-- 三、逐条定性 -->
+  <div class="sec">
+    <h2>三、15 个报错的逐条定性（3 类：真 bug / 类型滞后 / 严格性）</h2>
+    <p>这一步是关键——<b>报错不只是“类型没写对”，其中 3 处背后是真实的显示缺陷</b>，修类型的同时应顺手修行为。</p>
+    <table>
+      <tr><th style="width:14%">文件</th><th style="width:9%">行</th><th style="width:12%">定性</th><th style="width:33%">真实后果（已核实）</th><th>修复动作</th></tr>
+      <tr>
+        <td>StrawLivePage</td><td>29 / 54 / 74-79</td>
+        <td><span class="pill bug">真 bug·契约不符</span></td>
+        <td><b>S0「运行链路全景」面板数据全错</b>：接口 <code>/api/straw-engine/status</code> 实际返回 <code>{engine:{…}, metrics:{…}, sampleStats}</code>，而前端类型与读取写成平铺的 <code>{ok, workers, resource}</code> ⇒ Worker 恒显 <b>0/0 运行</b>、<b>0 路流配置</b>、CPU/内存恒显 <b>'-'</b>、累计告警恒为 <b>0</b>、引擎状态因 <code>undefined !== false</code> 恒显「在线」</td>
+        <td>类型改为嵌套结构，读取点改为 <code>eng.engine.workers / eng.engine.resource / eng.engine.ok / eng.metrics.total_alerts</code></td>
+      </tr>
+      <tr>
+        <td>StrawLivePage</td><td>179</td>
+        <td><span class="pill bug">真 bug·字段不存在</span></td>
+        <td><code>/debug/snapshot</code> 的流字段实测为 <code>running, stream_ok, frame_age_s, detects, alerts, last_label, last_conf, infer_ms, cfm, boxes, snap</code>——<b>没有 <code>last_boxes</code></b>。该判断用于区分「画面渲染中」与「当前无检测目标」，如今恒为后者，<b>有框但不显示画面时提示误导</b></td>
+        <td>改用真实字段 <code>s.boxes?.length</code></td>
+      </tr>
+      <tr>
+        <td>TunePage</td><td>235</td>
+        <td><span class="pill bug">真 bug·死代码</span></td>
+        <td>表达式 <code>{t?.out?.evalStats?.nTrue ?? alg.evalSet ? '' : ''}</code> <b>三元两分支都是空串</b>，且 <code>evalSet</code> 不在前端类型上 ⇒ 这一格<b>永远什么都不显示</b>（评估集信息静默为空）。后端注册表确实带该字段：<code>config/algorithms.json → straw_fire.evalSet = "evalsets/straw_fire/"</code></td>
+        <td>删掉死代码；显示真实评估集名（<code>evalsets/straw_fire/</code>），并复用同页 280 行已有的「评估 N 真烟 + M 无烟」写法</td>
+      </tr>
+      <tr>
+        <td>DronePopupHost</td><td>78-79（3 个）</td>
+        <td><span class="pill lag">类型滞后</span></td>
+        <td>无运行时故障。后端 <code>server/drone-events.js:442</code> 确实返回 <code>flv, bboxFlv</code>，前端也按“FLV 优先、HLS 回退”在用（9/11 线上修复）——只是 <code>droneLive.ts</code> 的 <code>DroneStreamStatus</code> 未同步，<b>使这条关键播放优先级逻辑失去类型保护</b>（下次改字段不会有任何提示）</td>
+        <td><code>droneLive.ts</code> 补 <code>flv: string; bboxFlv: string</code></td>
+      </tr>
+      <tr>
+        <td>ServerReviewPage</td><td>521-526（8 个）</td>
+        <td><span class="pill lag">类型滞后</span></td>
+        <td>无运行时故障。DB 表 <code>straw_detections</code> 有 <code>lat/lng REAL</code> 列，<code>/api/review/list</code> 用 <code>SELECT *</code> 已返回；代码本身有 <code>typeof === 'number'</code> 守卫。当前坐标多为空，所以 GPS 行很少出现——<b>一旦开始写坐标就会正常工作，但类型上不知情</b></td>
+        <td><code>Detection</code> 补 <code>lat?: number; lng?: number</code></td>
+      </tr>
+      <tr>
+        <td>BoundaryManagePage</td><td>445</td>
+        <td><span class="pill nit">严格性</span></td>
+        <td>无任何后果。<code>latlngs.map(…)</code> 推断为 <code>number[][]</code>，赋值给声明为 <code>[number, number][]</code> 的 <code>ring</code></td>
+        <td>回调显式标注元组 <code>[number, number]</code></td>
+      </tr>
+    </table>
+    <div class="note blue">
+      <b>修复收益（可见）</b>：修完后「运行链路全景」应显示 <b>Worker 6/6 运行 · CPU 2.0% · 内存 53.0G · 累计检测 313 · 累计告警 0</b>（当前真实值），而现在是 0/0 与 '-'；TunePage 应显示评估集 <code>evalsets/straw_fire/</code>。
+    </div>
+  </div>
+
+  <!-- 四、方案对比 -->
+  <div class="sec">
+    <h2>四、门禁方案对比（怎么装门）</h2>
+    <table>
+      <tr><th style="width:14%">方案</th><th style="width:30%">做法</th><th style="width:18%">优点</th><th style="width:20%">缺点</th><th>评估</th></tr>
+      <tr>
+        <td><b>A. 本地发布前置</b></td>
+        <td><code>package.json</code> 加 <code>"verify": "tsc --noEmit &amp;&amp; vite build"</code>；发版统一走 <code>npm run verify</code> 后再 scp（可再包一层发布脚本强制）</td>
+        <td>与<b>真实发布链路</b>一致；10 秒成本；不依赖网络/CI</td>
+        <td>靠流程自觉（脚本化后可硬化）</td>
+        <td><span class="pill bug">推荐·必做</span></td>
+      </tr>
+      <tr>
+        <td>B. CI 门禁（已存在）</td>
+        <td>保留现有 <code>typecheck</code> job；顺手核验它到底有没有在跑、是不是早就红了</td>
+        <td>零新增成本；能拦“推送/合并”</td>
+        <td><b>不在发布链路上</b>；且本地 225 文件未提交、无远端跟踪 → 现状等于没生效</td>
+        <td><span class="pill lag">保留 + 核验</span></td>
+      </tr>
+      <tr>
+        <td>C. 增量门禁</td>
+        <td>只对改动文件跑类型检查（lint-staged 类方案）</td>
+        <td>快</td>
+        <td>跨文件类型影响会漏；配置与维护成本高</td>
+        <td><span class="pill nit">不建议</span></td>
+      </tr>
+    </table>
+    <div class="note green">
+      <b>推荐：A + B 双层</b>——本地 <code>verify</code> 做硬前置（真正拦住生产发布），CI 做兜底（拦住合并）。可选加 <code>.git/hooks/pre-push</code> 一行 <code>npm run typecheck</code> 做双保险。
+    </div>
+  </div>
+
+  <!-- 五、落地步骤 -->
+  <div class="sec">
+    <h2>五、落地步骤（可直接照做）</h2>
+    <h3>P0 · 清零 15 个错误（含 3 处真 bug）</h3>
+    <ol>
+      <li>改 5 个文件（6 个修复点，约 20~25 行）：<code>StrawLivePage.tsx</code>、<code>TunePage.tsx</code>、<code>droneLive.ts</code>、<code>ServerReviewPage.tsx</code>、<code>BoundaryManagePage.tsx</code></li>
+      <li><code>npx tsc --noEmit</code> → 期望 <b>0 错误</b>（这是唯一的通过标准）</li>
+      <li><code>npm run build</code> → scp 前先备份线上 <code>index.html + assets</code>（沿用既有发版铁律：<b>先备份再 scp</b>）</li>
+      <li>部署 + 核验：新 bundle md5（磁盘==远端）+ <code>index.html</code>/assets 逐个 HTTP 200</li>
+      <li>页面抽查：<b>秸秆监控 → 实时/链路全景</b>（Worker/CPU/内存/告警数值）、<b>算法调参页</b>（评估集显示）、<b>复检详情</b>（有坐标时的 GPS 行）</li>
+    </ol>
+    <h3>P1 · 装门（把类型检查接进发布）</h3>
+    <pre>// package.json
+"scripts": {
+  "typecheck": "tsc --noEmit",
+  "build": "vite build",
+  "verify": "tsc --noEmit &amp;&amp; vite build"   // ← 新增：发版前置
+}</pre>
+    <p>发版动作统一为：<code>npm run verify</code> → 备份 → <code>scp</code> → 重启/核验。可选：<code>pre-push</code> 钩子跑 <code>npm run typecheck</code>。</p>
+    <h3>P2 · 核验与治本</h3>
+    <ul>
+      <li><b>核验 CI 真实状态</b>：确认 <code>typecheck</code> job 是否在跑、master 是否已红（本地无 git 远端跟踪，需在 GitHub 侧或推送一次后确认）</li>
+      <li><b>契约漂移治本</b>：15 个错误中 <b>11 个来自“后端已改字段、前端类型没跟”</b>。建议把前端侧接口类型集中到 <code>src/app/lib/api-types.ts</code> 单一出处，并在关键接口（stream-status / straw-engine status / snapshot / review list）加开发期运行时字段校验（仅 dev 告警，不阻断）</li>
+      <li><b>巡检</b>：每次发版前 <code>npm run verify</code> 即为常态巡检，无需额外机制</li>
+    </ul>
+    <h3>P3（可选/暂缓，需单独拍板）</h3>
+    <ul>
+      <li>打开 <code>noUnusedLocals / noUnusedParameters</code>（会出现新一批告警，需评估）</li>
+      <li><b>225 个未提交文件的版本治理</b>：这是一个<b>独立且更重要的风险</b>（HEAD 停在 9/3，9/4 起全部改动无版本保护，一旦误删/覆盖无法回滚到某个中间态）——建议按业务分批提交，<b>不要一次性全提交</b>，需要你单独授权</li>
+    </ul>
+  </div>
+
+  <!-- 六、冲突排查 -->
+  <div class="sec">
+    <h2>六、冲突排查</h2>
+    <table>
+      <tr><th style="width:24%">潜在冲突点</th><th>排查结论</th></tr>
+      <tr><td>与正在进行的工作是否打架</td><td><b>无冲突</b>。本次只动 5 个前端文件（TunePage / StrawLivePage / ServerReviewPage / BoundaryManagePage / droneLive.ts），与真烟样本工作台（<code>collect.js</code> / <code>SmokeSampleWorkbench.tsx</code> / 复检页批量操作）无交集</td></tr>
+      <tr><td>225 个未提交文件</td><td>本次仅改其中 5 个；<b>不顺手提交其余文件</b>（否则 diff 不可读、混入未知改动）。版本治理单列 P3</td></tr>
+      <tr><td>部署时序</td><td>门禁只发生在<b>本地构建期</b>，不进入线上运行路径；线上改动仅为一次常规前端发版（备份→scp→核验）</td></tr>
+      <tr><td>StrawLivePage 是否已过时</td><td>⚠️ <b>需你确认</b>：该页 S0 面板数据全错，可能说明该页已被「实时检测」新页取代而疏于维护。若是，P0 可降级为“按最小改动修好类型 + 保留读取点修正”，不做 UI 增强</td></tr>
+      <tr><td>沙箱/工具陷阱（已踩）</td><td>① <code>bash</code> shim 缺 coreutils（<code>ls/grep/cat/md5sum</code> 不可用）→ 用 <code>certutil</code>/文件工具替代；② PowerShell 输出不回显 → <b>写文件再读</b>；③ git 不在 PATH → 用 PortableGit 全路径；④ ssh 内嵌复杂引号必炸 → <b>写脚本 scp 执行</b></td></tr>
+      <tr><td>红线</td><td>不触碰大疆数传/机场上传通道、不动 straw-engine 推理服务与模型、不动数据集；发版前备份，逐文件可回滚</td></tr>
+    </table>
+  </div>
+
+  <!-- 七、风险与回滚 -->
+  <div class="sec">
+    <h2>七、风险与回滚</h2>
+    <table>
+      <tr><th style="width:18%">项</th><th>内容</th></tr>
+      <tr><td>风险等级</td><td><b>低</b>。5 个文件均为“类型标注修正 + 3 处显示逻辑修正”，无后端改动、无数据结构变化、无模型/推理链路改动</td></tr>
+      <tr><td>回滚方式</td><td>① 已提交的 4 个文件：<code>git checkout -- &lt;file&gt;</code> 单文件回滚；② <code>DronePopupHost.tsx</code> 为未提交改动，<b>实施前先复制一份副本备份</b>；③ 前端产物回滚：恢复 <code>/opt/jsc/frontend-backups/frontend_&lt;时间戳&gt;/</code></td></tr>
+      <tr><td>影响面控制</td><td>不重启后端、不动 systemd 服务；前端发版仅影响页面刷新</td></tr>
+      <tr><td>验收标准</td><td>① <code>tsc --noEmit</code> 0 错误；② <code>npm run verify</code> 通过；③ 运行链路全景面板数值恢复（6/6 · CPU · 内存 · 告警）；④ TunePage 评估集显示；⑤ 生产页面无回归、0 控制台报错</td></tr>
+    </table>
+  </div>
+
+  <!-- 八、排期 -->
+  <div class="sec">
+    <h2>八、任务排期</h2>
+
+    <div class="batch">
+      <div class="bt"><span class="tag p0">P0</span> 类型错误清零 + 3 处真 bug 修复 <span style="color:var(--sub);font-weight:400">（约 0.5 人日，建议立即）</span></div>
+      <div class="desc">产出：5 个文件修改 + 构建产物 + 线上核验结论</div>
+      <ul>
+        <li>StrawLivePage：<code>EngStatus</code> 对齐真实契约 + 4 处读取点修正（面板数值恢复）</li>
+        <li>StrawLivePage：<code>last_boxes</code> → <code>boxes</code>（提示语正确）</li>
+        <li>TunePage：删死代码 + 显示真实评估集（<code>evalsets/straw_fire/</code>）</li>
+        <li>droneLive.ts：补 <code>flv / bboxFlv</code>（保住 FLV 优选逻辑的类型保护）</li>
+        <li>ServerReviewPage：<code>Detection</code> 补 <code>lat? / lng?</code></li>
+        <li>BoundaryManagePage：元组类型标注</li>
+        <li>门禁前置：<code>tsc</code> 归零 → <code>npm run build</code> → 备份 → scp → HTTP/md5 核验 → 页面抽查</li>
+      </ul>
+    </div>
+
+    <div class="batch">
+      <div class="bt"><span class="tag p1">P1</span> 把类型门禁装进发布链路 <span style="color:var(--sub);font-weight:400">（约 0.5 人日，依赖 P0）</span></div>
+      <div class="desc">产出：<code>npm run verify</code> + 发版规范（含 pre-push 钩子可选）</div>
+      <ul>
+        <li><code>package.json</code> 新增 <code>verify</code> 脚本，发版统一先跑 verify</li>
+        <li>可选：<code>.git/hooks/pre-push</code> 跑 <code>typecheck</code>，本地推送前拦截</li>
+        <li>把“先 verify 再备份再 scp”写进发版铁律（记忆/文档同步）</li>
+      </ul>
+    </div>
+
+    <div class="batch">
+      <div class="bt"><span class="tag p2">P2</span> CI 核验 + 契约漂移治本 <span style="color:var(--sub);font-weight:400">（约 1 人日，建议本周内）</span></div>
+      <div class="desc">产出：CI 实际拦截力结论 + API 类型单一出处方案</div>
+      <ul>
+        <li>核验 GitHub Actions 的 typecheck job 是否真的在跑 / 是否已长期红</li>
+        <li>建立 <code>src/app/lib/api-types.ts</code> 作为前端侧接口类型唯一出处（先覆盖 4 个高频接口）</li>
+        <li>关键接口 dev 期运行时字段校验（只告警不阻断），从源头减少“后端改了前端不知道”</li>
+      </ul>
+    </div>
+
+    <div class="batch">
+      <div class="bt"><span class="tag p3">P3</span> 可选项 <span style="color:var(--sub);font-weight:400">（暂缓，待拍板）</span></div>
+      <ul>
+        <li>打开 <code>noUnusedLocals / noUnusedParameters</code> 严格项（需评估新增告警量）</li>
+        <li><b>225 个未提交文件的版本治理</b>（独立任务，建议按业务分批提交，单独授权后执行）</li>
+      </ul>
+    </div>
+
+    <p style="margin-top:14px"><b>关键路径</b>：P0（清零）→ P1（装门）必须串行；P2 可并行启动。整体 <b>P0+P1 = 1 人日</b>，可当天闭环。</p>
+  </div>
+
+  <!-- 九、待拍板 -->
+  <div class="sec">
+    <h2>九、待你拍板</h2>
+    <table>
+      <tr><th style="width:8%">序号</th><th style="width:44%">决策项</th><th>建议</th></tr>
+      <tr><td>①</td><td>门禁方案：A（本地发布前置）+ B（CI 兜底）双层</td><td><b>建议采纳</b>——只做 P0 清零不装门，一个月内必然复发（已有 07-28→09-11 的复发实证）</td></tr>
+      <tr><td>②</td><td>StrawLivePage（S0 运行链路全景）是否仍在使用</td><td>请确认。若页面已被新「实时检测」取代，P0 只做最小类型修正、不做 UI 增强</td></tr>
+      <tr><td>③</td><td>是否顺带增强：面板显示 day/night 双模型 + 输入尺寸 1920（后端已返回，+0.5 小时）</td><td>可选，收益小但顺手</td></tr>
+      <tr><td>④</td><td>225 个未提交文件的版本治理是否立项</td><td><b>建议立项（优先级高于 P2）</b>——当前 9/4 起所有改动无版本保护</td></tr>
+    </table>
+    <p style="margin-top:10px">确认后回复「<b>开工</b>」即按 P0 → P1 执行；若只做清理，请说明「<b>只做 P0</b>」。</p>
+  </div>
+
+  <div class="footer">
+    JSC 驾驶舱 · 前端类型门禁失效诊断与清理排期 ｜ 2026-09-14 ｜ 证据：tsc --noEmit (15 errors/5 files, 9.9s) · .github/workflows/ci.yml · git（HEAD 1bda641 2026-09-03 / 225 dirty / 无 remote refs）· tmp/typecheck_p2.log（19→15）· 线上接口实测（/health、/metrics、/debug/snapshot、algorithms.json）
+  </div>
+
+</div>
+</body>
+</html>

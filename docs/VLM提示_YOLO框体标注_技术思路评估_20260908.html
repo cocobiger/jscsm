@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="yohQssU0urTbXMqNZBQsq2">
+<head data-page-node-id="lkGN9XMFncggFu3UpSwxdu">
+<meta charset="UTF-8" data-page-node-id="nJpTUEjFvcS6CjWFzgg9aG">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="FOAbCwyhTzZiwkcFxwvZ1i">
+<title>VLM 提示 + YOLO 框体标注 · 技术思路评估</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--soft:#f4f7fb;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--red2:#fdecea;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--green2:#e7f5ee}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);font-size:14.5px;line-height:1.75;background:#f7f9fc}
+  .page{max-width:1000px;margin:0 auto;padding:40px 48px 72px;background:#fff}
+  .doc-head{border-bottom:3px solid var(--blue);padding-bottom:16px;margin-bottom:8px}
+  .org{font-size:13px;color:var(--mut);letter-spacing:1px}
+  .title{font-size:23px;font-weight:700;color:var(--blue);margin:6px 0 4px}
+  .subtitle{font-size:14.5px;color:var(--mut)}
+  .meta{display:flex;gap:24px;font-size:12.5px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  h2{font-size:18px;color:var(--blue);margin:34px 0 8px;padding-left:10px;border-left:4px solid var(--blue);line-height:1.4}
+  h3{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:var(--blue2);color:var(--blue);text-align:left;font-weight:700;border:1px solid #c9d8ef;padding:8px 10px}
+  td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcff}
+  .tag{display:inline-block;border-radius:4px;padding:1px 9px;font-size:12px;white-space:nowrap;line-height:1.7}
+  .s-red{background:var(--red2);color:var(--red)}.s-amber{background:var(--amber2);color:var(--amber)}.s-green{background:var(--green2);color:var(--green)}.s-blue{background:var(--blue2);color:var(--blue)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:0 8px 8px 0;background:var(--soft);padding:12px 16px;margin:12px 0}
+  .box.warn{border-left-color:var(--amber)}.box.danger{border-left-color:var(--red)}.box.green{border-left-color:var(--green)}
+  .code{background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-family:Consolas,Monaco,monospace;font-size:12.5px;line-height:1.6;overflow-x:auto;margin:10px 0}
+  .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-page-node-id="bd7WoDidQz7X1V5aSNl8Mp">
+<div class="page" data-page-node-id="qNjc3hNRrNh8eHusK89HNd">
+
+<div class="doc-head" data-page-node-id="zBj79kAwTB1p8Jl8KWx1wB">
+  <div class="org" data-page-node-id="daObB0JVnJ1epPMYPMyaKp">万州区生态环境局 · 智能AI大数据驾驶舱</div>
+  <div class="title" data-page-node-id="tA7BY4LBTcOaNt7btPvqSS">「VLM 提示 + YOLO 框体标注」技术思路评估</div>
+  <div class="subtitle" data-page-node-id="t9MKMj3vXiMWGtRYMYLw2H">—— 无人机实时视频流检测的新思路可行性分析</div>
+  <div class="meta" data-page-node-id="etZL5BIyuDWqjQSNlOqoXv"><span data-page-node-id="TzjVnSWFymklLlAEwiGdou">编制时间：2026-09-08</span><span data-page-node-id="ZJJ1Le5QB4wZWbUVOuk1hi">评估方式：技术原理 + 现有资产核对</span><span data-page-node-id="zJuGim675GGXTUx0pqcxJS">性质：思路可行性评估（未实施）</span></div>
+</div>
+
+<h2 data-page-node-id="ZvBli5BstaytQY8gkJpu65">一、结论摘要</h2>
+<div class="box warn" data-page-node-id="Hyh97wsWO6PZQ1ySFLdd6F">
+  <p data-page-node-id="ZZdkEwGEj5FpwWTfABU6hc"><b data-page-node-id="nfvZ5HoZF766DcOcTq2VRy">思路方向有启发价值，但「VLM 用文字提示让 YOLO 画框」这一核心环节存在技术错位，字面意思上不可行。</b></p>
+  <p data-page-node-id="9hfxBP0oLvAyxCGG0tApoK">核心原因：<b data-page-node-id="fc8CEuAqJu1RCWDa177Wc9">普通 YOLO（v8/11）是"图像→框"的端到端检测器，不接受文字提示，无法"按照 VLM 的语言描述"去定位目标</b>。VLM 的文字描述（"左上方远方有淡淡烟柱"）是语义化的、无法直接转成精确像素框。</p>
+  <p data-page-node-id="jmQGOaUBQzBqd5cASiCPJX">但这个思路里<b data-page-node-id="l7jTt9CzozrasArGkf194b">有价值的部分</b>可以改造成几个可行的替代方案（见第四节）。</p>
+</div>
+
+<h2 data-page-node-id="kEZm0DqhbdKQDEkjCB9yV0">二、思路拆解与逐环节技术判断</h2>
+<p data-page-node-id="KxWdOsjkcBHAu2QS4wIAKM">用户的思路可拆成 4 个环节：</p>
+<table data-page-node-id="EJqk9N9zcDwbXEobYTOUdo">
+  <tr data-page-node-id="Kw37rG4z201d4Xn2s8pN75"><th style="width:22%" data-page-node-id="FyWt51xMMQx6PpqhzUfuyO">环节</th><th style="width:14%" data-page-node-id="dMIFrrGYAkQKMxlNKAFEcH">可行性</th><th data-page-node-id="5GCL1WraT2Ll76xnkq44uO">技术事实</th></tr>
+  <tr data-page-node-id="LhsBSIIh2oqUcwP6s5FFlm"><td data-page-node-id="EQn2kWHvdP8fVLJlCkLdNm">① VLM 看视频流判断"有真烟"</td><td data-page-node-id="HC2jDD1x6WiW0qp48Z1iru"><span class="tag s-amber" data-page-node-id="nULfgIKFLlrJL3WJYwDMms">可行但有硬伤</span></td><td data-page-node-id="bE0EEujfPBKWlp4s5lDfx5">VLM 能看图像判断烟（已有 qwen2.5vl:7b 在跑二分类）。但 VLM 推理秒级，视频流 25-30fps，无法"实时"，只能抽帧异步判断</td></tr>
+  <tr data-page-node-id="mvoEYy2662bI62Xf1jRKE5"><td data-page-node-id="qexxy43ce3NCZRiivFiRmH">② VLM 输出文字提示（"左上方远方有淡烟柱"）</td><td data-page-node-id="r6jXnDQ1NtX8SyioaTaVYO"><span class="tag s-green" data-page-node-id="eKal0w0NqCURQGdaSyfvmZ">可行</span></td><td data-page-node-id="kncZZhW6tHNVspJdefq3uq">VLM 天然能输出语义描述（现有 vlm_smoke_judge_tf.py 的 reason 字段就是"右侧山丘冒白烟柱"）</td></tr>
+  <tr data-page-node-id="gfU0KhZO7ssaUBBkWrJXMv"><td data-page-node-id="HJVBHmjMMVkXFwUo1LPMNH">③ 抽帧出图</td><td data-page-node-id="AdAwyUuAaSrowSSodlPBTG"><span class="tag s-green" data-page-node-id="3iAG1ThBhT5RYzwU5DlwUl">可行</span></td><td data-page-node-id="cG7WMCiZRamL6oS6IZQjhZ">已有抽帧能力（straw-engine interval 抽帧）</td></tr>
+  <tr data-page-node-id="YutqHB8M0gFjYO6QhWlyRM"><td data-page-node-id="HfJjLcTZP20pqEWKEK6YNh">④ <b data-page-node-id="Y6UZb6iTyft1rL7DCcBNNV">YOLO 按 VLM 文字提示做框体标注</b></td><td data-page-node-id="MiOZR8HgOCvf90ZtWYlGEz"><span class="tag s-red" data-page-node-id="PEfWNOYy1J4lz9A6MYMRkH">❌ 不可行（核心错位）</span></td><td data-page-node-id="AhMA0HIgI5yUK1JGNRyBgE">普通 YOLO 是端到端检测器，输入是图像、输出是框，<b data-page-node-id="MSMf3fB1vmzEFnoJgNvFgW">不接受文字 prompt</b>。它要么自己检出烟并出框，要么检不出——VLM 的文字描述无法"喂给" YOLO 让它定位</td></tr>
+</table>
+
+<div class="box danger" data-page-node-id="KE4LzFA4jrIclivWPjcDDT">
+  <p data-page-node-id="j3Xa9YxKYBam0cdZ2Umwkt"><b data-page-node-id="096lUivvkw8AoVmAOLGamm">核心错位</b>：YOLO 本身就是一个"图像→框"的检测器，它出框靠的是自己在图像上做 dense 预测，<b data-page-node-id="ruW0UTaPleKviNcFrGiidD">不依赖、也无法利用外部文字提示</b>。如果 YOLO 已经检不出远处的烟（这正是当前 v5 stage2 的问题），VLM 说"左上方有烟"也<b data-page-node-id="NPdR7rDtj3kICFMDQsvK8O">不能让 YOLO 凭空画出那个框</b>——VLM 的语言描述无法转换成 YOLO 可执行的定位指令。</p>
+</div>
+
+<h2 data-page-node-id="tLU0wcGYWZu0qK5b3Fal8k">三、为什么"文字提示驱动 YOLO"不成立</h2>
+<h3 data-page-node-id="d14tiQCRFfPPbkxVpCrd5H">3.1 模型本质不同</h3>
+<table data-page-node-id="RQDhKiHNCMM3uhMmaIk877">
+  <tr data-page-node-id="LFYJREI1B1aYBFXnmJSFVe"><th data-page-node-id="U3caiGj4TClKRK59mCHORD">模型</th><th data-page-node-id="b16JQ6oDY0jN6fp5XUyWZG">输入</th><th data-page-node-id="RLYDJLZH7IJRQbOcX2dtMk">输出</th><th data-page-node-id="rHJvbjht3SMR1jARLNhxCH">能否用文字定位</th></tr>
+  <tr data-page-node-id="8mNVoZcc1XX1Dmbm1vAEHr"><td data-page-node-id="kipzexBCC7jhDEyxIBBu4m">YOLOv8/11（检测）</td><td data-page-node-id="92UaEgA8qO1Qx2sqyUnsoI">图像</td><td data-page-node-id="BMoahJiaKQTwg5C4n1brKA">固定类别框（xyxy+conf+cls）</td><td data-page-node-id="LoZNgxdokCVdK8AWIXq55v"><span class="tag s-red" data-page-node-id="xH9cCRkXjLsYca72Svig3q">不能</span>（不接受文字）</td></tr>
+  <tr data-page-node-id="5QN5ZobTy7UzA0eMXTBk79"><td data-page-node-id="eTy1X7DTIESl8ibW9BMS05">YOLO-World / Grounding DINO</td><td data-page-node-id="3z68AkU6wZeqDF56fAcnwW">图像 + 文字 prompt</td><td data-page-node-id="AFZqxqrriym8pv4dHXsfX8">框</td><td data-page-node-id="ISQnUdDjW0xzeFuvhkJa3g"><span class="tag s-green" data-page-node-id="nKbBvGAEtDtKv48QYxP4xB">能</span>（open-vocabulary 检测，可"按烟"检测）</td></tr>
+  <tr data-page-node-id="lkgSpIJbzMOJIn0eRd3rsB"><td data-page-node-id="brMfzRalvO2cDnUsjkkaKl">Qwen2.5-VL（grounding 版）</td><td data-page-node-id="Qc8KBfWUnuhSBoNbmXdP4X">图像 + 文字</td><td data-page-node-id="BbZc0soZDCPvQ7YB163JP4">可直接输出框坐标</td><td data-page-node-id="2x24HNWOm8PQIzESYIQBOb"><span class="tag s-green" data-page-node-id="TZzYHsw1hm2QwdPGKRHg17">能</span>（但精度/实时性差）</td></tr>
+</table>
+<p data-page-node-id="7JR4LkUBanR66eNO02jExg"><b data-page-node-id="6UCrKH478dfmNlDBooHLfm">关键</b>：如果目标是"用文字/语义驱动定位"，正解是 <b data-page-node-id="0BVrJRAXVu2QBaTD8HJwHj">open-vocabulary 检测模型</b>（YOLO-World、Grounding DINO）或 <b data-page-node-id="ARokRmjk7muz48gEzZZfWs">带 grounding 的 VLM</b>，而不是"VLM 描述 + 普通 YOLO"的组合。普通 YOLO 无法理解 VLM 的文字。</p>
+
+<h3 data-page-node-id="SrV1ozCyLaNzudAxuWf3Me">3.2 项目现有 VLM 不支持框输出</h3>
+<p data-page-node-id="CknQYyBuWPFxBZMjYT0Qip">现有 `qwen2.5vl:7b`（ollama）+ `model3b`（transformers）都只做<b data-page-node-id="9zQHvTFuZBrLSLvFIoOk5X">文本二分类</b>（输出 verdict/confidence/reason），<b data-page-node-id="kUE2EHo2NRcayfg7NpAL6e">不输出框坐标</b>。ollama 的 qwen2.5vl 也不支持 grounding 坐标输出。所以要实现"VLM 直接出框"，还需换模型/换推理方式。</p>
+
+<h2 data-page-node-id="zvC6RtDnFSMS7kkHifm4i3">四、可行的替代方案（思路的价值重构）</h2>
+<p data-page-node-id="JIT2W4u9PMRruuiTFXoXV1">用户思路里真正有价值的是「<b data-page-node-id="jnFA8ZKgd2hAHaywsBsQfG">用 VLM 补足 YOLO 对远烟的召回盲区</b>」。可改造成以下方案：</p>
+
+<table data-page-node-id="cLZlEpwUiuwrCNMdhaiFCF">
+  <tr data-page-node-id="6s9lo6hXVT6XL8Ndbc28DY"><th style="width:18%" data-page-node-id="ZMCnog3hkTHwTFy5q1IjVH">方案</th><th style="width:44%" data-page-node-id="II8N6aDBM7J6EPGuValR4P">做法</th><th data-page-node-id="elBWTa2Zz4WUBbUN8Pcb9F">评估</th></tr>
+  <tr data-page-node-id="bB8f2WMiJPoTkW9dsbWEgc">
+    <td data-page-node-id="NJr70FoNJXJiit0JivvddB"><b data-page-node-id="Zo2R6DZB7GVybh7r2DMAlY">A：VLM 复核（降误报）</b></td>
+    <td data-page-node-id="tlOpqxKirpLXkvVSDXaAYW">YOLO 出一堆候选框 → 对每个框裁图喂 VLM 判"真烟/假烟" → 过滤误报</td>
+    <td data-page-node-id="nAjFObNhCLaORQ5HJkV75Y"><span class="tag s-amber" data-page-node-id="geiIlXoL0DDYPUkkhdItoG">解决误报，不解决召回</span> YOLO 没检出的框 VLM 看不到，远烟仍漏检</td>
+  </tr>
+  <tr data-page-node-id="OGefKZWGqtb1vszG1SXND9">
+    <td data-page-node-id="G6wDpBJihhxOIOjU2LPXHk"><b data-page-node-id="iy9fitKr1G5jbfE12DF0om">B：VLM grounding 直接出框（绕开 YOLO）</b></td>
+    <td data-page-node-id="SEXdYb487I348R6ituxvXE">用带 grounding 的 VLM（Qwen2.5-VL 原版 grounding token / GLM-4V / InternVL）直接输出烟框坐标</td>
+    <td data-page-node-id="L7Vcc6xCznRh4UE3ilCGTX"><span class="tag s-amber" data-page-node-id="EQYs5mVfWJTtANV9nJhXE3">理论可行</span> 但 VLM 定位精度差（远烟小目标）、秒级推理不实时、需换模型部署</td>
+  </tr>
+  <tr data-page-node-id="0rfFNZGPoygfbzCYddGgft">
+    <td data-page-node-id="UusD1d2WKBdcYdTLmd4hUA"><b data-page-node-id="VPEm3DnyoCdtol31rBDI0K">C：open-vocabulary 检测（YOLO-World/Grounding DINO）</b></td>
+    <td data-page-node-id="n9AgP4oiOF99QOGjDLXPv0">用支持文字 prompt 的检测模型，直接 prompt "smoke" 检测出框</td>
+    <td data-page-node-id="MJ2IlFZEGqdeYSaXeb0b4b"><span class="tag s-green" data-page-node-id="uIHqPN6bjZQJFREmywGsdl">方向最正</span> 本质是"更强的检测模型"，但训练/部署成本高，且对远烟小目标效果待验证</td>
+  </tr>
+  <tr data-page-node-id="owrxb5ZMf3C8WkGtBRhVI0">
+    <td data-page-node-id="E3BbdfkegcHaiCg8Vq6CIm"><b data-page-node-id="Aw4z10VUg1ktKf2nZF1E5B">D：VLM 弱监督 + 人工框（训练数据）</b></td>
+    <td data-page-node-id="tmUIsd0s5gnC2jcs1lJDdc">VLM 判断有烟 → 人工在图上框 → 回流训练集（正是现有 v54 治理流程）</td>
+    <td data-page-node-id="YeKmjdgn6h4K7Zq4QTEEFQ"><span class="tag s-green" data-page-node-id="nfmCAXAqZdB9A3BUqeJaYN">已在做</span> 这是长期治本：补足训练域缺口，让 YOLO 下次能检出远烟</td>
+  </tr>
+</table>
+
+<h2 data-page-node-id="MCDyeIddIHYQaGKxaNs6W2">五、与现有系统的关系</h2>
+<div class="box" data-page-node-id="hcsDVP3GhV8TR7xpFa3P5h">
+  <p data-page-node-id="6Gydy1Tnz5qwO0VQjwGsCK">项目现状（记忆已沉淀）：</p>
+  <p data-page-node-id="sMyCLhqhr1WL2XYd0ndYKw">① <b data-page-node-id="svigDoIMQh5Pr5RiLmYZCQ">v5 stage2 对 DJI 远烟零检出</b>——根因是"模型能力瓶颈"（训练域缺远烟样本），不是阈值/像素问题（G1 闸门、E1 快评、段2续训三次失败均已证实）。</p>
+  <p data-page-node-id="G5Bwe7KsKNU7luSu1VRBRS">② <b data-page-node-id="WCx4UswkiANKM1k0gUCfPP">VLM 已在做方案 D</b>——qwen2.5vl 用于离线数据预筛，判断误标框复用为 hard negative（v54 治理流程）。</p>
+  <p data-page-node-id="mHdfnYQQJqawaIygUhEoYm">③ 所以用户这个思路，本质是<b data-page-node-id="4w9IJlSknHXkP6jBoV1pBB">想绕开"重训 YOLO"用 VLM 实时补足远烟检测</b>。方向可以理解，但"VLM 文字提示 + 普通 YOLO 画框"的组合在技术上不成立，需换成上面 A/B/C 之一。</p>
+</div>
+
+<h2 data-page-node-id="haucGJMFq0M3crbMhsEASi">六、结论与建议</h2>
+<div class="box green" data-page-node-id="MCGWZfwgw1qMtrnCqet6Jn">
+  <p data-page-node-id="gQAI2k1wfC7ZzUXzTUQgEd"><b data-page-node-id="xNkW21fRDj6PM4GJoAPJeD">① 字面思路不可行</b>：普通 YOLO 不接受文字提示，"VLM 描述 → YOLO 按提示画框"是技术错位；</p>
+  <p data-page-node-id="JSmwJjcevT5pR7HvT2krGm"><b data-page-node-id="2uqIiZWR7Pjzgcufg0RkH9">② 思路价值可重构</b>：真正要做的是"用更强的检测能力补足远烟召回"，对应方案 B（VLM grounding）/C（open-vocabulary 检测）/A（VLM 复核降误报）；</p>
+  <p data-page-node-id="jaobhIdZPibUVOnT9vHVeI"><b data-page-node-id="Jilw0WnvD93PR4tS63YCRE">③ 长期治本仍是方案 D</b>：VLM 预筛 + 人工框回流训练集，补足远烟训练域，让 YOLO 自身能力提升——这是项目已在走的路；</p>
+  <p data-page-node-id="bg2St7Geo2VZwrJFJspEha"><b data-page-node-id="wHQgyY0gDGR0u0OVz4u3rp">④ 若明天就要验证</b>：不建议临时上 VLM 实时检测（秒级延迟 + 定位精度差 + 需换模型），建议按现有 YOLO 链路 + 低空近烟场景先验链路贯通性，远烟召回问题走方案 D 长期解决。</p>
+</div>
+
+<div class="foot" data-page-node-id="5MC9V0yKohD2wRopxV6yWB">
+  本报告基于 2026-09-08 技术原理评估 + 现有资产核对（qwen2.5vl:7b ollama + model3b transformers，均只做文本二分类不支持框输出）。未实施任何改动。如需落地某个替代方案（B/C/A），需另做技术选型与排期。
+</div>
+
+</div>
+</body>
+</html>

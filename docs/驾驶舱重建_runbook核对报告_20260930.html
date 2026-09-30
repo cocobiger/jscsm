@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSC 驾驶舱 · runbook 核对报告（2026-09-30）</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --blue:#1a5276; --blue2:#2c6ca6; --green:#0f7b4f; --greenbg:#e7f6ee;
+    --red:#b42318; --redbg:#fdeceb; --amber:#9a6700; --amberbg:#fff6e5;
+    --violet:#5b3fb5; --violetbg:#efeafd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.7;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;
+    background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:24px;letter-spacing:.3px}
+  header.top .sub{opacity:.92;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);
+    border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0;
+    box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.6px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.6px;color:#0b3d63}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:center}
+  .kpi .n{font-size:26px;font-weight:800;color:var(--blue)}
+  .kpi .n.g{color:var(--green)}
+  .kpi .l{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  ul{margin:8px 0 8px 2px;padding-left:20px}
+  li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .tag{font-family:Consolas,monospace;font-size:12.4px;background:#eef1f5;border-radius:5px;padding:1px 6px}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>JSC 驾驶舱 · 重新部署 runbook 核对报告</h1>
+  <div class="sub">照 <code>REF_驾驶舱重新部署流程.md</code> 在新机执行一次重建并逐条核对脚本与现状</div>
+  <div class="meta">
+    <span class="chip">执行时间：2026-09-30 12:21–12:3x</span>
+    <span class="chip">目标机：111.10.220.226:22233（dajiang）</span>
+    <span class="chip">方式：4 轮只读审计 + 实跑 p0_01</span>
+    <span class="chip">安装根：/data/HBJSC</span>
+  </div>
+</header>
+
+<h2>0 · 执行摘要</h2>
+<div class="kpi">
+  <div class="box"><div class="n g">48/48</div><div class="l">门禁通过（p0_01–07 + e2e + fix_warnings）</div></div>
+  <div class="box"><div class="n">4</div><div class="l">四服务 active+enabled</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">7</div><div class="l">脚本/文档偏差（已就地修正）</div></div>
+  <div class="box"><div class="n" style="color:var(--green)">1</div><div class="l">活体缺陷已修复（nodemailer）</div></div>
+</div>
+<div class="callout good">
+  <b>结论：现状与 runbook 目标态一致，系统健康。</b> 但 <b>脚本链本身不是"照抄即可复跑"</b>——原版有 7 处与实测现状不符（最严重的是 <code>p0_02</code> 装错 Node 版本），
+  已全部修正并写回 <code>deploy/HBJSC/</code>。另发现并修复 1 处真实功能缺陷（邮件告警因时序问题长期失效）。
+</div>
+
+<h2>1 · 本次"执行"做了什么</h2>
+<table>
+  <tr><th style="width:120px">阶段</th><th>动作</th><th style="width:150px">结果</th></tr>
+  <tr><td>只读审计 ×4 轮</td><td>系统基线 / 磁盘布局 / 服务与端口 / Node 与运行时 / 安装根 / 后端 / 前端·nginx / ZLM / straw-engine / 活体接口 / 数据抽查 / 外网可达性 / GPU</td><td><span class="badge ok">完成</span></td></tr>
+  <tr><td>实跑 <code>p0_01</code></td><td>唯一幂等安全的脚本：建骨架 + <code>/video</code> 软链 + 磁盘隔离校验（真跑，非模拟）</td><td><span class="badge ok">幂等通过</span></td></tr>
+  <tr><td>门禁复核</td><td>把 <code>p0_01</code>–<code>p0_07</code>/e2e/fix_warnings 的验收门禁逐条转成可判定命令跑一遍</td><td><span class="badge ok">48/48</span></td></tr>
+  <tr><td>修复活体缺陷</td><td>重启 <code>jsc-backend</code> 使 nodemailer 生效（按 runbook p0_04 语义）</td><td><span class="badge ok">已修</span></td></tr>
+  <tr><td>修正脚本/文档</td><td>7 处偏差就地改回与现状一致；<code>README.md</code> 与 runbook 追加校正记录</td><td><span class="badge ok">已改</span></td></tr>
+</table>
+<div class="callout warnc">
+  <b>未做的（刻意不做）：</b> <code>p0_02 / p0_03 / p0_05 / p0_06</code> <b>不具备"原地安全复跑"条件</b>——它们会重装 Node、把在跑的后端挪走、覆盖线上 nginx/ZLM 配置，或在 github 不通时直接失败。
+  在一台<b>已经正常服务</b>的机器上盲跑它们，风险远大于收益。逐条核对已能回答"这份 runbook 能不能用"。
+</div>
+
+<h2>2 · 现状快照 vs runbook §9</h2>
+<table>
+  <tr><th>项目</th><th>runbook §9 期望</th><th>实测现状</th><th>结论</th></tr>
+  <tr><td>主机</td><td>—</td><td>dajiang / Ubuntu 22.04.5 / kernel 5.15.0-194 / up 14h</td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>磁盘</td><td><code>/</code> 17G/1004G，<code>/data</code> 3.1G/5.0T</td><td><code>/</code> 17G(2%)，<code>/data</code> 3.1G(1%)</td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td><code>/video</code></td><td>软链 → <code>/data/video</code></td><td><code>/video → /data/video</code>；写文件实测落 <code>/dev/sdb1</code></td><td><span class="badge ok">隔离成功</span></td></tr>
+  <tr><td>四服务</td><td>nginx/jsc-backend/zlmediakit-jsc/straw-engine 全 active+enabled</td><td>全部 <code>active</code> + <code>enabled</code></td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>端口</td><td>80/81 nginx｜7170 backend｜6080/5540/1936/4443 ZLM</td><td>80,81,7170,7200,6080,5540,1936,4443；<b>无 443</b></td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>Node</td><td><code>/data/HBJSC/tools/node22</code> = v22.x</td><td><code>/usr/local/bin/node → tools/node22/bin/node</code> = <b>v22.23.3</b>；<code>node:sqlite</code> 可用</td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>nginx alias</td><td><code>/data/HBJSC/frontend/</code></td><td><code>location /jsc/</code> → <code>alias /data/HBJSC/frontend/</code></td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>数据库</td><td>7/9 快照（runbook 旧描述"22 表"）</td><td><b>39 张表</b>（7/9 底座 22 + 9 月代码自动补 17）</td><td><span class="badge warn">描述已过时</span></td></tr>
+  <tr><td>入口/登录</td><td><code>:81/jsc/</code> → 200；<code>/api/auth/login</code> admin/admin123</td><td><code>/jsc/</code> 200；登录 <code>{"ok":true, token…}</code></td><td><span class="badge ok">一致</span></td></tr>
+  <tr><td>GPU</td><td>驱动未装（RTX 3090 在）</td><td>无 <code>nvidia-smi</code>/<code>/dev/nvidia*</code>；onnxruntime providers 仅 <b>CPU</b></td><td><span class="badge warn">已知缺口</span></td></tr>
+</table>
+
+<h2>3 · 逐条核对：脚本 ⨯ 现状</h2>
+
+<h3>p0_01_skeleton.sh — 骨架 / 软链 / 磁盘隔离</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td><code>/data</code> 可用 &gt; 1T（安全闸）</td><td>4.71 TB</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td><code>/video</code> 是软链且指向 <code>/data/video</code></td><td>是</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>3</td><td>写 <code>/video</code> 实际落 <code>sdb1</code>（隔离校验）</td><td>/dev/sdb1 ≠ /（LVM）</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>4</td><td>已存在时"只补缺失、不动已有"（幂等）</td><td>实跑：识别非空 → 仅补目录，未动线上内容</td><td><span class="badge ok">PASS</span></td></tr>
+</table>
+
+<h3>p0_02_deps.sh — 依赖 + Node</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td>nginx <code>-t</code> 通过</td><td>successful</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td>ffmpeg / ffprobe / pip3 在</td><td>均在</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>3</td><td>Node ≥ 16（脚本原门禁）</td><td>v22.23.3 通过</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>4</td><td><b>Node ≥ 22 + <code>node:sqlite</code></b>（真要求）</td><td>通过；<code>tools/node</code>=v20.20.2 <b>无</b> node:sqlite，<code>tools/node22</code>=v22.23.3 有</td><td><span class="badge bad">脚本原不符</span></td></tr>
+</table>
+
+<h3>p0_03_install.sh — 后端 / 数据库 / nginx / systemd</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td>用户 <code>jsc</code> 存在（不用 root 跑业务）</td><td>存在</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td><code>index.js</code> 是 9 月版（含 <code>STRAW_ENGINE_URL</code>）</td><td>194 KB，出现 3 次</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>3</td><td><code>config.json</code> 仍是 7/9 的（zlmHost=172.16.8.12）</td><td>172.16.8.12</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>4</td><td>nginx <code>/jsc/</code> alias → <code>/data/HBJSC/frontend/</code></td><td>一致</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>5</td><td><code>sites-enabled/default</code> 已删、无 <code>.bak*</code> 误加载</td><td>仅 <code>uav-sites</code></td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>6</td><td><code>ExecStart</code> 指向 Node</td><td>线上= <code>tools/node22</code>；<b>脚本原写 <code>tools/node</code></b></td><td><span class="badge bad">脚本原不符</span></td></tr>
+  <tr><td>7</td><td>覆盖 nginx 站点前先备份</td><td><code>sites-backup/</code> <b>为空</b>（脚本原不备份）</td><td><span class="badge warn">已补</span></td></tr>
+  <tr><td>8</td><td>验收 <code>/api/health</code> 期望 200</td><td>实际 <b>401</b>（需鉴权，属正常）</td><td><span class="badge warn">门禁描述错</span></td></tr>
+</table>
+
+<h3>p0_04_fix.sh — 代码叠加 / 补依赖 / Node22</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td>9 月独有文件 6 个</td><td>drone-events / review / sikong / stack-config / warnings-stream / algo-threshold <b>全部在</b></td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td>补依赖方式</td><td><code>node_modules</code> 是 <b>pnpm 结构</b>（<code>.pnpm</code> 96 项 + 符号链）；脚本原用 <code>npm install</code> → 必崩</td><td><span class="badge bad">脚本原不符</span></td></tr>
+  <tr><td>3</td><td><code>nodemailer</code> 就位</td><td>实体目录在（npm 回填，02:57）</td><td><span class="badge ok">PASS</span></td></tr>
+</table>
+
+<h3>p0_05_zlm.sh — ZLM 编译</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td><code>MediaServer</code> 可执行</td><td>6,989,840 字节（编译于 02:58）</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td>产物目录</td><td><code>Release/</code>；<b>脚本原写 <code>Debug/</code> + <code>|| true</code></b></td><td><span class="badge bad">脚本原不符</span></td></tr>
+  <tr><td>3</td><td><code>git clone github</code></td><td>github.com <b>不通</b>（curl 000）；nodejs.org/apt 通</td><td><span class="badge bad">脚本原不可靠</span></td></tr>
+</table>
+
+<h3>p0_06 / p0_07 — ZLM 配置与端口</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td><code>[api] secret</code></td><td><code>035c73f7-…2abc</code></td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td><code>[http] port</code> = 6080</td><td>6080</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>3</td><td><code>[rtsp] port</code> = 5540 / <code>[rtmp] port</code> = 1936</td><td>5540 / 1936</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>4</td><td>SSL 端口键名</td><td>生效的 <code>[http] sslport=4443</code> ✓；<b>脚本原写非标准 <code>[https] port</code></b>（被忽略）</td><td><span class="badge bad">脚本原不符</span></td></tr>
+  <tr><td>5</td><td>RTP 区间键名</td><td><code>[rtp]</code> 段<b>无</b>标准 <code>port_range</code>，只有非标准 <code>rtpPortRange</code>；<code>port_range=40000-40500</code> 落在 <code>[rtp_proxy]</code></td><td><span class="badge bad">脚本原不符</span></td></tr>
+  <tr><td>6</td><td><code>[hook] on_publish</code> / <code>on_play</code></td><td>on_publish=…/api/zlm/publish-check；on_play=<b>空</b></td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>7</td><td>监听 6080/5540/1936/4443 且不占 443</td><td>全部命中，无 443</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>8</td><td>前端逐文件 md5 门禁</td><td><code>index.html</code> 磁盘 md5 == HTTP md5；assets 5 个全 200</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>9</td><td>安装清单</td><td><code>INSTALL_MANIFEST_*.md</code> 存在（2 份）</td><td><span class="badge ok">PASS</span></td></tr>
+</table>
+
+<h3>e2e_test_engine.sh / fix_warnings_final.sh</h3>
+<table>
+  <tr><th style="width:34px">#</th><th>检查项</th><th>实测</th><th style="width:74px">判定</th></tr>
+  <tr><td>1</td><td>引擎 <code>/health</code> <code>/metrics</code> <code>/debug/snapshot</code></td><td>全 200</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>2</td><td><code>evidence</code> 软链存在</td><td>→ <code>/data/video/evidence</code></td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>3</td><td>取证图统计方式</td><td>脚本原 <code>find "$R/evidence"</code>（软链不跟，恒 0）→ 应 <code>find -L</code></td><td><span class="badge warn">已补</span></td></tr>
+  <tr><td>4</td><td><code>/api/warnings</code> 非空</td><td>83 条</td><td><span class="badge ok">PASS</span></td></tr>
+  <tr><td>5</td><td>回滚脚本 + 保留期快照</td><td><code>rollback_algo_retention.sh</code>、<code>algo_retention_BEFORE_*.json</code> 均在</td><td><span class="badge ok">PASS</span></td></tr>
+</table>
+
+<h2>4 · 偏差清单与修正</h2>
+
+<h3>🔴 严重（会直接导致下一次重建失败）</h3>
+<table>
+  <tr><th>脚本</th><th>偏差</th><th>后果</th><th>修正</th></tr>
+  <tr><td><code>p0_02</code></td><td>装 <b>Node 20</b> → <code>tools/node</code>；脚本从不创建 <code>tools/node22</code></td><td>后端 <code>require('node:sqlite')</code> 抛 <code>ERR_UNKNOWN_BUILTIN_MODULE</code>，<b>起不来</b></td><td>改装 <b>Node 22 → tools/node22</b></td></tr>
+  <tr><td><code>p0_02</code></td><td>版本门禁只查 <code>&ge;16</code></td><td>v20 也能过闸，门禁形同虚设</td><td>门禁 <code>&ge;22</code> + 实测 <code>node:sqlite</code></td></tr>
+  <tr><td><code>p0_03</code></td><td><code>ExecStart=…/tools/node/bin/node</code></td><td>单跑写出坏单元（靠 p0_04 兜）</td><td>改 <code>…/tools/node22/bin/node</code></td></tr>
+  <tr><td><code>p0_05</code></td><td><code>cp …/Release/ 写成 Debug/</code> + <code>|| true</code></td><td>静默拷 0 文件、退出码 0 → <code>203/EXEC</code></td><td>自动探测 <code>Release/</code> + 拷完验存在</td></tr>
+  <tr><td><code>p0_05</code></td><td><code>git clone github.com</code></td><td>实测 000 不通 → <b>必失败</b></td><td>加 gitee 镜像兜底 + 离线预置提示</td></tr>
+  <tr><td><code>p0_04</code></td><td><code>npm install</code> 于 <b>pnpm 结构</b></td><td><code>Cannot read properties of null (reading 'matches')</code> → 崩</td><td>临时目录 <code>npm i</code> 再 <code>cp -r</code> 回填</td></tr>
+</table>
+
+<h3>🟡 中等（配置/文档与现状不符）</h3>
+<table>
+  <tr><th>位置</th><th>偏差</th><th>修正</th></tr>
+  <tr><td><code>p0_06</code></td><td>写 <b>非标准键</b> <code>[https] port=4443</code>（ZLM 忽略）</td><td>改 <code>[http] sslport=4443</code></td></tr>
+  <tr><td><code>p0_06</code></td><td>写 <b>非标准键</b> <code>[rtp] rtpPortRange</code>（ZLM 忽略）</td><td>改 <code>[rtp] port_range=40000-40500</code></td></tr>
+  <tr><td><code>p0_03</code></td><td>覆盖 nginx 站点<b>不先备份</b></td><td>覆盖前备份到 <code>sites-backup/</code></td></tr>
+  <tr><td><code>p0_03</code></td><td>把 <code>/api/health</code> 期望 200</td><td>标注 401 属正常，改用 <code>/api/map-points</code></td></tr>
+  <tr><td><code>e2e</code></td><td><code>find</code> 不跟软链（恒 0）</td><td>改 <code>find -L</code></td></tr>
+  <tr><td>runbook / 清单</td><td>"22 表"</td><td>改 "39 表（7/9 底座 22 + 9 月代码补 17）"</td></tr>
+</table>
+
+<h3>🟢 无害（仅记录，不改）</h3>
+<ul>
+  <li><code>[websocket] port=6081</code> 配置了但 ZLM 未起独立监听 —— 本系统走 FLV/HLS，无影响。</li>
+  <li>配置里 <code>[https] port=4443</code> 与 <code>[http] sslport=4443</code> 并存 —— 前者被忽略。</li>
+  <li><code>straw-engine.service</code> 用 <code>User=root</code>（jsc-backend 用 <code>User=jsc</code>）—— 权限不一致，非功能性。</li>
+</ul>
+
+<h2>5 · 活体缺陷</h2>
+<table>
+  <tr><th style="width:34px">#</th><th>现象</th><th>真因</th><th style="width:110px">处置</th></tr>
+  <tr>
+    <td>1</td>
+    <td>后端日志持续刷 <code>[monitor] nodemailer 未安装，无法发送邮件</code>（每 5 分钟）</td>
+    <td><b>时序</b>：后端 <code>02:55:59</code> 启动，<code>nodemailer</code> <code>02:57:33</code> 才装；<code>monitor.js</code> 在<b>模块加载时</b> <code>try{require}catch</code> 只求值一次并缓存 <code>null</code> ⇒ 进程内邮件告警长期失效</td>
+    <td><span class="badge ok">已 restart 修复</span><br><span class="muted">日志已变为「未配置 SMTP 授权码」</span></td>
+  </tr>
+  <tr><td>2</td><td>邮件仍发不出</td><td>SMTP 授权码未配置（环境无凭据）</td><td><span class="badge warn">配置缺口</span></td></tr>
+  <tr><td>3</td><td>每次 straw 上报刷 <code>ENOENT wanzhou_towns.geojson</code></td><td>geojson 缺失（runbook §8 已知）</td><td><span class="badge warn">已知</span></td></tr>
+  <tr><td>4</td><td>引擎 <code>/health.osd.last_err = 无 internalOsdSecret</code></td><td><code>/data/HBJSC/backend/.internal-secret</code> 缺失</td><td><span class="badge warn">已知</span></td></tr>
+  <tr><td>5</td><td>引擎 <code>workers={}</code>、模型路径不存在</td><td>烟雾模型随 7TiB 盘丢失；<code>config.streams=[]</code>（无流）</td><td><span class="badge warn">已知（空管线）</span></td></tr>
+</table>
+
+<h2>6 · 复跑可行性结论</h2>
+<table>
+  <tr><th>脚本</th><th>能否原地复跑</th><th>说明</th></tr>
+  <tr><td><code>p0_01</code></td><td><span class="badge ok">可以（幂等）</span></td><td>已实跑验证：识别非空、只补缺失、软链/隔离校验全绿</td></tr>
+  <tr><td><code>p0_02</code></td><td><span class="badge bad">修正后可，之前会把 <code>/usr/local/bin/node</code> 指回 v20</span></td><td>改后装 v22，但仍会动系统 PATH</td></tr>
+  <tr><td><code>p0_03</code></td><td><span class="badge bad">否</span></td><td>会把在跑的 backend 挪成 <code>.bak</code> 并重解；需先停服务 + 快照</td></tr>
+  <tr><td><code>p0_04</code></td><td><span class="badge warn">修正后可（但依赖 /tmp/deploy_A）</span></td><td>修后走 pnpm-safe 回填</td></tr>
+  <tr><td><code>p0_05</code></td><td><span class="badge bad">否（github 不通）</span></td><td>需 gitee/离线源码</td></tr>
+  <tr><td><code>p0_06</code></td><td><span class="badge bad">否</span></td><td>会覆盖线上 ZLM 配置并重启 ZLM</td></tr>
+  <tr><td><code>p0_07</code></td><td><span class="badge warn">基本可以</span></td><td>其 sed 现已多为 no-op；会重启 ZLM + 跑门禁</td></tr>
+  <tr><td><code>e2e / fix_warnings</code></td><td><span class="badge ok">可以（自带还原/清场）</span></td><td>e2e 用桩模型+合成视频，测完还原；fix_warnings 幂等</td></tr>
+</table>
+<div class="callout danger">
+  <b>复跑前置是易失的：</b> <code>p0_03</code>/<code>p0_04</code> 依赖 <code>/tmp/deploy_A/</code>（7 个 payload，含 39MB <code>backend_base.tgz</code>）。
+  它在 <b><code>/tmp</code>（重启即失）</b> ⇒ <b>"分阶段可复跑"只在 <code>/tmp/deploy_A</code> 存活期内成立</b>。换机/重启后必须重新 stage。
+</div>
+
+<h2>7 · 后续建议</h2>
+<ul>
+  <li><b>把 <code>/tmp/deploy_A</code> 固化</b>：把 7 个 payload 的生成步骤写成 <code>p0_00_stage.sh</code>（从 7/9 备份 + 仓库重建），或把 payload 放 <code>/data/HBJSC/stage/</code>（持久盘）。</li>
+  <li><b>把修正后的脚本同步到服务器</b> <code>/data/HBJSC/scripts/</code>（与仓库双份），避免"脚本只在仓库、机器重建后取不到"。</li>
+  <li><b>补 geojson / .internal-secret / SMTP 授权码</b> 三个配置缺口（<code>scripts/build_wanzhou_towns.py</code> 已就绪，需高德「Web服务」key）。</li>
+  <li><b>统一服务账号</b>：把 <code>straw-engine.service</code> 的 <code>User=root</code> 改为 <code>jsc</code>（配合文件属主）。</li>
+  <li><b>训练产出模型后</b>放到 <code>/data/video/shujuji/datasets/v5_smoke_v5/{stage9_1920,stage3_0909}/weights/</code> 即自动生效。</li>
+</ul>
+
+<footer>
+  报告生成：2026-09-30 · 依据：4 轮只读审计 + <code>p0_01</code> 实跑 + 48 项门禁复核<br>
+  关联文件：<code>.workbuddy/memory/REF_驾驶舱重新部署流程.md</code> §11 · <code>deploy/HBJSC/README.md</code> 校正表
+</footer>
+
+</div>
+</body>
+</html>

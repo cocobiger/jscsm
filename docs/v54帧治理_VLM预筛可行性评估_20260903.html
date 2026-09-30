@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v54 帧治理 · VLM 预筛清框可行性评估</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --ink:#1f2937; --sub:#6b7280; --line:#e5e7eb;
+    --red:#dc2626; --green:#059669; --amber:#b45309; --blue:#2563eb; --violet:#7c3aed;
+    --red-bg:#fef2f2; --green-bg:#ecfdf5; --amber-bg:#fffbeb; --blue-bg:#eff6ff; --violet-bg:#f5f3ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.75;font-size:14px;padding:24px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .doc-head{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 28px;margin-bottom:18px}
+  .doc-head h1{font-size:20px;margin-bottom:6px}
+  .doc-head .meta{color:var(--sub);font-size:12px}
+  .sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin-bottom:16px}
+  .sec h2{font-size:16px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .sec h3{font-size:14px;margin:14px 0 8px}
+  p{margin:6px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f9fafb;font-weight:600;white-space:nowrap}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;margin-right:4px;white-space:nowrap}
+  .t-red{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+  .t-green{background:var(--green-bg);color:var(--green);border:1px solid #a7f3d0}
+  .t-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+  .t-blue{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+  .t-violet{background:var(--violet-bg);color:var(--violet);border:1px solid #ddd6fe}
+  .kv{font-family:Consolas,Menlo,monospace;font-size:12px;background:#f9fafb;border:1px solid var(--line);border-radius:6px;padding:10px 14px;display:block;margin:8px 0;white-space:pre-wrap}
+  ul,ol{margin:6px 0 6px 22px}
+  li{margin:3px 0}
+  .warn{background:var(--red-bg);border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .ok{background:var(--green-bg);border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .cmp{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin:10px 0}
+  .num{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;background:var(--ink);color:#fff;border-radius:50%;font-size:12px;margin-right:6px}
+  .dot{color:var(--red);font-weight:700}
+  small{color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="doc-head">
+  <h1>v54 DJI 帧治理 · 大模型预筛清除误框 可行性评估</h1>
+  <div class="meta">秸秆燃烧监控 v5.2 段1 · 2026-09-03 · 数据源：v54 训练集 DJI 源帧（982 帧治理）</div>
+</div>
+
+<!-- 一、图片尺寸 -->
+<div class="sec">
+  <h2>一、先答你的第一问：图片尺寸</h2>
+  <table>
+    <tr><th style="width:200px">治理范围</th><td>982 帧 = train 946 + val 36（20260831 司空2 镜像抽帧，DJI 域全集）</td></tr>
+    <tr><th>实测尺寸</th><td><b>960 x 720</b>（采样 120 帧全部一致，JPEG SOF 头直读）</td></tr>
+    <tr><th>与 E1 素材差异</th><td>E1 扫的 live_review 182 帧为 1280x720/960x720 混合；v54 治理帧统一 960x720（训练时模型 imgsz=1280 会自行缩放）</td></tr>
+  </table>
+  <p class="small">结论：982 帧全 960x720，短边 720。给 VLM 推理时直接送原图即可，无需预处理。</p>
+</div>
+
+<!-- 二、观察是否属实 -->
+<div class="sec">
+  <h2>二、你的观察是否属实？——属实，且有数据实证</h2>
+  <p>「很多图没有真烟却带着 smoke 框」的观察<b>成立</b>，误框规模比预想更大：</p>
+  <table>
+    <tr><th>帧来源</th><th>帧数</th><th>有框帧</th><th>框数</th><th>框/帧</th><th>标签生成时间</th><th>判定</th></tr>
+    <tr><td>1581F8HGX（三机正样本批）</td><td>654</td><td>654</td><td>2486</td><td><b>3.8</b></td><td>09-01 22:25 ~ 09-02 02:40（深夜连续 4h）</td><td><span class="tag t-red">自动批处理</span>非人工</td></tr>
+    <tr><td>v5_train_v5 拷贝批</td><td>160</td><td>150</td><td>243</td><td>1.5</td><td>09-01 22:25（同一分钟）</td><td><span class="tag t-amber">疑似人工GT导入</span></td></tr>
+    <tr><td>v5_prelabel（AI 预标批）</td><td>62</td><td>20</td><td>39</td><td>0.6</td><td>09-02 02:00~02:01（1 分钟）</td><td><span class="tag t-red">AI 预标</span></td></tr>
+    <tr><td>djineg（负样本批）</td><td>112</td><td>0</td><td>0</td><td>0</td><td>09-02 04:34</td><td><span class="tag t-green">无框正常</span></td></tr>
+  </table>
+  <div class="warn">
+    <b>实证案例</b>：1581F8HGX 批首帧（064U 10-29-38-0 段 f00001，典型屋顶/地面俯拍）被标了 <b>14 个 smoke 框</b>——干净场景绝无 14 处烟，属典型自动推理误框（对屋顶设备/纹理/阴影的低置信输出）。该批 3.8 框/帧的密度远超人工整框惯例（人工整框批约 1.3~1.6 框/帧），且标签 mtime 深夜批量特征与人工逐帧不符。
+  </div>
+  <p><b>推论</b>：v54 中约 <b>820 个「AI 有框」帧里，主体是自动推理产物，误框率显著</b>。若不治理直接续训，等于拿「干净屋顶 14 个烟框」当正样本喂模型——正是 v52~v55 全部跑输 stage2（mAP50 0.076~0.127 vs 0.206）的可疑成因之一。你的清框方向<b>价值很大</b>。</p>
+</div>
+
+<!-- 三、可行性 -->
+<div class="sec">
+  <h2>三、大模型预筛可行性——可行，资源现成</h2>
+  <table>
+    <tr><th style="width:170px">资源项</th><th>现状</th><th>结论</th></tr>
+    <tr><td>本地 VLM</td><td>ollama 已装 <b>qwen2.5vl:7b</b>（6GB，6 天前拉取），现成烟判 prompt 脚本 <span class="kv" style="display:inline;padding:1px 6px">/video/llm_infer/vlm_smoke_judge.py</span>（verdict/类别/置信度/原因，多线程）</td><td><span class="tag t-green">即用</span></td></tr>
+    <tr><td>GPU</td><td>RTX 3090 24G：当前占用 4.8G、<b>空闲 19.3G、util 0%</b>（straw-engine 空闲、无飞行窗口）</td><td><span class="tag t-green">可立即跑</span></td></tr>
+    <tr><td>历史判定复用</td><td>v5_live_frames_smoke.json 判过 357 帧（20260826 段旧素材）→ 与 v54（20260831 段）<b>文件名 0 交集，无法复用</b></td><td><span class="tag t-red">需重跑 982 帧</span></td></tr>
+    <tr><td>耗时预估</td><td>7B 模型单帧 2~4s，982 帧多线程（4~8 并发）约 <b>15~40 分钟</b>；1024 上下文内吞吐可再压</td><td><span class="tag t-green">可接受</span></td></tr>
+  </table>
+  <div class="ok"><b>结论</b>：用 qwen2.5vl:7b 对 982 帧做「图级有无真烟」预筛完全可行，资源零新增、当晚可出结果。</div>
+</div>
+
+<!-- 四、方案 -->
+<div class="sec">
+  <h2>四、方案设计（A / B / C）</h2>
+  <p>核心约束：<b>「误清真烟帧」比「漏清误框帧」代价高一个量级</b>——真烟帧被清框转负样本 = 把「烟」教成「无烟」，直接毒化训练集；误框帧没清 = 人工多看几眼。历史上 VLM 对 DJI <b>白天远烟曾失效</b>（v5 阶段 AI 预标失败原因之一），所以全自动清框不可取。</p>
+  <table>
+    <tr><th style="width:80px">方案</th><th>做法</th><th>人工量</th><th>风险</th></tr>
+    <tr>
+      <td><b>A（推荐）</b><br><span class="tag t-green">预筛+一键确认</span></td>
+      <td>VLM 给 982 帧打三档标签（<b>有烟/疑似/无烟</b>+置信度）写入工作台 → 无烟帧显示「建议清框」角标 → 人工按序快扫：无烟帧<b>一键清框+标记复核</b>（几秒/帧）；VLM 判有烟的帧才精标</td>
+      <td>快扫约 700 帧（平均 3~8s/帧）+ 精标约 200~300 帧 ≈ <b>1~2 小时</b></td>
+      <td>低：清框动作仍由人触发；VLM 只提供建议排序</td>
+    </tr>
+    <tr>
+      <td><b>B</b><br><span class="tag t-amber">VLM 自动清</span></td>
+      <td>VLM 判无烟即自动清框（置信度高于阈值如 90 则免人工）</td>
+      <td>最少（仅抽检）</td>
+      <td><b>高</b>：VLM「无烟」召回未经受控验证（远烟/淡烟易漏），一旦真烟帧自动转负样本不可逆污染</td>
+    </tr>
+    <tr>
+      <td><b>C</b><br><span class="tag t-blue">校准后自动清</span></td>
+      <td>先抽 100 帧人工复核标定 VLM 无烟判定的准确率/漏检率 → 达标后对「VLM 无烟 &amp; 置信度极高」帧自动清</td>
+      <td>校准 100 帧 + 快扫</td>
+      <td>中：比 B 稳，但需先做校准实验（多半天）；对当前 982 帧规模收益有限</td>
+    </tr>
+  </table>
+  <p><b>推荐 A</b>，理由：① 快扫 700 帧「无烟一眼过」人力成本已经很低，B 省下的那点时间不值得冒污染风险；② 治理完这批后若要做 v55/v56 更大规模，可在 A 的产物上顺手校准出 C 的阈值，一举两得。</p>
+</div>
+
+<!-- 五、落地步骤 -->
+<div class="sec">
+  <h2>五、落地步骤（A 方案）</h2>
+  <ol>
+    <li><span class="num">1</span><b>启动 ollama 并加载 qwen2.5vl:7b</b>（当前 inactive）：systemctl start ollama，约 30s 就绪。</li>
+    <li><span class="num">2</span><b>复用 vlm_smoke_judge.py 逻辑写 v54 专用批扫脚本</b>：输入 manifest 982 帧 rel → 三档判定（有烟/疑似/无烟 + 置信度 + 简短原因）→ 结果增量落盘 <span class="kv" style="display:inline;padding:1px 6px">/video/shujuji/datasets/v5_train_v54/v54_vlm_result.json</span>（断点续跑，4 并发）。</li>
+    <li><span class="num">3</span><b>结果并入工作台</b>：manifest 每帧加 <span class="kv" style="display:inline;padding:1px 6px">vlm: {verdict, conf, reason}</span>（独立字段，<b>不触碰原 AI 框</b>）→ 重新生成 v54_govern.html。</li>
+    <li><span class="num">4</span><b>工作台前端增强</b>：① 过滤芯片加「VLM 无烟+AI有框」（高概率误框，优先队列）；② 无烟帧缩略图角标 N；③ 「建议清框」按钮：清空当前帧所有框并标记复核（可撤销）；④ 徽章统计 VLM 三档数量。</li>
+    <li><span class="num">5</span><b>人工快扫</b>：按「无烟优先队列」逐帧过——确认无烟一键清框；发现 VLM 漏判的真烟帧 → 保留框并整框，顺带记入校准集。</li>
+    <li><span class="num">6</span><b>导出 → 回写</b>：沿用 apply_v54_govern.py（仅采纳已复核帧、自动备份），labels 落盘后 v54 训练集即为治理后版本。</li>
+  </ol>
+  <p>工作台为外链图模式（原图走 nginx alias），前端改动不触碰数据，headless 可一键回归验收。</p>
+</div>
+
+<!-- 六、资源冲突 -->
+<div class="sec">
+  <h2>六、资源与冲突排查</h2>
+  <table>
+    <tr><th style="width:220px">冲突点</th><th>分析</th><th>对策</th></tr>
+    <tr><td>与 straw-engine 抢 GPU</td><td>生产检测服务 6 worker 全 CUDA 常驻，但推理只在有流时占算力（当前 util 0%）；VLM 批扫与飞行窗口（13~19h）理论重叠</td><td>今晚（非飞行时段）执行，或限并发 4 + nice；扫描可随时 kill（断点续跑）</td></tr>
+    <tr><td>ollama 曾不稳</td><td>记忆：ollama 残缺历史 → 曾转 transformers 兜底</td><td>先起 ollama 冒烟 3 帧；失败即切 transformers 路径（qwen2.5vl:7b 无本地权重则需先拉）</td></tr>
+    <tr><td>磁盘</td><td>结果 JSON 极小（MB 级）</td><td>无压力（写 /video 合规）</td></tr>
+    <tr><td>nginx 通配陷阱</td><td>上轮已清 .bak 至 sites-backup/，配置改动无此风险</td><td>新增 location 仍两文件都加（uav-sites + skymonitor.conf）</td></tr>
+  </table>
+</div>
+
+<!-- 七、风险与回滚 -->
+<div class="sec">
+  <h2>七、风险与回滚</h2>
+  <table>
+    <tr><th style="width:120px">风险</th><th>等级</th><th>说明与缓解</th></tr>
+    <tr><td>VLM「无烟」漏判真烟</td><td><span class="tag t-red">P0</span></td><td>缓解：清框由人一键触发（方案 A 兜底）；VLM 只排序不建议全自动；漏判案例回收进校准集</td></tr>
+    <tr><td>VLM 推理污染 manifest</td><td><span class="tag t-green">P2</span></td><td>vlm 字段独立于 boxes，JSON 回写/重生成均不改变 AI 框数据，随时可删字段复原</td></tr>
+    <tr><td>labels 回写误伤</td><td><span class="tag t-amber">P1</span></td><td>apply_v54_govern.py 默认先备份 labels → labels_backup_govern_&lt;ts&gt;/；仅采纳 reviewed 帧</td></tr>
+    <tr><td>前端改动回归</td><td><span class="tag t-amber">P1</span></td><td>headless 验收脚本已备（v54_govern_headless.cjs），改动后 13 项用例重跑</td></tr>
+  </table>
+  <p><b>回滚路径</b>：任何阶段均可回退——manifest JSON 有 v54 治理前原版（可重生成）；labels 回写前有自动备份；nginx 配置有 .bak_20260903_* 两份。</p>
+</div>
+
+<!-- 八、决策点 -->
+<div class="sec">
+  <h2>八、决策点（请拍板）</h2>
+  <p>① <b>方案选型</b>：<b>A</b>（VLM 预筛 + 人工一键清框，推荐）／ B（VLM 自动清 + 抽检）／ C（先校准后自动清）？</p>
+  <p>② <b>执行时机</b>：现在立即起 ollama 批扫 982 帧（3090 空闲，~15-40 分钟出结果，不影响飞行窗口）／ 错峰到今晚？</p>
+  <p>③ <b>顺带价值</b>：是否将「VLM 判有烟但 AI 无框」的帧标记为<b>新增正样本候选</b>（救回模型漏检的远烟帧，扩大真烟样本）？此动作零成本，建议纳入。</p>
+</div>
+
+<!-- 九、结论 -->
+<div class="sec">
+  <h2>九、结论</h2>
+  <div class="ok">
+    ① v54 治理帧全 960x720；② 你观察属实——654 帧正样本批的 2486 个框系自动推理产物（深夜 4h 批量特征、干净屋顶 14 框实证），误框是 v52~v55 续训跑输的主嫌疑；③ VLM 预筛清框<b>可行</b>（qwen2.5vl:7b + 3090 现成），按方案 A 落地预计把 982 帧人工治理工作量压缩至 <b>1~2 小时</b>（原全量精标约 6~10 小时），且可顺带回收 VLM 判烟的漏检帧扩样本。请按决策点①②③拍板后开工。
+  </div>
+</div>
+
+</div>
+</body>
+</html>

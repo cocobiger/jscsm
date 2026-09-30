@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无人机模拟起飞测试工具 — 评估与任务排期</title>
+<style>
+  :root { --ink:#1a2233; --sub:#5b6b81; --line:#e2e8f0; --bg:#f6f8fb; --card:#fff;
+          --accent:#0b6bcb; --ok:#0e9f6e; --warn:#d97706; --err:#dc2626; --chip:#eef4fb; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--ink); line-height:1.65; padding:32px 20px 60px; }
+  .wrap { max-width:1020px; margin:0 auto; }
+  h1 { font-size:24px; margin-bottom:4px; }
+  .sub { color:var(--sub); font-size:13px; margin-bottom:22px; }
+  h2 { font-size:18px; margin:34px 0 12px; padding-left:10px; border-left:4px solid var(--accent); }
+  h3 { font-size:15px; margin:18px 0 8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:10px 0; }
+  .verdict { background:#eef6ff; border:1px solid #bcd9f7; border-radius:10px; padding:14px 18px; margin:14px 0; font-size:15px; }
+  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:13.5px; background:var(--card); }
+  th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:#f0f4f9; font-weight:600; white-space:nowrap; }
+  tr:nth-child(even) td { background:#fafcfe; }
+  .tag { display:inline-block; padding:1px 9px; border-radius:10px; font-size:12px; margin-right:6px; }
+  .t-ok { background:#e6f7f0; color:var(--ok); } .t-warn { background:#fdf3e3; color:var(--warn); } .t-err { background:#fdeaea; color:var(--err); } .t-info { background:var(--chip); color:var(--accent); }
+  code { background:#eef1f6; border-radius:4px; padding:1px 6px; font-size:12.5px; font-family:Consolas,monospace; color:#c026d3; }
+  pre { background:#101828; color:#d7e2f0; border-radius:8px; padding:12px 14px; font-size:12.5px; overflow-x:auto; margin:10px 0; font-family:Consolas,monospace; }
+  li { margin:5px 0 5px 18px; }
+  .steps li { margin:8px 0; }
+  .foot { color:var(--sub); font-size:12px; margin-top:30px; text-align:center; }
+  .kw { color:var(--accent); font-weight:600; }
+  @media print { body{background:#fff} .card,.table{box-shadow:none} }
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>🧪 驾驶舱「模拟起飞测试」工具 — 评估与任务排期</h1>
+<div class="sub">JSC 无人机弹窗 · T4 真机回归替代方案 · 2026-09-03 · 评估稿（待审批，未开工）</div>
+
+<div class="verdict">
+<strong>结论速览</strong>：方案可行，推荐 <b>方案 B —— 后端新增 adminOnly 模拟注入端点（复用真实 ingestEvent 全链路）+ 前端左下角管理员可见的「模拟测试面板」</b>。一条链路都不造假：事件真实落库 → 真实 SSE 广播 → 真实弹窗调度 → 刷新可回灌，可覆盖方案 A 两个缺陷修复的绝大部分回归项。预估 <b>0.5 天开发 + 0.5 天部署验收</b>，分 <b>3 批</b> 审批执行。唯一无法模拟的是「ZLM mirror 真实取流后的画面播放」，播放验证仍需真机（或真机在飞时手动对照）。
+</div>
+
+<h2>① 背景与目标</h2>
+<div class="card">
+<p><b>18:00 真机未见弹窗</b> → 根因已修（方案 A，commit e4d4196 已上线）：
+<span class="tag t-ok">缺陷①</span>回灌去 <code>zlm_online===1</code> 硬过滤 <span class="tag t-ok">缺陷②</span>SSE 数据帧心跳 + 45s 看门狗。
+现在缺的是 <b>T4 回归验证</b>：需要无人机真实起飞才能确认「弹窗弹出 + 提示音 + 刷新回灌 + 断线重连」。
+但真机验证受场地/时段/机场任务排班约束，不可随叫随到。</p>
+<p style="margin-top:8px"><b>需求本质</b>：做一个<b>前端模拟按钮</b>，在浏览器里"模拟一组真机起飞"，走 <b>与真机完全相同的事件链路</b>，把 T4 的绝大部分验收项从「等真机」变成「随时点」。</p>
+</div>
+
+<h2>② 方案对比（注入点选择是核心决策）</h2>
+<table>
+<tr><th style="width:130px">方案</th><th>注入方式</th><th>覆盖链路</th><th>回灌(缺陷①)</th><th>SSE/断连(缺陷②)</th><th>代价</th></tr>
+<tr>
+  <td><b>A · 前端纯模拟</b><br><span class="tag t-warn">不推荐</span></td>
+  <td>页面内直接调用弹窗状态机 <code>liveOn()/liveOff()</code></td>
+  <td>仅 UI 调度层</td>
+  <td><span class="tag t-err">测不到</span>（不落库，刷新即失）</td>
+  <td><span class="tag t-err">测不到</span>（不走网络）</td>
+  <td>最省（0.2d），但只测了模型层——已被 73 单测覆盖，价值极低</td>
+</tr>
+<tr>
+  <td><b>B · 后端模拟注入</b><br><span class="tag t-ok">✅ 推荐</span></td>
+  <td>新增 adminOnly 端点 <code>POST /api/drone-events/simulate</code>，<b>复用真实 <code>ingestEvent()</code></b>（幂等/白名单/广播同一函数）；前端面板逐个发送</td>
+  <td>落库 → 白名单 → SSE 广播 → 弹窗/提示音，<b>全真实链路</b></td>
+  <td><span class="tag t-ok">能测</span>：事件真实入库（zlm_online 查 ZLM 恒=0），刷新页面即复现「回灌弹出」</td>
+  <td><span class="tag t-ok">能测</span>：模拟期间重启 jsc-backend → 看门狗自动重连恢复订阅</td>
+  <td>后端 +~60 行，前端面板 +~200 行；需清理机制防污染真实数据</td>
+</tr>
+<tr>
+  <td><b>C · 直插 DB + 手动广播</b></td>
+  <td>脚本直接 INSERT drone_live_events 并触发 broadcast</td>
+  <td>链路同 B</td>
+  <td><span class="tag t-ok">能测</span></td>
+  <td><span class="tag t-ok">能测</span></td>
+  <td>绕过 ingestEvent 幂等/校验，易造脏数据且无 UI，仅适合一次性排障，不适合做成产品功能</td>
+</tr>
+</table>
+
+<h2>③ 关键设计决策</h2>
+<div class="card">
+<h3>D1 模拟数据必须与真实数据可区分、可一键清理（最高优先级）</h3>
+<p>若模拟的 LIVE_ON 残留为「每机最新事件」，<b>下次任何人刷新页面都会被回灌成假弹窗</b>——污染真实运营。<br>
+强制约束：
+<span class="tag t-info">①</span> 模拟事件 <code>event_id</code> 统一加 <code>SIM_</code> 前缀、<code>raw_json</code> 写 <code>{"sim":true}</code> 双标记；
+<span class="tag t-info">②</span> 剧本引擎<b>强制 ON/OFF 成对</b>，每台模拟机必以 LIVE_OFF 收尾（回灌按每机最新，OFF 结尾即不触发回灌）；
+<span class="tag t-info">③</span> 面板提供 <b>「一键全部停止」</b>（补发所有残留 SIM_ON 的 OFF + 清理 SIM_ 历史行），异常中断也能秒级恢复现场。</p>
+<h3>D2 白名单 & 真机冲突</h3>
+<p>模拟 dock 只能选<b>白名单 4 机场</b>（8UUXN8N00A0LS7 三峡科技 / 8UUXN7G00A0FDP 环保局 / 8UUXN8P00A0LZ4 职教中心 / 8UUXN5500A07D1 经开区），否则白名单外不广播、模拟无效。
+deviceSn 用 <code>SIM_D_&lt;序号&gt;</code> 伪 SN（不会撞真机；同机重复 ON 会被 dup 拦截，剧本天然幂等）。
+若某机场真机恰好在飞，弹窗已占位 → 模拟同 dock 不同 SN 会触发满窗折叠调度，属正常行为，建议模拟前先看一眼弹窗区。</p>
+<h3>D3 权限</h3>
+<p>simulate/清理端点<b>一律 adminOnly</b>（绝不进 PUBLIC_PATHS）；前端按钮仅 <code>roleAtLeast(user.role,'admin')</code> 可见（复用 IotArchivePage 同款判断）。模拟会真触发弹窗+提示音，普通用户勿触。</p>
+<h3>D4 UI 位置与形态</h3>
+<p>DronePopupHost 占右下角（absolute right:14,bottom:12）→ 模拟面板放<b>左下角</b>（left:14,bottom:12, zIndex 低于弹窗），默认收起为一个灰标 <code>🧪 模拟测试</code>（仅 admin 可见），展开为面板：<b>场景剧本按钮组 + 单条注入器 + 当前模拟机列表 + 一键清理</b>。测试中在面板顶部显示 <span style="color:#dc2626">● SIMULATING</span> 红点提醒。</p>
+<h3>D5 局限（诚实标注）</h3>
+<p>伪 SN 在 ZLM 无 mirror → <code>zlm_online</code> 恒 0 → 弹窗 resolving 后在 <code>DRONE_RESOLVE_WAIT_MS=60s</code> 兜底自动收起。<b>「回灌弹出 + resolving→timeout 收起」全程可测；真正的画面播放无法模拟</b>，播放链路（ZLM mirror → HLS 出画）仍需真机或真机在飞时对照。</p>
+</div>
+
+<h2>④ 预置剧本（一组真机起飞 = 5 场景）</h2>
+<table>
+<tr><th>场景</th><th>剧本（时间轴）</th><th>验证点（对应决策）</th></tr>
+<tr><td><b>A · 单机起降</b></td><td>ON(SIM-1) → 6s → OFF(SIM-1)</td><td>弹窗弹出 + 提示音 → 收起入队非销毁（D6）；最基础链路</td></tr>
+<tr><td><b>B · 双窗共存</b></td><td>ON(SIM-1) → 3s → ON(SIM-2) → 8s → OFF 乱序</td><td>2 窗同屏 + 各自 30s 计时；OFF 全局移除（D1/D5）</td></tr>
+<tr><td><b>C · 满窗风暴</b></td><td>ON(1..5) 每 2s 一台</td><td>满窗折叠「最新」腾位 + 队满挤最旧（D2/D4）；队列角标计数</td></tr>
+<tr><td><b>D · 回灌专项</b><br>（缺陷①回归核心）</td><td>ON(SIM-1) 保持 → 面板提示「现在刷新页面」→ 刷新应见回灌弹窗 resolving → ≤60s 自动收起</td><td>回灌去 zlm 过滤（方案 A 核心修复）；刷新后事件真实入库弹出</td></tr>
+<tr><td><b>E · 断线自愈</b><br>（缺陷②回归核心）</td><td>任意 ON 后 → 面板提示「重启后端」→ <code>systemctl restart jsc-backend</code> → 观察自动重连</td><td>看门狗/退避/前台兜底；重连后广播仍能弹窗</td></tr>
+</table>
+<p style="color:var(--sub);font-size:13px">每场景结束自动回补 LIVE_OFF；面板「一键停止」= 兜底清理。场景 D/E 为人工配合项（刷新 / 重启），面板给出逐步指引文案。</p>
+
+<h2>⑤ 落地步骤与改动文件</h2>
+<div class="card steps">
+<ol>
+<li><b>后端（server/drone-events.js，~60 行）</b>
+  <ul>
+  <li>导出 <code>simulateOffAll</code> 能力并注册两条 adminOnly 路由（内部自校验 <code>req.user?.role==='admin'</code>，与 index.js 同款，避免跨模块重构）：
+  <code>POST /api/drone-events/simulate</code>（body: deviceSn/dockSn/on/status → 复用 <code>ingestEvent()</code> 落库+广播，event_id 强制 <code>SIM_</code> 前缀 + sim 标记）、
+  <code>POST /api/drone-events/simulate/off-all</code>（查 SIM_ 最新 ON → 逐台补 OFF 广播 + 删除 SIM_ 历史行）。</li>
+  </ul>
+</li>
+<li><b>前端（新组件 src/app/components/drvPopup/DroneSimPanel.tsx + App.tsx 挂载，~200 行）</b>
+  <ul>
+  <li>左下角折叠面板，admin 可见；剧本引擎：步骤数组顺序 <code>setTimeout</code> 播放、可中止（中止=自动 off-all）；白名单 dock 下拉（拉 <code>GET /api/drone-events/whitelist</code>）+ 单条 ON/OFF 注入 + 当前模拟机状态 + 一键清理 + 场景 D/E 指引文案。</li>
+  </ul>
+</li>
+<li><b>验证</b>：vitest 全量（73）+ typecheck 增量干净 + 后端语法/冒烟（curl 带 admin token 打 simulate，观察 SSE 收到广播）。</li>
+<li><b>部署核验</b>：遵循同工作区并行部署铁律——build 后以「生产 index.html 引用 hash + 特征字符串 + md5 对照」核验；后端文件 scp 到 <code>/opt/jsc/backend/</code> 顶层；curl 逐资源 200。新增后端路由记得 curl 冒烟 adminOnly（非 admin 应 403）。</li>
+</ol>
+</div>
+
+<h2>⑥ 冲突排查</h2>
+<table>
+<tr><th style="width:200px">冲突点</th><th>排查结论 / 对策</th></tr>
+<tr><td>同工作区并行部署</td><td>前夜教训（T19 覆盖 oaTdGIo6）：开工前 <code>git fetch</code> 对齐、提交基线；部署后只认生产 index.html 当前引用 hash + 特征码核验</td></tr>
+<tr><td>模拟污染真实弹窗数据</td><td>SIM_ 双标记 + 剧本强制 ON/OFF 成对 + off-all 一键清理（D1），回灌永不残留</td></tr>
+<tr><td>白名单外 dock 模拟无效</td><td>面板 dock 下拉只列白名单 4 机场；可加「白名单外仅审计不广播」提示</td></tr>
+<tr><td>与真机同时在飞</td><td>伪 SN 永不撞真机；弹窗 dup 幂等；建议模拟前目视弹窗区确认无真实任务</td></tr>
+<tr><td>PUBLIC_PATHS 误放行</td><td>simulate 路由注册在 <code>PUBLIC_PATHS</code> Set 之后且不带白名单模式 → 默认走 token 中间件 + adminOnly 双保险</td></tr>
+<tr><td>提示音骚扰他人</td><td>仅 admin 可见可点；场景自动 6~8s 收尾，非循环轰炸</td></tr>
+<tr><td>zlm_online 恒 0 → 弹窗 60s 后收起</td><td>预期行为（D5 局限）；正是缺陷①修复后「resolving→timeout」路径的活体验证</td></tr>
+</table>
+
+<h2>⑦ 风险与回滚</h2>
+<div class="card">
+<table>
+<tr><th style="width:150px">风险</th><th style="width:80px">等级</th><th>缓解</th></tr>
+<tr><td>simulate 端点被非 admin 探测利用注入假事件</td><td><span class="tag t-warn">中</span></td><td>adminOnly + token 中间件双保险；误注入可用 off-all 秒清</td></tr>
+<tr><td>剧本残留 SIM_ON 影响下次刷新回灌</td><td><span class="tag t-warn">中</span></td><td>off-all 补 OFF + 删历史；面板卸载前自动提示清理</td></tr>
+<tr><td>面板 UI 与弹窗/告警抢位置</td><td><span class="tag t-info">低</span></td><td>左下角 + 低 zIndex + 默认折叠；浅色风格与驾驶舱一致</td></tr>
+<tr><td>后端重启后广播丢失窗口</td><td><span class="tag t-info">低</span></td><td>场景 E 本身就验证该自愈路径；若重连未恢复由 45s 看门狗兜底</td></tr>
+</table>
+<p style="margin-top:8px"><b>回滚</b>：纯新增（后端 2 路由 + 前端 1 面板 + App 挂载 1 行），不触碰既有 ingest/SSE/弹窗逻辑 → 回滚 = git revert 单 commit 或删除挂载行；DB 侧零 schema 变更（复用 drone_live_events）。</p>
+</div>
+
+<h2>⑧ 任务排期（分 3 批审批）</h2>
+<table>
+<tr><th>批次</th><th>任务</th><th>改动</th><th>预估</th><th>验收</th></tr>
+<tr>
+  <td><b>批 1</b><br><span class="tag t-ok">开发</span></td>
+  <td>T4.1 后端 simulate + off-all 端点</td>
+  <td>server/drone-events.js +~60 行</td>
+  <td>~1.5h</td>
+  <td>curl 冒烟：admin 注入 → SSE 收到广播；非 admin 403；off-all 清空</td>
+</tr>
+<tr>
+  <td><b>批 2</b><br><span class="tag t-ok">开发</span></td>
+  <td>T4.2 前端 DroneSimPanel + 5 场景剧本 + App 挂载</td>
+  <td>新组件 ~200 行 + App.tsx 1 行</td>
+  <td>~3h</td>
+  <td>vitest 73/73 + typecheck 增量干净 + pnpm build</td>
+</tr>
+<tr>
+  <td><b>批 3</b><br><span class="tag t-info">部署</span></td>
+  <td>T4.3 部署 + 手动回归走查</td>
+  <td>dist + /opt/jsc/backend/</td>
+  <td>~2h</td>
+  <td>逐资源 200+md5；headless/手动走查剧本 A–E：A 单机弹窗收起 / B 双窗 / C 满窗队列 / <b>D 刷新回灌（缺陷①）</b> / <b>E 重启后端自动重连（缺陷②）</b>；结果截图存档</td>
+</tr>
+</table>
+<p><b>合计约 0.5~1 人天</b>。场景 D/E 为方案 A 修复的活体回归，属 T4 最核心验收；真机仍保留为「画面播放」终极验证（可选 T4.4，等下次实际任务）。</p>
+
+<h2>⑨ 结论与建议</h2>
+<div class="card">
+<ul>
+<li>方案 B 以 <b>~1 天成本</b> 换取「T4 回归随时可跑、缺陷①②修复有活体证据、未来弹窗改动有回归工具」，性价比高，<b>建议按批 1→2→3 顺序批准开工</b>。</li>
+<li>模拟面板同时是运营侧「演示/培训」利器（无需真机即可演示无人机任务弹窗效果），可一举两得。</li>
+<li>遗留真机项（画面播放、mirror 接入时序真体验证）诚实保留，等下次实际起飞任务顺带完成。</li>
+</ul>
+</div>
+
+<div class="foot">JSC 驾驶舱 · 无人机弹窗 T4 · 评估稿 v1 · 2026-09-03 · 审批后按批 1/2/3 开工</div>
+</div></body></html>
