@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算法训练环境就绪 · 需求评估与任务排期（2026-09-30）</title>
+<style>
+  :root{
+    --bg:#f5f7fa;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+    --blue:#1a5276;--blue2:#2c6ca6;--green:#0f7b4f;--greenbg:#e7f6ee;
+    --red:#b42318;--redbg:#fdeceb;--amber:#9a6700;--amberbg:#fff6e5;
+    --violet:#5b3fb5;--violetbg:#efeafd;--gray:#475569;--graybg:#eef2f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:23px}
+  header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.4px;color:#0b3d63}
+  pre{background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:12.3px;line-height:1.55}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .grayb{background:var(--graybg);color:var(--gray);border:1px solid #d7dee8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px} li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:24px;font-weight:800;color:var(--blue)}
+  .kpi .l{font-size:12.3px;color:var(--muted);margin-top:3px}
+  .gantt{font-size:12.8px}
+  .gantt tr td:nth-child(n+4){text-align:center;padding:6px 3px}
+  .bar{display:block;height:15px;border-radius:4px}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>算法训练环境就绪 · 需求评估与任务排期</h1>
+  <div class="sub">GPU 驱动 / 训练依赖 / 自动标注 VLM / 数据链路 —— 基于 2026-09-30 服务器实测</div>
+  <div class="meta">
+    <span class="chip">目标机 dajiang（111.10.220.226:22233）</span>
+    <span class="chip">96 核 / 188 GiB / /data 4.8T 可用</span>
+    <span class="chip">RTX 3090（PCI 直通）</span>
+  </div>
+</header>
+
+<h2>0 · 结论摘要</h2>
+<div class="kpi">
+  <div class="box"><div class="n" style="color:var(--green)">可行</div><div class="l">整体判定</div></div>
+  <div class="box"><div class="n">14–18</div><div class="l">P0+P1 人时（不含下载与训练）</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">1</div><div class="l">硬障碍（Secure Boot）</div></div>
+  <div class="box"><div class="n" style="color:var(--amber)">3</div><div class="l">需你决策的点</div></div>
+</div>
+
+<div class="callout good">
+  <b>好消息</b>：绝大多数依赖已具备 —— 内核头文件、<code>gcc/make</code>、<code>ffmpeg/ffprobe</code>、<code>python3</code>、
+  <b>apt 里有 nvidia-driver（含 545/580/595 等）</b>、<b>torch 可下（554 MB @9 MB/s）</b>、<b>ModelScope 与 ollama registry 均可达</b>、
+  磁盘/内存/CPU 极其充裕。
+</div>
+<div class="callout danger">
+  <b>两个必须先解决的约束</b>：<br>
+  ① <b>Secure Boot 已开启</b>（UEFI）⇒ 自编译的 nvidia 内核模块会被拒签，需用「Ubuntu 预签名包」或关闭 Secure Boot；<br>
+  ② <b>抽帧数据源 MinIO 不可达</b>（本地 :9000 与 172.28.0.90 都不通）⇒ <code>pull_frames_v5.py</code> 目前跑不了，需重建录制链路。<br>
+  另：<b>huggingface.co 不通</b>（000）⇒ 模型一律走 ModelScope / ollama registry，不走 HF。
+</div>
+
+<h2>1 · 现状盘点（实测）</h2>
+<table>
+  <tr><th style="width:150px">项</th><th>实测</th><th style="width:92px">判定</th></tr>
+  <tr><td>GPU 硬件</td><td><code>03:00.0 NVIDIA GA102 [GeForce RTX 3090]</code>（+ 03:00.1 音频）</td><td><span class="badge ok">在</span></td></tr>
+  <tr><td>GPU 驱动</td><td>无 <code>nvidia-smi</code>、无内核模块、无 <code>/dev/nvidia*</code>；<b>nouveau 已加载且未黑名单</b></td><td><span class="badge bad">缺</span></td></tr>
+  <tr><td>内核编译前置</td><td>headers <code>/usr/src/linux-headers-5.15.0-194-generic</code> 在；<code>gcc</code>✅ <code>make</code>✅；<code>dkms</code>❌</td><td><span class="badge warn">基本齐</span></td></tr>
+  <tr><td><b>Secure Boot</b></td><td><b>UEFI + SecureBoot efivar = 1（已启用）</b></td><td><span class="badge bad">障碍</span></td></tr>
+  <tr><td>apt 驱动源</td><td>可装：<code>nvidia-driver-545/580/595(-server/-open)</code>…；<code>ubuntu-drivers</code> 推荐 545</td><td><span class="badge ok">可装</span></td></tr>
+  <tr><td>Python</td><td>系统 3.10.12；straw venv 3.10.12（39 包 / 423 MB）</td><td><span class="badge ok">可以</span></td></tr>
+  <tr><td>训练依赖</td><td><b>无 torch、无 ultralytics</b>；<code>onnxruntime 1.23.2</code> 是 <b>CPU 版</b></td><td><span class="badge bad">缺</span></td></tr>
+  <tr><td>VLM / LLM 服务</td><td>无 ollama / llama-server / vLLM；<b>无 docker</b>（<code>docker.io</code> 可装，candidate 29.1.3）</td><td><span class="badge bad">缺</span></td></tr>
+  <tr><td>出网</td><td>pypi ✅ · 清华 ✅ · 阿里云 ✅ · pytorch.org ✅ · developer.nvidia.com ✅ · ollama.com ✅ · ModelScope ✅ ｜ <b>huggingface ❌</b> · ghproxy ❌</td><td><span class="badge warn">部分受限</span></td></tr>
+  <tr><td>抽帧源 MinIO</td><td><code>127.0.0.1:9000</code> ❌ · <code>172.28.0.90:9000</code> ❌</td><td><span class="badge bad">不可达</span></td></tr>
+  <tr><td>资源</td><td>96 核 · 188 GiB（可用 186）· <code>/</code> 937G 可用 · <code>/data</code> <b>4.8T 可用</b>；<code>/video → /data/video</code></td><td><span class="badge ok">充裕</span></td></tr>
+  <tr><td>数据集目录</td><td><code>/data/video/shujuji/datasets/v5_smoke_v5/{stage9_1920,stage3_0909}</code> 骨架在（<b>空</b>）</td><td><span class="badge warn">待填</span></td></tr>
+  <tr><td>管线脚本</td><td><code>infra/vlm/{pull_frames_v5,train_v5_v5,gen_v5_train_v5,gen_v5_stage_splits}.py</code> 均在仓库</td><td><span class="badge ok">在</span></td></tr>
+</table>
+
+<h2>2 · 需求拆解：每一项「该不该做、怎么做」</h2>
+
+<h3>2.1 GPU 驱动 —— <span class="badge bad">必须做</span></h3>
+<div class="card">
+<b>为什么必须</b>：训练离不开 CUDA；且引擎侧 <code>onnxruntime</code> 目前只有 CPU provider ——
+历史实测 GPU 上 2×2 切片推理 <b>134 ms</b>，CPU 会慢一个数量级，实时性直接不达标。
+<br><b>怎么做（按 Secure Boot 分两条路）</b>：
+<pre># 路线 A（推荐，Secure Boot 保持开启）：用 Ubuntu「预签名」模块包
+apt install nvidia-driver-545                # 官方源会一并装 linux-modules-nvidia-545-5.15.0-194-generic（Canonical 已签名）
+# 若 apt 只给了 DKMS 变体（会要求签名）→ 转路线 B
+
+# 路线 B：关闭 Secure Boot（在 ESXi 的 VM 设置里取消 EFI secure boot）后走 DKMS
+apt install nvidia-driver-545 dkms</pre>
+<b>三个风险点</b>：① Secure Boot 拒签 → <code>modprobe nvidia</code> 失败；② <b>需重启</b>（服务中断约 2 分钟）；
+③ PCI 直通下驱动初始化失败（<code>RmInitAdapter failed</code>）虽少见但要留后路（可 <code>apt purge</code> 回滚 + 退回 CPU 推理）。
+<br><b>驱动版本建议</b>：<code>nvidia-driver-545</code>（ubuntu-drivers 推荐）或 <code>580</code>；<b>不必装完整 CUDA Toolkit</b>（PyTorch 轮子自带 CUDA 运行时）。
+</div>
+
+<h3>2.2 训练依赖（torch + ultralytics）—— <span class="badge ok">简单但要避坑</span></h3>
+<div class="callout danger">
+<b>🔴 实测踩坑预警</b>：直接 <code>pip download torch</code> 拿到的是 <b>CPU 轮子</b>（<code>torch-2.14.0+cpu</code> 一类）。
+<b>必须显式指定 CUDA index</b>，否则装完发现 <code>torch.cuda.is_available()==False</code>，训练只能跑 CPU。
+</div>
+<pre>python3 -m venv /data/HBJSC/train-venv                  # ★ 独立 venv，别动在跑的 straw-engine
+/data/HBJSC/train-venv/bin/pip install -U pip
+/data/HBJSC/train-venv/bin/pip install torch torchvision \
+    --index-url https://download.pytorch.org/whl/cu124        # ← 关键
+/data/HBJSC/train-venv/bin/pip install ultralytics opencv-python-headless numpy
+/data/HBJSC/train-venv/bin/python -c "import torch;print(torch.cuda.is_available(), torch.version.cuda)"   # 门禁：必须 True</pre>
+<p class="muted">为什么用独立 venv：训练要 <code>ultralytics</code>（会拉一堆依赖），混进生产引擎的 venv 有把推理环境搞坏的先例风险。引擎侧若要用 GPU，单独把 <code>onnxruntime</code> 换成 <code>onnxruntime-gpu</code> 并重启即可。</p>
+
+<h3>2.3 自动标注的 VLM —— <span class="badge warn">要，但用途必须限定</span></h3>
+<div class="callout danger">
+  <b>先看历史结论（已论证，别重走）</b><br>
+  ❌ <b>「VLM 文字提示 → YOLO 画框」技术错位、不可行</b>：普通 YOLO 是"图像→框"端到端检测器，<b>不接受文字提示</b>；
+  VLM 的语义描述无法转成精确像素框。<br>
+  ❌ <b>VLM 直接出框</b>：带 grounding 的 VLM 定位精度差（远烟小目标更差）、秒级推理不实时。<br>
+  ✅ <b>VLM 的正解是「离线预筛 + 难负挖掘」</b>——项目已在跑（v54 治理流程）：VLM 判"有烟/无烟" → 挑候选帧交人工框；
+  同时把「模型报了但 VLM 判无烟」的样本<b>复用为难负（hard negative）</b>。
+</div>
+<div class="card">
+<b>本次部署（HF 不通，走国内源）</b>：
+<pre># 官方 release 装到数据盘（历史方案已评估过：/video/ollama_install，不动系统盘）
+curl -fsSL https://ollama.com/install.sh | OLLAMA_INSTALL_DIR=/video/ollama_install sh   # 或下载 release 手工解压
+export OLLAMA_MODELS=/video/ollama/models
+ollama serve &                                          # systemd 独立服务
+ollama pull qwen2.5vl:7b                                # registry 可达；HF 不可达无妨
+ollama run qwen2.5vl:7b "这张图里有烟吗？只回答有/无"</pre>
+<b>为什么选 Qwen2.5-VL-7B</b>：历史用的就是它（<code>qwen2.5vl:7b</code>），脚本与提示词已固化；
+7B 约需 <b>6–8 GB 显存</b>，与引擎的 ~5.5 GB 共存于 24 GB 之内，<b>策略是随用启停</b>（预筛时起、检测优先时停）。
+<br><b>不首推 vLLM</b>：吞吐更高，但要编译 <code>flash-attn</code>（需 nvcc + 长编译 + 易失败），先把链路跑通再考虑升级。
+</div>
+
+<h3>2.4 抽帧数据源 —— <span class="badge bad">被忽略的阻塞项</span></h3>
+<div class="card">
+<code>pull_frames_v5.py</code> 依赖 MinIO（<code>--key</code> 拉直播段 → ffmpeg 抽帧 → 即删 mp4）。<b>现在 MinIO 两端都不通</b>：
+原始 MinIO 在司空侧（<code>172.28.0.90:9000</code>），网段不可达；本地也没有实例。
+<br><b>对策（推荐）：绕开 MinIO，直录即抽</b>
+<pre># 用 ffmpeg 直接从流地址录制切段（RTMP/HLS），落到临时目录 → 立刻抽帧 → 删段
+ffmpeg -i "$STREAM_URL" -c copy -f segment -segment_time 300 -reset_timestamps 1 /tmp/rec/seg_%03d.mp4
+python3 pull_frames_v5.py --plan ... --interval 2 --out /data/video/shujuji/datasets/v5_live_frames
+# 抽帧脚本可小改：新增 --local-dir 模式（跳过 S3 下载），或直接用 ffmpeg fps=1/2 就地抽</pre>
+（数据盘红线不变：<b>不囤视频</b>，抽完即删。）
+</div>
+
+<h3>2.5 数据集与脚本 —— <span class="badge ok">已就绪，按口径填充</span></h3>
+<div class="card">
+<ul>
+  <li>目录骨架在；补 <code>images/ labels/ splits/</code> 与 <code>v5_smoke_v5_s1/s2.yaml</code></li>
+  <li><b>val holdout 沿用旧口径</b>（117 帧含 7 真烟）以保证<b>跨版本横向可比</b>——若旧 val 已丢失需<b>重建并从此固定冻结</b></li>
+  <li>防污染预检：<code>tmp/audit_dataset_ui.py</code>（分辨率×宽高比）仍在仓库，入集前必跑</li>
+  <li>训练脚本 <code>train_v5_v5.sh</code> 的两阶段参数（<code>imgsz=1280 batch=8 epochs=60 mosaic=0 copy_paste=0.3</code>）已固化，直接复用</li>
+</ul>
+</div>
+
+<h2>3 · 任务排期</h2>
+<div class="callout grayc">
+  人时为「熟练单人串行、不含下载等待与训练运行」的估算。P2 可与 P0/P1 部分并行；P3 依赖数据到位（受飞行窗口约束）。
+</div>
+
+<table>
+  <tr><th style="width:58px">阶段</th><th style="width:58px">任务</th><th>内容</th><th style="width:96px">依赖</th><th style="width:58px">人时</th><th style="width:74px">门禁</th></tr>
+
+  <tr><td rowspan="4"><b>P0</b><br>环境就绪</td>
+      <td><b>T1</b></td><td>前置固化：确认 Secure Boot 路线（预签名包 / 关 SB）、<b>备份并留回滚</b>、约定停机窗口、记录 <code>lspci</code> 与当前驱动状态</td><td>—</td><td>1</td><td>—</td></tr>
+  <tr><td><b>T2</b></td><td><b>装 nvidia 驱动 + 重启</b>：apt 装 545（或 580）+ 黑名单 nouveau → 重启 → <code>nvidia-smi</code></td><td>T1、<b>停机批准</b></td><td>2</td><td><code>nvidia-smi</code> 正常</td></tr>
+  <tr><td><b>T3</b></td><td>建独立 <code>train-venv</code> + <b>torch(cu124)</b> + ultralytics + opencv 等</td><td>T2</td><td>2</td><td><code>torch.cuda.is_available()==True</code></td></tr>
+  <tr><td><b>T4</b></td><td>（可选）引擎侧换 <code>onnxruntime-gpu</code> + 重启 + 推理耗时对比</td><td>T2</td><td>1–2</td><td>GPU provider 生效、延迟下降</td></tr>
+
+  <tr><td rowspan="3"><b>P1</b><br>自动标注配套</td>
+      <td><b>T5</b></td><td><b>ollama 部署</b>（官方 release → <code>/video/ollama_install</code>）+ systemd + <code>pull qwen2.5vl:7b</code> + GPU 验证</td><td>T2</td><td>3</td><td>VLM 能判"有/无烟"</td></tr>
+  <tr><td><b>T6</b></td><td>预筛脚本：抽帧→VLM 逐帧判→产出<b>候选帧清单</b>（供人工框）</td><td>T5</td><td>3–4</td><td>对已知样本判对率可接受</td></tr>
+  <tr><td><b>T7</b></td><td><b>难负闭环</b>：模型报了但 VLM 判无烟 → 落难负池 → 与标注工作台对接</td><td>T6</td><td>2–3</td><td>产出难负样本集</td></tr>
+
+  <tr><td rowspan="3"><b>P2</b><br>数据链路</td>
+      <td><b>T8</b></td><td><b>录制链路重建</b>（绕开 MinIO：ffmpeg 直录 RTMP/HLS 切段）</td><td>—</td><td>2–3</td><td>能稳定录到段</td></tr>
+  <tr><td><b>T9</b></td><td>抽帧/去重/清晰度筛 + <b>防污染审计</b>（分辨率×宽高比）回归</td><td>T8</td><td>2</td><td>UI 截图 0 命中</td></tr>
+  <tr><td><b>T10</b></td><td>数据集重建：<code>images/labels/splits</code> + <code>*.yaml</code> + <b>冻结 val holdout</b></td><td>标注产出</td><td>2–3</td><td>配比门禁通过</td></tr>
+
+  <tr><td><b>P3</b><br>训练与上线</td>
+      <td><b>T11</b></td><td>两阶段训练 → 出 onnx → 落位 <code>v5_smoke_v5/{stage9_1920,stage3_0909}/weights/</code> → 引擎 interval 1s + ROI 切片</td><td>P2 数据</td><td>见注</td><td>召回/误报达标</td></tr>
+</table>
+<p class="muted">注：P3 的训练时长取决于数据规模与轮次（原方案 3–5 轮迭代），<b>属"数据到位后再估"</b>，不计入上面的 14–18 人时。</p>
+
+<h3>3.1 甘特（相对时序，■=占用）</h3>
+<table class="gantt">
+  <tr><th style="width:74px">任务</th><th style="width:150px">内容</th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th></tr>
+  <tr><td>T1</td><td>前置/停机窗口</td><td><i class="bar" style="background:#9a6700"></i></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td>T2</td><td><b>驱动+重启</b></td><td><i class="bar" style="background:#b42318"></i></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td>T3</td><td>train-venv+torch</td><td></td><td><i class="bar" style="background:#1a5276"></i></td><td></td><td></td><td></td></tr>
+  <tr><td>T4</td><td>onnxruntime-gpu</td><td></td><td><i class="bar" style="background:#2c6ca6"></i></td><td></td><td></td><td></td></tr>
+  <tr><td>T5</td><td><b>ollama+Qwen2.5VL</b></td><td></td><td><i class="bar" style="background:#5b3fb5"></i></td><td><i class="bar" style="background:#5b3fb5"></i></td><td></td><td></td></tr>
+  <tr><td>T6</td><td>VLM 预筛脚本</td><td></td><td></td><td><i class="bar" style="background:#7a5fd0"></i></td><td><i class="bar" style="background:#7a5fd0"></i></td><td></td></tr>
+  <tr><td>T7</td><td>难负闭环</td><td></td><td></td><td></td><td><i class="bar" style="background:#9a6700"></i></td><td><i class="bar" style="background:#9a6700"></i></td></tr>
+  <tr><td>T8</td><td>录制链路（并行）</td><td></td><td><i class="bar" style="background:#0f7b4f"></i></td><td><i class="bar" style="background:#0f7b4f"></i></td><td></td><td></td></tr>
+  <tr><td>T9</td><td>抽帧+防污染</td><td></td><td></td><td></td><td><i class="bar" style="background:#1d9a6c"></i></td><td><i class="bar" style="background:#1d9a6c"></i></td></tr>
+  <tr><td>T10</td><td>数据集+val冻结</td><td></td><td></td><td></td><td></td><td><i class="bar" style="background:#475569"></i></td></tr>
+</table>
+<div class="callout warnc">
+  <b>关键路径</b>：<b>T2（驱动+重启）→ T5（ollama）→ T6/T7</b>。T2 受「停机窗口 + 你批准」控制，是唯一需要人工介入的硬节点。<br>
+  <b>可立即并行</b>：T8 录制链路重建<b>不依赖 GPU</b>，今天就能做，且它决定"飞行后能不能立刻抽帧"。
+</div>
+
+<h2>4 · 风险与对策</h2>
+<table>
+  <tr><th style="width:170px">风险</th><th>概率/影响</th><th>对策</th></tr>
+  <tr><td><b>Secure Boot 拒签模块</b>（驱动装完加载失败）</td><td><span class="badge bad">中 / 高</span></td><td>优先用 Ubuntu 预签名包；不行则在 ESXi 的 VM 设置里关 Secure Boot（<b>需你确认</b>）</td></tr>
+  <tr><td>直通下驱动初始化失败</td><td><span class="badge warn">低 / 高</span></td><td>保留 <code>apt purge</code> 回滚；退回 CPU 推理仍可跑通全链路（只是慢）</td></tr>
+  <tr><td><b>重启造成服务中断</b></td><td><span class="badge warn">确定 / 中</span></td><td>选低峰窗口；目前引擎空管线，影响面小；重启后逐项验收四服务</td></tr>
+  <tr><td><b>torch 装成 CPU 版</b></td><td><span class="badge bad">高 / 中</span></td><td>严格用 <code>--index-url .../whl/cu124</code>；用 <code>torch.cuda.is_available()</code> 做门禁</td></tr>
+  <tr><td>HF 不通导致模型拿不到</td><td><span class="badge ok">已规避</span></td><td>走 ollama registry / ModelScope（均实测可达）</td></tr>
+  <tr><td>显存争用（VLM vs 引擎）</td><td><span class="badge warn">中 / 中</span></td><td>VLM 随用启停；检测优先；必要时给 VLM 限上下文/并发</td></tr>
+  <tr><td><b>数据未到位</b>（模型无米下锅）</td><td><span class="badge bad">高 / 高</span></td><td>与 P4 采集排期联动；先做 P0/P1/P2，<b>采集今天就要动</b></td></tr>
+  <tr><td>旧 val holdout 已丢失</td><td><span class="badge warn">确定</span></td><td>重建 val 并<b>从此冻结</b>（宁可重设基准，也不能用会漂的 val）</td></tr>
+</table>
+
+<h2>5 · 分阶段验收门禁</h2>
+<table>
+  <tr><th style="width:70px">阶段</th><th>门禁（全部通过才算完成）</th></tr>
+  <tr><td><b>P0</b></td><td><code>nvidia-smi</code> 列出 RTX 3090；<code>torch.cuda.is_available()==True</code> 且 <code>torch.version.cuda</code> 非空；四服务全部 active；GPU 推理延迟较 CPU 明显下降</td></tr>
+  <tr><td><b>P1</b></td><td><code>ollama run qwen2.5vl:7b</code> 对已知有烟/无烟样本判断正确；预筛脚本能产出候选帧清单；难负池有产出且可回流</td></tr>
+  <tr><td><b>P2</b></td><td>录制链路稳定出段；抽帧数量/时长可核对；<b>防污染审计 0 命中</b>；配比门禁（夜负≤昼负×1/2）通过</td></tr>
+  <tr><td><b>P3</b></td><td>模型落位后引擎 <code>workers&gt;0</code>、能出框、能产告警；白天召回/夜间误报较上版改善</td></tr>
+</table>
+
+<h2>6 · 需要你决策的 3 件事</h2>
+<table>
+  <tr><th style="width:52px">#</th><th>决策点</th><th>选项</th></tr>
+  <tr><td>1</td><td><b>Secure Boot 怎么办</b></td><td><b>A</b> 优先试 Ubuntu 预签名包（不动 SB）／<b>B</b> 直接关 Secure Boot（在 ESXi 的 VM 设置里，最省事）</td></tr>
+  <tr><td>2</td><td><b>停机窗口</b></td><td>T2 需重启一次（约 2 分钟）。目前引擎空管线、影响面小 —— 随时可以，还是约到低峰？</td></tr>
+  <tr><td>3</td><td><b>VLM 部署形态</b></td><td><b>A</b> ollama（简单、有历史脚本，<b>推荐</b>）／<b>B</b> vLLM（吞吐高但需编译 flash-attn，风险高）</td></tr>
+</table>
+
+<h2>7 · 与已有计划的关系</h2>
+<div class="callout grayc">
+<table style="margin:0">
+  <tr><th style="width:130px">计划</th><th>关系</th></tr>
+  <tr><td><b>P4 数据采集</b><br>（飞行）</td><td><b>并行且互为前提</b>：本报告是"工具就绪"，P4 是"原料"。<b>T8 录制链路 + T9 抽帧</b>决定"飞完能不能立刻变成训练样本"，建议今天先做</td></tr>
+  <tr><td><b>司空 2 重装对接</b></td><td>独立线：<code>set-sikong-key.sh</code> 已就绪，拿到新 apikey 即可接；视频/遥测链路恢复后 <b>T8 可直接复用其流地址</b></td></tr>
+  <tr><td><b>GPU 驱动</b></td><td>本报告 T2 即原评估里的「P1 未完成项」；<b>原先标注"需单独批准的重启步骤"</b>——本报告给出了前置检查与回滚</td></tr>
+</table>
+</div>
+
+<footer>
+  依据：2026-09-30 服务器实测（GPU/驱动/依赖/网络/资源五项探测）+ 历史评估
+  <code>docs/VLM提示_YOLO框体标注_技术思路评估_20260908.html</code> ·
+  <code>docs/修复ollama_llama-server_评估与排期_20260909.html</code> ·
+  <code>docs/P4数据采集清单_20260930.html</code>
+</footer>
+
+</div>
+</body>
+</html>
