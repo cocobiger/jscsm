@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 v5 扩源：从 MinIO 直播段拉取 + ffmpeg 抽帧 + 立即删 mp4（数据盘红线：不囤视频）
+
+⚠️⚠️ 2026-09-30 起本脚本的 MinIO 源已不存在（生产机被整体重建；本地 :9000 与司空侧 172.28.0.90 均不可达），
+     本脚本**跑不通**。抽帧请改用同目录的 **`record_frames.py`**（直接从流地址录制/抽帧，不依赖任何对象存储）。
+     本文件保留作历史参考（含 SigV4 直连 MinIO 的实现）。
+
 用法:
   pull_frames_v5.py --key <object_key> --out <dir> --interval 5
   pull_frames_v5.py --list <清单文件> --out <dir> --interval 5   # 逐段处理
