@@ -19,7 +19,7 @@ v5 训练集组集 v5（2026-09-01 晚）：并入直播人工整框 182 帧真�
 负正比：v4 428:482=1:0.89 → v5 438:664=1:0.66（正样本翻倍，负比例自然健康，
 不再执行"砍负"（B 原方案 254→100 是针对旧正样本量的，现真烟 208 vs 同域负 254 已 1:0.82）
 
-用法: /opt/jsc/straw-engine/venv/bin/python3 gen_v5_train_v5.py
+用法: /data/HBJSC/train-venv/bin/python gen_v5_train_v5.py   （训练环境建法见 deploy/HBJSC/scripts/setup_train_env.sh）
 输出: /video/shujuji/datasets/v5_train_v5/{splits,v5_smoke_v5.yaml,images/labels}
 """
 import os, json, random, shutil

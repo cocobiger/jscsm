@@ -5,12 +5,16 @@
 # 用法: bash train_v5_v5.sh
 set -e
 
-STRAW=/opt/jsc/straw-engine
+# ★ 训练用独立 venv（与推理的 straw-engine venv 分离，避免 ultralytics 的依赖把推理环境搅坏）
+#   建法见 deploy/HBJSC/scripts/setup_train_env.sh
+TRAIN_VENV=/data/HBJSC/train-venv
+YOLO=$TRAIN_VENV/bin/yolo
 BASE=/video/xunlian/runs/detect/v5_smoke_v3/base/weights/best.pt
 DATA1=/video/shujuji/datasets/v5_train_v5/v5_smoke_v5_s1.yaml
 DATA2=/video/shujuji/datasets/v5_train_v5/v5_smoke_v5_s2.yaml
 RUN=/video/xunlian/runs/detect/v5_smoke_v5
 
+[ -x "$YOLO" ] || { echo "!! 训练 venv 不存在：$TRAIN_VENV（先跑 deploy/HBJSC/scripts/setup_train_env.sh）"; exit 1; }
 mkdir -p $RUN
 
 echo "====== v5 smoke v5 两阶段训练启动 ======"
@@ -20,10 +24,10 @@ echo "stage2 : $DATA2 (真烟 264 + neg 全量, 剔 syn)"
 echo "run    : $RUN"
 echo "start  : $(date '+%F %T')"
 
-cd $STRAW
+cd $TRAIN_VENV
 
 echo "---------- Stage 1: syn 预训 ----------"
-$STRAW/venv/bin/yolo detect train \
+$YOLO detect train \
   model=$BASE \
   data=$DATA1 \
   imgsz=1280 batch=8 epochs=60 \
@@ -37,7 +41,7 @@ $STRAW/venv/bin/yolo detect train \
 echo "---------- Stage 2: 真烟微调 (从 stage1 best 续训) ----------"
 S1_BEST=$RUN/stage1/weights/best.pt
 [ -f $S1_BEST ] || { echo "!! stage1 best.pt 不存在: $S1_BEST"; exit 1; }
-$STRAW/venv/bin/yolo detect train \
+$YOLO detect train \
   model=$S1_BEST \
   data=$DATA2 \
   imgsz=1280 batch=8 epochs=60 \

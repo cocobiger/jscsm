@@ -8,7 +8,7 @@ Stage 1 (syn 预训)   : syn 400 正 + 全部负样本   —— 不含真烟母�
 Stage 2 (真烟微调)   : 真烟 264 (live182+v2 26+dji 4+wechat 52) + 全部负样本 —— 剔除 syn，真烟主导
 val 沿用 v5_train_v5/splits/val.txt (117, 含 7 真烟 holdout, 横向可比)
 
-用法: /opt/jsc/straw-engine/venv/bin/python3 gen_v5_stage_splits.py
+用法: /data/HBJSC/train-venv/bin/python gen_v5_stage_splits.py   （训练环境建法见 deploy/HBJSC/scripts/setup_train_env.sh）
 输出: /video/shujuji/datasets/v5_train_v5/splits/{stage1_train,stage2_train}.txt
       /video/shujuji/datasets/v5_train_v5/v5_smoke_v5_{s1,s2}.yaml
 """
