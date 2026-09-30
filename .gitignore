@@ -74,3 +74,13 @@ _audit_*.png
 _procs.txt
 _lockdiag.txt
 _dlstatus.txt
+
+# 本地工作区（探针/构建/脚本中间产物，非源码）
+tmp/
+
+# 历史构建快照（本地回滚用）
+dist.bak/
+dist_bak_*/
+
+# 一次性测试产物（非源码）
+evi_after_fix.jpg
