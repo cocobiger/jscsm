@@ -1,0 +1,32 @@
+{
+ "_comment": "straw-engine 配置（2026-09-30 重建版）。模型路径按'未来放回原位'规划：训练产出后把 onnx 放到对应 weights/ 目录即可，无需改配置。",
+ "port": 7200,
+
+ "model": "",
+ "modelDay": "/video/shujuji/datasets/v5_smoke_v5/stage9_1920/weights/best.onnx",
+ "modelNight": "/video/shujuji/datasets/v5_smoke_v5/stage3_0909/weights/best_1920.onnx",
+
+ "inputSize": 1920,
+ "format": "yolo",
+ "confSmoke": 0.15,
+ "confFire": 0.25,
+ "confHouse": 0.35,
+ "iou": 0.45,
+ "useGpu": true,
+
+ "interval": 2,
+ "cfmNeed": 3,
+ "takeoffWindow": 30,
+
+ "alertsUrl": "http://127.0.0.1:7170/api/straw-alert",
+ "evidenceDir": "evidence",
+
+ "maskSkyEnabled": true,
+ "maskSkyRatio": 0.1,
+ "maskSkySkipLookdown": true,
+
+ "nightBrightness": 25,
+ "nightHours": [19, 5],
+
+ "streams": []
+}
