@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>万州秸秆焚烧检测 · P4 数据采集清单（2026-09-30）</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --blue:#1a5276; --blue2:#2c6ca6; --green:#0f7b4f; --greenbg:#e7f6ee;
+    --red:#b42318; --redbg:#fdeceb; --amber:#9a6700; --amberbg:#fff6e5;
+    --violet:#5b3fb5; --violetbg:#efeafd; --gray:#475569; --graybg:#eef2f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.7;font-size:15px}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:23px}
+  header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.5px;color:#0b3d63}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .grayb{background:var(--graybg);color:var(--gray);border:1px solid #d7dee8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px} li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .tag{display:inline-block;background:#eef1f5;border-radius:5px;padding:1px 7px;font-size:12.4px;font-family:Consolas,monospace}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>万州秸秆焚烧检测 · P4 数据采集清单</h1>
+  <div class="sub">目标：补回随 7TiB 盘丢失的训练资产，让引擎从「空管线」恢复到「能真实出告警」</div>
+  <div class="meta">
+    <span class="chip">2026-09-30</span>
+    <span class="chip">受飞行窗口约束 · 不可用人力压缩</span>
+    <span class="chip">安装根 /data/HBJSC</span>
+    <span class="chip">抽帧/训练管线已就绪</span>
+  </div>
+</header>
+
+<h2>0 · 为什么这是当前最长关键路径</h2>
+<div class="callout danger">
+  <b>现状</b>：`straw-engine` 服务在线但<b>空管线</b>——无模型、无流、`workers=0`。
+  现网模型 <code>stage9_1920</code>（白天）/ <code>stage3_0909</code>（夜间）随 7TiB 盘消失且<b>无任何副本</b>；
+  训练集（v5_train_v5 / v6_train / day_0911 / hardneg…）同样归零。
+  <br><b>P0~P2 已回位，唯一能让系统"真正干活"的只剩这一步。</b>
+</div>
+<div class="callout grayc">
+  <b>关键认知</b>：采集受<b>飞行窗口</b>（天气/空域/批次）约束，<b>无法用人力换时间</b>；
+  其余阻塞项（司空重装、GPU 驱动、SMTP）都可"等人给凭据"即刻解决。<b>所以采集必须今天就排期。</b>
+</div>
+
+<h2>1 · 采集目标：精准补三个「已证实」的缺口（不是随便飞）</h2>
+<table>
+  <tr><th style="width:150px">缺口</th><th>证据（丢盘前实测）</th><th>本次要补什么</th></tr>
+  <tr>
+    <td><b>① 尺度缺口</b><br><span class="badge bad">首要</span></td>
+    <td>1041 个框里 <b>&lt;40px 仅占 1.7%</b>，p05 = 54px ⇒ <b>模型从没见过小目标</b>；<br>实测"降阈值救不回"（不是阈值问题，是训练分布问题）</td>
+    <td><b>远距离 / 小目标正样本</b>：长焦或高飞，让目标在画面中更小（覆盖 20–60px 一段）</td>
+  </tr>
+  <tr>
+    <td><b>② 夜间样本几乎为零</b></td>
+    <td>3402 个框里 <b>D(&lt;40px)_night = 0</b>、M_night = 3、N_night = 2 ⇒ 夜间小目标正样本<b>总共 5 个</b></td>
+    <td><b>夜间真实焚烧</b>（安全前提下）+ <b>夜间难负</b>（车灯/路灯/反光/暖色屋顶）</td>
+  </tr>
+  <tr>
+    <td><b>③ 白天框级定位差 / 夜间误报高</b></td>
+    <td>白天召回 80% / 误报 3.3%；<b>夜间召回 100% / 误报 33.3%</b></td>
+    <td>白天：<b>整框精确标注</b>；夜间：<b>大量难负</b>（这是压夜间误报唯一的正解）</td>
+  </tr>
+</table>
+<div class="callout warnc">
+  <b>配比硬约束（协议 v1.2）</b>：<span class="badge warn">夜负 ≤ 昼负 × 1/2</span>
+  —— 夜间负样本不能压过白天，否则昼夜域再次失衡。
+</div>
+
+<h2>2 · 航线规划：用刚接入的 52 个乡镇清单来排</h2>
+<p class="muted">万州区共 <b>52 个乡镇街道</b>（11 街道 + 29 镇 + 12 乡），边界数据已于 2026-09-30 接入（<code>data/wanzhou_towns.geojson</code>），可直接用于规划与后续"告警归属街道办"的核对。</p>
+
+<h3>2.1 优先级 A — 大镇/乡（面积大、耕地多，焚烧高发）</h3>
+<div class="card">
+  <b>面积前 5（必飞）</b>：龙驹镇 · 分水镇 · 走马镇 · 新田镇 · 余家镇<br>
+  <b>次优先</b>：后山镇 · 长岭镇 · 弹子镇 · 白羊镇 · 罗田镇 · 太安镇 · 龙沙镇 · 甘宁镇 · 郭村镇 · 高梁镇 · 李河镇 · 孙家镇 · 响水镇 · 长滩镇 · 白土镇 · 新乡镇 · 武陵镇 · 高峰镇 · 瀼渡镇 · 天城镇 · 熊家镇 · 太龙镇 · 小周镇 · 大周镇<br>
+  <span class="muted">（29 个镇全列；按历史告警热度排序后再定每轮架次）</span>
+</div>
+<h3>2.2 优先级 B — 乡（12 个，多为山区/林地，火点隐蔽）</h3>
+<div class="card">铁峰乡 · 黄柏乡 · 溪口乡 · 柱山乡 · 九池乡 · 茨竹乡 · 梨树乡 · 普子乡 · 地宝乡 · 恒合乡 · 长坪乡 · 燕山乡</div>
+<h3>2.3 优先级 C — 城区街道与固定场景：<b>主要采"难负"</b></h3>
+<div class="cols">
+  <div class="card"><b>城区街道（11）</b><br>高笋塘 · 太白 · 牌楼 · 周家坝 · 钟鼓楼 · 沙河 · 双河口 · 龙都 · 百安坝 · 五桥 · 陈家坝<br><span class="muted">屋顶排气、车辆尾气、水面反光、玻璃反光 → 都是夜间误报的来源</span></div>
+  <div class="card"><b>固定点位</b><br>港口堆场 6 路 · 道路监控 6 路 · 重点企业 11 路<br><span class="muted">"疑似烟但非焚烧"的难负主产地（工业蒸汽/扬尘/水汽）</span></div>
+</div>
+<div class="callout danger">
+  <b>🚫 禁入训练集</b>：<code>SIM_SMOKE*</code>（模拟器）与 <b>机场直连流</b> —— 已定黑名单，混入即污染。
+</div>
+
+<h2>3 · 拍摄参数（决定"等效目标像素尺寸"，比分辨率更重要）</h2>
+<table>
+  <tr><th style="width:150px">项</th><th>要求</th><th>为什么</th></tr>
+  <tr><td>分辨率</td><td><b>只允许</b> 960×720 / 1280×720 / 1440×1080</td><td>无人机原生帧；<b>2968×1732 / 2560×1329 等桌面截图比例一律拒收</b>（历史污染源）</td></tr>
+  <tr><td>等效目标尺寸</td><td>同一场景尽量拍到多档：目标像素高 <b>≈20 / 40 / 80 / 150px</b></td><td>补尺度缺口的<b>核心变量</b>；批次间尺度要配平</td></tr>
+  <tr><td>吊舱角度</td><td>正俯 + 斜俯各占一半；<b>记录 <code>gimbalPitch</code></b></td><td>斜俯才有"远山轻烟"；pitch 可做<b>动态天际线</b>屏蔽</td></tr>
+  <tr><td>变焦</td><td>远距离场景用长焦拉近</td><td>小目标样本的主要来源</td></tr>
+  <tr><td>飞行高度</td><td>记录 AGL 与变焦倍数（随帧入库）</td><td>便于事后分析"哪档尺度最难"</td></tr>
+  <tr><td>帧率/码流</td><td>≥25fps，码流尽量高</td><td>抽帧需清晰；时序判别需要连续帧</td></tr>
+</table>
+
+<h2>4 · 昼夜时段安排</h2>
+<table>
+  <tr><th>时段</th><th>重点</th><th>产出</th></tr>
+  <tr><td><b>白天 09:00–16:00</b></td><td>大镇/乡耕地；小目标（长焦/高飞）</td><td>正样本（整框精确）+ 白天难负</td></tr>
+  <tr><td><b>黄昏 17:00–19:00</b></td><td>点火集中时段；逆光/低照度</td><td>过渡域样本（模型最易漏的时段）</td></tr>
+  <tr><td><b>夜间 19:30–23:00</b></td><td>明火/火光（<b>安全前提下</b>）；城区 & 堆场夜景</td><td>夜间正样本 + <b>大量夜间难负</b></td></tr>
+</table>
+<div class="callout warnc">夜间飞行需满足空域/照明/返航条件；<b>宁可少采，不冒险</b>。</div>
+
+<h2>5 · 抽帧口径（沿用现成工具，别自己造）</h2>
+<div class="card">
+<code>infra/vlm/pull_frames_v5.py</code> —— MinIO 直播段 → <code>ffmpeg -vf fps=1/&lt;interval&gt; -q:v 3</code> → <b>抽完立即删 mp4</b>（数据盘红线：不囤视频）
+<pre style="background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:12.5px">
+python3 pull_frames_v5.py --plan 本轮清单.csv --interval 2 --out /video/shujuji/datasets/v5_live_frames</pre>
+<ul>
+  <li><b>interval</b>：默认 5s；<b>建议改 1~2s</b> —— 为"轻烟 vs 碎云"的<b>时序判别</b>留连续帧（引擎侧同步把 interval 2s→1s）</li>
+  <li>输出目录命名保持 <code>{sn}_{day}_{base}</code>，与现管线一致</li>
+  <li>断点续跑：脚本自带 <code>pull_frames_state.json</code>，重复运行自动跳过</li>
+</ul>
+</div>
+
+<h2>6 · 标注与入库（协议 v1.2 · 7 道闸）</h2>
+<table>
+  <tr><th style="width:170px">环节</th><th>口径</th></tr>
+  <tr><td>五档标签</td><td>确定烟 / 明火+烟 / 明火 / 疑似轻烟 / 非烟</td></tr>
+  <tr><td>门禁口径</td><td><b>只走粗口径</b>：焚烧（确定烟+明火+烟+明火）/ 疑似 / 非焚烧，<b>≥0.80 硬门槛</b>；五档细口径仅参考</td></tr>
+  <tr><td>尺度分档</td><td>≥0.80 亦为硬门槛；IoU ≥0.50 仅在正式批次</td></tr>
+  <tr><td>正负同批匹配</td><td>新增正样本必须<b>同时</b>配足难负（历史教训：+7 正塞 26 难负 ⇒ 召回 95%→75%；配比失衡会直接掉点）</td></tr>
+  <tr><td>难负来源</td><td>城区屋顶/车辆、堆场蒸汽、水面与玻璃反光、云/碎云、远山薄雾</td></tr>
+  <tr><td>holdout 校验集</td><td>沿用 <code>v5_train_v5/splits/val.txt</code>（<b>117 帧，含 7 真烟</b>）⇒ 保证跨版本<b>横向可比</b></td></tr>
+  <tr><td>防污染预检</td><td><code>tmp/audit_dataset_ui.py</code>（PIL 只读头，秒级）：<b>分辨率 × 宽高比</b>判据，拦截桌面截图/标注平台截图/撕裂坏帧</td></tr>
+</table>
+<div class="callout good">
+  <b>标注铁律（不变）</b>：宁多标不进脏数据；拿不准 → 「不确定/暂缓」；可疑样本<b>隔离分区、默认不入集</b>；
+  已入集样本锁定只读 + 变更留痕。
+</div>
+
+<h2>7 · 每轮飞行 → 交付物（可核对的数字）</h2>
+<table>
+  <tr><th style="width:60px">步骤</th><th>动作</th><th>交付 / 门禁</th></tr>
+  <tr><td>1</td><td>飞（按第 2 节航线，记录架次/时长/机型/SN/时段/pitch）</td><td>飞行日志</td></tr>
+  <tr><td>2</td><td>直播段入 MinIO → <code>pull_frames_v5.py --interval 2</code> 抽帧</td><td>帧数 + 时长统计</td></tr>
+  <tr><td>3</td><td>去重 + 清晰度筛（模糊/撕裂剔除）</td><td>可标注帧数</td></tr>
+  <tr><td>4</td><td>标注（协议 v1.2 五档）+ 复检</td><td>导出门禁通过</td></tr>
+  <tr><td>5</td><td>防污染预检 + 尺度/昼夜配比核对</td><td>入集批准</td></tr>
+  <tr><td>6</td><td>并入数据集 → 训练 → 出 onnx</td><td>模型 + 指标</td></tr>
+</table>
+
+<h2>8 · 入训练集前的验收门禁（缺一不可）</h2>
+<table>
+  <tr><th>门禁</th><th>阈值 / 判据</th></tr>
+  <tr><td>分辨率白名单</td><td>仅 960×720 / 1280×720 / 1440×1080；<b>命中率高的一律拦下</b></td></tr>
+  <tr><td>尺度分布</td><td>&lt;40px 占比从 <b>1.7%</b> 显著抬升（目标 ≥ 8~10%）；p05 从 54px 下探</td></tr>
+  <tr><td>昼夜配比</td><td><b>夜负 ≤ 昼负 × 1/2</b></td></tr>
+  <tr><td>正负配比</td><td>难负数量与新增正样本<b>同批匹配</b></td></tr>
+  <tr><td>五档门禁</td><td>粗口径一致率 ≥ 0.80</td></tr>
+  <tr><td>污染排查</td><td>UI 截图 / 模拟器 / 机场直连 <b>0 命中</b></td></tr>
+</table>
+
+<h2>9 · 训练与部署（复用现有管线，参数已固化）</h2>
+<div class="card">
+<b>两阶段训练</b>（<code>infra/vlm/train_v5_v5.sh</code>）：Stage1 syn 预训（学形态+负样本抑制）→ Stage2 真烟微调（剔 syn）
+<pre style="background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:12.5px">
+yolo detect train model=&lt;上版best.pt&gt; data=&lt;stageN.yaml&gt; \
+  imgsz=1280 batch=8 epochs=60 mosaic=0 copy_paste=0.3 close_mosaic=50 device=0</pre>
+<b>产出落位（放进去即生效，无需改配置）</b>：
+<code>/data/video/shujuji/datasets/v5_smoke_v5/stage9_1920/weights/</code>（白天）
+<code>/data/video/shujuji/datasets/v5_smoke_v5/stage3_0909/weights/</code>（夜间）
+<br><b>算力</b>：RTX 3090 @1920² ≈ 50ms/帧，2×2 切片 ≈ 134ms；单路 2s 预算余量 <b>≈39×</b> ⇒ 可上 ROI 切片 + 把 interval 收到 1s 启用时序判别。
+</div>
+<div class="callout warnc">
+  ⚠️ <b>GPU 驱动仍未安装</b>（onnxruntime 只有 CPU provider）—— 模型到位前需先装驱动 + CUDA，否则推理慢一个数量级、实时性不达标。此步需重启，属需单独批准的步骤。
+</div>
+
+<h2>10 · 红线与风险</h2>
+<ul>
+  <li><b>不囤视频</b>：抽帧后立即删 mp4（数据盘只有 5T，且系统盘严禁写大数据）。</li>
+  <li><b>禁入黑名单</b>：SIM_SMOKE、机场直连流 —— 混入即污染，会让指标虚高、上线即失效。</li>
+  <li><b>尺度偏移要配平</b>：不同架次的等效目标尺寸若差异过大，会让模型偏向某一档。</li>
+  <li><b>夜间安全优先</b>：不满足条件就不飞，宁可少采。</li>
+  <li><b>标注宁缺勿滥</b>：可疑样本隔离、默认不入集。</li>
+  <li><b>产物外备</b>：数据集/模型必须<b>离开该主机</b>留副本（本次事故的核心教训）。</li>
+</ul>
+
+<footer>
+  依据：协议 v1.2 ｜ <code>docs/轻烟判定与标注协议_v1_20260928.html</code> ｜ <code>docs/锚点集缺陷审计_20260929.html</code>
+  ｜ 管线：<code>infra/vlm/{pull_frames_v5,train_v5_v5,gen_v5_train_v5,gen_v5_stage_splits}.py</code>
+  ｜ 乡镇清单：<code>data/wanzhou_towns.geojson</code>
+</footer>
+
+</div>
+</body>
+</html>
