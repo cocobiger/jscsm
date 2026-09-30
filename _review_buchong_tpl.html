@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9/9 补标工作台 v4（45 帧未标注）</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--cyan:#00aaff;--gray:#7a8a9a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei",system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.6;background:#f2f5f9;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .topbar h1{font-size:16px;color:var(--blue);white-space:nowrap}
+  .topbar .hint{font-size:12px;color:var(--mut)}
+  .stats{display:flex;gap:10px;font-size:12px;margin-left:auto;flex-wrap:wrap}
+  .stat b{font-size:15px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:4px;padding:4px 11px;font-size:12px;cursor:pointer}
+  .grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;align-content:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+  .card[data-v="smoke"]{border-color:var(--red);box-shadow:0 0 0 2px #fdecea}
+  .card[data-v="nosmoke"]{border-color:var(--green)}
+  .card[data-v="distractor"]{border-color:var(--cyan)}
+  .card[data-v="invalid"]{border-color:#b6bec9;opacity:.5}
+  .card[data-v="unsure"]{border-color:var(--amber)}
+  .imgwrap{position:relative;background:#000;cursor:zoom-in;aspect-ratio:4/3}
+  .imgwrap img{width:100%;height:100%;object-fit:cover;display:block}
+  .tag{position:absolute;font-size:10px;padding:1px 6px;border-radius:3px;font-family:monospace;color:#fff}
+  .t-vid{top:5px;left:6px;background:rgba(0,0,0,.62)}
+  .t-br{top:5px;right:6px;background:rgba(80,90,100,.85)}
+  .t-conf{bottom:5px;right:6px;background:rgba(0,170,255,.9);font-weight:700}
+  .t-box{bottom:5px;left:6px;background:rgba(192,57,43,.92)}
+  .t-dis{bottom:5px;left:6px;background:rgba(0,170,255,.92)}
+  .t-sug{top:5px;left:50%;transform:translateX(-50%);background:rgba(183,121,31,.95)}
+  .fname{font-family:monospace;font-size:10px;color:var(--mut);padding:4px 10px 0}
+  .verdict{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .verdict button{border:1px solid var(--line);background:#fff;border-radius:4px;padding:5px 4px;font-size:11px;cursor:pointer;flex:1;min-width:52px}
+  .verdict button.boxbtn{background:var(--cyan);color:#fff;border-color:var(--cyan);flex:1 0 100%}
+  .verdict button.nosmoke.on{background:var(--green);color:#fff;border-color:var(--green)}
+  .verdict button.dis.on{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+  .verdict button.inv.on{background:var(--gray);color:#fff;border-color:var(--gray)}
+  .verdict button.unsure.on{background:var(--amber);color:#fff;border-color:var(--amber)}
+  #pagination{padding:8px 14px;background:#fff;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}
+  .labelmodal{position:fixed;inset:0;background:rgba(0,8,20,.97);display:none;z-index:200}
+  .labelmodal .inner{position:absolute;inset:0;display:flex;flex-direction:column}
+  .labelbar{background:#0a1628;padding:8px 14px;display:flex;align-items:center;gap:10px;color:#c8e6ff;font-size:13px;border-bottom:1px solid rgba(0,150,220,.2);flex-wrap:wrap}
+  .labelbar .info{font-size:12px;color:#7ab8e0}
+  .labelbar button{border:1px solid var(--cyan);background:transparent;color:var(--cyan);border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .labelbar button.solid{background:var(--cyan);color:#fff}
+  .labelbar button.solid.green{background:var(--green);border-color:var(--green)}
+  .labelbar button.solid.red{background:var(--red);border-color:var(--red)}
+  .labelbar button.solid.gray{background:var(--gray);border-color:var(--gray)}
+  .labelbar button.solid.amber{background:var(--amber);border-color:var(--amber)}
+  .labelbar button.mode.on{background:#fff;color:#0a1628;border-color:#fff;font-weight:700}
+  .canvaswrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;position:relative}
+  #cv{max-width:96%;max-height:96%;cursor:crosshair;background:#000}
+  .framenav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,170,255,.28);color:#fff;border:none;font-size:26px;padding:10px 14px;cursor:pointer;border-radius:6px}
+  .framenav:hover{background:rgba(0,170,255,.6)}
+  .banner{background:var(--amber2);border-left:4px solid var(--amber);padding:7px 14px;font-size:12px;color:#7a5210}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🧩 9/9 补标工作台 v4</h1>
+  <span class="hint">本批 <b>45 帧</b>未标注帧 · 【烟羽】红框=正样本 · 【干扰区】青框=负样本</span>
+  <div class="stats">
+    <div class="stat">本批 <b id="sTotal">0</b></div>
+    <div class="stat" style="color:var(--red)">有烟 <b id="sSmoke">0</b></div>
+    <div class="stat" style="color:var(--green)">无烟 <b id="sNosmoke">0</b></div>
+    <div class="stat" style="color:var(--cyan)">干扰 <b id="sDis">0</b></div>
+    <div class="stat" style="color:var(--gray)">无效 <b id="sInv">0</b></div>
+    <div class="stat" style="color:var(--amber)">不确定 <b id="sUnsure">0</b></div>
+  </div>
+</div>
+<div class="topbar" style="border-top:none;padding-top:0">
+  <button class="btn" onclick="exportAll()" style="background:var(--green);color:#fff;border-color:var(--green)">⬇ 导出全量标注 JSON</button>
+  <button class="btn" onclick="document.getElementById('impFile').click()" style="background:var(--blue2);border-color:var(--blue)">⬆ 导入已导出 JSON</button>
+  <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(this)">
+  <button class="btn" onclick="toggleHelp()" style="background:var(--blue);color:#fff;border-color:var(--blue)">❓ 标注规则(H)</button>
+  <div class="filter" style="display:flex;gap:4px;flex-wrap:wrap">
+    <button class="btn on" onclick="setFilter('todo',this)">待标注</button>
+    <button class="btn" onclick="setFilter('suggest',this)">有模型建议</button>
+    <button class="btn" onclick="setFilter('smoke',this)">有烟</button>
+    <button class="btn" onclick="setFilter('all',this)">全部</button>
+  </div>
+  <span class="hint" id="progHint"></span>
+</div>
+<div class="banner" id="banner">这批帧是 9/9 复核时<b>跳过</b>的帧，多数夹在已标烟雾帧之间 —— 很可能是同一次燃烧的连续片段（潜在漏检）。请按真实画面标注。</div>
+<div id="pagination"></div>
+<div class="grid" id="grid"></div>
+
+<div class="labelmodal" id="helpModal" style="background:rgba(0,8,20,.92)">
+  <div class="inner" style="align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border-radius:12px;max-width:860px;width:100%;max-height:92%;overflow-y:auto;padding:22px 26px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <h2 style="font-size:17px;color:var(--blue);flex:1">标注规则速查（补标批）</h2>
+        <button class="btn" onclick="toggleHelp()" style="padding:5px 14px">✕ 关闭(H/Esc)</button>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1 1 340px">
+          <h3 style="font-size:14px;color:var(--ink);margin:0 0 8px">🎯 标注决策链（按顺序）</h3>
+          <ol style="padding-left:20px;font-size:13px;line-height:1.9">
+            <li><b>画面能看清吗？</b> 全黑/切流/糊成一团 → <b style="color:var(--gray)">无效帧 X</b>（不进训练）</li>
+            <li><b>有烟吗？</b> 有 → 画<b style="color:var(--red)">红框</b>（自动=有烟）</li>
+            <li><b>没烟，但有易误检物？</b>（夜间亮区/灯光/反光/火光）→ <b style="color:var(--cyan)">干扰无烟 I</b> + 青框</li>
+            <li><b>干净背景？</b> → <b style="color:var(--green)">无烟 N</b></li>
+            <li><b>拿不准？</b> → <b style="color:var(--amber)">不确定 ?</b>（本批跳过）</li>
+          </ol>
+          <h3 style="font-size:14px;color:var(--ink);margin:16px 0 8px">⌨️ 快捷键</h3>
+          <div style="font-size:12px;line-height:1.9;color:var(--mut);font-family:monospace">
+            Enter 确认并下一帧 · N 无烟 · I 干扰 · X 无效<br>
+            1 烟羽框 · 2 干扰框 · C 复制上一帧框(全序列)<br>
+            S 载入模型建议框 · ←→ 上一帧/下一帧<br>
+            双击删框 · 单击框切类型 · H 帮助
+          </div>
+          <h3 style="font-size:14px;color:var(--blue);margin:16px 0 8px">🆕 本页专属</h3>
+          <div style="background:var(--blue2);border-left:3px solid var(--blue);padding:9px 12px;border-radius:6px;font-size:12px;line-height:1.7">
+            <b>C 复制上一帧框</b>是跨全序列的：本批第 1 帧的上一条帧（可能已在上一批标过）的框会被复制过来。连续片段补标会非常快。<br><br>
+            <b>S / ✨模型建议</b>：新版模型对这 45 帧只给出极少量建议框（多为低置信度）。它是<b>提示不是答案</b> —— 载入后请自行判断保留或删除，模型漏掉的请补画。
+          </div>
+        </div>
+        <div style="flex:1 1 340px;border-left:1px solid var(--line);padding-left:16px">
+          <h3 style="font-size:14px;color:var(--red);margin:0 0 8px">🔥 夜间有火怎么标（核心：火 ≠ 烟）</h3>
+          <ol style="padding-left:20px;font-size:13px;line-height:1.9">
+            <li><b>火点 / 火光本身</b> → 画<b style="color:var(--cyan)">青框</b>（干扰区）。<b style="color:var(--red)">绝对不要画红框！</b></li>
+            <li><b>火点上方能看到烟柱/烟羽</b> → 只框那一段烟（<b style="color:var(--red)">红框</b>），别把火点一起框进去</li>
+            <li><b>看不出烟</b> → 点「干扰无烟 I」，火点画青框</li>
+            <li>整帧判定：画了红框自动=有烟；没画红框就点 I 或 N</li>
+          </ol>
+          <div style="background:var(--amber2);border-left:3px solid var(--amber);padding:9px 12px;border-radius:6px;font-size:12px;line-height:1.7;margin-top:10px">
+            <b>为什么火点不能标红框：</b><br>
+            把火标成烟 = 教模型「橙色亮斑 = 烟」。白天它会在篝火、路灯、橙红色屋顶、锈蚀铁皮上大量误报 —— 这正是污染<b>淡烟检测</b>的最快方式。<br>
+            火的正确归宿是<b>干扰区（青框）</b>：告诉模型「这里是强干扰源，不是烟」。
+          </div>
+          <div style="background:#f0f7f2;border-left:3px solid var(--green);padding:9px 12px;border-radius:6px;font-size:12px;line-height:1.7;margin-top:10px">
+            <b>淡烟（稀释远烟）是重点：</b>低对比度、偏蓝灰、边缘发虚的薄雾状烟。<br>
+            如果你<b>看得出是烟</b>但<b>不确定模型认不认得出</b> —— <b>照样标红框</b>。这正是模型当前的盲区，标了才有机会学会。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="labelmodal" id="labelModal">
+  <div class="inner">
+    <div class="labelbar">
+      <span id="labFrameName" style="font-family:monospace"></span>
+      <span class="info" id="labInfo"></span>
+      <button class="mode on" id="modeSmoke" onclick="setMode('smoke')">框类型：烟羽</button>
+      <button class="mode" id="modeDis" onclick="setMode('distractor')">干扰区</button>
+      <button onclick="copyPrev()">↧ 复制上一帧框(C)</button>
+      <button class="solid amber" id="btnSuggest" onclick="loadSuggest()">✨ 模型建议(S)</button>
+      <button class="solid green" onclick="saveLabel()">✓ 确认(Enter)</button>
+      <button onclick="markAndNext('nosmoke')">无烟(N)</button>
+      <button onclick="markAndNext('distractor')">干扰无烟(I)</button>
+      <button class="solid gray" onclick="markAndNext('invalid')">无效帧(X)</button>
+      <button onclick="clearBoxes()">删光框</button>
+      <button onclick="closeLabel()">✕(Esc)</button>
+    </div>
+    <div class="canvaswrap">
+      <canvas id="cv"></canvas>
+      <button class="framenav" style="left:12px" onclick="navFrame(-1)">‹</button>
+      <button class="framenav" style="right:12px" onclick="navFrame(1)">›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FRAMES = /*__FRAMES__*/[];
+const ALL_FILES = /*__ALLFILES__*/[];
+const SEED = /*__SEED__*/{};
+const VIDEOS = /*__VIDEOS__*/[];
+const TOTAL_ALL = /*__TOTALALL__*/0;
+const PAGE_SIZE = 50;
+const CV_KEY = 'review_0909_v4b_boxes';
+const V_KEY  = 'review_0909_v4b_verdicts';
+const MODE_KEY = 'review_0909_v4b_mode';
+const SEED_FLAG = 'review_0909_v4b_seeded';
+
+/* ---------- 种子：把上一批导出结果并回 localStorage（只补缺失，不覆盖）---------- */
+function seedMerge(){
+  let n = 0;
+  const y = SEED.yolo_norm_0_1000 || {};
+  Object.keys(y).forEach(f => {
+    const arr = (y[f] || []).map(b => ({
+      t: 'smoke',
+      x1: Math.max(0, (b.cx - b.w/2)/1000), y1: Math.max(0, (b.cy - b.h/2)/1000),
+      x2: Math.min(1, (b.cx + b.w/2)/1000), y2: Math.min(1, (b.cy + b.h/2)/1000),
+    }));
+    if (arr.length){ boxesMap[f] = (boxesMap[f] || []).concat(arr); n++ }
+  });
+  const dd = SEED.distractors_norm_0_1000 || {};
+  Object.keys(dd).forEach(f => {
+    const arr = (dd[f] || []).map(b => ({
+      t: 'distractor',
+      x1: b.x1/1000, y1: b.y1/1000, x2: b.x2/1000, y2: b.y2/1000,
+    }));
+    if (arr.length){ boxesMap[f] = (boxesMap[f] || []).concat(arr); n++ }
+  });
+  (SEED.smokeFrames || []).forEach(f => { if (!verdicts[f]) verdicts[f] = 'smoke' });
+  (SEED.negativeFrames || []).forEach(f => { if (!verdicts[f]) verdicts[f] = 'nosmoke' });
+  (SEED.invalidFrames || []).forEach(f => { if (!verdicts[f]) verdicts[f] = 'invalid' });
+  (SEED.unsureFrames || []).forEach(f => { if (!verdicts[f]) verdicts[f] = 'unsure' });
+  (SEED.distractorFrames || []).forEach(f => { if (!verdicts[f]) verdicts[f] = 'distractor' });
+  return n;
+}
+
+let boxesMap = JSON.parse(localStorage.getItem(CV_KEY) || '{}');
+let verdicts = JSON.parse(localStorage.getItem(V_KEY) || '{}');
+let boxMode  = localStorage.getItem(MODE_KEY) || 'smoke';
+let seeded = false;
+if (!localStorage.getItem(SEED_FLAG)){
+  const n = seedMerge();
+  seeded = n > 0;
+  persist();
+  localStorage.setItem(SEED_FLAG, '1');
+}
+let filter = 'todo';
+let page = 1;
+let labelIdx = -1;
+let curBoxes = [];
+let curMode = boxMode;
+let SUG = [];
+
+function hasBox(f){ return (boxesMap[f] || []).length > 0 }
+function smokeBoxes(f){ return (boxesMap[f] || []).filter(b => b.t !== 'distractor') }
+function disBoxes(f){ return (boxesMap[f] || []).filter(b => b.t === 'distractor') }
+function verdictOf(file){
+  const v = verdicts[file];
+  if (v) return v;
+  if (smokeBoxes(file).length) return 'smoke';
+  if (disBoxes(file).length) return 'distractor';
+  return '';
+}
+function globalDone(){
+  let k = 0;
+  ALL_FILES.forEach(f => { if (verdictOf(f)) k++ });
+  return k;
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const filtered = FRAMES.filter(item => {
+    const v = verdictOf(item.file);
+    if (filter === 'todo') return !v;
+    if (filter === 'all') return true;
+    if (filter === 'suggest') return (item.sug || []).length > 0;
+    return v === filter;
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  page = Math.max(1, Math.min(page, totalPages));
+  filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE).forEach(item => {
+    const i = FRAMES.indexOf(item);
+    const sb = smokeBoxes(item.file).length, db = disBoxes(item.file).length;
+    const v = verdictOf(item);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.v = v;
+    const bestC = (item.sug || []).length ? Math.max.apply(null, item.sug.map(b => b.conf)) : 0;
+    const confHtml = bestC >= 0.15 ? '<div class="tag t-conf">模型 ' + (bestC*100).toFixed(0) + '%</div>' : '';
+    const sugHtml = (item.sug || []).length ? '<div class="tag t-sug">建议 ' + item.sug.length + '</div>' : '';
+    const boxHtml = sb ? '<div class="tag t-box">烟框 ' + sb + '</div>' : (db ? '<div class="tag t-dis">干扰 ' + db + '</div>' : '');
+    card.innerHTML =
+      '<div class="imgwrap" onclick="openLabel(' + i + ')">' +
+        '<img loading="lazy" src="frames/' + item.file + '">' +
+        '<div class="tag t-vid">' + item.vid + '</div>' +
+        '<div class="tag t-br">' + item.bright + '</div>' +
+        sugHtml + confHtml + boxHtml +
+      '</div>' +
+      '<div class="fname">' + item.file.replace('.jpg','') + (item.night ? ' · 夜' : '') + (item.bad ? ' · 全黑' : '') + '</div>' +
+      '<div class="verdict">' +
+        '<button class="boxbtn" onclick="openLabel(' + i + ')">✏️ 标框（烟' + sb + '/干' + db + '）</button>' +
+        '<button class="nosmoke' + (v==='nosmoke'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'nosmoke\')">✓无烟</button>' +
+        '<button class="dis' + (v==='distractor'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'distractor\')">干扰</button>' +
+        '<button class="inv' + (v==='invalid'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'invalid\')">无效</button>' +
+        '<button class="unsure' + (v==='unsure'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'unsure\')">?</button>' +
+      '</div>';
+    grid.appendChild(card);
+  });
+  renderPagination(filtered.length, totalPages);
+  updateStats();
+}
+
+function renderPagination(total, totalPages){
+  const pg = document.getElementById('pagination');
+  pg.innerHTML = '';
+  const mk = (label, p, dis, on) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.disabled = dis; b.className = 'btn';
+    b.style.cssText = 'padding:4px 10px;border-color:' + (on ? 'var(--cyan)' : 'var(--line)') + ';background:' + (on ? 'rgba(0,170,255,.12)' : '#fff') + ';color:' + (on ? 'var(--cyan)' : 'var(--mut)');
+    b.onclick = () => { if (!dis) { page = p; render() } };
+    return b;
+  };
+  pg.appendChild(mk('← 上一页', page-1, page<=1, false));
+  const start = Math.max(1, page-2), end = Math.min(totalPages, start+4);
+  for (let p = start; p <= end; p++) pg.appendChild(mk(String(p), p, false, p===page));
+  pg.appendChild(mk('下一页 →', page+1, page>=totalPages, false));
+  const info = document.createElement('span');
+  info.style.cssText = 'margin-left:8px;color:var(--mut)';
+  info.textContent = '第 ' + page + ' / ' + totalPages + ' 页 · 筛选出 ' + total + ' 帧';
+  pg.appendChild(info);
+}
+
+function mark(file, v){
+  if (verdicts[file] === v){ delete verdicts[file] }
+  else {
+    if ((v === 'nosmoke' || v === 'invalid') && hasBox(file)){
+      if (!confirm('该帧已画框，标记为「' + (v === 'nosmoke' ? '无烟' : '无效帧') + '」将清除这些框，确认？')) return;
+      delete boxesMap[file];
+    }
+    verdicts[file] = v;
+  }
+  persist(); render();
+}
+
+function setFilter(f, btn){
+  filter = f; page = 1;
+  document.querySelectorAll('.filter .btn').forEach(b => { b.classList.remove('on'); b.style.background='#fff'; b.style.color=''; b.style.borderColor='' });
+  if (btn){ btn.classList.add('on'); btn.style.background='var(--blue)'; btn.style.color='#fff'; btn.style.borderColor='var(--blue)' }
+  render();
+}
+
+function updateStats(){
+  let s=0,n=0,d=0,iv=0,u=0;
+  FRAMES.forEach(item => {
+    const v = verdictOf(item.file);
+    if (v==='smoke') s++; else if (v==='nosmoke') n++;
+    else if (v==='distractor') d++; else if (v==='invalid') iv++;
+    else if (v==='unsure') u++;
+  });
+  document.getElementById('sSmoke').textContent = s;
+  document.getElementById('sNosmoke').textContent = n;
+  document.getElementById('sDis').textContent = d;
+  document.getElementById('sInv').textContent = iv;
+  document.getElementById('sUnsure').textContent = u;
+  document.getElementById('sTotal').textContent = FRAMES.length;
+  const done = s+n+d+iv+u;
+  document.getElementById('progHint').textContent =
+    '本批 ' + done + ' / ' + FRAMES.length + '（' + Math.round(done/FRAMES.length*100) + '%） ｜ 全局 ' + globalDone() + ' / ' + TOTAL_ALL;
+}
+
+function persist(){
+  localStorage.setItem(CV_KEY, JSON.stringify(boxesMap));
+  localStorage.setItem(V_KEY, JSON.stringify(verdicts));
+  localStorage.setItem(MODE_KEY, boxMode);
+}
+
+/* ---------- 标框画布 ---------- */
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+let img = new Image(), draft = null, dragMode = null, clickStart = null;
+
+function setMode(m){
+  curMode = m; boxMode = m;
+  document.getElementById('modeSmoke').classList.toggle('on', m==='smoke');
+  document.getElementById('modeDis').classList.toggle('on', m!=='smoke');
+  localStorage.setItem(MODE_KEY, m);
+}
+
+function openLabel(i){
+  labelIdx = i;
+  const item = FRAMES[i];
+  curBoxes = JSON.parse(JSON.stringify(boxesMap[item.file] || []));
+  SUG = (item.sug || []).map(b => ({
+    t: 'smoke', conf: b.conf,
+    x1: b.x1/1000, y1: b.y1/1000, x2: b.x2/1000, y2: b.y2/1000,
+  }));
+  document.getElementById('labFrameName').textContent = item.file;
+  document.getElementById('btnSuggest').textContent = '✨ 模型建议(S' + (SUG.length ? ' ' + SUG.length : ' 无') + ')';
+  document.getElementById('btnSuggest').disabled = !SUG.length;
+  refreshLabInfo();
+  setMode(boxMode);
+  img.onload = () => { fitCanvas(); draw() };
+  img.src = 'frames/' + item.file;
+  document.getElementById('labelModal').style.display = 'block';
+}
+
+function refreshLabInfo(){
+  const item = FRAMES[labelIdx];
+  const sb = curBoxes.filter(b=>b.t!=='distractor').length;
+  const db = curBoxes.filter(b=>b.t==='distractor').length;
+  document.getElementById('labInfo').textContent =
+    (labelIdx+1) + '/' + FRAMES.length + ' | 亮度 ' + item.bright + (item.night?' 夜':'') +
+    (item.bad ? ' | ⚠️全黑' : '') +
+    (SUG.length ? ' | 模型建议 ' + SUG.length + ' 个(最高 ' + (Math.max.apply(null, SUG.map(s=>s.conf))*100).toFixed(0) + '%)' : ' | 模型无建议') +
+    ' | 拖拽画框 · 单击框切类型 · 双击删框 · 烟框' + sb + ' 干扰' + db;
+}
+
+function loadSuggest(){
+  if (!SUG.length){ alert('本帧模型无建议框'); return }
+  const exist = curBoxes.length;
+  SUG.forEach(s => curBoxes.push({t:'smoke', x1:s.x1, y1:s.y1, x2:s.x2, y2:s.y2}));
+  draw(); refreshLabInfo();
+  if (exist) alert('已追加 ' + SUG.length + ' 个建议框（原有 ' + exist + ' 个保留）');
+}
+
+function fitCanvas(){
+  const wrap = document.querySelector('.canvaswrap');
+  const pad = 30;
+  const maxW = wrap.clientWidth - pad, maxH = wrap.clientHeight - pad;
+  const ratio = img.width / img.height;
+  let w = maxW, h = w / ratio;
+  if (h > maxH){ h = maxH; w = h * ratio }
+  cv.width = Math.max(100, w); cv.height = Math.max(100, h);
+}
+
+function toCanvas(b){ return {x1:b.x1*cv.width, y1:b.y1*cv.height, x2:b.x2*cv.width, y2:b.y2*cv.height} }
+function toNorm(b){
+  return {t:b.t,
+    x1:Math.max(0,Math.min(1,b.x1/cv.width)), y1:Math.max(0,Math.min(1,b.y1/cv.height)),
+    x2:Math.max(0,Math.min(1,b.x2/cv.width)), y2:Math.max(0,Math.min(1,b.y2/cv.height))}
+}
+function boxColor(b){ return b.t==='distractor' ? '#00d4ff' : '#ff4d4f' }
+
+function draw(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  if (img.width) cx.drawImage(img,0,0,cv.width,cv.height);
+  curBoxes.forEach(b => drawBox(toCanvas(b), boxColor(b), false, b.t==='distractor' ? '干扰' : '烟'));
+  if (draft) drawBox(draft, '#ffe600', true, '');
+}
+
+function drawBox(b, color, isDraft, label){
+  cx.setLineDash(isDraft ? [6,4] : []);
+  cx.strokeStyle = color; cx.lineWidth = isDraft ? 1.5 : 3;
+  cx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);
+  cx.setLineDash([]);
+  if (!isDraft){
+    cx.fillStyle = color;
+    const r = 4;
+    [[b.x1,b.y1],[b.x2,b.y1],[b.x1,b.y2],[b.x2,b.y2]].forEach(p => {
+      cx.beginPath(); cx.arc(p[0],p[1],r,0,Math.PI*2); cx.fill();
+    });
+    if (label){
+      cx.font = 'bold 14px monospace';
+      const tw = cx.measureText(label).width + 8;
+      cx.fillRect(b.x1, Math.max(0, b.y1-18), tw, 17);
+      cx.fillStyle = '#000'; cx.fillText(label, b.x1+4, Math.max(13, b.y1-4));
+    }
+  }
+}
+
+function pos(e){ const r = cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top} }
+
+function findBox(e){
+  const p = pos(e);
+  for (let bi = curBoxes.length-1; bi >= 0; bi--){
+    const b = toCanvas(curBoxes[bi]);
+    const corners = [[b.x1,b.y1,'x1','y1'],[b.x2,b.y1,'x2','y1'],[b.x1,b.y2,'x1','y2'],[b.x2,b.y2,'x2','y2']];
+    for (const c of corners){
+      if (Math.hypot(p.x-c[0], p.y-c[1]) < 14) return {bi:bi, type:'corner', cx:c[2], cy:c[3]};
+    }
+  }
+  for (let bi = curBoxes.length-1; bi >= 0; bi--){
+    const b = toCanvas(curBoxes[bi]);
+    if (p.x>=b.x1-6 && p.x<=b.x2+6 && p.y>=b.y1-6 && p.y<=b.y2+6) return {bi:bi, type:'move'};
+  }
+  return null;
+}
+
+cv.addEventListener('mousedown', e => {
+  const hit = findBox(e);
+  const p = pos(e);
+  clickStart = {x:p.x, y:p.y};
+  if (hit){ dragMode = hit; return }
+  draft = {x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+  dragMode = {type:'draw'};
+});
+
+cv.addEventListener('mousemove', e => {
+  if (!dragMode) return;
+  const p = pos(e);
+  if (dragMode.type === 'draw' && draft){ draft.x2 = p.x; draft.y2 = p.y; draw(); return }
+  const b = toCanvas(curBoxes[dragMode.bi]);
+  if (dragMode.type === 'move'){
+    if (!dragMode.sx){ dragMode.sx = p.x; dragMode.sy = p.y; dragMode.bx1 = b.x1; dragMode.by1 = b.y1 }
+    const dx = p.x-dragMode.sx, dy = p.y-dragMode.sy;
+    curBoxes[dragMode.bi] = toNorm({t:curBoxes[dragMode.bi].t, x1:dragMode.bx1+dx, y1:dragMode.by1+dy, x2:dragMode.bx1+dx+(b.x2-b.x1), y2:dragMode.by1+dy+(b.y2-b.y1)});
+    draw(); return;
+  }
+  if (dragMode.type === 'corner'){
+    const nb = {t:curBoxes[dragMode.bi].t, x1:b.x1, y1:b.y1, x2:b.x2, y2:b.y2};
+    nb[dragMode.cx] = p.x; nb[dragMode.cy] = p.y;
+    if (Math.abs(nb.x2-nb.x1) < 10) return;
+    if (Math.abs(nb.y2-nb.y1) < 10) return;
+    curBoxes[dragMode.bi] = toNorm(nb); draw(); return;
+  }
+});
+
+cv.addEventListener('mouseup', e => {
+  if (dragMode && dragMode.type === 'draw' && draft){
+    const nb = toNorm({t:curMode, x1:Math.min(draft.x1,draft.x2), y1:Math.min(draft.y1,draft.y2), x2:Math.max(draft.x1,draft.x2), y2:Math.max(draft.y1,draft.y2)});
+    if ((nb.x2-nb.x1)*cv.width > 14 && (nb.y2-nb.y1)*cv.height > 14) curBoxes.push(nb);
+  }
+  if (dragMode && (dragMode.type === 'move' || dragMode.type === 'corner') && e){
+    const p = pos(e);
+    if (clickStart && Math.hypot(p.x-clickStart.x, p.y-clickStart.y) < 5){
+      const b = curBoxes[dragMode.bi];
+      if (b.t === 'distractor'){ b.t = 'smoke' } else { b.t = 'distractor' }
+    }
+  }
+  draft = null; dragMode = null; clickStart = null; draw(); refreshLabInfo();
+});
+
+cv.addEventListener('dblclick', e => {
+  const hit = findBox(e);
+  if (hit && hit.type !== 'corner'){ curBoxes.splice(hit.bi,1); draw(); refreshLabInfo() }
+});
+
+function clearBoxes(){ if (confirm('删光本帧所有框？')){ curBoxes = []; draw(); refreshLabInfo() } }
+
+/* 跨全序列复制上一帧的框（本批第 1 帧可拿到上一批已标的框）*/
+function copyPrev(){
+  const cur = FRAMES[labelIdx].file;
+  const gi = ALL_FILES.indexOf(cur);
+  for (let k = gi-1; k >= 0 && k >= gi-4; k--){
+    const pb = boxesMap[ALL_FILES[k]] || [];
+    if (pb.length){
+      curBoxes = JSON.parse(JSON.stringify(pb));
+      draw();
+      alert('已复制 ' + ALL_FILES[k] + ' 的 ' + pb.length + ' 个框（间隔 ' + (gi-k) + ' 帧）');
+      return;
+    }
+  }
+  alert('往上 4 帧内没有可复制的框');
+}
+
+function applyVerdict(item){
+  const sb = curBoxes.filter(b => b.t !== 'distractor');
+  const db = curBoxes.filter(b => b.t === 'distractor');
+  if (sb.length){ verdicts[item.file] = 'smoke' }
+  else if (db.length && !verdicts[item.file]){ verdicts[item.file] = 'distractor' }
+}
+
+function saveLabel(){
+  const item = FRAMES[labelIdx];
+  if (curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes));
+  else delete boxesMap[item.file];
+  applyVerdict(item);
+  if (!verdicts[item.file]) verdicts[item.file] = 'nosmoke';
+  persist(); closeLabel();
+  const next = FRAMES.findIndex((f, i) => i > labelIdx && !verdictOf(f.file));
+  if (next >= 0) openLabel(next);
+}
+
+function markAndNext(v){
+  const item = FRAMES[labelIdx];
+  if (v !== 'smoke'){
+    // 有框却按 N/X = 会清框，属误触 → 先确认
+    if ((v === 'nosmoke' || v === 'invalid') && curBoxes.length){
+      if (!confirm('本帧已画 ' + curBoxes.length + ' 个框，标记为「' +
+                   (v === 'nosmoke' ? '无烟' : '无效帧') + '」会清除这些框。\n确认要清除吗？')) return;
+    }
+    if (curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes));
+    if (v === 'nosmoke' || v === 'invalid') delete boxesMap[item.file];
+  }
+  verdicts[item.file] = v;
+  persist(); closeLabel();
+  const next = FRAMES.findIndex((f, i) => i > labelIdx && !verdictOf(f.file));
+  if (next >= 0) openLabel(next);
+}
+
+function closeLabel(){
+  document.getElementById('labelModal').style.display = 'none';
+  labelIdx = -1;
+  render();
+}
+
+function navFrame(dir){
+  const ni = labelIdx + dir;
+  if (ni < 0 || ni >= FRAMES.length) return;
+  const item = FRAMES[labelIdx];
+  if (curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes));
+  else delete boxesMap[item.file];
+  applyVerdict(item);
+  persist();
+  openLabel(ni);
+}
+
+document.addEventListener('keydown', e => {
+  const helpOpen = document.getElementById('helpModal').style.display === 'block';
+  if (e.key === 'h' || e.key === 'H'){ e.preventDefault(); toggleHelp(); return }
+  if (helpOpen){ if (e.key === 'Escape') toggleHelp(); return }
+  if (labelIdx < 0) return;
+  if (e.key === 'Enter'){ e.preventDefault(); saveLabel() }
+  else if (e.key === 'Escape') closeLabel()
+  else if (e.key === 'ArrowRight') navFrame(1)
+  else if (e.key === 'ArrowLeft') navFrame(-1)
+  else if (e.key === 'n' || e.key === 'N') markAndNext('nosmoke')
+  else if (e.key === 'i' || e.key === 'I') markAndNext('distractor')
+  else if (e.key === 'x' || e.key === 'X') markAndNext('invalid')
+  else if (e.key === 's' || e.key === 'S') loadSuggest()
+  else if (e.key === '1') setMode('smoke')
+  else if (e.key === '2') setMode('distractor')
+  else if (e.key === 'c' || e.key === 'C') copyPrev()
+});
+
+function toggleHelp(){
+  const m = document.getElementById('helpModal');
+  m.style.display = m.style.display === 'block' ? 'none' : 'block';
+}
+
+/* ---------- 导入 ---------- */
+function importJSON(inp){
+  const f = inp.files && inp.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      SEED_APPLY(j);
+      persist(); render();
+      alert('导入成功：烟框 ' + (j.smokeFrames||[]).length + ' 帧 / 无烟 ' + (j.negativeFrames||[]).length + ' 帧 / 无效 ' + (j.invalidFrames||[]).length + ' 帧');
+    } catch(err){ alert('解析失败：' + err.message) }
+    inp.value = '';
+  };
+  rd.readAsText(f, 'utf-8');
+}
+
+function SEED_APPLY(j){
+  const y = j.yolo_norm_0_1000 || {};
+  Object.keys(y).forEach(f => {
+    const arr = (y[f] || []).map(b => ({
+      t:'smoke',
+      x1: Math.max(0,(b.cx-b.w/2)/1000), y1: Math.max(0,(b.cy-b.h/2)/1000),
+      x2: Math.min(1,(b.cx+b.w/2)/1000), y2: Math.min(1,(b.cy+b.h/2)/1000),
+    }));
+    if (arr.length) boxesMap[f] = arr;
+  });
+  const dd = j.distractors_norm_0_1000 || {};
+  Object.keys(dd).forEach(f => {
+    const arr = (dd[f] || []).map(b => ({ t:'distractor', x1:b.x1/1000, y1:b.y1/1000, x2:b.x2/1000, y2:b.y2/1000 }));
+    if (arr.length) boxesMap[f] = (boxesMap[f] || []).concat(arr);
+  });
+  verdicts = {};
+  (j.smokeFrames||[]).forEach(f => verdicts[f] = 'smoke');
+  (j.negativeFrames||[]).forEach(f => verdicts[f] = 'nosmoke');
+  (j.invalidFrames||[]).forEach(f => verdicts[f] = 'invalid');
+  (j.unsureFrames||[]).forEach(f => verdicts[f] = 'unsure');
+  (j.distractorFrames||[]).forEach(f => { if (!verdicts[f]) verdicts[f] = 'distractor' });
+}
+
+/* ---------- 导出（全量 318 帧合并）---------- */
+function exportAll(){
+  const smoke = {}, distract = {}, invalidF = [], nosmokeF = [], unsureF = [];
+  const metaBad = {};
+  FRAMES.forEach(it => { metaBad[it.file] = !!it.bad });
+
+  ALL_FILES.forEach(f => {
+    let v = verdictOf(f);
+    const sb = smokeBoxes(f), db = disBoxes(f);
+    if (v === 'smoke' && !sb.length) v = 'unsure';
+    if (v === 'invalid' || metaBad[f]){ invalidF.push(f); return }
+    if (v === 'nosmoke'){ nosmokeF.push(f); return }
+    if (v === 'unsure' || !v){ if (v) unsureF.push(f); return }
+    if (v === 'smoke' && sb.length){
+      smoke[f] = sb.map(b => ({
+        class: 0,
+        cx: Math.round(((b.x1+b.x2)/2)*1000),
+        cy: Math.round(((b.y1+b.y2)/2)*1000),
+        w: Math.round((b.x2-b.x1)*1000),
+        h: Math.round((b.y2-b.y1)*1000),
+      }));
+    }
+    if (db.length){
+      distract[f] = db.map(b => ({
+        x1: Math.round(b.x1*1000), y1: Math.round(b.y1*1000),
+        x2: Math.round(b.x2*1000), y2: Math.round(b.y2*1000),
+      }));
+    }
+  });
+
+  const out = {
+    dataset: 'train_0909',
+    batch: 'v4_buchong',
+    videos: VIDEOS,
+    totalFrames: TOTAL_ALL,
+    batchFrames: FRAMES.length,
+    smokeFrames: Object.keys(smoke),
+    smokeBoxCount: Object.values(smoke).reduce((a,b) => a+b.length, 0),
+    negativeFrames: nosmokeF,
+    distractorFrames: Object.keys(distract),
+    distractorBoxCount: Object.values(distract).reduce((a,b) => a+b.length, 0),
+    invalidFrames: invalidF,
+    unsureFrames: unsureF,
+    yolo_norm_0_1000: smoke,
+    distractors_norm_0_1000: distract,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'train_0909_labels_v4.json';
+  a.click();
+  alert('已导出（全量合并）：\n烟框 ' + out.smokeFrames.length + ' 帧 / ' + out.smokeBoxCount + ' 框\n干扰区 ' + out.distractorFrames.length + ' 帧 / ' + out.distractorBoxCount + ' 框\n无烟负样本 ' + nosmokeF.length + ' 帧\n无效帧 ' + invalidF.length + ' 帧\n不确定 ' + unsureF.length + ' 帧\n合计 ' + TOTAL_ALL + ' 帧');
+}
+
+setFilter('todo', document.querySelector('.filter .btn'));
+if (seeded) setTimeout(() => alert('已自动载入上一批标注（作为背景数据，导出时为全量合并）。\n本页只显示待补标的 ' + FRAMES.length + ' 帧。'), 300);
+</script>
+</body>
+</html>

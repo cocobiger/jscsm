@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9/10 晚间三架次 · 防污染人工复核台 v5</title>
+<style>
+  :root{--ink:#1f2733;--mut:#5c6b7f;--line:#dbe2ec;--blue:#1b4f9e;--blue2:#eaf1fb;--red:#c0392b;--amber:#b7791f;--amber2:#fff7e6;--green:#1e8e5a;--cyan:#00aaff;--gray:#7a8a9a;--purple:#6b3fc4}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei",system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.6;background:#f2f5f9;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .topbar h1{font-size:16px;color:var(--blue);white-space:nowrap}
+  .topbar .hint{font-size:12px;color:var(--mut)}
+  .stats{display:flex;gap:10px;font-size:12px;margin-left:auto;flex-wrap:wrap}
+  .stat b{font-size:15px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:4px;padding:4px 11px;font-size:12px;cursor:pointer}
+  .grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;align-content:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+  .card[data-v="smoke"]{border-color:var(--red);box-shadow:0 0 0 2px #fdecea}
+  .card[data-v="nosmoke"]{border-color:var(--green)}
+  .card[data-v="distractor"]{border-color:var(--cyan)}
+  .card[data-v="invalid"]{border-color:#b6bec9;opacity:.5}
+  .card[data-v="unsure"]{border-color:var(--amber)}
+  .card.locked{opacity:.62;background:#f6f8fb}
+  /* 卡片图片按原始比例显示（不裁剪）：旧实现 aspect-ratio:4/3 + object-fit:cover 会把 16:9 帧
+     左右各裁 12.5%，导致「标框/建议框」在卡片上显示偏移（2026-09-11 修复） */
+  .imgwrap{position:relative;background:#000;cursor:zoom-in}
+  .imgwrap img{width:100%;height:auto;display:block}
+  .tag{position:absolute;font-size:10px;padding:1px 6px;border-radius:3px;font-family:monospace;color:#fff}
+  .t-sn{top:5px;left:6px;background:rgba(0,0,0,.62)}
+  .t-br{top:5px;right:6px;background:rgba(80,90,100,.85)}
+  .t-conf{bottom:5px;right:6px;background:rgba(0,170,255,.9);font-weight:700}
+  .t-box{bottom:5px;left:6px;background:rgba(192,57,43,.92)}
+  .t-dis{bottom:5px;left:6px;background:rgba(0,170,255,.92)}
+  .t-sug{top:5px;left:50%;transform:translateX(-50%);background:rgba(183,121,31,.95)}
+  .t-lock{top:26px;left:6px;background:rgba(90,60,20,.9)}
+  .t-amb{bottom:5px;left:50%;transform:translateX(-50%);background:rgba(107,63,196,.92)}
+  .fname{font-family:monospace;font-size:10px;color:var(--mut);padding:4px 10px 0}
+  .verdict{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .verdict button{border:1px solid var(--line);background:#fff;border-radius:4px;padding:5px 4px;font-size:11px;cursor:pointer;flex:1;min-width:52px}
+  .verdict button.boxbtn{background:var(--cyan);color:#fff;border-color:var(--cyan);flex:1 0 100%}
+  .verdict button.nosmoke.on{background:var(--green);color:#fff;border-color:var(--green)}
+  .verdict button.dis.on{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+  .verdict button.inv.on{background:var(--gray);color:#fff;border-color:var(--gray)}
+  .verdict button.unsure.on{background:var(--amber);color:#fff;border-color:var(--amber)}
+  #pagination{padding:8px 14px;background:#fff;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}
+  .labelmodal{position:fixed;inset:0;background:rgba(0,8,20,.97);display:none;z-index:200}
+  .labelmodal .inner{position:absolute;inset:0;display:flex;flex-direction:column}
+  .labelbar{background:#0a1628;padding:8px 14px;display:flex;align-items:center;gap:10px;color:#c8e6ff;font-size:13px;border-bottom:1px solid rgba(0,150,220,.2);flex-wrap:wrap}
+  .labelbar .info{font-size:12px;color:#7ab8e0}
+  .labelbar button{border:1px solid var(--cyan);background:transparent;color:var(--cyan);border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .labelbar button.solid{background:var(--cyan);color:#fff}
+  .labelbar button.solid.green{background:var(--green);border-color:var(--green)}
+  .labelbar button.solid.red{background:var(--red);border-color:var(--red)}
+  .labelbar button.solid.gray{background:var(--gray);border-color:var(--gray)}
+  .labelbar button.solid.amber{background:var(--amber);border-color:var(--amber)}
+  .labelbar button.mode.on{background:#fff;color:#0a1628;border-color:#fff;font-weight:700}
+  .canvaswrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;position:relative}
+  #cv{max-width:96%;max-height:96%;cursor:crosshair;background:#000}
+  .framenav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,170,255,.28);color:#fff;border:none;font-size:26px;padding:10px 14px;cursor:pointer;border-radius:6px}
+  .framenav:hover{background:rgba(0,170,255,.6)}
+  .banner{background:var(--amber2);border-left:4px solid var(--amber);padding:7px 14px;font-size:12px;color:#7a5210}
+  .warnbar{background:#fdecec;border-left:4px solid var(--red);padding:7px 14px;font-size:12px;color:#8a1c14;display:none}
+  .modal{position:fixed;inset:0;background:rgba(0,8,20,.92);display:none;z-index:300;align-items:center;justify-content:center;padding:20px}
+  .modal .box{background:#fff;border-radius:12px;max-width:920px;width:100%;max-height:92%;overflow-y:auto;padding:22px 26px}
+  .modal h2{font-size:17px;color:var(--blue);margin-bottom:12px}
+  .modal h3{font-size:14px;margin:16px 0 8px;color:var(--ink)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;margin:8px 0}
+  .kv b{color:var(--mut);font-weight:600}
+  .gate{background:#fdecec;border:2px solid var(--red);border-radius:8px;padding:12px 14px;margin:12px 0;font-size:13px;color:#8a1c14}
+  .pass{background:#eefa F2;background:#eefaf2;border:2px solid var(--green);border-radius:8px;padding:12px 14px;margin:12px 0;font-size:13px}
+  .feat{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+  .feat h4{font-size:13px;color:var(--blue);margin-bottom:6px}
+  .feat .why{background:var(--amber2);border-left:3px solid var(--amber);padding:6px 10px;font-size:12px;margin-top:6px;border-radius:4px}
+  .feat .bad{background:#fdecec;border-left:3px solid var(--red);padding:6px 10px;font-size:12px;margin-top:6px;border-radius:4px}
+  .mono{font-family:Consolas,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🛡️ 9/10 晚间三架次 · 防污染复核台 v5</h1>
+  <span class="hint">主标对象 <b id="sBatch">0</b> 帧（含低置信检出）· 历史 318 帧<b>锁定只读</b> · 红框=烟羽正样本 · 青框=干扰区负样本</span>
+  <div class="stats">
+    <div class="stat">本批 <b id="sTotal">0</b></div>
+    <div class="stat" style="color:var(--red)">有烟 <b id="sSmoke">0</b></div>
+    <div class="stat" style="color:var(--green)">无烟 <b id="sNosmoke">0</b></div>
+    <div class="stat" style="color:var(--cyan)">干扰 <b id="sDis">0</b></div>
+    <div class="stat" style="color:var(--gray)">无效 <b id="sInv">0</b></div>
+    <div class="stat" style="color:var(--amber)">不确定 <b id="sUnsure">0</b></div>
+  </div>
+</div>
+<div class="topbar" style="border-top:none;padding-top:0">
+  <button class="btn" onclick="openExport()" style="background:var(--green);color:#fff;border-color:var(--green)">⬇ 导出（先出体检单）</button>
+  <button class="btn" onclick="document.getElementById('impFile').click()" style="background:var(--blue2);border-color:var(--blue)">⬆ 导入 JSON</button>
+  <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(this)">
+  <button class="btn" onclick="toggleHelp()" style="background:var(--blue);color:#fff;border-color:var(--blue)">📖 功能说明(H)</button>
+  <button class="btn" onclick="toggleChangeLog()">📝 变更日志(<span id="sLog">0</span>)</button>
+  <div class="filter" style="display:flex;gap:4px;flex-wrap:wrap">
+    <button class="btn on" onclick="setFilter('todo',this)">待标注</button>
+    <button class="btn" onclick="setFilter('suggest',this)">有模型建议</button>
+    <button class="btn" onclick="setFilter('smoke',this)">有烟</button>
+    <button class="btn" onclick="setFilter('amb',this)">同景风险</button>
+    <button class="btn" onclick="setFilter('legacy',this)">历史锁定(318)</button>
+    <button class="btn" onclick="setFilter('all',this)">全部</button>
+    <select id="segSel" onchange="setSeg(this.value)" title="按「录制分段」筛选（同一架次连续录制为一个分段）"
+      style="border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:12px;background:#fff;color:var(--mut);max-width:280px"></select>
+  </div>
+  <span class="hint" id="progHint"></span>
+</div>
+<div class="banner" id="banner"></div>
+<div class="warnbar" id="warnbar"></div>
+<div id="pagination"></div>
+<div class="grid" id="grid"></div>
+
+<!-- 📖 功能说明 -->
+<div class="modal" id="helpModal">
+  <div class="box">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <h2 style="flex:1;font-size:17px;color:var(--blue)">📖 功能说明（逐项：用途 / 操作 / 为什么这样设计 / 误操作后果）</h2>
+      <button class="btn" onclick="toggleHelp()" style="padding:5px 14px">✕ 关闭(H/Esc)</button>
+    </div>
+
+    <div class="feat">
+      <h4>① 五类帧判定（有烟 / 无烟 / 干扰无烟 / 无效 / 不确定）</h4>
+      <div><b>用途：</b>决定每帧以什么身份进入数据集。<b>操作：</b>卡片下方按钮，或标框弹窗内 N / I / X / ? 快捷键。<b>判定顺序：</b>先看不清→无效X；有烟→红框（自动=有烟）；没烟但有易误检物→干扰无烟I+青框；干净背景→无烟N；拿不准→不确定?（不进训练）。</div>
+      <div class="bad"><b>误操作后果：</b>把「淡烟」误标成无烟 = 未标注正样本，模型学不到；把「灯光/火光」标成有烟 = 教模型「亮斑=烟」，白天大量误报。</div>
+    </div>
+
+    <div class="feat">
+      <h4>② 红框（烟羽）与 青框（干扰区）</h4>
+      <div><b>用途：</b>区域级监督 —— 红框告诉模型「这是烟」，青框告诉模型「这里不是烟」。<b>操作：</b>弹窗顶部切换框类型（快捷键 1 / 2）；单击已画框可切换类型；双击删框。</div>
+      <div class="why"><b>「干扰无烟 I」不会跳帧：</b>点它（或按 I）后页面<b>停在本帧并自动切换到青框模式</b>，信息栏会提示「请拖动画青框圈出干扰区」，画完按 Enter 确认才进入下一帧。这是 9/11 修复的旧缺陷 —— 之前会直接跳走，导致来不及画青框。</div>
+      <div class="why"><b>为什么：</b>9/9 那批<b>干扰区青框 = 0 个</b>，模型只能靠整帧「无烟」学抑制，学不会抑制哪些区域，夜间亮区因此误报。</div>
+      <div class="bad"><b>误操作后果：</b>火点画红框 = 教模型「橙色亮斑=烟」→ 白天在篝火/路灯/橙红屋顶误报，是污染淡烟检测最快的方式。火点永远画青框。</div>
+    </div>
+
+    <div class="feat">
+      <h4>③ 🌙 夜帧徽标 + 夜间青框提醒</h4>
+      <div><b>用途：</b>夜帧（亮度低或 19:00 后拍摄）容易把城镇灯光/反光当成烟。<b>操作：</b>夜帧标记「无烟」时，若一个青框都没画，会弹确认，要求你圈出易混淆亮区；可跳过但会被记录在导出报告里。</div>
+      <div class="why"><b>为什么：</b>stage4 失败根因 —— 夜间负样本与真烟帧<b>视觉几乎同景</b>（同款城镇灯光），模型分不清「无烟」和「有烟但没标」。</div>
+    </div>
+
+    <div class="feat">
+      <h4>④ 同景警示（🟣 同景风险标记）</h4>
+      <div><b>用途：</b>当你把某帧标成「无烟」，但它邻近帧（同架次 ±5 帧内）已标为真烟时，弹警示并把该帧打上 🟣 标记、归入 <span class="mono">hardNegAmbiguous</span> 分区。</div>
+      <div class="why"><b>为什么：</b>这类「同景负样本」正是 stage4 打乱决策边界的元凶。它们<b>默认不进训练负样本</b>，是否入集交给训练脚本按批决定 —— 标注端不再悄悄掺入。</div>
+      <div class="bad"><b>误操作后果：</b>若确实是真烟而误标无烟，不仅丢正样本，还会同时制造一个「明明有烟却说没烟」的错误负样本，双重污染。</div>
+    </div>
+
+    <div class="feat">
+      <h4>⑤ 历史 318 帧锁定只读（🔒）</h4>
+      <div><b>用途：</b>9/9 已入集（828 行、stage3 现网模型）的标注在本页<b>只读</b>：可查看、不可改。<b>操作：</b>切到「历史锁定(318)」查看；确需修改须点 🔒 解锁并填写原因，修改记录进「变更日志」。</div>
+      <div class="why"><b>为什么：</b>导出是<b>全量合并</b>的，改一帧旧标注 = 已训练过的数据集悄悄变了（训练集漂移），且极难回溯。</div>
+      <div class="bad"><b>误操作后果：</b>改动旧标注后，本轮评测与 stage3 基线不再可比，模型好坏无法判断。</div>
+    </div>
+
+    <div class="feat">
+      <h4>⑥ 导出体检单（硬门禁）</h4>
+      <div><b>用途：</b>点导出不会直接下载，先出体检单：新增正样本 / 新增负样本 / 正:负比 / 昼夜配比 / 同景风险清单 / 变更日志。<b>操作：</b>体检单里选「仅导出正样本包」或「仍全量导出（记录风险）」。</div>
+      <div class="why"><b>为什么：</b>stage4 = +7 正样本却塞进 26 个高难负样本，正负增量失衡直接把召回从 95% 打到 75%。当「新增负样本 &gt; 新增正样本 × 2」时全量导出被<b>阻断</b>。</div>
+    </div>
+
+    <div class="feat">
+      <h4>⑦ 黑名单隔离（模拟器 / 机场直连流）</h4>
+      <div><b>用途：</b><span class="mono">SIM_SMOKE</span>（107 帧模拟数据）与机场直连流（机库画面）默认不出现在本页；即便被强行载入，也带 ⛔ 禁标标记且导出时硬性剔除。</div>
+      <div class="bad"><b>误操作后果：</b>模拟数据入训练集 = 指标虚高、真飞全瞎。</div>
+    </div>
+
+    <div class="feat">
+      <h4>⑧ 全黑 / 残帧（模糊）自动预检</h4>
+      <div><b>用途：</b>生成页面时逐帧算亮度与<b>清晰度（拉普拉斯方差 lap）</b>：全黑（亮度&lt;8）或 <b>lap &lt; 80</b> 的帧自动预标「无效帧 X」，卡片标 ⚠️残帧/模糊 并灰显。<b>操作：</b>一般直接跳过（筛选「待标注」时它们已不在列表里）；若你认为某帧其实可用，可以手动改回判定。</div>
+      <div class="why"><b>为什么：</b>9/9 曾出现 9 帧全黑险些入集；9/11 白天批次又发现 47 帧「录制末尾残帧」（亮度正常但 lap 接近 0，是运动模糊/录制截断产物，集中在每段最后 1-3 帧）。这类帧边界糊，若在上面画红框当正样本，会给模型喂「边界不确定的正样本」，<b>直接压低框级定位</b>——而我们当前白天唯一的短板正是框召回（78.8%）。</div>
+      <div class="bad"><b>误操作后果：</b>把残帧当正样本画框 = 引入噪声；把它们当负样本 = 教模型「糊=没烟」，同样有害。所以统一判「无效」最安全。</div>
+    </div>
+
+    <div class="feat">
+      <h4>⑨ 录制分段筛选（顶栏下拉）</h4>
+      <div><b>用途：</b>把抽帧按「录制分段」（同一架次的一段连续录制）分开标注，下拉里直接显示每段的 <b>已标 / 总数</b> 进度。<b>操作：</b>选一个段 → 只标该段 → 标完切下一段。</div>
+      <div class="why"><b>为什么建议按段标：</b>同一段内画面连续、光照与地形一致、烟羽位置相邻，判定标准最容易保持一致，能显著降低「同景误标」；跨段跳着标则容易前后标准不一（这正是同景风险的来源）。</div>
+    </div>
+
+    <h3>⌨️ 快捷键</h3>
+    <div class="mono" style="line-height:1.9;color:var(--mut)">
+      Enter 确认并下一帧 · N 无烟 · I 干扰无烟 · X 无效 · ? 不确定<br>
+      1 烟羽框 · 2 干扰框 · S 载入模型建议框 · ←→ 上一帧/下一帧<br>
+      双击删框 · 单击框切类型 · H 功能说明 · Esc 关闭
+    </div>
+
+    <h3>🔥 夜间有火怎么标（核心：火 ≠ 烟）</h3>
+    <ol style="padding-left:20px;font-size:13px;line-height:1.9">
+      <li><b>火点 / 火光本身</b> → 青框（干扰区）。<b style="color:var(--red)">绝对不要画红框</b></li>
+      <li><b>火点上方有可见烟柱</b> → 只框那一段烟（红框），不要把火点框进去</li>
+      <li><b>看不出烟</b> → 「干扰无烟 I」+ 火点青框</li>
+      <li><b>淡烟（稀释远烟）</b>：低对比度、偏蓝灰、边缘发虚 —— 看得出是烟就<b>照样标红框</b>，这正是模型当前盲区</li>
+    </ol>
+  </div>
+</div>
+
+<!-- 导出体检单 -->
+<div class="modal" id="exportModal">
+  <div class="box">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <h2 style="flex:1;font-size:17px;color:var(--blue)">🩺 入集体检单</h2>
+      <button class="btn" onclick="document.getElementById('exportModal').style.display='none'">✕ 关闭</button>
+    </div>
+    <div id="checkBody"></div>
+    <div id="checkActions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- 变更日志 -->
+<div class="modal" id="logModal">
+  <div class="box" style="max-width:640px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <h2 style="flex:1;font-size:16px;color:var(--blue)">📝 变更日志（对已入集帧的修改）</h2>
+      <button class="btn" onclick="document.getElementById('logModal').style.display='none'">✕</button>
+    </div>
+    <div id="logBody" class="mono" style="font-size:12px;line-height:1.9"></div>
+  </div>
+</div>
+
+<!-- 标框弹窗 -->
+<div class="labelmodal" id="labelModal">
+  <div class="inner">
+    <div class="labelbar">
+      <span id="labFrameName" style="font-family:monospace"></span>
+      <span class="info" id="labInfo"></span>
+      <button class="mode on" id="modeSmoke" onclick="setMode('smoke')">框类型：烟羽</button>
+      <button class="mode" id="modeDis" onclick="setMode('distractor')">干扰区</button>
+      <button class="solid amber" id="btnSuggest" onclick="loadSuggest()">✨ 模型建议(S)</button>
+      <button class="solid green" onclick="saveLabel()">✓ 确认(Enter)</button>
+      <button onclick="markAndNext('nosmoke')">无烟(N)</button>
+      <button onclick="markDistractorStay()">干扰无烟(I)</button>
+      <button class="solid gray" onclick="markAndNext('invalid')">无效帧(X)</button>
+      <button onclick="markAndNext('unsure')">不确定(?)</button>
+      <button onclick="clearBoxes()">删光框</button>
+      <button onclick="closeLabel()">✕(Esc)</button>
+    </div>
+    <div class="canvaswrap">
+      <canvas id="cv"></canvas>
+      <button class="framenav" style="left:12px" onclick="navFrame(-1)">‹</button>
+      <button class="framenav" style="right:12px" onclick="navFrame(1)">›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = /*__DATA__*/{};
+const FRAMES = (DATA.frames || []).sort((a,b) => a.ts - b.ts);
+const PAGE_SIZE = 50;
+const K = { b:'review_0910_v5_boxes', v:'review_0910_v5_verdicts', m:'review_0910_v5_mode',
+            f:'review_0910_v5_flag', log:'review_0910_v5_changelog', amb:'review_0910_v5_amb',
+            skip:'review_0910_v5_skipped', init:'review_0910_v5_init' };
+
+let boxesMap = JSON.parse(localStorage.getItem(K.b) || '{}');
+let verdicts = JSON.parse(localStorage.getItem(K.v) || '{}');
+let boxMode  = localStorage.getItem(K.m) || 'smoke';
+let ambSet   = new Set(JSON.parse(localStorage.getItem(K.amb) || '[]'));
+let skipped  = new Set(JSON.parse(localStorage.getItem(K.skip) || '[]'));
+let changeLog= JSON.parse(localStorage.getItem(K.log) || '[]');
+let unlocked = new Set();
+
+/* ---------- 历史锁定种子（9/9 已入集 318 帧，只读）---------- */
+const LEGACY = {};
+(function buildLegacy(){
+  const s = DATA.legacySeed || {};
+  const y = s.yolo_norm_0_1000 || {}, dd = s.distractors_norm_0_1000 || {};
+  Object.keys(y).forEach(f => {
+    LEGACY[f] = { verdict:'smoke', boxes:(y[f]||[]).map(b => ({
+      t:'smoke', x1:Math.max(0,(b.cx-b.w/2)/1000), y1:Math.max(0,(b.cy-b.h/2)/1000),
+      x2:Math.min(1,(b.cx+b.w/2)/1000), y2:Math.min(1,(b.cy+b.h/2)/1000) })) };
+  });
+  Object.keys(dd).forEach(f => {
+    const arr = (dd[f]||[]).map(b => ({t:'distractor', x1:b.x1/1000, y1:b.y1/1000, x2:b.x2/1000, y2:b.y2/1000}));
+    if (LEGACY[f]) LEGACY[f].boxes = LEGACY[f].boxes.concat(arr);
+    else LEGACY[f] = { verdict:'distractor', boxes:arr };
+  });
+  (s.negativeFrames||[]).forEach(f => { if (!LEGACY[f]) LEGACY[f] = {verdict:'nosmoke', boxes:[]} });
+  (s.invalidFrames||[]).forEach(f => { if (!LEGACY[f]) LEGACY[f] = {verdict:'invalid', boxes:[]} });
+  (s.unsureFrames||[]).forEach(f => { if (!LEGACY[f]) LEGACY[f] = {verdict:'unsure', boxes:[]} });
+})();
+const LEGACY_FILES = Object.keys(LEGACY);
+
+/* 首装：把历史种子并入 verdicts/boxes（只读来源），并预标黑帧 */
+if (!localStorage.getItem(K.init)){
+  LEGACY_FILES.forEach(f => {
+    if (!verdicts[f]) verdicts[f] = LEGACY[f].verdict;
+    if (!boxesMap[f] && LEGACY[f].boxes.length) boxesMap[f] = LEGACY[f].boxes;
+  });
+  // 全黑帧 + 「糊/残帧」（清晰度 lap < 阈值，多为录制末尾截断帧）自动预标无效帧
+  FRAMES.forEach(it => { if ((it.bad || it.blurBad) && !verdicts[it.file]) verdicts[it.file] = 'invalid' });
+  localStorage.setItem(K.init, '1');
+  persist();
+}
+
+function isLocked(f){ return !!LEGACY[f] && !unlocked.has(f) }
+function hasBox(f){ return (boxesMap[f] || []).length > 0 }
+function smokeBoxes(f){ return (boxesMap[f] || []).filter(b => b.t !== 'distractor') }
+function disBoxes(f){ return (boxesMap[f] || []).filter(b => b.t === 'distractor') }
+function isAmb(f){ return ambSet.has(f) }
+function verdictOf(file){
+  if (verdicts[file]) return verdicts[file];
+  if (smokeBoxes(file).length) return 'smoke';
+  if (disBoxes(file).length) return 'distractor';
+  return '';
+}
+/** 同景风险：同架次内 ±5 帧（时间序）存在已标真烟 */
+function ambNeighbors(file){
+  const i = FRAMES.findIndex(x => x.file === file);
+  if (i < 0) return [];
+  const out = [];
+  const sn = FRAMES[i].sn;
+  for (let k = Math.max(0, i-5); k <= Math.min(FRAMES.length-1, i+5); k++){
+    if (k === i || FRAMES[k].sn !== sn) continue;
+    if (verdictOf(FRAMES[k].file) === 'smoke') out.push(FRAMES[k].file);
+  }
+  return out;
+}
+
+let filter = 'todo', page = 1, labelIdx = -1, curBoxes = [], curMode = boxMode, SUG = [];
+let segFilter = '';   // 录制分段筛选（''=全部）
+let pendingDis = false;  // 已标「干扰无烟」、等待画青框（此时不跳帧）
+
+/** 分段 = 帧文件名中 '/' 前的目录名（媒体归档抽帧时按录制分段建目录） */
+function segOf(f){ const i = f.indexOf('/'); return i > 0 ? f.slice(0, i) : '' }
+const SEG_LIST = (function(){
+  const m = {};
+  FRAMES.forEach(it => { const s = segOf(it.file) || '本批'; m[s] = (m[s] || 0) + 1 });
+  return Object.keys(m).sort().map(s => ({ seg: s, n: m[s] }));
+})();
+function segDone(seg){
+  let k = 0;
+  FRAMES.forEach(it => { if ((segOf(it.file) || '本批') === seg && verdictOf(it.file)) k++ });
+  return k;
+}
+function renderSegSel(){
+  const sel = document.getElementById('segSel');
+  if (!sel) return;
+  const opts = ['<option value="">全部录制段（' + FRAMES.length + ' 帧）</option>'];
+  SEG_LIST.forEach(s => {
+    opts.push('<option value="' + s.seg + '">' + s.seg + '　' + segDone(s.seg) + '/' + s.n + '</option>');
+  });
+  sel.innerHTML = opts.join('');
+  sel.value = segFilter;
+}
+function setSeg(v){ segFilter = v; page = 1; render() }
+
+function persist(){
+  localStorage.setItem(K.b, JSON.stringify(boxesMap));
+  localStorage.setItem(K.v, JSON.stringify(verdicts));
+  localStorage.setItem(K.m, boxMode);
+  localStorage.setItem(K.amb, JSON.stringify([...ambSet]));
+  localStorage.setItem(K.skip, JSON.stringify([...skipped]));
+  localStorage.setItem(K.log, JSON.stringify(changeLog));
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const legacyMode = (filter === 'legacy');
+  const pool = legacyMode ? LEGACY_FILES.map(f => ({file:f, sn:'9/9 历史', label:'已入集', url:(DATA.legacyFrameBase||'')+f, time:'', type:'legacy', bright:0, night:false, bad:false, conf:0, sug:[], legacy:true}))
+                          : FRAMES;
+  const filtered = pool.filter(item => {
+    if (legacyMode) return true;
+    if (segFilter && (segOf(item.file) || '本批') !== segFilter) return false;
+    const v = verdictOf(item.file);
+    if (filter === 'todo') return !v;
+    if (filter === 'all') return true;
+    if (filter === 'suggest') return (item.sug || []).length > 0;
+    if (filter === 'amb') return isAmb(item.file);
+    return v === filter;
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  page = Math.max(1, Math.min(page, totalPages));
+  filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE).forEach(item => {
+    const i = FRAMES.indexOf(item);
+    const sb = smokeBoxes(item.file).length, db = disBoxes(item.file).length;
+    const v = verdictOf(item.file);
+    const lock = isLocked(item.file);
+    const card = document.createElement('div');
+    card.className = 'card' + (lock ? ' locked' : '');
+    card.dataset.v = v;
+    const bestC = (item.sug || []).length ? Math.max.apply(null, item.sug.map(b => b.conf || b.confidence || 0)) : 0;
+    const confHtml = bestC >= 0.15 ? '<div class="tag t-conf">模型 ' + (bestC*100).toFixed(0) + '%</div>' : '';
+    const sugHtml = (item.sug || []).length ? '<div class="tag t-sug">建议 ' + item.sug.length + '</div>' : '';
+    const boxHtml = sb ? '<div class="tag t-box">烟框 ' + sb + '</div>' : (db ? '<div class="tag t-dis">干扰 ' + db + '</div>' : '');
+    const lockHtml = lock ? '<div class="tag t-lock">🔒 已入集（只读）</div>' : '';
+    const ambHtml = isAmb(item.file) ? '<div class="tag t-amb">🟣 同景风险</div>' : '';
+    const nightHtml = item.night ? ' · 🌙夜' : '';
+    const badHtml = item.bad ? ' · ⚫全黑' : '';
+    const blurHtml = (!item.bad && item.blurBad) ? ' · ⚠️残帧/模糊' : '';
+    const lapHtml = (item.lap != null) ? ' · 清晰度 ' + item.lap : '';
+    const acts = lock
+      ? '<button class="boxbtn" onclick="unlockLegacy(\'' + item.file + '\')">🔒 只读（点此解锁并填写原因）</button>'
+      : '<button class="boxbtn" onclick="openLabel(' + i + ')">✏️ 标框（烟' + sb + '/干' + db + '）</button>' +
+        '<button class="nosmoke' + (v==='nosmoke'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'nosmoke\')">✓无烟</button>' +
+        '<button class="dis' + (v==='distractor'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'distractor\')">干扰</button>' +
+        '<button class="inv' + (v==='invalid'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'invalid\')">无效</button>' +
+        '<button class="unsure' + (v==='unsure'?' on':'') + '" onclick="mark(\'' + item.file + '\',\'unsure\')">?</button>';
+    card.innerHTML =
+      '<div class="imgwrap" onclick="' + (lock ? 'unlockLegacy(\'' + item.file + '\')' : 'openLabel(' + i + ')') + '">' +
+        '<img loading="lazy" src="' + item.url + '">' +
+        '<div class="tag t-sn">' + (item.label || item.sn) + (item.time ? ' ' + item.time : '') + '</div>' +
+        (item.bright ? '<div class="tag t-br">' + item.bright + '</div>' : '') +
+        sugHtml + confHtml + boxHtml + lockHtml + ambHtml +
+      '</div>' +
+      '<div class="fname">' + item.file.replace('.jpg','') + nightHtml + badHtml + blurHtml + lapHtml + (item.type==='low' ? ' · 低置信检出' : '') + '</div>' +
+      '<div class="verdict">' + acts + '</div>';
+    grid.appendChild(card);
+  });
+  renderPagination(filtered.length, totalPages);
+  updateStats();
+  renderSegSel();
+}
+
+function renderPagination(total, totalPages){
+  const pg = document.getElementById('pagination');
+  pg.innerHTML = '';
+  const mk = (label, p, dis, on) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.disabled = dis; b.className = 'btn';
+    b.style.cssText = 'padding:4px 10px;border-color:' + (on?'var(--cyan)':'var(--line)') + ';background:' + (on?'rgba(0,170,255,.12)':'#fff') + ';color:' + (on?'var(--cyan)':'var(--mut)');
+    b.onclick = () => { if (!dis){ page = p; render() } };
+    return b;
+  };
+  pg.appendChild(mk('← 上一页', page-1, page<=1, false));
+  const start = Math.max(1, page-2), end = Math.min(totalPages, start+4);
+  for (let p = start; p <= end; p++) pg.appendChild(mk(String(p), p, false, p===page));
+  pg.appendChild(mk('下一页 →', page+1, page>=totalPages, false));
+  const info = document.createElement('span');
+  info.style.cssText = 'margin-left:8px;color:var(--mut)';
+  info.textContent = '第 ' + page + ' / ' + totalPages + ' 页 · 筛选出 ' + total + ' 帧';
+  pg.appendChild(info);
+}
+
+function unlockLegacy(file){
+  const why = prompt('⚠️ 该帧已参与 stage3 训练（已入集），修改会造成数据集漂移。\n请填写修改原因：');
+  if (!why) return;
+  unlocked.add(file);
+  changeLog.push({ file:file, reason:why, at:new Date().toISOString() });
+  persist(); render();
+}
+
+function mark(file, v){
+  if (isLocked(file)){ alert('🔒 该帧已入集为只读。如需修改请先点 🔒 解锁并填写原因。'); return }
+  if (verdicts[file] === v){ delete verdicts[file]; ambSet.delete(file) }
+  else {
+    if ((v === 'nosmoke' || v === 'invalid') && hasBox(file)){
+      if (!confirm('该帧已画框，标记「' + (v==='nosmoke'?'无烟':'无效帧') + '」将清除这些框，确认？')) return;
+      delete boxesMap[file];
+    }
+    if (v === 'nosmoke'){
+      const nb = ambNeighbors(file);
+      if (nb.length){
+        const ok = confirm('🟣 同景风险：邻近帧 ' + nb.slice(0,3).join(' / ') + ' 已标为真烟。\n同一场景既标「有烟」又标「无烟」会打乱模型决策边界（stage4 失败根因）。\n\n该帧将被标记🟣并归入 hardNegAmbiguous 分区（默认不进训练负样本）。\n确定标为「无烟」吗？');
+        if (!ok) return;
+        ambSet.add(file);
+      }
+      const it = FRAMES.find(x => x.file === file);
+      if (it && it.night && !disBoxes(file).length){
+        const ok2 = confirm('🌙 夜帧未画青框：夜间亮区（灯光/反光/火光）是模型主要误报源，\n建议用青框圈出这些易混淆区域再标无烟。\n\n点「取消」可返回补画青框；点「确定」跳过（会被记录）。');
+        if (ok2) skipped.add(file); else return;
+      }
+    }
+    verdicts[file] = v;
+  }
+  persist(); render();
+}
+
+function setFilter(f, btn){
+  filter = f; page = 1;
+  document.querySelectorAll('.filter .btn').forEach(b => { b.classList.remove('on'); b.style.background='#fff'; b.style.color=''; b.style.borderColor='' });
+  if (btn){ btn.classList.add('on'); btn.style.background='var(--blue)'; btn.style.color='#fff'; btn.style.borderColor='var(--blue)' }
+  render();
+}
+
+function updateStats(){
+  let s=0,n=0,d=0,iv=0,u=0;
+  FRAMES.forEach(item => {
+    const v = verdictOf(item.file);
+    if (v==='smoke') s++; else if (v==='nosmoke') n++;
+    else if (v==='distractor') d++; else if (v==='invalid') iv++;
+    else if (v==='unsure') u++;
+  });
+  document.getElementById('sSmoke').textContent = s;
+  document.getElementById('sNosmoke').textContent = n;
+  document.getElementById('sDis').textContent = d;
+  document.getElementById('sInv').textContent = iv;
+  document.getElementById('sUnsure').textContent = u;
+  document.getElementById('sTotal').textContent = FRAMES.length;
+  document.getElementById('sBatch').textContent = FRAMES.length;
+  document.getElementById('sLog').textContent = changeLog.length;
+  const done = s+n+d+iv+u;
+  document.getElementById('progHint').textContent =
+    '本批 ' + done + ' / ' + FRAMES.length + '（' + Math.round(done/Math.max(1,FRAMES.length)*100) + '%） ｜ 同景风险 ' + ambSet.size + ' ｜ 历史锁定 ' + LEGACY_FILES.length;
+}
+
+/* ---------- 标框画布 ---------- */
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+let img = new Image(), draft = null, dragMode = null, clickStart = null;
+
+function setMode(m){
+  curMode = m; boxMode = m;
+  document.getElementById('modeSmoke').classList.toggle('on', m==='smoke');
+  document.getElementById('modeDis').classList.toggle('on', m!=='smoke');
+  localStorage.setItem(K.m, m);
+}
+
+function openLabel(i){
+  if (i < 0 || i >= FRAMES.length) return;
+  const item = FRAMES[i];
+  if (isLocked(item.file)){ alert('🔒 只读帧'); return }
+  labelIdx = i;
+  pendingDis = false;                       // 换帧复位「等待画青框」状态
+  curBoxes = JSON.parse(JSON.stringify(boxesMap[item.file] || []));
+  SUG = (item.sug || []).map(b => ({t:'smoke', conf:b.conf, x1:b.x1, y1:b.y1, x2:b.x2, y2:b.y2}));
+  document.getElementById('labFrameName').textContent = item.file;
+  const bs = document.getElementById('btnSuggest');
+  bs.textContent = '✨ 模型建议(S' + (SUG.length ? ' ' + SUG.length : ' 无') + ')';
+  bs.disabled = !SUG.length;
+  setMode(boxMode);
+  img.onload = () => { fitCanvas(); draw() };
+  img.src = item.url;
+  document.getElementById('labelModal').style.display = 'block';
+  refreshLabInfo();
+}
+
+function refreshLabInfo(){
+  const item = FRAMES[labelIdx];
+  if (!item) return;
+  const sb = curBoxes.filter(b=>b.t!=='distractor').length;
+  const db = curBoxes.filter(b=>b.t==='distractor').length;
+  const txt =
+    (labelIdx+1) + '/' + FRAMES.length + ' | ' + (item.label||'') + ' ' + (item.time||'') +
+    ' | 亮度 ' + item.bright + (item.night?' 🌙夜':'') + (item.bad?' ⚫全黑':'') +
+    (item.lap != null ? ' | 清晰度 ' + item.lap + (item.blurBad && !item.bad ? ' ⚠️残帧/模糊（建议无效）' : '') : '') +
+    (SUG.length ? ' | 建议 ' + SUG.length + ' 个(最高 ' + (Math.max.apply(null, SUG.map(s=>s.conf||0))*100).toFixed(0) + '%)' : ' | 模型无建议') +
+    ' | 烟框' + sb + ' 干扰' + db;
+  const el = document.getElementById('labInfo');
+  if (!el) return;
+  // 提示文案含 <b> 强调，用 innerHTML 渲染
+  el.innerHTML = txt + (pendingDis ? ' | ✏️ <b style="color:#ffd740">已标「干扰无烟」→ 请拖动画青框圈出干扰区（画完按 Enter 确认）</b>' : '');
+}
+
+function loadSuggest(){
+  if (!SUG.length){ alert('本帧模型无建议框'); return }
+  SUG.forEach(s => curBoxes.push({t:'smoke', x1:s.x1, y1:s.y1, x2:s.x2, y2:s.y2}));
+  draw(); refreshLabInfo();
+}
+
+function fitCanvas(){
+  const wrap = document.querySelector('.canvaswrap');
+  const pad = 30;
+  const maxW = wrap.clientWidth - pad, maxH = wrap.clientHeight - pad;
+  const ratio = img.width / img.height;
+  let w = maxW, h = w / ratio;
+  if (h > maxH){ h = maxH; w = h * ratio }
+  cv.width = Math.max(100, w); cv.height = Math.max(100, h);
+}
+function toCanvas(b){ return {x1:b.x1*cv.width, y1:b.y1*cv.height, x2:b.x2*cv.width, y2:b.y2*cv.height} }
+function toNorm(b){ return {t:b.t, x1:Math.max(0,Math.min(1,b.x1/cv.width)), y1:Math.max(0,Math.min(1,b.y1/cv.height)), x2:Math.max(0,Math.min(1,b.x2/cv.width)), y2:Math.max(0,Math.min(1,b.y2/cv.height))} }
+function boxColor(b){ return b.t==='distractor' ? '#00d4ff' : '#ff4d4f' }
+
+function draw(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  if (img.width) cx.drawImage(img,0,0,cv.width,cv.height);
+  curBoxes.forEach(b => drawBox(toCanvas(b), boxColor(b), false, b.t==='distractor' ? '干扰' : '烟'));
+  if (draft) drawBox(draft, '#ffe600', true, '');
+}
+function drawBox(b, color, isDraft, label){
+  cx.setLineDash(isDraft ? [6,4] : []);
+  cx.strokeStyle = color; cx.lineWidth = isDraft ? 1.5 : 3;
+  cx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);
+  cx.setLineDash([]);
+  if (!isDraft){
+    cx.fillStyle = color;
+    [[b.x1,b.y1],[b.x2,b.y1],[b.x1,b.y2],[b.x2,b.y2]].forEach(p => { cx.beginPath(); cx.arc(p[0],p[1],4,0,Math.PI*2); cx.fill() });
+    if (label){
+      cx.font = 'bold 14px monospace';
+      const tw = cx.measureText(label).width + 8;
+      cx.fillRect(b.x1, Math.max(0,b.y1-18), tw, 17);
+      cx.fillStyle = '#000'; cx.fillText(label, b.x1+4, Math.max(13,b.y1-4));
+    }
+  }
+}
+function pos(e){ const r = cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top} }
+function findBox(e){
+  const p = pos(e);
+  for (let bi = curBoxes.length-1; bi >= 0; bi--){
+    const b = toCanvas(curBoxes[bi]);
+    if (p.x>=b.x1-6 && p.x<=b.x2+6 && p.y>=b.y1-6 && p.y<=b.y2+6) return {bi:bi, type:'move'};
+  }
+  return null;
+}
+cv.addEventListener('mousedown', e => {
+  const hit = findBox(e); const p = pos(e);
+  clickStart = {x:p.x, y:p.y};
+  if (hit){ dragMode = hit; return }
+  draft = {x1:p.x, y1:p.y, x2:p.x, y2:p.y}; dragMode = {type:'draw'};
+});
+cv.addEventListener('mousemove', e => {
+  if (!dragMode) return;
+  const p = pos(e);
+  if (dragMode.type === 'draw' && draft){ draft.x2 = p.x; draft.y2 = p.y; draw(); return }
+  const b = toCanvas(curBoxes[dragMode.bi]);
+  if (dragMode.type === 'move'){
+    if (!dragMode.sx){ dragMode.sx = p.x; dragMode.sy = p.y; dragMode.bx1 = b.x1; dragMode.by1 = b.y1 }
+    const dx = p.x-dragMode.sx, dy = p.y-dragMode.sy;
+    curBoxes[dragMode.bi] = toNorm({t:curBoxes[dragMode.bi].t, x1:dragMode.bx1+dx, y1:dragMode.by1+dy, x2:dragMode.bx1+dx+(b.x2-b.x1), y2:dragMode.by1+dy+(b.y2-b.y1)});
+    draw();
+  }
+});
+cv.addEventListener('mouseup', e => {
+  if (dragMode && dragMode.type === 'draw' && draft){
+    const nb = toNorm({t:curMode, x1:Math.min(draft.x1,draft.x2), y1:Math.min(draft.y1,draft.y2), x2:Math.max(draft.x1,draft.x2), y2:Math.max(draft.y1,draft.y2)});
+    if ((nb.x2-nb.x1)*cv.width > 14 && (nb.y2-nb.y1)*cv.height > 14) curBoxes.push(nb);
+  }
+  if (dragMode && dragMode.type === 'move' && e){
+    const p = pos(e);
+    if (clickStart && Math.hypot(p.x-clickStart.x, p.y-clickStart.y) < 5){
+      const b = curBoxes[dragMode.bi];
+      b.t = (b.t === 'distractor') ? 'smoke' : 'distractor';
+    }
+  }
+  draft = null; dragMode = null; clickStart = null; draw(); refreshLabInfo();
+});
+cv.addEventListener('dblclick', e => { const hit = findBox(e); if (hit){ curBoxes.splice(hit.bi,1); draw(); refreshLabInfo() } });
+function clearBoxes(){ if (confirm('删光本帧所有框？')){ curBoxes = []; draw(); refreshLabInfo() } }
+
+function applyVerdict(item){
+  const sb = curBoxes.filter(b => b.t !== 'distractor');
+  const db = curBoxes.filter(b => b.t === 'distractor');
+  if (sb.length) verdicts[item.file] = 'smoke';
+  else if (db.length && !verdicts[item.file]) verdicts[item.file] = 'distractor';
+}
+function saveLabel(){
+  const item = FRAMES[labelIdx];
+  if (curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes));
+  else delete boxesMap[item.file];
+  applyVerdict(item);
+  if (!verdicts[item.file]) verdicts[item.file] = 'nosmoke';
+  pendingDis = false;
+  persist(); closeLabel();
+  const next = FRAMES.findIndex((f,i) => i > labelIdx && !verdictOf(f.file));
+  if (next >= 0) openLabel(next);
+}
+/** 「干扰无烟」= 没烟但<b>有干扰区要圈</b> → 标记后<b>停在本帧</b>并自动切青框模式，方便直接画框
+ *  （旧行为是 markAndNext 直接跳下一帧，导致来不及画青框 —— 2026-09-11 修复） */
+function markDistractorStay(){
+  const item = FRAMES[labelIdx];
+  if (!item) return;
+  if (isLocked(item.file)){ alert('🔒 只读帧'); return }
+  verdicts[item.file] = 'distractor';
+  persist();
+  pendingDis = true;
+  setMode('distractor');        // 自动切到干扰区（青框）模式
+  refreshLabInfo();
+  draw();
+}
+
+function markAndNext(v){
+  const item = FRAMES[labelIdx];
+  if (!item) return;
+  if (v !== 'smoke'){
+    if ((v === 'nosmoke' || v === 'invalid') && curBoxes.length){
+      if (!confirm('本帧已画 ' + curBoxes.length + ' 个框，标记「' + (v==='nosmoke'?'无烟':'无效帧') + '」会清除这些框，确认？')) return;
+    }
+    if (v !== 'invalid' && curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes));
+    else delete boxesMap[item.file];
+    if (v === 'nosmoke'){
+      const nb = ambNeighbors(item.file);
+      if (nb.length){
+        if (!confirm('🟣 同景风险：邻近帧 ' + nb.slice(0,3).join(' / ') + ' 已标真烟。确定标「无烟」？\n（将归入 hardNegAmbiguous，默认不进训练负样本）')) return;
+        ambSet.add(item.file);
+      }
+    }
+  }
+  verdicts[item.file] = v;
+  persist(); closeLabel();
+  const next = FRAMES.findIndex((f,i) => i > labelIdx && !verdictOf(f.file));
+  if (next >= 0) openLabel(next);
+}
+function closeLabel(){ document.getElementById('labelModal').style.display='none'; labelIdx = -1; pendingDis = false; render() }
+function navFrame(dir){
+  const ni = labelIdx + dir;
+  if (ni < 0 || ni >= FRAMES.length) return;
+  const item = FRAMES[labelIdx];
+  if (curBoxes.length) boxesMap[item.file] = JSON.parse(JSON.stringify(curBoxes)); else delete boxesMap[item.file];
+  applyVerdict(item); persist(); openLabel(ni);
+}
+
+document.addEventListener('keydown', e => {
+  const helpOpen = document.getElementById('helpModal').style.display === 'flex';
+  if (e.key === 'h' || e.key === 'H'){ e.preventDefault(); toggleHelp(); return }
+  if (helpOpen){ if (e.key === 'Escape') toggleHelp(); return }
+  if (labelIdx < 0) return;
+  if (e.key === 'Enter'){ e.preventDefault(); saveLabel() }
+  else if (e.key === 'Escape') closeLabel()
+  else if (e.key === 'ArrowRight') navFrame(1)
+  else if (e.key === 'ArrowLeft') navFrame(-1)
+  else if (e.key === 'n' || e.key === 'N') markAndNext('nosmoke')
+  else if (e.key === 'i' || e.key === 'I') markDistractorStay()   // 干扰无烟：停在本帧等画青框
+  else if (e.key === 'x' || e.key === 'X') markAndNext('invalid')
+  else if (e.key === 's' || e.key === 'S') loadSuggest()
+  else if (e.key === '1') setMode('smoke')
+  else if (e.key === '2') setMode('distractor')
+});
+function toggleHelp(){
+  const m = document.getElementById('helpModal');
+  m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
+}
+function toggleChangeLog(){
+  const m = document.getElementById('logModal');
+  document.getElementById('logBody').innerHTML = changeLog.length
+    ? changeLog.map(c => '• ' + c.file + ' ｜ ' + c.reason + ' ｜ ' + c.at).join('<br>')
+    : '（暂无对已入集帧的修改）';
+  m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
+}
+
+/* ---------- 导入 ---------- */
+function importJSON(inp){
+  const f = inp.files && inp.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      const y = j.yolo_norm_0_1000 || {};
+      Object.keys(y).forEach(fn => {
+        boxesMap[fn] = (y[fn]||[]).map(b => ({t:'smoke', x1:Math.max(0,(b.cx-b.w/2)/1000), y1:Math.max(0,(b.cy-b.h/2)/1000), x2:Math.min(1,(b.cx+b.w/2)/1000), y2:Math.min(1,(b.cy+b.h/2)/1000)}));
+      });
+      const dd = j.distractors_norm_0_1000 || {};
+      Object.keys(dd).forEach(fn => {
+        boxesMap[fn] = (boxesMap[fn]||[]).concat((dd[fn]||[]).map(b => ({t:'distractor', x1:b.x1/1000, y1:b.y1/1000, x2:b.x2/1000, y2:b.y2/1000})));
+      });
+      (j.smokeFrames||[]).forEach(fn => verdicts[fn] = 'smoke');
+      (j.negativeFrames||[]).forEach(fn => verdicts[fn] = 'nosmoke');
+      (j.invalidFrames||[]).forEach(fn => verdicts[fn] = 'invalid');
+      (j.unsureFrames||[]).forEach(fn => verdicts[fn] = 'unsure');
+      ((j.hardNegAmbiguous)||[]).forEach(fn => ambSet.add(fn));
+      persist(); render();
+      alert('导入成功');
+    } catch(err){ alert('解析失败：' + err.message) }
+    inp.value = '';
+  };
+  rd.readAsText(f, 'utf-8');
+}
+
+/* ---------- 导出：先出体检单 ---------- */
+function buildExport(){
+  const smoke = {}, distract = {}, invalidF = [], nosmokeF = [], unsureF = [], hardAmb = [];
+  const nightNeg = [], dayNeg = [];
+  FRAMES.forEach(it => {
+    const f = it.file;
+    let v = verdictOf(f);
+    const sb = smokeBoxes(f), db = disBoxes(f);
+    if (v === 'smoke' && !sb.length) v = 'unsure';
+    if (v === 'invalid' || it.bad){ invalidF.push(f); return }
+    if (v === 'nosmoke'){
+      nosmokeF.push(f);
+      if (isAmb(f)) hardAmb.push(f);
+      (it.night ? nightNeg : dayNeg).push(f);
+      return;
+    }
+    if (v === 'unsure' || !v){ if (v) unsureF.push(f); return }
+    if (v === 'smoke' && sb.length){
+      smoke[f] = sb.map(b => ({class:0, cx:Math.round(((b.x1+b.x2)/2)*1000), cy:Math.round(((b.y1+b.y2)/2)*1000), w:Math.round((b.x2-b.x1)*1000), h:Math.round((b.y2-b.y1)*1000)}));
+    }
+    if (db.length) distract[f] = db.map(b => ({x1:Math.round(b.x1*1000), y1:Math.round(b.y1*1000), x2:Math.round(b.x2*1000), y2:Math.round(b.y2*1000)}));
+  });
+  // 历史（只读）：全量合并，改动过的单独列出
+  const legacySmoke = {}, legacyDistract = {}, legacyNeg = [], legacyInv = [], legacyUnsure = [];
+  LEGACY_FILES.forEach(f => {
+    const v = verdictOf(f) || LEGACY[f].verdict;
+    const sb = smokeBoxes(f), db = disBoxes(f);
+    if (v === 'invalid') legacyInv.push(f);
+    else if (v === 'nosmoke') legacyNeg.push(f);
+    else if (v === 'unsure') legacyUnsure.push(f);
+    else if (v === 'smoke' && sb.length) legacySmoke[f] = sb.map(b => ({class:0, cx:Math.round(((b.x1+b.x2)/2)*1000), cy:Math.round(((b.y1+b.y2)/2)*1000), w:Math.round((b.x2-b.x1)*1000), h:Math.round((b.y2-b.y1)*1000)}));
+    if (db.length) legacyDistract[f] = db.map(b => ({x1:Math.round(b.x1*1000), y1:Math.round(b.y1*1000), x2:Math.round(b.x2*1000), y2:Math.round(b.y2*1000)}));
+  });
+  const posCount = Object.keys(smoke).length;
+  const negCount = nosmokeF.length;
+  return { smoke, distract, invalidF, nosmokeF, unsureF, hardAmb, nightNeg, dayNeg,
+           legacySmoke, legacyDistract, legacyNeg, legacyInv, legacyUnsure,
+           posCount, negCount, boxCount:Object.values(smoke).reduce((a,b)=>a+b.length,0) };
+}
+
+function openExport(){
+  const r = buildExport();
+  const ratio = r.negCount / Math.max(1, r.posCount);
+  const negGate = r.negCount > r.posCount * 2;
+  const nightGate = r.nightNeg.length > Math.max(1, r.dayNeg.length * 0.5);
+  const html = []
+    .concat('<div class="kv">')
+    .concat('<b>本批帧数</b><span>' + FRAMES.length + '</span>')
+    .concat('<b>新增正样本（有烟）</b><span style="color:var(--red)">' + r.posCount + ' 帧 / ' + r.boxCount + ' 框</span>')
+    .concat('<b>新增负样本（无烟）</b><span style="color:var(--green)">' + r.negCount + ' 帧</span>')
+    .concat('<b>正:负 比</b><span>1 : ' + ratio.toFixed(2) + '</span>')
+    .concat('<b>干扰区青框</b><span>' + Object.keys(r.distract).length + ' 帧 / ' + Object.values(r.distract).reduce((a,b)=>a+b.length,0) + ' 框</span>')
+    .concat('<b>🌙 夜负样本 / ☀️ 昼负样本</b><span>' + r.nightNeg.length + ' / ' + r.dayNeg.length + '</span>')
+    .concat('<b>🟣 同景风险帧</b><span>' + r.hardAmb.length + ' 帧（默认不进训练负样本）</span>')
+    .concat('<b>跳过青框提醒</b><span>' + skipped.size + ' 帧</span>')
+    .concat('<b>无效 / 不确定</b><span>' + r.invalidF.length + ' / ' + r.unsureF.length + '</span>')
+    .concat('<b>对已入集帧的修改</b><span style="color:' + (changeLog.length ? 'var(--red)' : 'var(--green)') + '">' + changeLog.length + ' 帧</span>')
+    .concat('</div>')
+    .concat(negGate ? '<div class="gate">⛔ <b>全量导出被阻断</b>：新增负样本 ' + r.negCount + ' &gt; 新增正样本 ' + r.posCount + ' × 2。<br>这正是 stage4 失败的直接原因（+7 正 vs 26 负 → 召回 95%→75%）。<br>请先补正样本，或选择「仅导出正样本包」。</div>'
+                    : '<div class="pass">✅ 正负增量比通过（负 ≤ 正 × 2）</div>')
+    .concat(nightGate ? '<div class="gate">🌙 <b>夜间配比警告</b>：夜负样本 ' + r.nightNeg.length + ' 超过昼负样本的一半（' + r.dayNeg.length + '）。<br>夜间同景负样本是 stage4 打乱决策边界的元凶，建议补白天负样本或把夜负样本单独分批。</div>'
+                      : '<div class="pass">✅ 昼夜配比通过</div>')
+    .join('');
+  document.getElementById('checkBody').innerHTML = html;
+  const acts = document.getElementById('checkActions');
+  acts.innerHTML = '';
+  const mk = (label, color, fn) => {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = label;
+    b.style.cssText = 'padding:7px 14px;background:' + color + ';color:#fff;border-color:' + color;
+    b.onclick = fn; acts.appendChild(b);
+  };
+  if (!negGate) mk('⬇ 全量导出（含历史合并）', 'var(--green)', () => doExport(r, 'full'));
+  else mk('⚠️ 仍全量导出（记录风险）', 'var(--red)', () => { if (confirm('已知风险：本批负样本远多于正样本，可能导致决策边界偏移。\n确定继续？')) doExport(r, 'full-risk') });
+  mk('⬇ 仅导出正样本包', 'var(--blue)', () => doExport(r, 'pos'));
+  mk('⬇ 仅导出本批（不含历史）', 'var(--gray)', () => doExport(r, 'batch'));
+  document.getElementById('exportModal').style.display = 'flex';
+}
+
+function doExport(r, mode){
+  const out = {
+    dataset: 'train_0910',
+    batch: '2026-09-10 晚间三架次（防污染复核台 v5）',
+    exportMode: mode,
+    batchFrames: FRAMES.length,
+    smokeFrames: Object.keys(r.smoke),
+    smokeBoxCount: r.boxCount,
+    negativeFrames: r.nosmokeF,
+    hardNegAmbiguous: r.hardAmb,
+    distractorFrames: Object.keys(r.distract),
+    distractorBoxCount: Object.values(r.distract).reduce((a,b)=>a+b.length,0),
+    invalidFrames: r.invalidF,
+    unsureFrames: r.unsureF,
+    yolo_norm_0_1000: r.smoke,
+    distractors_norm_0_1000: r.distract,
+    skippedNightCyan: [...skipped],
+    changeLog: changeLog,
+    exportedAt: new Date().toISOString(),
+  };
+  if (mode === 'full' || mode === 'full-risk'){
+    out.legacy = {
+      totalFrames: LEGACY_FILES.length,
+      smokeFrames: Object.keys(r.legacySmoke),
+      negativeFrames: r.legacyNeg,
+      invalidFrames: r.legacyInv,
+      unsureFrames: r.legacyUnsure,
+      yolo_norm_0_1000: r.legacySmoke,
+      distractors_norm_0_1000: r.legacyDistract,
+    };
+    out.merged = {
+      totalFrames: LEGACY_FILES.length + FRAMES.length,
+      smokeFrames: Object.keys(r.legacySmoke).concat(Object.keys(r.smoke)),
+      negativeFrames: r.legacyNeg.concat(r.nosmokeF),
+    };
+  }
+  // 「仅导出正样本包」= 只带正向（烟框）+ 干扰区青框（区域级负标注，后续降误报用），
+  // 剔除整帧负样本 / 同景风险 / 无效 / 不确定 —— 2026-09-11 修复：旧实现这些字段没清，
+  // 导致名为 pos 的包里仍混着 315 个负样本帧，与用户意图相悖。
+  if (mode === 'pos'){
+    out.negativeFrames = [];
+    out.hardNegAmbiguous = [];
+    out.invalidFrames = [];
+    out.unsureFrames = [];
+    out.note = '正样本包：含烟框正样本与干扰区青框（区域级负标注）；已剔除整帧负样本/同景风险/无效/不确定帧';
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'train_0910_labels_v5_' + mode + '.json';
+  a.click();
+  alert('已导出（' + mode + '）\n本批：烟 ' + out.smokeFrames.length + ' 帧/' + r.boxCount + ' 框 · 负样本 ' + r.nosmokeF.length +
+        '（其中同景风险 ' + r.hardAmb.length + '）· 干扰区 ' + out.distractorFrames.length + ' 帧\n' +
+        (out.merged ? '历史合并：共 ' + out.merged.totalFrames + ' 帧' : '（不含历史）'));
+}
+
+/* ---------- 初始化 ---------- */
+document.getElementById('banner').innerHTML =
+  '本批 = <b>9/10 晚间三架次</b>（环保局 064U / 职教中心 S4J / 三峡科技 S4G）evidence 帧，含 <b>34 帧低置信检出</b>（模型犹豫处，价值最高）。' +
+  '历史 318 帧（9/9 已入集）以 <b>🔒 只读</b>载入，导出时为<b>全量合并</b>以防丢失。' +
+  ' <b>模拟器与机场直连流已隔离</b>。首次使用请点「📖 功能说明」逐项阅读（尤其同景风险与夜间青框）。';
+setFilter('todo', document.querySelector('.filter .btn'));
+setTimeout(() => { document.getElementById('helpModal').style.display = 'flex' }, 400);
+</script>
+</body>
+</html>
