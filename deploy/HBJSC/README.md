@@ -15,6 +15,8 @@
 | `scripts/e2e_test_engine.sh` | straw-engine 全链路端到端验收（桩模型+合成视频，测完自动清场） |
 | `scripts/build_wanzhou_towns.py` | 镇街边界 geojson 生成/校验（需高德「Web服务」key 或原文件） |
 | `scripts/fix_warnings_final.sh` | `/api/warnings` 保留期放宽（含回滚脚本生成） |
+| `scripts/set-sikong-key.sh` | **司空2 重装后一键注入新 apikey**（写 env + 重启 dji-openapi） |
+| `scripts/dji-openapi.service` | dji-openapi 的 systemd 单元（从 EnvironmentFile 注入司空凭据） |
 | `straw-engine/app/main.py` | **straw-engine 重写版（819 行，2026-09-30）** |
 | `straw-engine/app/detector.py` | 检测封装（= 优化后版本，328→106ms） |
 | `straw-engine/config/config.json` | 引擎配置（双模型 day/night、inputSize=1920、maskSky*、cfmNeed=3） |
@@ -46,6 +48,34 @@ ssh -p 22233 root@111.10.220.226 "bash /tmp/x_lf.sh"      # ③ 以文件方式�
 **另记两条活体结论（非脚本）**：
 - ⚠️ **nodemailer 时序坑**：后端若在 nodemailer 就位**之前**启动，`monitor.js` 模块加载时 `require` 失败并缓存 `null` → 进程内邮件告警长期失效。**补依赖后必须 restart 后端**。（本次已 restart 修复。）
 - `[websocket] port=6081` 配置了但 ZLM **未起独立监听**（无害，本系统走 FLV/HLS）。
+
+## 司空 2 重新部署后「快速接上」（apikey 自定义字段）
+
+**问题**：司空私有版每次重装都会给出一套**全新凭据**（OpenAPI user token / 登录用户 tenantId·id / webhook APP_KEY·签名密钥）。
+上次的做法是把真值手填进 `infra/dji-openapi/config.json` 的 8 处 `REPLACE_WITH_*` —— 既慢又易漏，且违反"真实凭据不进 git"。
+
+**现在的做法**：凭据走 **systemd EnvironmentFile**，仓库里的 `config.json` 永远只留占位符。
+
+```
+infra/dji-openapi/config.cjs     ← 加载 config.json，再用 SIKONG_* 环境变量覆盖（.cjs 与 package.json 的 type 无关）
+infra/dji-openapi/config.json    ← 模板/默认值（无真凭据）
+/data/HBJSC/dji-openapi/dji-openapi.env  ← 真凭据（systemd 注入，权限 600，*.env 已被 .gitignore）
+```
+
+司空重装后只需一条命令（脚本已随本目录交付）：
+```bash
+bash /data/HBJSC/scripts/set-sikong-key.sh <新apikey> [TENANT_ID] [USER_ID] [APP_ID] [SIGNATURE_SECRET]
+# 例：bash set-sikong-key.sh 1a2b3c… 1435364026368000 1435364026458112 myAppKey myHmacSecret
+# 只给第一个参数也行（"司空只给了个 apikey"的场景）；其余可后续再补
+```
+
+**支持的环境变量**：`SIKONG_API_KEY`(★apikey) `SIKONG_BASE_URL` `SIKONG_WS_URL`
+`SIKONG_LOGIN_USER_ID` `SIKONG_LOGIN_USER_TYPE` `SIKONG_LOGIN_TENANT_ID`
+`SIKONG_APP_ID` `SIKONG_SIGNATURE_SECRET` `SIKONG_ENCRYPTION_SECRET`
+`SIKONG_ZLM_HTTP` `SIKONG_ZLM_RTMP` `SIKONG_ZLM_SECRET` `SIKONG_ZLM_TOKEN_SECRET`
+
+启动时会打印「哪些被环境变量覆盖」+「哪些关键凭据仍是占位符」（**只打键名不打值**），对着日志补即可。
+调试入口：`curl -s http://127.0.0.1:17810/health`（含 `openapi` 通道状态）。
 
 ## 三条铁律
 1. **大数据只写 `/data`（含 `/video` 软链），严禁系统盘 `/`**

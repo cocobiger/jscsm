@@ -13,7 +13,10 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 
-const config = require(path.join(__dirname, 'config.json'))
+// 配置 = config.json（模板/默认） + SIKONG_* 环境变量覆盖
+// 换司空 apikey 不必改仓库文件：真值走 systemd EnvironmentFile，见 config.cjs / set-sikong-key.sh
+// 注：用 .cjs 后缀 —— 本仓库根 package.json 是 "type":"module"，.js 会被当 ESM；dji-openapi 是 CJS 服务。
+const config = require(path.join(__dirname, 'config.cjs'))
 const openapi = require(path.join(__dirname, 'lib', 'openapi-client.js'))(config)
 const live = require(path.join(__dirname, 'lib', 'live-manager.js'))(config)
 const telemetry = require(path.join(__dirname, 'lib', 'telemetry.js'))()

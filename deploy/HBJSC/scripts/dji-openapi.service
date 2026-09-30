@@ -1,0 +1,20 @@
+[Unit]
+Description=JSC dji-openapi (司空2 接入服务 · :17810 · 安装于 /data/HBJSC/dji-openapi)
+After=network.target
+
+[Service]
+Environment=TZ=Asia/Shanghai
+Environment=NODE_ENV=production
+# 🔑 司空凭据从 EnvironmentFile 注入 —— 换 apikey 只改这个文件（用 set-sikong-key.sh 一条命令），
+#    仓库里的 config.json 永远只有占位符（真实凭据不进 git）。
+#    前缀 "-" 表示文件不存在也不报错（首次部署时尚未注入凭据也能起来，只是链路未打通）。
+EnvironmentFile=-/data/HBJSC/dji-openapi/dji-openapi.env
+Type=simple
+User=jsc
+WorkingDirectory=/data/HBJSC/dji-openapi
+ExecStart=/data/HBJSC/tools/node22/bin/node index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
