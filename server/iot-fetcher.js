@@ -11,12 +11,38 @@
 
 const http = require('http')
 
+// ── 图片 URL 归一（2026-09-20 修复「存档页看不到图 / 空蓝块」）──────
+// picUrl 有两种形态，必须区别对待：
+//   ① straw-engine（无人机）源：**站内相对路径** `/api/evidence/<日期>/xxx.jpg`
+//      → 由 index.js 的 `app.get('/api/evidence/*')` 静态托管，**直连即 200**（实测 92KB image/jpeg）；
+//        若再套 `/api/iot-image?url=` 代理，代理侧 `validatePicUrl` 对非 http(s) 抛 Invalid URL
+//        → **HTTP 400** → 前端 <img> onError 隐藏自身 → 用户看到**空蓝块**。
+//   ② iotcloud/NVR 源：**绝对 http(s)**（:5001 抓图 / :6882 认证网关），必须走代理（跨域 + 内网可达）。
+// 结论：**只对绝对 http(s) 套代理，相对路径原样透传**。
+// 口径与前端 `src/app/lib/evidenceImage.ts` 的 `evidenceImgUrl()` 完全一致（全站唯一出处）。
+function toDisplayImageUrl(picUrl) {
+  if (!picUrl) return null
+  const s = String(picUrl).trim()
+  if (!s) return null
+  return /^https?:\/\//i.test(s) ? `/api/iot-image?url=${encodeURIComponent(s)}` : s
+}
+
 // ── 配置 ──────────────────────────────────────────────
 // IoTCloud 凭据外置到环境变量（见 systemd 服务文件 Environment= 或部署脚本），
 // 不再硬编码在源码中。缺失时给出安全降级：baseUrl/username 退回非敏感默认值，
 // password 必须来自环境变量（空串会触发登录失败并被轮询重试捕获，不会崩溃）。
+// 🔴 09-16 脱钩（IoTCloud 去依赖）：
+//   IOT_SOURCE=own 时改走「我们自己的网关」—— cover_gateway(:7100) 提供 IoTCloud 兼容层
+//   （路径/响应形状与 /prod-api/sip/analyse/record/list 完全一致），own 模式下**无需登录/token**。
+//   其余业务逻辑（通道白名单、ai_types 算法白名单、去重、图片代理）完全不变。
+//   回滚：把 IOT_SOURCE 改回 iotcloud（或删掉）重启 jsc-backend 即回到平台源。
+const IOT_SOURCE = (process.env.IOT_SOURCE || 'iotcloud').toLowerCase()
+const OWN_BASE_URL = process.env.IOT_OWN_BASE_URL || 'http://172.16.8.11:7100'
 const IOT = {
-  baseUrl: process.env.IOT_CLOUD_BASE_URL || 'http://172.16.8.11:6881/prod-api',
+  baseUrl: IOT_SOURCE === 'own'
+    ? OWN_BASE_URL
+    : (process.env.IOT_CLOUD_BASE_URL || 'http://172.16.8.11:6881/prod-api'),
+  source: IOT_SOURCE,
   username: process.env.IOT_CLOUD_USERNAME || 'iot-video',
   password: process.env.IOT_CLOUD_PASSWORD || '',
   // 可扩展多通道
@@ -55,6 +81,20 @@ let _lastRecordIds = new Set()  // 去重：已推送的 recordId（启动时从
 // 通道 → 地理坐标 / 视频流 映射（启动时从 coll_streams 解析）
 let _channelGeo = {}      // spid -> { lat, lon }
 let _channelStream = {}   // spid -> streamId
+
+// 🔴 2026-09-17 B1：「每通道最新一条」的行级短缓存。
+//   实测单次计算 320~360 ms —— 成本来自"**必须解析全部 2.9 万条记录才能判定静音规则**"
+//   （alertFilterRuleHit 要看 source/channelName/deviceName/location/aiConfidence/level/createdAt），
+//   与是否构建完整存档无关（对照实验：旧 getArchive 路径 319.8 ms vs 新逻辑 358.3 ms，同一量级）。
+//   而 /api/iot-analysis/status 是**最高频端点**（60 秒轮询 × 多客户端；nginx 日志窗口内 1,534 次），
+//   故对**行结果**加 15 秒 TTL：同一次页面加载的多次并发请求直接命中缓存。
+//   ⚠️ 只缓存"行"，**不缓存 alerting** —— alerting 仍按每次请求的当前时间实时计算，不会冻结。
+//   15 秒是保守值：远小于 IOT.alertTtlMs（30 分钟），新告警的摄像头图标最多晚亮 15 秒。
+//   可用环境变量 IOT_STATUS_CACHE_MS 调整，设 0 = 关闭缓存。
+const STATUS_CACHE_TTL_MS = Number(process.env.IOT_STATUS_CACHE_MS || 15000)
+let _statusCacheAt = 0
+let _statusCacheRows = null
+let _statusCacheVer = 0      // 保留策略版本号（改了天数要立刻重算，不能等 TTL）
 
 // ── HTTP 辅助（不走代理，直连局域网） ─────────────────
 function iotRequest(method, path, body, extraHeaders = {}) {
@@ -97,6 +137,13 @@ function iotRequest(method, path, body, extraHeaders = {}) {
 
 // ── 登录 + Token 管理 ────────────────────────────────
 async function login() {
+  // 🔴 09-16 脱钩：自有网关无需鉴权 → 直接置一个长效占位 token，跳过 HTTP 登录
+  if (IOT.source === 'own') {
+    _token = 'own-mode-no-auth'
+    _tokenExpire = Date.now() + 365 * 24 * 3600 * 1000
+    if (_log) _log.info('[IoT] 数据源=自有网关(%s)，跳过登录', IOT.baseUrl)
+    return true
+  }
   try {
     const res = await iotRequest('POST', '/login', {
       username: IOT.username,
@@ -122,27 +169,154 @@ async function ensureToken() {
   return login()
 }
 
+// ── 算法类型解析（2026-09-16 P1：字典「单一出处」= 上游网关 /meta 契约）──
+// 🔴 P1 三级回退（顺序即契约，任一级失败自动降级，绝不硬崩）：
+//    ① 上游网关 /meta/algo-types（**我们的单一出处**，30 分钟热加载）
+//       → 解决「渣土车冒装」与「堆头未覆盖」被合并成同一种告警的问题
+//    ② 本地 ai_types 表（source_key → 中文名，每轮热加载）
+//    ③ 硬编码 AI_TYPE_MAP（DB/网关都不可用时的兜底）
+//    ④ 未命中 → 自动登记到 ai_types（原名，sort_order=90 待补中文名）+ 每次 WARN 一次
+//  背景：原实现只有 ②③，两套字典互不匹配（仅 unsoilcover 为交集）→ 绝大多数算法中文名无法落地，
+//       且未命中会**静默变成英文**。P1 把「权威字典」搬到上游网关，JSC 只做消费者。
+//
+//  回退开关：IOT_META_ENABLED=0 可整体关掉 ①（等效回到 P1 之前的行为，用于快速回滚）。
+//  网关地址：OWN_BASE_URL（与数据源同源）+ IOT_OWN_BASE_URL 一致。
+const IOT_META_ENABLED = (process.env.IOT_META_ENABLED || '1') !== '0'
+const META_REFRESH_MS = 30 * 60 * 1000   // 30 分钟刷新一次（与通道/字典热加载节奏一致）
+let _aiTypeKeyMap = {}
+let _metaAlgoMap = {}          // source_key|alias(lower) -> { name_zh, algo_family, ... }
+let _metaLoadedAt = 0
+let _metaFailCount = 0
+const _unmappedKeys = new Set()
+
+// 纯函数：algo_types 数组 → 「键(小写) → 词条」映射（含 aliases）。
+// 🔴 单独抽出便于离线自检（不触网、不起 HTTP）。绝不抛异常，脏数据静默跳过。
+function buildMetaAlgoMap(arr) {
+  const m = {}
+  if (!Array.isArray(arr)) return m
+  for (const a of arr) {
+    if (!a || !a.source_key) continue
+    const entry = {
+      name_zh: a.name_zh || a.source_key,
+      algo_family: a.algo_family || '',
+      deprecated: !!a.deprecated,
+      input_size: (a.input_size === undefined ? null : a.input_size),
+    }
+    m[String(a.source_key).toLowerCase()] = entry
+    for (const al of (a.aliases || [])) {
+      const k = String(al).toLowerCase()
+      if (k) m[k] = entry
+    }
+  }
+  return m
+}
+
+// 从上游网关拉 /meta/algo-types，建立「键 → 中文名」映射。
+// 失败只记日志、保留旧映射（**不阻塞抓取主链**）。
+async function refreshMetaAlgoTypes(force) {
+  if (!IOT_META_ENABLED) return
+  const now = Date.now()
+  if (!force && _metaLoadedAt && (now - _metaLoadedAt) < META_REFRESH_MS) return
+  try {
+    const res = await iotRequest('GET', '/meta/algo-types')
+    // ⚠️ iotRequest 返回的是 {status, body}，**不自动解包 body** → 必须逐层取。
+    //   两个网关（未来若直连裸端点）都兼容：body.data.algo_types / body.algo_types。
+    const b = (res && res.body) || {}
+    const arr = (b.data && b.data.algo_types) || b.algo_types || []
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error('empty algo_types')
+    _metaAlgoMap = buildMetaAlgoMap(arr)
+    _metaLoadedAt = now
+    _metaFailCount = 0
+    if (_log) _log.info(`[IoT] /meta/algo-types 已加载: ${arr.length} 条算法（可区分键 ${Object.keys(_metaAlgoMap).length} 个）`)
+  } catch (e) {
+    _metaFailCount++
+    if (_log) _log.warn(`[IoT] /meta/algo-types 拉取失败(第 ${_metaFailCount} 次)，沿用旧字典/回退本地: ${e.message}`)
+  }
+}
+
+// 元数据状态快照（供健康检查/运维观测当前生效的字典来源）
+function metaStatus() {
+  return {
+    enabled: IOT_META_ENABLED,
+    loaded: Object.keys(_metaAlgoMap).length > 0,
+    keyCount: Object.keys(_metaAlgoMap).length,
+    loadedAt: _metaLoadedAt ? new Date(_metaLoadedAt).toISOString() : null,
+    failCount: _metaFailCount,
+    refreshMs: META_REFRESH_MS,
+    // 三级回退当前生效级：1=网关字典 2=本地 ai_types 表 3=硬编码
+    activeTier: Object.keys(_metaAlgoMap).length > 0 ? 1 : (Object.keys(_aiTypeKeyMap).length > 0 ? 2 : 3),
+  }
+}
+
+function resolveAiType(key) {
+  const k = String(key || '').trim()
+  if (!k) return 'AI分析'
+  // ① 上游网关 /meta 契约（权威字典，单一出处）
+  const fromMeta = _metaAlgoMap[k.toLowerCase()]
+  if (fromMeta && fromMeta.name_zh) return fromMeta.name_zh
+  // ② 本地 ai_types 表
+  const fromDb = _aiTypeKeyMap[k]
+  if (fromDb) return fromDb
+  // ③ 硬编码兜底
+  const fromConst = AI_TYPE_MAP[k]
+  if (fromConst) return fromConst
+  // ④ 未命中 → 登记原名 + WARN 一次
+  let name = k
+  if (_store && typeof _store.ensureAiTypeByKey === 'function') {
+    try { name = _store.ensureAiTypeByKey(k) || k } catch (e) { /* 降级用原名 */ }
+  }
+  if (!_unmappedKeys.has(k)) {
+    _unmappedKeys.add(k)
+    if (_log) _log.warn(`[IoT] 发现未映射算法 key:「${k}」→ 已登记到 ai_types（sort_order=90，待补中文名）；本次以原名入库`)
+  }
+  return name
+}
+
+// P1：拿算法族键（区分用）。网关给 aiType 就用它，否则回退 ai_type 原值。
+function algoFamilyKey(rec) {
+  const t = rec && (rec.aiType || rec.aiTypeRaw)
+  return t ? String(t) : ''
+}
+
 // ── analyseInfo 解析 ─────────────────────────────────
-function parseAnalyseInfo(infoStr) {
+// 🔴 P1：优先用网关下发的 rec.aiType（**可区分算法族**）来定中文名；
+//    它取不到时才退回现有的「取 analyseInfo 第一个键」老逻辑（完全向后兼容）。
+function parseAnalyseInfo(infoStr, rec) {
+  // ① P1：网关已给定可区分键（cover_det / stockpile_cover / …）
+  const fam = algoFamilyKey(rec)
   try {
     const arr = JSON.parse(infoStr)
-    if (!Array.isArray(arr) || arr.length === 0) return { type: 'AI分析', confidence: 0, raw: infoStr }
+    if (!Array.isArray(arr) || arr.length === 0) {
+      return { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0, raw: infoStr,
+               family: fam || '' }
+    }
     const first = arr[0]
     const key = Object.keys(first)[0]
     const value = first[key]
+    // ② 置信度仍从 analyseInfo 数值取（网关的 aiType 只表达"哪类算法"）
+    let conf = typeof value === 'number' ? value : 0
+    if (typeof value !== 'number') {
+      for (const k2 of Object.keys(first)) {
+        if (typeof first[k2] === 'number') { conf = first[k2]; break }
+      }
+    }
     return {
-      type: AI_TYPE_MAP[key] || key || 'AI分析',
-      confidence: typeof value === 'number' ? value : 0,
+      type: resolveAiType(fam || key),
+      confidence: conf,
       raw: infoStr,
+      // P1：算法族键透传给前端，便于按业务分色/分层/分统计
+      family: fam || '',
+      typeRaw: key,
     }
   } catch {
-    return { type: 'AI分析', confidence: 0, raw: infoStr }
+    return { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0, raw: infoStr,
+             family: fam || '' }
   }
 }
 
 // ── 单条记录 → Warning 对象 ─────────────────────────
 function transformToWarning(rec) {
-  const ai = parseAnalyseInfo(rec.analyseInfo)
+  const ai = parseAnalyseInfo(rec.analyseInfo, rec)
   const level = ai.confidence >= 0.7 ? 3 : ai.confidence >= 0.5 ? 2 : 1  // 3=中度 2=轻度 1=注意
   // 地理坐标来自关联的视频流（coll_streams），实现与驾驶舱摄像头的「坐标触发对应」
   const spid = rec.channelSpid || rec.channelSipId || ''
@@ -165,7 +339,14 @@ function transformToWarning(rec) {
     deviceName: rec.deviceName || '',
     picUrl: rec.picUrl || '',
     aiType: ai.type,
+    aiTypeFamily: ai.family || '',      // 🔴 P1：算法族键（cover_det/stockpile_cover…），供前端区分
+    aiTypeRaw: ai.typeRaw || '',        // 🔴 P1：analyseInfo 原始键，便于排查
     aiConfidence: ai.confidence,
+    // 🔴 09-17 P0-2b：门限内外标记（网关下发）。
+    //   false = 这条是「低于 min_spill_conf 的全量分析记录」→ 只进「AI分析存档」，
+    //   不进「实时告警」（由 store.queryWarningsAggregated 与 warnings-stream 排除）。
+    //   undefined（历史记录无此字段）→ 视为已过门限，保持原可见性，不误伤老数据。
+    gatePassed: rec.gatePassed,
     ruleId: rec.ruleId,
     streamId,   // 关联视频流 id，供前端地图摄像头图标定位告警
     // 兼容现有 AlertItem 字段
@@ -190,12 +371,20 @@ async function fetchOnce() {
     : []
   if (channels.length === 0) return 0
 
+  // 🔴 P1：优先拉上游网关 /meta/algo-types（权威字典）；失败则沿用旧映射，不阻塞主链
+  await refreshMetaAlgoTypes(false)
+
+  // 2026-09-15 整改：每轮热加载算法字典（source_key → 中文名，单一出处 ai_types 表）
+  _aiTypeKeyMap = (_store && typeof _store.getAiTypeKeyMap === 'function') ? _store.getAiTypeKeyMap() : {}
+
   // 每轮刷新坐标映射（按 streamId 从 coll_streams 解析）
   resolveChannelGeo(channels.map(c => ({
     spid: c.channelSipId, name: c.channelName, streamId: c.streamId,
   })))
 
   let totalNew = 0
+  let skippedUnreg = 0   // 未登记通道（白名单外）
+  let skippedAlgo = 0    // 已登记但算法不在配置内
   for (const ch of channels) {
     try {
       const res = await iotRequest('GET',
@@ -213,20 +402,44 @@ async function fetchOnce() {
         _lastRecordIds.add(rec.recordId)
 
         const warning = transformToWarning(rec)
+
+        // 2026-09-15 整改（通道算法配置「真生效」· 白名单语义）
+        //   ⚠️ 实测 IoTCloud 的 /sip/analyse/record/list 对 channelSpid **过滤不严格** ——
+        //   请求某通道会返回该 NVR 下其它通道的记录（日志证据：每个登记通道都"新增 1 条"，
+        //   而拉到的却是 205/204/305 等未登记通道的记录）。
+        //   因此必须按**记录自身的 channelSipId** 去查配置，而不是按"请求的通道"。
+        //   规则：① 记录所属通道未登记 → 不收（配置即白名单）
+        //        ② 已登记但 aiType 不在该通道 ai_types 配置内 → 不收
+        const recCh = channels.find(c => c.channelSipId === warning.channelSipId)
+        if (!recCh) {
+          skippedUnreg++
+          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, warning.channelSipId)
+          continue
+        }
+        const allow = recCh.aiTypes || []
+        if (allow.length > 0 && !allow.includes(warning.aiType)) {
+          skippedAlgo++
+          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, recCh.channelSipId)
+          continue
+        }
+
         if (_store) {
           _store.insertWarning(warning)
           // 入库成功后留痕（DB 持久化，进程重启后不再重拉覆盖 handled 状态）
-          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, ch.channelSipId)
+          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, recCh.channelSipId)
         }
         totalNew++
       }
 
-      if (totalNew > 0 && _log) {
-        _log.info(`[IoT] 拉取完成 [${ch.channelName}]: 共${rows.length}条, 新增${totalNew}条`)
+      if (rows.length > 0 && _log) {
+        _log.info(`[IoT] 拉取完成 [${ch.channelName}]: 共${rows.length}条, 本轮累计新增${totalNew}条`)
       }
     } catch (e) {
       if (_log) _log.error(`[IoT] 拉取异常 [${ch.channelName}]: ${e.message}`)
     }
+  }
+  if ((skippedUnreg || skippedAlgo) && _log) {
+    _log.info(`[IoT] 通道配置过滤：未登记通道跳过 ${skippedUnreg} 条 · 算法不匹配跳过 ${skippedAlgo} 条（本轮新增 ${totalNew} 条）`)
   }
   return totalNew
 }
@@ -275,12 +488,48 @@ function fixExistingRows() {
 }
 
 // ── 按通道分类的 AI 历史分析存档 ────────────────────
-function getArchive() {
+// 2026-09-17 修复 P0-1：原先 limit:5000 只返回 33 条（配额被过滤规则吃掉），故把上限调大。
+// 🔴 2026-09-20 修正（用户报「无人机 4 个机场只看到 3 个」）—— 之前把这件事记成"已改为先过滤后截断"，
+//   **那个说法是错的**，实际实现是 `ORDER BY rowid DESC LIMIT N` **在 SQL 层先截断**，
+//   之后才做 alertFilterRuleHit 与时间过滤。于是只要表内总量 > N，
+//   **最老的那批记录永远进不了后续流程，静默消失**。
+//   实测（生产库）：iot-video-analysis 共 29,227 条，N=20000 ⇒ **9,227 条被直接丢弃**，
+//      造成「职教中心机场」22 条（rowid 10092~10956，全部在窗口外）**连卡片都没有**，
+//      另外三峡科技 55→26、经开区 32→1、环保局 66→5 也被截掉大半。
+//   ⇒ 上限提到 40000（有余量地覆盖当前全表）；一旦总量逼近该值，必须改为
+//     「按通道/时间分页查询」而**不是**继续调大这个数字（否则同样的问题会再来一次）。
+//   ⚠️ 响应体随之变大（实测约 3.6 MB / 7,853 条），但接口带 weak ETag 且支持 If-None-Match，
+//      浏览器复访走 304、0 字节 ⇒ 实际流量只在数据变化时发生。
+const ARCHIVE_MAX_ROWS = 40000
+function getArchive(opts) {
   if (!_store) return { channels: [], total: 0 }
-  const rows = _store.queryWarnings({ type: 'iot-video-analysis', limit: 5000 }) || []
+  const o = opts || {}
+  // P0-3（2026-09-20）：支持**服务端时间范围过滤**（前端传 from/to，按上海时解析）。
+  //   注意：getStatus() 已于 2026-09-17 改为 latestPerChannel() 轻量查询、**不再调用本函数**
+  //   ⇒ 地图摄像头告警灯既不受时间筛选影响、也不受「排除模拟流」影响。
+  const range = {}
+  if (o.from) range.from = String(o.from)
+  if (o.to) range.to = String(o.to)
+  // P0-1（2026-09-19）：存档页是「原始记录留档」，必须**包含被研判拦下的记录（blocked）**——
+  //   研判只决定"要不要进前台实时告警"，绝不代表"这条识别记录不存在"。
+  //   故这里显式 includeBlocked:true（前台 /api/warnings 默认不看 blocked）。
+  const rows = _store.queryWarnings({ type: 'iot-video-analysis', limit: ARCHIVE_MAX_ROWS, includeBlocked: true, ...range }) || []
+  // 2026-09-20：不生成「(模拟·测试流)」这张卡片（联调产物，业务无价值）。
+  //   判据就是**归组键本身** == SIM_STREAM_LABEL —— 等价于"去掉那张卡片"，可证明不会碰真实通道：
+  //     · 真实通道的记录 key = channelName（自己的名字），永不等于该标签 ⇒ 一定保留；
+  //     · 真实机场流 key = 机场名（机场映射优先于 sim 判据）⇒ 也一定保留。
+  //   实测（生产库 29227 条）：该卡片共 457 条，**0 条带真实 channelName/SipChannelId**。
+  //   只影响本接口展示，**DB 里一行未动**；需要复核它们时加 ?includeSim=1 即可。
+  const SIM_LABEL = _store.SIM_STREAM_LABEL || '(模拟·测试流)'
   const byChannel = new Map()
+  let simSkipped = 0
   for (const w of rows) {
-    const key = w.channelName || w.channelSipId || '未命名通道'
+    // P0-4（2026-09-20）：无人机（straw-engine）记录**没有"通道"概念**（channelName/channelSipId 均为空），
+    //   只有 streamId。此前一律落进「未命名通道」，导致列表通道列整片空白。
+    //   现按 streamId 兜底出可读名：机场名（尾段/SN 前缀命中）→ '(模拟·测试流)' → 空。
+    const fallback = (typeof _store.streamFallbackName === 'function') ? _store.streamFallbackName(w.streamId) : ''
+    const key = w.channelName || fallback || w.channelSipId || '未命名通道'
+    if (!o.includeSim && key === SIM_LABEL) { simSkipped++; continue }
     const spid = w.channelSpid || w.channelSipId || ''
     if (!byChannel.has(key)) {
       byChannel.set(key, {
@@ -305,10 +554,18 @@ function getArchive() {
       aiType: w.aiType || '',
       aiConfidence: w.aiConfidence || 0,
       level: w.level || 1,
-      imageUrl: w.picUrl ? `/api/iot-image?url=${encodeURIComponent(w.picUrl)}` : null,
+      // 只对绝对 http(s) 套代理；/api/evidence/… 相对路径原样透传（否则代理 400 → 空蓝块）
+      imageUrl: toDisplayImageUrl(w.picUrl),
       channelName: w.channelName || '',
+      // P0-4（2026-09-20）：通道名为空时（无人机记录）的可读兜底名 + 原始 streamId，供列表「通道」列回落显示
+      displayName: fallback,
+      streamId: w.streamId || '',
       deviceName: w.deviceName || '',
       warningType: w.warning_type || 'iot-video-analysis',
+      // P0-4（2026-09-19）：研判留痕（准入/拦下 + 原因），供存档页展示与筛选
+      judgeStatus: w.judgeStatus || '',
+      judgeReason: w.judgeReason || '',
+      judgeRuleId: w.judgeRuleId || '',
     })
   }
   const channels = [...byChannel.values()].map(ch => ({
@@ -316,61 +573,119 @@ function getArchive() {
     total: ch.records.length,
     records: ch.records.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
   })).sort((a, b) => (b.latestAt || '').localeCompare(a.latestAt || ''))
-  return { channels, total: rows.length }
+  return { channels, total: rows.length - simSkipped }
+}
+
+// ── P0-3（2026-09-17 B1）「每通道最新一条」轻量查询 ─────────────────────
+// 🔴 背景：getStatus() 原实现调用 getArchive()，而 getArchive() → _store.queryWarnings()
+//   会取最多 20,000 行、逐条 JSON.parse 并**构建完整记录对象**（含 picUrl/type/value/standard 等长字段，
+//   还要为每条通道维护 records 数组并逐通道排序），最后只用到**每条通道的最新一条**。
+//   而 /api/iot-analysis/status 是**最高频端点**（nginx 日志窗口内 1,534 次，archive 只有 103 次），
+//   响应体仅 ~3 KB，耗时却全花在全量构建上（基线实测 0.31~0.40 s）。
+// 做法：**每行只解析一次 JSON**，只保留"判定可见性 + 取最新 + 输出状态"所需的 8 个字段，
+//   最终只产出 ~14 个对象 —— 不再构建 7,818 条完整记录、不再逐通道排序、不再走 20,000 行配额。
+//   ⚠️ 这里**刻意不用 SQL 的 json_extract 做字段投影**：SQLite 每次 json_extract 都会重新解析
+//      JSON 文本，18 个字段 × 29,134 行 ≈ 52 万次解析，实测反而比"JS 里解析 2.9 万次"更慢（0.54s vs 0.32s）。
+//   · 必须复刻 getArchive→queryWarnings 的可见性口径 —— 它会过 alertFilterRuleHit（静音规则）。
+//     ⚠️ 实测若不过这一步会多出 4 个被静音的通道（18 vs 14），故不可省；
+//        而过它就必须解析记录（规则要看 source/channelName/deviceName/location/aiConfidence/level/createdAt）。
+//   · 分组键与"择新"口径严格复刻 getArchive()：channelName || channelSipId || '未命名通道'，
+//     用**字符串比较** created_at 取最大（与 getArchive 的 latestAt 比较方式一致）。
+function latestPerChannel() {
+  if (!_store || typeof _store.getDb !== 'function') return []
+  // 短缓存命中：直接返回上一轮的行（alerting 由调用方按当前时间实时算，不受影响）
+  // 缓存键之一：保留策略版本号 —— 管理员改了天数要立刻重算，不能等 TTL
+  const ver = (typeof _store.retentionVersion === 'function') ? _store.retentionVersion() : 0
+  if (_statusCacheRows && STATUS_CACHE_TTL_MS > 0
+      && _statusCacheVer === ver && (Date.now() - _statusCacheAt) < STATUS_CACHE_TTL_MS) {
+    return _statusCacheRows
+  }
+  let rows
+  try {
+    rows = _store.getDb().prepare(
+      "SELECT created_at AS createdAt, data_json AS dataJson FROM warnings WHERE warning_type = 'iot-video-analysis'"
+    ).all()
+  } catch (e) {
+    // 查询失败不抛（地图不应因此不可用），留日志便于排查
+    if (typeof console !== 'undefined') console.error('[iot-fetcher] latestPerChannel 查询失败:', e && e.message)
+    return []
+  }
+  // 静音规则：与 getArchive→queryWarnings 完全同一口径（规则集合取一次整批复用，避免 N+1）
+  const rules = (typeof _store.loadEnabledFilterRules === 'function') ? _store.loadEnabledFilterRules() : []
+  const hit = (typeof _store.alertFilterRuleHit === 'function') ? _store.alertFilterRuleHit : null
+  const expired = (typeof _store.warningRetentionExpired === 'function') ? _store.warningRetentionExpired : null
+  const nowMs = Date.now()
+  const best = new Map()
+  for (const r of rows) {
+    let w
+    try { w = JSON.parse(r.dataJson) } catch (e) { continue }
+    if (hit && hit(w, rules)) continue
+    // 2026-09-24：保留期软归档 —— 超过该算法保留天数的记录不再驱动告警灯（与前台列表同口径）。
+    //   🔴 实测（生产库 2026-09-24 18:47，29,974 条）：**不是空操作**
+    //     ① 状态列表通道数 19 → 7（12 个通道的"最新一条"已超期 ⇒ 整条不再出现在状态列表）
+    //     ② 但 alerting 集合**完全不变**（灯的 TTL 30 分钟，远短于任何 ≥1 天保留期）
+    //        ⇒ 地图摄像头告警灯无变化；后台通道卡片的"告警中"圆点也无变化。
+    //     结论：影响的是"状态列表里还有没有这个通道"，不影响"灯亮不亮"。
+    if (expired && expired(w, nowMs)) continue
+    const key = w.channelName || w.channelSipId || '未命名通道'
+    const at = r.createdAt || ''
+    const cur = best.get(key)
+    if (!cur || String(at) > String(cur.createdAt || '')) {
+      best.set(key, {
+        createdAt: at,
+        channelName: key,
+        channelSpid: w.channelSpid,
+        channelSipId: w.channelSipId,
+        streamId: w.streamId,
+        lat: w.lat,
+        lon: w.lon,
+        aiType: w.aiType,
+      })
+    }
+  }
+  const out = Array.from(best.values())
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+  _statusCacheRows = out
+  _statusCacheAt = Date.now()
+  _statusCacheVer = ver
+  return out
+}
+
+// 告警时间 → epoch ms（显式上海时，与 store-db.js 的 warningTimeMs 同一口径）
+//   'YYYY-MM-DD HH:MM:SS' 无时区后缀 ⇒ 补 +08:00（**不能依赖机器本地时区**）
+//   ISO 带 Z / 带偏移 ⇒ 原样交给 Date 解析
+function eventMs(s) {
+  const v = String(s || '')
+  if (!v) return NaN
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(v)) return Date.parse(v.replace(' ', 'T') + '+08:00')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return Date.parse(v + 'T00:00:00+08:00')
+  return Date.parse(v)
 }
 
 // ── 通道实时触发状态（驱动地图摄像头图标告警）────────
+// 🔴 2026-09-17 B1：不再调用 getArchive()（全量构建）；改为只查每条通道最新一条。
+//   输出结构与字段语义与改造前**完全一致**，仅去掉了不必要的全量构建。
 function getStatus() {
-  const archive = getArchive()
   const now = Date.now()
-  const channels = archive.channels.map(ch => {
-    let alerting = false
-    let lastEventAt = ch.latestAt || ''
-    let lastEventType = ''
-    if (ch.records.length) {
-      const latest = ch.records[0] // records 已按时间倒序
-      lastEventAt = latest.createdAt
-      lastEventType = latest.aiType || ''
-      const t = new Date(String(latest.createdAt).replace(' ', 'T')).getTime()
-      alerting = !isNaN(t) && (now - t) < IOT.alertTtlMs
-    }
+  const channels = latestPerChannel().map(r => {
+    const spid = r.channelSpid || r.channelSipId || ''
+    const lastEventAt = r.createdAt || ''
+    const t = eventMs(lastEventAt)
     return {
-      spid: ch.spid,
-      name: ch.channelName,
-      streamId: ch.streamId,
-      lat: ch.lat,
-      lon: ch.lon,
-      alerting,
+      spid,
+      name: r.channelName,
+      streamId: r.streamId || _channelStream[spid] || '',
+      lat: typeof r.lat === 'number' ? r.lat : (_channelGeo[spid]?.lat ?? null),
+      lon: typeof r.lon === 'number' ? r.lon : (_channelGeo[spid]?.lon ?? null),
+      alerting: !isNaN(t) && (now - t) < IOT.alertTtlMs,
       lastEventAt,
-      lastEventType,
+      lastEventType: r.aiType || '',
     }
   })
   return { channels, ttlMinutes: IOT.alertTtlMs / 60000, serverTime: new Date().toISOString() }
 }
 
-// ── 远程通道列表（供后台「通道接入」拉取 IoTCloud NVR 设备通道）──
-async function listRemoteChannels() {
-  if (!await ensureToken()) return { ok: false, error: 'IoTCloud 登录失败' }
-  try {
-    const res = await iotRequest('GET', '/sip/channel/list?pageNum=1&pageSize=200')
-    if (res.status !== 200 || !Array.isArray(res.body?.rows)) {
-      return { ok: false, error: `HTTP ${res.status}` }
-    }
-    const local = (_store && typeof _store.listIotChannels === 'function') ? _store.listIotChannels() : []
-    const localSet = new Set(local.map(c => c.channelSipId))
-    const list = res.body.rows.map(r => ({
-      channelSipId: r.channelSipId,
-      channelName: r.channelName || '',
-      deviceSipId: r.deviceSipId || '',
-      deviceName: r.deviceName || '',
-      snapshotUrl: r.sipChannelPhoto?.picUrl ? `/api/iot-image?url=${encodeURIComponent(r.sipChannelPhoto.picUrl)}` : null,
-      alreadyAdded: localSet.has(r.channelSipId),
-    }))
-    return { ok: true, channels: list, total: res.body.total || list.length }
-  } catch (e) {
-    return { ok: false, error: e.message }
-  }
-}
+
 
 // ── 图片代理（解决跨域，供前端调用） ────────────────
 // 简易内存 LRU 缓存：同一张图（如聚合告警预览、通道快照）在 5 分钟内被多张卡片重复请求时，
@@ -571,7 +886,8 @@ function registerRoutes(app) {
         location: w.location,
         value: w.value,
         level: w.level,
-        imageUrl: w.picUrl ? `/api/iot-image?url=${encodeURIComponent(w.picUrl)}` : null,
+        // 只对绝对 http(s) 套代理；/api/evidence/… 相对路径原样透传（否则代理 400 → 空蓝块）
+        imageUrl: toDisplayImageUrl(w.picUrl),
         channelName: w.channelName,
         deviceName: w.deviceName,
         aiType: w.aiType,
@@ -587,8 +903,36 @@ function registerRoutes(app) {
   app.get('/api/thumb', thumbImage)
 
   // 按通道分类的 AI 历史分析存档
+  // 🔴 2026-09-20：加一层**响应短缓存**。原因（实测）：
+  //   修复「SQL 预截断」后本接口需同步解析 ~2.9 万行（实测 ~1.0s / 3.57MB），
+  //   而 node:sqlite 是**同步** API ⇒ 这 1s 会**阻塞事件循环**：
+  //   实测 archive 在跑时 `/api/iot-analysis/status` 由 0.002s 被拖到 **0.680s**。
+  //   存档是历史数据、非实时视图 ⇒ 用 90s 全局缓存把「每个标签页每分钟算一次」
+  //   收敛为「全局最多 90s 算一次」，多开标签页/前后台复访只付一次代价。
+  //   代价：新记录最多滞后 90s 才出现在存档页（对历史留档无影响）。
+  //   注：`res.send(字符串)` 与 res.json 一样会计算 ETag ⇒ 内容未变时浏览器仍收 304、0 字节。
+  const ARC_CACHE_TTL_MS = 90000
+  const ARC_CACHE_MAX = 24
+  const _arcCache = new Map()   // key -> { at, body }
   app.get('/api/iot-analysis/archive', (req, res) => {
-    res.json(getArchive())
+    // P0-3：透传时间范围（?from=YYYY-MM-DD&to=YYYY-MM-DD 或 datetime-local）
+    // 2026-09-20：默认排除「模拟/测试流」；?includeSim=1 可把它们放回来（排障用，无需发版）
+    const includeSim = req.query.includeSim === '1' || req.query.includeSim === 'true'
+    const key = `${req.query.from || ''}|${req.query.to || ''}|${includeSim ? 1 : 0}`
+    const now = Date.now()
+    const hit = _arcCache.get(key)
+    if (hit && now - hit.at < ARC_CACHE_TTL_MS) {
+      res.type('application/json').send(hit.body)
+      return
+    }
+    const body = JSON.stringify(getArchive({
+      from: req.query.from,
+      to: req.query.to,
+      includeSim,
+    }))
+    if (_arcCache.size >= ARC_CACHE_MAX) _arcCache.clear()
+    _arcCache.set(key, { at: now, body })
+    res.type('application/json').send(body)
   })
 
   // 通道实时触发状态（地理坐标对应摄像头图标告警）
@@ -602,8 +946,28 @@ function registerRoutes(app) {
     res.json({ ok: true, newRecords: count })
   })
 
+  // 🔴 2026-09-17 D4：/simulate 与 /simulate-closure 是「**往生产库注入假数据**」的入口
+  //   （09-07/09-10 那 529 条合成数据即源于此）。
+  //   现状核实：两者均为 POST，且不在 index.js 的 PUBLIC_PATHS / ANY_USER_WRITES /
+  //     OPERATOR_WRITE_PREFIXES 中 ⇒ requiredRoleForWrite 默认返回 'admin'，
+  //     **已要求管理员会话**（实测：不带 token POST → 401 UNAUTHORIZED）。
+  //   本次加固：再加一道**默认关闭**的环境开关 —— 生产环境不再"登录管理员就能点"，
+  //     必须显式设置 ALLOW_SIMULATE=1 才可用，把"误点 / 误用 / 被诱导点击"的可能性清零。
+  //   回滚：在服务环境里设 ALLOW_SIMULATE=1（或删除该判断）。
+  const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === '1'
+  function _simulateGuard(res) {
+    if (ALLOW_SIMULATE) return true
+    res.status(403).json({
+      ok: false,
+      code: 'SIMULATE_DISABLED',
+      error: '演示/注入接口已在生产环境关闭；如需启用，请在服务环境变量中显式设置 ALLOW_SIMULATE=1 并重启',
+    })
+    return false
+  }
+
   // 演示/验证用：为指定通道注入一条「当前时间」的 AI 分析记录，触发摄像头图标告警
   app.post('/api/iot-analysis/simulate', async (req, res) => {
+    if (!_simulateGuard(res)) return
     const spid = String(req.body?.spid || '')
     const channels = (_store && typeof _store.listIotChannels === 'function') ? _store.listIotChannels() : []
     const ch = channels.find(c => c.channelSipId === spid) || channels[0]
@@ -639,6 +1003,7 @@ function registerRoutes(app) {
   // 注入 N 张 AI 分析图（不同置信度）→ 聚合为带 memberIds 的一条事件 → 直插推送历史(pushed)
   // → 模拟城运回执(processing) → 一键结案(closed) → 生成结案 PDF。全程真实落库，跳过真实 HTTP 推送。
   app.post('/api/iot-analysis/simulate-closure', async (req, res) => {
+    if (!_simulateGuard(res)) return
     try {
       if (!_store) return res.status(500).json({ error: '存储未就绪' })
       const channels = (typeof _store.listIotChannels === 'function') ? _store.listIotChannels() : []
@@ -800,6 +1165,8 @@ function start(opts = {}) {
       seedIfEmpty()
       // T5: 启动即加载历史 recordId 去重集（重启不重复入库、不复活已处理告警）
       loadSeenIds()
+      // 🔴 P1：启动即强刷一次 /meta/algo-types（权威算法字典），拿到后才开始拉数
+      refreshMetaAlgoTypes(true).catch(() => {})
       // 解析通道→视频流地理坐标，并修正历史记录
       const channels = (_store && typeof _store.listIotChannels === 'function')
         ? _store.listIotChannels().filter(c => c.enabled) : []
@@ -810,6 +1177,7 @@ function start(opts = {}) {
       // 定时轮询（每轮从表热加载通道）
       _timer = setInterval(fetchOnce, intervalMs)
       _log.info(`[IoT] 启动成功，每 ${(intervalMs / 1000)}s 拉取一次（通道来源 iot_channels 表）`)
+      _log.info(`[IoT] 算法字典来源: /meta/algo-types ${IOT_META_ENABLED ? '已启用' : '已禁用(IOT_META_ENABLED=0)'}`)
     } else {
       _log.error('[IoT] 启动失败：无法登录 IoTCloud')
     }
@@ -822,4 +1190,22 @@ function stop() {
   _lastRecordIds.clear()
 }
 
-module.exports = { start, stop, registerRoutes, fetchOnce, listRemoteChannels, IOT }
+module.exports = {
+  start, stop, registerRoutes, fetchOnce, IOT,
+  // 图片 URL 归一（只对绝对 http(s) 套 /api/iot-image 代理，相对路径原样透传）
+  // 供 index.js 的城运推送桥等处复用，保证全站同一口径。
+  toDisplayImageUrl,
+  // 🔴 P1 导出（供离线自检与运维观测）：
+  //   _p1 是**测试专用**入口，业务代码请勿依赖其内部实现。
+  _p1: {
+    buildMetaAlgoMap,
+    metaStatus,
+    // 用当前已加载的字典走一遍完整解析链（等价于线上处理一条记录）
+    parseAnalyseInfo,
+    transformToWarning,
+    resolveAiType,
+    AI_TYPE_MAP,
+    _setMetaMapForTest(map) { _metaAlgoMap = map || {}; _metaLoadedAt = Date.now(); _metaFailCount = 0 },
+    _setAiTypeKeyMapForTest(map) { _aiTypeKeyMap = map || {} },
+  },
+}

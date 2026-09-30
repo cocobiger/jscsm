@@ -124,7 +124,26 @@ function buildUrls(streamId) {
  * @param {object} djiConfig
  * @returns {Promise<{ok:boolean, hls:string, flv:string, ws_flv:string, rtmp:string, rts:string}>}
  */
+const inFlight = new Map()
+
 async function startSession(streamId, djiConfig) {
+  if (!streamId) throw new Error('缺少 streamId')
+  if (!djiConfig?.shareUrl) throw new Error('缺少 shareUrl')
+  if (!djiConfig?.airportName && djiConfig?.airportIndex == null) {
+    throw new Error('缺少 airportName 或 airportIndex')
+  }
+  // 并发守卫：防止前端 504 重试 / 连点导致重复 spawn 同一路流
+  if (inFlight.has(streamId)) {
+    log.info(`dji-bridge 启动已在进行 [${streamId}]，复用`)
+    return inFlight.get(streamId)
+  }
+  const p = _startSessionCore(streamId, djiConfig)
+  inFlight.set(streamId, p)
+  p.finally(() => { if (inFlight.get(streamId) === p) inFlight.delete(streamId) }).catch(() => {})
+  return p
+}
+
+async function _startSessionCore(streamId, djiConfig) {
   if (!streamId) throw new Error('缺少 streamId')
   if (!djiConfig?.shareUrl) throw new Error('缺少 shareUrl')
   if (!djiConfig?.airportName && djiConfig?.airportIndex == null) {
@@ -287,4 +306,4 @@ function getStatus() {
   }
 }
 
-module.exports = { init, startSession, stopSession, getStatus }
+module.exports = { init, startSession, stopSession, getStatus, buildUrls }

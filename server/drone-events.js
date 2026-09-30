@@ -1,4 +1,8 @@
 'use strict'
+// 内部端点共享密钥（供 straw-engine 读取无人机 OSD；文件优先，便于轮换）
+const SECRET_INTERNAL = (() => {
+  try { return require('fs').readFileSync('/opt/jsc/backend/.internal-secret', 'utf8').trim() } catch (e) { return '' }
+})()
 /**
  * 无人机直播事件链路（弹窗需求 T1 · 决策4 dockSn 白名单）
  *
@@ -198,6 +202,239 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
     res.json({ ok: true, count: rows.length, items: rows })
   })
 
+  // ── ④b 弹窗链路自检（诊断面板数据源，T4）──
+  // 四段状态：SSE 连接数 / 最近事件源 / 拉流状态 / 司空链路。供后台诊断面板展示。
+  app.get('/api/drone-events/diag', async (req, res) => {
+    try {
+      // 段1 SSE 连接（活跃客户端数）
+      const sseClients = clients.size
+      // 段2 最近事件（取最近 10 条，含事件源判断）
+      const recent = db.prepare('SELECT device_sn, dock_sn, status, change_reason, event_time, whitelisted, zlm_online, created_at FROM drone_live_events ORDER BY id DESC LIMIT 10').all()
+      const recentWithSource = recent.map(r => ({
+        ...r,
+        source: /OSD_/.test(r.change_reason || '') ? 'OSD兜底' : /SIM/.test(r.event_id || '') ? '模拟' : 'webhook',
+      }))
+      // 段3 拉流状态（我方 ZLM sikong_ 流在线数）
+      let zlmSikongOnline = 0
+      try {
+        const zlm = require('./zlm.js')
+        const list = await zlm.getMediaList()
+        zlmSikongOnline = list.filter(m => m.app === 'jsc' && String(m.stream || '').startsWith('sikong_')).length
+      } catch (e) { /* ZLM 不可达时 0 */ }
+      // 段4 司空链路（dji-openapi health）
+      let sikongHealth = null
+      try {
+        const r = await fetch('http://127.0.0.1:17810/health', { signal: AbortSignal.timeout(3000) })
+        sikongHealth = r.ok ? await r.json() : null
+      } catch (e) { sikongHealth = null }
+      res.json({
+        ok: true,
+        ts: Date.now(),
+        sse: { clients: sseClients },
+        recent: recentWithSource,
+        zlm: { sikongOnline: zlmSikongOnline },
+        sikong: sikongHealth ? { up: true, wsOsd: sikongHealth.wsOsd ?? null, devices: sikongHealth.devices?.length ?? 0 } : { up: false },
+      })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // ── ④d 内部端点：无人机高度/垂直速度（供 straw-engine 降落判定，2026-09-11）──
+  // 安全：共享密钥（/opt/jsc/backend/.internal-secret 或 env JSC_INTERNAL_SECRET），
+  // 无密钥/密钥不符一律 403；路径列入 PUBLIC_PATHS 但数据仍需密钥，公网无法直接取用。
+  app.get('/api/internal/drone-osd', async (req, res) => {
+    try {
+      const want = process.env.JSC_INTERNAL_SECRET || SECRET_INTERNAL
+      const got = String(req.headers['x-internal-secret'] || req.query.secret || '')
+      if (!want || got !== want) return res.status(403).json({ ok: false, error: 'forbidden' })
+      const sn = String(req.query.deviceSn || '')
+      if (!sn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
+      const raw = await redisGet(`system:osd_dock_drone:${sn}`)
+      if (!raw) return res.json({ ok: true, deviceSn: sn, online: false, height: null, verticalSpeed: null })
+      let d = null
+      try { d = JSON.parse(raw) } catch (e) { d = null }
+      if (!d) return res.json({ ok: true, deviceSn: sn, online: false, height: null, verticalSpeed: null })
+      res.json({
+        ok: true, deviceSn: sn, online: true,
+        height: d.height ?? null,
+        verticalSpeed: d.verticalSpeed ?? null,
+        horizontalSpeed: d.horizontalSpeed ?? null,
+        latitude: d.latitude ?? null,
+        longitude: d.longitude ?? null,
+        ts: Date.now(),
+      })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // ── ④c 实时检测框 bbox 转发（T5 实时标框：原流 + bbox 叠加）──
+  // 数据源：straw-engine /debug/snapshot 的 streams[sikong_<deviceSn>].boxes
+  // 前端弹窗在原流画面上轮询（2s，与检测抽帧节奏一致）拉本接口，canvas 叠加检测框。
+  app.get('/api/drone-events/bbox', async (req, res) => {
+    try {
+      const deviceSn = String(req.query.deviceSn || '')
+      if (!deviceSn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
+      const sid = `sikong_${deviceSn}`
+      const r = await fetch('http://127.0.0.1:7200/debug/snapshot', { signal: AbortSignal.timeout(4000) })
+      if (!r.ok) return res.status(502).json({ ok: false, error: 'straw-engine 不可达' })
+      const j = await r.json()
+      const streams = (j && j.streams) || {}
+      const st = streams[sid] || null
+      // boxes: [{cls, conf, box:[x1,y1,x2,y2]}]，顺带带回流分辨率（前端按比例缩放叠加框）
+      res.json({
+        ok: true,
+        deviceSn,
+        streamId: sid,
+        streamOk: st ? !!st.stream_ok : false,
+        detects: st ? st.detects || 0 : 0,
+        boxes: st && Array.isArray(st.boxes) ? st.boxes : [],
+        ts: Date.now(),
+      })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // ── ④d 机场网络流量监控（上行带宽占用 + 拥堵预警）──
+  // 数据源：司空 ZLM getMediaList 的 bytesSpeed（源流码率，字节/秒）。
+  // 直播流码率 = 该 dock 相关的 live 流（dock 监控流 + 无人机流）bytesSpeed 之和；
+  // dock_media 录像上传 = 估算（在飞时按定档，q=3 HD1080P→2MB/s，q=4 UHD→4MB/s）。
+  // 上行阈值 3MB/s（用户给定）；拥堵等级 safe(<60%)/warn(60-90%)/danger(>90%)。
+  const SK_ZLM = process.env.SIKONG_ZLM_HTTP || 'http://172.28.0.90:9080'
+  const SK_ZLM_SECRET = process.env.SIKONG_ZLM_SECRET || 'ibxX0tCpM0GUF9qJKaLRnnNc0LEm7YKT'
+  app.get('/api/drone-events/network-status', async (req, res) => {
+    try {
+      const dockSn = String(req.query.dockSn || '')
+      const deviceSn = String(req.query.deviceSn || '')
+      if (!dockSn && !deviceSn) return res.status(400).json({ ok: false, error: '缺 dockSn/deviceSn' })
+
+      // 1. 从司空设备目录解析 childSn（若只给了 dockSn）
+      let childSn = deviceSn
+      let dockName = ''
+      if (!childSn || !dockName) {
+        try {
+          const sikong = require('./sikong.js')
+          const dev = await sikong.fetchMergedDevices()
+          const items = (dev && dev.items) || []
+          for (const d of items) {
+            if (dockSn && String(d.deviceSn) === dockSn) {
+              dockName = dockName || String(d.deviceName || '')
+              if (!childSn && d.drone && d.drone.droneSn) childSn = String(d.drone.droneSn)
+            }
+            if (!dockName && childSn && d.drone && String(d.drone.droneSn) === childSn) dockName = String(d.deviceName || '')
+          }
+        } catch (e) { /* 设备目录不可达时降级 */ }
+      }
+
+      // 2. 调司空 ZLM getMediaList，汇总该 dock 相关 live 流的 bytesSpeed
+      const zlmUrl = `${SK_ZLM}/index/api/getMediaList?secret=${SK_ZLM_SECRET}`
+      let liveBytesSpeed = 0
+      let droneBytesSpeed = 0   // 无人机源流码率（判断"真在飞"的依据）
+      const flowDetail = []
+      try {
+        const r = await fetch(zlmUrl, { signal: AbortSignal.timeout(5000) })
+        const j = await r.json()
+        const list = (j && j.data) || []
+        const sns = new Set([dockSn, childSn].filter(Boolean))
+        for (const m of list) {
+          if (m.schema === 'rtmp' && m.app === 'live' && sns.has(m.stream)) {
+            const bs = Number(m.bytesSpeed) || 0
+            liveBytesSpeed += bs
+            if (childSn && m.stream === childSn) droneBytesSpeed = bs
+            flowDetail.push({ stream: m.stream, bytesSpeed: bs, aliveSecond: m.aliveSecond })
+          }
+        }
+      } catch (e) { /* 司空 ZLM 不可达时 liveBytesSpeed=0 */ }
+
+      // 3. dock_media 录像上传说明（修正 2026-09-08 流量虚高问题）
+      // 原逻辑把"dock_media 录像上传"估算为 2~4MB/s 加进总上行，导致显示虚高（直播0.8+估算2=2.8MB/s 误报拥堵）。
+      // 实际：① dock_media 录像上传不是飞行中实时占机场上行（遥控器录像滞后 6~9min 归档）；② 它走"机场→大疆云→MinIO"，
+      // 不是"机场→我方服务器"的实时上行；③ 大疆厂方实测"机场上传不到 1MB"=直播流码率（司空 bytesSpeed ≈0.8MB/s），完全吻合。
+      // 因此总上行只算直播流（司空 bytesSpeed 之和），不再加录像估算。
+      let recordMBps = 0   // 不再估算录像上传（保留字段兼容前端，恒 0）
+      let quality = null
+      const flying = droneBytesSpeed > 0   // 无人机源流有码率=真在飞（dock 监控流常驻不算）
+
+      // 4. 汇总计算（totalMBps 只算直播流，不加录像估算）
+      const liveMBps = liveBytesSpeed / 1024 / 1024
+      const totalMBps = liveMBps
+      const uplinkMBps = 3.0
+      const usagePct = Math.round((totalMBps / uplinkMBps) * 100)
+      const level = usagePct >= 90 ? 'danger' : usagePct >= 60 ? 'warn' : 'safe'
+      const liveKbps = Math.round(liveBytesSpeed * 8 / 1000)
+
+      res.json({
+        ok: true,
+        dockSn, deviceSn: childSn, dockName,
+        flying,
+        liveKbps,                       // 直播流码率 kbps
+        liveMBps: Math.round(liveMBps * 100) / 100,   // 直播流 MB/s
+        recording: recordMBps > 0,
+        recordMBps,                     // 录像上传估算 MB/s
+        quality,                        // 当前定档
+        totalMBps: Math.round(totalMBps * 100) / 100, // 总上行占用 MB/s
+        uplinkMBps,                     // 上行阈值
+        usagePct,                       // 占用百分比
+        level,                          // safe/warn/danger
+        flowDetail,                     // 各流明细
+        ts: Date.now(),
+      })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
+  // ── ④e 无人机实时 OSD（画中画小地图数据源）──
+  // 数据源：司空 Redis system:osd_dock_drone:<deviceSn>（dji-openapi ws-osd 实时推送）。
+  // 后端无 redis 包且生产环境不宜装第三方包，故用 node 内置 net 手写 RESP GET 客户端（只读，不重启服务）。
+  const { redisGet } = require('./redis-get.js')
+
+  app.get('/api/drone-events/osd', async (req, res) => {
+    try {
+      const deviceSn = String(req.query.deviceSn || '')
+      if (!deviceSn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
+      const raw = await redisGet(`system:osd_dock_drone:${deviceSn}`)
+      if (!raw) return res.json({ ok: true, deviceSn, online: false, osd: null })
+      let d = null
+      try { d = JSON.parse(raw) } catch (e) { d = null }
+      if (!d) return res.json({ ok: true, deviceSn, online: false, osd: null })
+      // 提取小地图所需的关键字段（经纬度/高度/朝向/速度/电量/目标点）
+      const payload0 = Array.isArray(d.payload) && d.payload[0] ? d.payload[0] : {}
+      const battery = d.battery || {}
+      const posState = d.positionState || {}
+      res.json({
+        ok: true,
+        deviceSn,
+        online: true,
+        osd: {
+          latitude: d.latitude ?? null,
+          longitude: d.longitude ?? null,
+          height: d.height ?? null,
+          elevation: d.elevation ?? null,
+          attitudeHead: d.attitudeHead ?? null,   // 机头朝向（画中画朝向箭头）
+          attitudePitch: d.attitudePitch ?? null,
+          gimbalPitch: payload0.gimbalPitch ?? null,  // 云台俯仰角
+          gimbalYaw: payload0.gimbalYaw ?? null,      // 云台朝向
+          horizontalSpeed: d.horizontalSpeed ?? null,
+          verticalSpeed: d.verticalSpeed ?? null,
+          batteryPercent: battery.capacityPercent ?? null,
+          remainFlightTime: battery.remainFlightTime ?? null,
+          gpsNumber: posState.gpsNumber ?? null,
+          rtkNumber: posState.rtkNumber ?? null,
+          windSpeed: d.windSpeed ?? null,
+          measureTargetLatitude: payload0.measureTargetLatitude ?? null,   // 云台目标点（事件位置）
+          measureTargetLongitude: payload0.measureTargetLongitude ?? null,
+          modeCode: d.modeCode ?? null,
+          ts: Date.now(),
+        },
+      })
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e.message })
+    }
+  })
+
   // ── ⑤ 单机镜像状态/播放地址/机场名（弹窗取流解析用 · 与相机 role 列表解耦）──
   // 背景：弹窗调度只消费 SSE 事件（自身 drone model），不再依赖 /api/sikong/live-streams 的
   // dock/drone role 匹配。本端点按 deviceSn 直查：我方 ZLM mirror(sikong_<SN>) 实时在线 +
@@ -209,9 +446,12 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
       const dockSn = String(req.query.dockSn || '')
       if (!deviceSn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
       const streamId = `sikong_${deviceSn}`
+      const bboxStreamId = `straw_bbox_${deviceSn}` // straw-engine 带框流（实时标框，优先播放）
       const zlm = require('./zlm.js')
-      const [online, dev] = await Promise.all([
+      const [online, bboxOnline, resolution, dev] = await Promise.all([
         zlm.isStreamOnline(streamId).catch(() => false),
+        zlm.isStreamOnline(bboxStreamId).catch(() => false),
+        zlm.getStreamResolution(streamId).catch(() => null),
         (async () => {
           try {
             const sikong = require('./sikong.js')
@@ -226,8 +466,14 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
         if (!dockName && String(d.deviceSn) === dockSn) dockName = String(d.deviceName || '')
         if (!dockName && d.drone && String(d.drone.droneSn || '') === deviceSn) dockName = String(d.deviceName || '')
       }
-      const hls = online ? String((zlm.playUrls('jsc', streamId) || {}).hls || '') : ''
-      res.json({ ok: true, deviceSn, dockSn, streamId, online, hls, dockName })
+      const hls = online ? `/jsc/${streamId}/hls.m3u8` : ''  // 相对路径：走 nginx ^~ /jsc/sikong_ 反代（6080 公网未开放，绝对地址会超时）
+      const bboxHls = bboxOnline ? `/jsc/${bboxStreamId}/hls.m3u8` : ''
+      // 2026-09-11：ZLM 的 HLS/TS 转发曾整体挂起（HTTP 请求超时），而 HTTP-FLV 正常。
+      // 前端优先播 FLV（延迟也更低），HLS 仅作回退。
+      const flv = online ? `/jsc/${streamId}.live.flv` : ''
+      const bboxFlv = bboxOnline ? `/jsc/${bboxStreamId}.live.flv` : ''
+      res.json({ ok: true, deviceSn, dockSn, streamId, online, hls, bboxHls, flv, bboxFlv,
+                 dockName, width: resolution?.width ?? null, height: resolution?.height ?? null })
     } catch (e) {
       res.status(502).json({ ok: false, error: e.message })
     }
@@ -295,5 +541,103 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
       log.error(`[drone-events][SIM] off-all 失败: ${e.message}`)
       res.status(500).json({ ok: false, error: e.message })
     }
+  })
+
+  // ── ⑦ OSD 轮询兜底（LIVE webhook 缺失时的可靠性兜底）──
+  // 背景：弹窗依赖司空 LIVE_STATUS_CHANGE webhook，但司空有时不推该事件（如无人机仅开机未起飞、
+  // 或 webhook 通道异常），导致"无人机起飞了但没弹窗"。兜底：每 10s 轮询司空 OSD 的
+  // droneInDock（1=在仓 0=飞行），检测 1→0（起飞）/ 0→1（降落）变化，用 childSn 作为 deviceSn
+  // 走 ingestEvent 触发弹窗（与真实 webhook 同一链路，幂等 + 白名单 + SSE 广播）。
+  const OSD_POLL_MS = 10000
+  const osdDockState = new Map() // dockSn -> { droneInDock:number, childSn:string }
+  const droneTrail = new Map() // deviceSn -> [{lat,lon,ts},...] 飞行轨迹（保留最近 120 点，供大地图轨迹线）
+  const TRAIL_MAX = 120
+  const { redisGet: redisGetTrail } = require('./redis-get.js')
+  async function appendTrail(deviceSn) {
+    if (!deviceSn) return
+    try {
+      const raw = await redisGetTrail(`system:osd_dock_drone:${deviceSn}`)
+      if (!raw) return
+      const d = JSON.parse(raw)
+      const lat = d.latitude ?? d.lat
+      const lon = d.longitude ?? d.lon ?? d.lng
+      if (lat == null || lon == null) return
+      const arr = droneTrail.get(deviceSn) || []
+      // 与上一点距离过近（<2m）则跳过，避免悬停时点堆积
+      const last = arr[arr.length - 1]
+      if (last) {
+        const dx = (Number(lat) - last.lat) * 111320
+        const dy = (Number(lon) - last.lon) * 111320 * Math.cos(last.lat * Math.PI / 180)
+        if (Math.hypot(dx, dy) < 2) return
+      }
+      arr.push({ lat: Number(lat), lon: Number(lon), ts: Date.now() })
+      if (arr.length > TRAIL_MAX) arr.splice(0, arr.length - TRAIL_MAX)
+      droneTrail.set(deviceSn, arr)
+    } catch (e) { /* 遥测不可达时静默 */ }
+  }
+  const OSD_URL = 'http://127.0.0.1:17810/api/telemetry/latest'
+
+  async function osdPollOnce() {
+    try {
+      const resp = await fetch(OSD_URL, { signal: AbortSignal.timeout(5000) })
+      if (!resp.ok) return
+      const j = await resp.json()
+      const devs = Array.isArray(j && j.devices) ? j.devices : []
+      for (const d of devs) {
+        const dockSn = String(d.dockSn || d.deviceSn || '')
+        const childSn = String(d.childSn || '')
+        if (!dockSn) continue
+        const curInDock = d.droneInDock === 1 || d.droneInDock === '1' ? 1 : 0
+        // 在飞无人机：累积飞行轨迹（经纬度，供大地图轨迹线）
+        if (curInDock === 0 && childSn) appendTrail(childSn)
+        const prev = osdDockState.get(dockSn)
+        if (!prev) {
+          osdDockState.set(dockSn, { droneInDock: curInDock, childSn })
+          continue
+        }
+        // 状态变化检测
+        if (prev.droneInDock !== curInDock) {
+          const nowMs = Date.now()
+          const deviceSn = childSn || prev.childSn || ''
+          const status = curInDock === 0 ? 'LIVE_ON' : 'LIVE_OFF'
+          const changeReason = curInDock === 0 ? 'OSD_TAKEOFF_FALLBACK' : 'OSD_LANDING_FALLBACK'
+          if (deviceSn) {
+            const body = {
+              eventId: `OSD_${dockSn}_${nowMs}`,
+              deviceSn, dockSn, status, changeReason, eventTime: nowMs,
+              data: { deviceSn, dockSn, status, changeReason, timestamp: nowMs, osdFallback: true },
+            }
+            const out = await ingestEvent(body)
+            if (out && out.ok && !out.duplicated) {
+              log.info(`[drone-events][OSD兜底] ${dockSn} droneInDock ${prev.droneInDock}→${curInDock} → ${status} ${deviceSn} (broadcast=${out.broadcast ? 'Y' : 'N'})`)
+            }
+          }
+          osdDockState.set(dockSn, { droneInDock: curInDock, childSn: childSn || prev.childSn })
+        }
+      }
+    } catch (e) {
+      // 司空链路不可达时静默（下次重试）
+    }
+  }
+
+  // 启动 OSD 兜底轮询（10s 间隔，永不主动停止，随进程生命周期）
+  setInterval(osdPollOnce, OSD_POLL_MS)
+  osdPollOnce()
+  log.info('[drone-events] OSD 兜底轮询已启动（10s，droneInDock 变化触发弹窗）')
+
+  // ── ⑦ 飞行轨迹查询（大地图轨迹线数据源）──
+  // 数据源：OSD 兜底轮询里对在飞无人机累积的 droneTrail（内存，保留最近 120 点）。
+  app.get('/api/drone-events/trail', (req, res) => {
+    const deviceSn = String(req.query.deviceSn || '')
+    if (!deviceSn) return res.status(400).json({ ok: false, error: '缺 deviceSn' })
+    const pts = droneTrail.get(deviceSn) || []
+    res.json({ ok: true, deviceSn, count: pts.length, points: pts })
+  })
+
+  // ── ⑦b 全部在飞无人机轨迹（大地图一次拿全部）──
+  app.get('/api/drone-events/trails', (req, res) => {
+    const out = {}
+    for (const [sn, pts] of droneTrail) { if (pts.length) out[sn] = pts }
+    res.json({ ok: true, count: Object.keys(out).length, trails: out, ts: Date.now() })
   })
 }

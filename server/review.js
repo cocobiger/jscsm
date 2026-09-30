@@ -107,18 +107,31 @@ function registerReviewRoutes(app, reviewCtx = {}) {
       const offset = parseInt(req.query.offset) || 0
       const source = req.query.source ? String(req.query.source) : null
       const minConf = req.query.min_conf ? Number(req.query.min_conf) : null
-      const sort = req.query.sort === 'conf' ? 'max_conf DESC, ts DESC' : 'ts DESC'
+      const sort = req.query.sort === 'conf' ? 'd.max_conf DESC, d.ts DESC' : 'd.ts DESC'
+      // 2026-09-26 新增 heldOnly：只看「推送被 gate 拦下、等复核通过后释放」的帧。
+      //   held 标记在 warnings.data_json.wechatPush.held（strawWorkflow 写入），
+      //   本页读 straw_detections，两表用 straw_detections.warning_id 关联。
+      //   此前页面上无法区分 → 1076 条 pending 里找不到该优先审的那几条。
+      const heldOnly = req.query.held === '1' || req.query.held === 'true'
+      const HELD_EXPR = "CASE WHEN json_extract(w.data_json,'$.wechatPush.held') IN (1,'true') THEN 1 ELSE 0 END"
       const cond = []
       const args = []
-      cond.push('review_status = ?'); args.push(status)
-      if (source) { cond.push('source = ?'); args.push(source) }
-      if (minConf) { cond.push('max_conf >= ?'); args.push(minConf) }
+      cond.push('d.review_status = ?'); args.push(status)
+      cond.push('(d.exclude IS NULL OR d.exclude = 0)')   // 排除传输故障帧（exclude=1），无复检价值
+      if (source) { cond.push('d.source = ?'); args.push(source) }
+      if (minConf) { cond.push('d.max_conf >= ?'); args.push(minConf) }
+      if (heldOnly) cond.push("json_extract(w.data_json,'$.wechatPush.held') IN (1,'true')")
       const where = cond.join(' AND ')
       const rows = db.prepare(
-        `SELECT * FROM straw_detections WHERE ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`
+        `SELECT d.*, ${HELD_EXPR} AS held FROM straw_detections d
+         LEFT JOIN warnings w ON w.id = d.warning_id
+         WHERE ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`
       ).all(...args, limit, offset)
       rows.forEach(r => r.boxes = parseBoxes(r.boxes))
-      const total = db.prepare(`SELECT COUNT(*) c FROM straw_detections WHERE ${where}`).get(...args).c
+      const total = db.prepare(
+        `SELECT COUNT(*) c FROM straw_detections d
+         LEFT JOIN warnings w ON w.id = d.warning_id WHERE ${where}`
+      ).get(...args).c
       res.json({ ok: true, rows, total })
     } catch (e) { res.json({ ok: false, error: e.message }) }
   })
@@ -257,7 +270,10 @@ function registerReviewRoutes(app, reviewCtx = {}) {
         if (!absNeg.startsWith(negRoot)) return res.status(403).end('forbidden')
         return sendImg(absNeg, p, w, res)
       }
-      const abs = path.normalize(path.join(evidenceRoot, p))
+      // 告警证据帧（reporter 存 /api/evidence/<日期>/）→ 统一转 evidence/ 相对路径
+      let pp = p
+      if (pp.startsWith('/api/evidence/')) pp = 'evidence/' + pp.slice('/api/evidence/'.length)
+      const abs = path.normalize(path.join(evidenceRoot, pp))
       if (!abs.startsWith(evidenceRoot)) return res.status(403).end('forbidden')
       return sendImg(abs, p, w, res)
     } catch (e) { res.status(500).end('err:' + e.message) }
@@ -379,6 +395,7 @@ function registerReviewRoutes(app, reviewCtx = {}) {
       if (req.query.to) { cond.push('ts <= ?'); args.push(String(req.query.to)) }
       if (req.query.scene) { cond.push('scene = ?'); args.push(String(req.query.scene)) }   // P2 场景筛选（dock/sim/night/day/urban）
       if (req.query.exclude) { cond.push('exclude = 1') }                                    // P2 只看"不纳入判例"标记
+      else { cond.push('(exclude IS NULL OR exclude = 0)') }                                 // 默认隐藏已排除帧（排除后即时从列表消失）
       const where = cond.length ? 'WHERE ' + cond.join(' AND ') : ''
 
       // 告警索引：①id → 告警（精确关联）②streamId → [{t, w}]（时间窗回退）

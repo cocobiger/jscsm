@@ -8,6 +8,7 @@
  * 隔离：只调 dji-openapi 的聚合 API，不直连司空容器。
  */
 const SK_BASE = process.env.SIKONG_API_BASE || 'http://127.0.0.1:17810'
+const { redisGet } = require('./redis-get.js')
 
 async function jget(url, timeoutMs = 6000) {
   const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
@@ -17,23 +18,113 @@ async function jget(url, timeoutMs = 6000) {
 
 /** 机场设备 + 最新 OSD 合并（驾驶舱地图标注数据源） */
 async function fetchMergedDevices() {
-  const [dev, tel] = await Promise.all([
+  const [dev, tel, remain, recentFiles] = await Promise.all([
     jget(`${SK_BASE}/api/devices`).catch(() => null),
     jget(`${SK_BASE}/api/telemetry/latest`).catch(() => null),
+    jget(`${SK_BASE}/api/dock-remain-upload`).catch(() => null),
+    jget(`${SK_BASE}/api/dock-recent-files?limit=3`).catch(() => null),
   ])
   const docks = (dev && dev.devices) || []
-  const telMap = new Map(((tel && tel.devices) || []).map(t => [t.deviceSn, t]))
-  const items = docks.map(d => ({
-    id: d.id,
-    deviceSn: d.deviceSn,
-    deviceName: d.deviceName,
-    latitude: Number(d.latitude),
-    longitude: Number(d.longitude),
-    height: d.height != null ? Number(d.height) : null,
-    drone: d.drone || null,
-    osd: telMap.get(d.deviceSn) || null,
-  }))
-  return { ok: true, syncedAt: dev?.syncedAt || null, count: items.length, items }
+  // 上游可达性（2026-09-16）：jget 用 .catch(()=>null) 吞掉异常，若不显式上报，
+  //   dji-openapi 挂掉时会返回「ok:true 且全为 0」→ 前端把"链路断"误读成"司空没有无人机"。
+  //   故单独暴露 upstreamOk/degraded，供前端走「—」降级态而不是显示 0。
+  const upstreamOk = !!(dev && Array.isArray(dev.devices))
+  const telList = (tel && tel.devices) || []
+  const remainMap = (remain && remain.remainUpload) || {}
+  const recentMap = (recentFiles && recentFiles.files) || {}
+  // 机场 OSD（deviceType=0，key=dockSn）+ 无人机 OSD（deviceType=1，key=childSn）
+  const dockOsdMap = new Map()
+  const droneOsdMap = new Map()
+  for (const t of telList) {
+    if (t._deviceType === 1) {
+      const sn = t.childSn || t.deviceSn
+      if (sn) droneOsdMap.set(sn, t)
+    } else {
+      const sn = t.dockSn || t.deviceSn
+      if (sn) dockOsdMap.set(sn, t)
+    }
+  }
+  // 并行读所有无人机的实时遥测（Redis system:osd_dock_drone:<droneSn>，经纬度/高度/朝向）
+  // 根因修复：原从 /api/telemetry/latest 筛 deviceType=1，但该接口只返回 dock（deviceType=0），
+  // droneOsdMap 永远空 → drone.lat/lon 恒 None → 大地图无人机图标不渲染。改从 Redis osd_dock_drone 读。
+  const droneSnList = docks.map(d => (d.drone && d.drone.droneSn) || null)
+  const droneOsdRaws = await Promise.all(droneSnList.map(sn => (sn ? redisGet(`system:osd_dock_drone:${sn}`).catch(() => null) : Promise.resolve(null))))
+  const droneOsdBySn = new Map()
+  droneSnList.forEach((sn, i) => {
+    if (!sn) return
+    const raw = droneOsdRaws[i]
+    if (!raw) return
+    try { droneOsdBySn.set(sn, JSON.parse(raw)) } catch (e) { }
+  })
+
+  const items = docks.map(d => {
+    const droneSn = d.drone && d.drone.droneSn ? d.drone.droneSn : null
+    // 无人机实时坐标（Redis osd_dock_drone 帧，含 latitude/longitude/height/attitudeHead）
+    const dOsd = droneSn ? droneOsdBySn.get(droneSn) : null
+    const drone = d.drone ? { ...d.drone } : null
+    if (drone && dOsd) {
+      const lat = dOsd.latitude ?? dOsd.lat ?? null
+      const lon = dOsd.longitude ?? dOsd.lon ?? dOsd.lng ?? null
+      const height = dOsd.height ?? dOsd.altitude ?? null
+      if (lat != null && lon != null) {
+        drone.latitude = Number(lat)
+        drone.longitude = Number(lon)
+        if (height != null) drone.height = Number(height)
+        if (dOsd.attitudeHead != null) drone.attitudeHead = Number(dOsd.attitudeHead)
+        drone.osdTs = dOsd.ts || null
+      }
+    }
+    // 待上传文件数（remainUpload，从司空 Redis 透传）+ 最近上传文件名（MySQL system_fly_record_file）
+    const osd = dockOsdMap.get(d.deviceSn) || null
+    const remainVal = remainMap[d.deviceSn]
+    const recent = recentMap[d.deviceSn] || []
+    const osdWithRemain = osd
+      ? { ...osd, remainUpload: typeof remainVal === 'number' ? remainVal : null, recentFiles: recent }
+      : null
+    return {
+      id: d.id,
+      deviceSn: d.deviceSn,
+      deviceName: d.deviceName,
+      latitude: Number(d.latitude),
+      longitude: Number(d.longitude),
+      height: d.height != null ? Number(d.height) : null,
+      drone,
+      osd: osdWithRemain,
+    }
+  })
+  // 口径唯一出处（2026-09-16）：驾驶舱 KPI 的「无人机 N 架」取 droneCount、「机场 N 座」取 dockCount。
+  // 为什么放后端算：项目文件 api-types.ts 约定「口径只在一处定义」，前端不再各自 filter 统计；
+  //   历史坑：CenterPanel 的 uavCount 曾取 mapPoints(type='uav') 人工点位 → 恒 0，与司空台账无关。
+  // 说明：司空登记里无人机与机场 1:1 配对，故 droneCount 通常等于 dockCount；
+  //   droneUnpaired（有机场无无人机）正常恒为 0，非 0 说明司空侧配对异常，可作告警依据。
+  const dockCount = items.length
+  const droneCount = items.filter(i => i.drone && i.drone.droneSn).length
+  // 「在飞 / 待命」副指标（2026-09-16）：口径必须与前端 lib/sikongStatus.ts 的 droneDockState() 一致。
+  //   droneInDock: 0=不在仓(飞行中) / 1=在仓待命 / 其它或缺失=遥测未推送（**不得当成待命**）
+  //   这里用 Number() 容错，避免 0/'0' 两种表示造成统计漂移。
+  const dockStateOf = (i) => {
+    const v = i.osd ? i.osd.droneInDock : undefined
+    if (v === null || v === undefined || v === '') return 'unknown'
+    const n = Number(v)
+    return n === 0 ? 'flying' : n === 1 ? 'docked' : 'unknown'
+  }
+  const flyingCount = items.filter(i => dockStateOf(i) === 'flying').length
+  const dockedCount = items.filter(i => dockStateOf(i) === 'docked').length
+  const osdMissingCount = dockCount - flyingCount - dockedCount
+  return {
+    ok: true,
+    upstreamOk,
+    degraded: !upstreamOk,
+    syncedAt: dev?.syncedAt || null,
+    count: items.length,
+    dockCount,
+    droneCount,
+    droneUnpaired: dockCount - droneCount,
+    flyingCount,
+    dockedCount,
+    osdMissingCount,
+    items,
+  }
 }
 
 /** 告警定位解析（dji-openapi /api/target）：OSD 精确定位 → 机场坐标 → null */
@@ -41,7 +132,7 @@ async function fetchAlertTarget(streamId, timeoutMs = 2500) {
   try {
     const j = await jget(`${SK_BASE}/api/target?streamId=${encodeURIComponent(streamId)}`, timeoutMs)
     if (j && j.ok && j.target && typeof j.target.lat === 'number' && typeof j.target.lon === 'number') {
-      return { lat: j.target.lat, lon: j.target.lon, source: j.source, deviceSn: j.deviceSn || null, droneSn: j.droneSn || null }
+      return { lat: j.target.lat, lon: j.target.lon, source: j.source, rangeSource: j.target.rangeSource || null, deviceSn: j.deviceSn || null, droneSn: j.droneSn || null }
     }
   } catch (e) { /* 司空链路不可达时静默降级 */ }
   return null

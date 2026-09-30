@@ -11,6 +11,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { spawn } = require('child_process')
 
 // 完整流媒体服务器配置。zlmHost/zlmPort/zlmSecret 为核心，其余用于拼播放地址与展示。
 let cfg = {
@@ -152,6 +153,39 @@ async function isStreamOnline(streamId, app = 'jsc') {
   return list.some(m => m.app === app && m.stream === streamId)
 }
 
+// 查询某路流的视频分辨率（ffprobe 实时解析码流 SPS/PPS，比 getMediaList tracks 元数据更准）
+// getMediaList 的 tracks 是 ZLM 首次探测的缓存，码流中途切分辨率后不会刷新（会误报旧分辨率）。
+async function getStreamResolution(streamId, app = 'jsc') {
+  // 优先从 getMediaList 的 tracks 取（codec_type=0 视频 track 含 width/height），
+  // ZLM 已探测无需额外 ffprobe；tracks 缺失时回退 ffprobe 实时解析（2026-09-08 真飞暴露 ffprobe 超时取不到）
+  try {
+    const list = await getMediaList()
+    const m = list.find(x => x.app === app && x.stream === streamId)
+    if (m && Array.isArray(m.tracks)) {
+      const v = m.tracks.find(t => t.codec_type === 0)
+      if (v && v.width && v.height) return { width: Number(v.width), height: Number(v.height) }
+    }
+  } catch (e) { /* 继续 ffprobe 回退 */ }
+  const flvUrl = `http://${cfg.zlmHost}:${cfg.zlmPort}/${app}/${streamId}.live.flv`
+  return new Promise((resolve) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height', '-of', 'csv=p=0',
+      flvUrl,
+    ], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let out = ''
+    const killer = setTimeout(() => { try { proc.kill() } catch {} }, 8000)
+    proc.stdout.on('data', d => { out += d.toString() })
+    proc.on('error', () => { clearTimeout(killer); resolve(null) })
+    proc.on('close', () => {
+      clearTimeout(killer)
+      const m = /(\d+)\s*[,x]\s*(\d+)/.exec(out)
+      if (m) resolve({ width: parseInt(m[1], 10), height: parseInt(m[2], 10) })
+      else resolve(null)
+    })
+  })
+}
+
 async function delStreamProxy(streamId, app = 'jsc') {
   // ZLM 用 key 删除，key 格式: __defaultVhost__/app/stream
   const key = `__defaultVhost__/${app}/${streamId}`
@@ -195,4 +229,4 @@ async function snapJpeg(streamId, app = 'jsc', timeoutMs = 6000) {
   } catch { return null }
 }
 
-module.exports = { init, getConfig, setConfig, addStreamProxy, delStreamProxy, getMediaList, isStreamOnline, playUrls, call, snapJpeg }
+module.exports = { init, getConfig, setConfig, addStreamProxy, delStreamProxy, getMediaList, isStreamOnline, getStreamResolution, playUrls, call, snapJpeg }

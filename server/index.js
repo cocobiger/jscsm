@@ -60,7 +60,8 @@ function djiStreamId(cfg) {
 
 // ── 角色权限矩阵 ──────────────────────────────────────────────
 // 公开（无需登录）：登录接口 + 短信平台机器回调（靠 IP 白名单保障）
-const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check', '/api/drone-events/ingest'])
+// 🔴 内部端点（供各识别链拉取配置）：不在 session 鉴权范围，**由路由内自校验 X-Admin-Token**
+const PUBLIC_PATHS = new Set(['/api/internal/iot-roi', '/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check', '/api/drone-events/ingest', '/api/collect/image'])
 // 任意登录用户（含访客）可用的写操作：视频播放、登出、改自己密码
 const ANY_USER_WRITES = new Set([
   '/api/auth/logout', '/api/auth/me', '/api/auth/change-password',
@@ -1134,11 +1135,13 @@ app.get('/api/hourly-pollution', (req, res) => {
 })
 
 app.get('/api/warnings', (req, res) => {
-  const { type, exclude_type, limit, aggregate, lightweight, status } = req.query
+  const { type, exclude_type, limit, aggregate, lightweight, status, retention } = req.query
+  // 2026-09-24：默认按算法保留期软归档（超期不进前台）；排查/对账时加 retention=0 可临时关闭
+  const useRetention = retention !== '0' && retention !== 'false'
   if (aggregate === '1' || aggregate === 'true') {
-    return res.json(store.queryWarningsAggregated({ type: type || undefined, limit: Number(limit) || 200, lightweight: lightweight === '1' || lightweight === 'true' }))
+    return res.json(store.queryWarningsAggregated({ type: type || undefined, limit: Number(limit) || 200, lightweight: lightweight === '1' || lightweight === 'true', retention: useRetention }))
   }
-  res.json(store.queryWarnings({ type: type || undefined, excludeType: exclude_type || undefined, limit: Number(limit) || 200, status: status || undefined }))
+  res.json(store.queryWarnings({ type: type || undefined, excludeType: exclude_type || undefined, limit: Number(limit) || 200, status: status || undefined, retention: useRetention }))
 })
 
 // 按 id 批量查询 warning 成员详情（供研判依据弹窗按需拉取，需登录）
@@ -1173,6 +1176,7 @@ app.get('/api/alert-location-rank', (req, res) => {
        WHERE warning_type = 'iot-video-analysis'
          AND created_at > datetime('now', '-' || ? || ' days')
          AND json_extract(data_json, '$.channelName') IS NOT NULL
+         AND (judge_status IS NULL OR judge_status <> 'blocked')   -- P0-1：前台统计不含被研判拦下的记录
        GROUP BY location
        ORDER BY alert_count DESC
        LIMIT ?`
@@ -1603,6 +1607,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', streams: loadStreams().length, mapPoints: loadPoints().length, datasources: loadDS().length, warnings: store.warningCount(), activeForwards: activeForwards.size, uptime: process.uptime() })
 })
 
+// 秸秆阈值「单一出处」：从 straw-engine 的 config.json 读该流的真实阈值
+// 背景（2026-09-26 排查）：原 standard 硬编码 '阈值 >=40%'，而引擎实际用 confSmoke=0.15（15%）
+//   → 界面写着"阈值 >=40%"，让值班看到 13%~18% 的告警时误以为"没达标却放行"。
+// 现改为按 streamId 取 config 里该流的 confSmoke（带 mtime 缓存，不频繁读盘）。
+const STRAW_CFG_PATH = process.env.STRAW_ENGINE_CONFIG || '/opt/jsc/straw-engine/config/config.json'
+let _strawCfg = { at: 0, data: null }
+function strawThreshold(streamId) {
+  const DEFAULT = 0.4
+  try {
+    const st = fs.statSync(STRAW_CFG_PATH)
+    if (!_strawCfg.data || st.mtimeMs !== _strawCfg.at) {
+      _strawCfg = { at: st.mtimeMs, data: JSON.parse(fs.readFileSync(STRAW_CFG_PATH, 'utf8')) }
+    }
+    const s = (_strawCfg.data.streams || []).find(x => x.streamId === streamId)
+    const v = s && Number(s.confSmoke)
+    return isFinite(v) && v > 0 ? v : DEFAULT
+  } catch (e) {
+    return DEFAULT
+  }
+}
+
 // ── 秸秆燃烧推理引擎告警入库（内网，straw-engine 推理服务调用）──
 // detId：检测记录(straw_detections) id——straw-engine 先 record 再告警，实现检测↔告警精确关联
 app.post('/api/straw-alert', async (req, res) => {
@@ -1618,7 +1643,7 @@ app.post('/api/straw-alert', async (req, res) => {
   if (alertLat == null) {
     try {
       const t = await require('./sikong.js').fetchAlertTarget(streamId)
-      if (t) { alertLat = t.lat; alertLon = t.lon; geoSource = t.source } // osd / dock
+      if (t) { alertLat = t.lat; alertLon = t.lon; geoSource = t.rangeSource === 'visual' ? 'visual' : t.source } // osd(激光精确) / visual(纯视觉兜底) / dock
     } catch (e) { /* 司空链路不可达时降级 */ }
   }
   if (alertLat == null) { alertLat = 30.8077; alertLon = 108.4076; geoSource = 'default' }
@@ -1636,11 +1661,16 @@ app.post('/api/straw-alert', async (req, res) => {
     aiConfidence: conf,
     type: `AI视频分析 · ${aiTypeName}`,
     value: `置信度 ${Math.round(conf * 100)}%`,
-    standard: '阈值 ≥40%',
+    standard: `阈值 ≥${Math.round(strawThreshold(streamId) * 100)}%`,
     level: conf >= 0.7 ? 3 : conf >= 0.5 ? 2 : 1,
+    // channelName：让前端不再显示「未命名点位」
+    //   straw-engine 告警只有 streamId（无 pointName/channelName/deviceName），而
+    //   AlertHistoryModal 是 pointName||channelName||deviceName||… 取不到就兜底"未命名点位"
+    //   → 入库时补上「XX机场」（复用 store-db 的 SIKONG_STREAM_LABELS 单一出处）
+    channelName: store.sikongStreamLabel(streamId) || '',
     location: `${label ? label + ' · ' : ''}${streamId}`,
     picUrl: imageUrl || '',
-    time: firstSeenAt ? String(firstSeenAt).slice(11, 19) : '',
+    time: firstSeenAt ? String(firstSeenAt).replace('T', ' ').slice(0, 19) : '',
     lat: alertLat,
     lon: alertLon,
     geoSource, // 定位来源: engine / osd(司空精确定位) / dock(机场坐标) / default(兜底)
@@ -1728,6 +1758,8 @@ async function sendWechatPush(webhook, body, { retries = 0, retryDelayMs = 5000,
 async function strawWorkflow(warning, opts = {}) {
   const lat = Number(warning.lat)
   const lon = Number(warning.lon)
+  // 腾讯地图需 GCJ-02（火星坐标）：告警 lat/lon 为 WGS-84（OSD GPS），统一提前转换供卡片图与推送链接共用
+  const gcj = (isFinite(lat) && isFinite(lon)) ? require('./coord.js').wgs2gcj(lat, lon) : null
   const town = (isFinite(lat) && isFinite(lon)) ? reverseGeocode.reverseGeocode(lon, lat) : null
   const resp = town ? store.findResponsibility(town.name, '') : null
   const pushInfo = { town: town ? town.name : null, unit: resp ? resp.unit : null, pushed: false, reason: '' }
@@ -1755,7 +1787,7 @@ async function strawWorkflow(warning, opts = {}) {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageUrl: warning.picUrl || '',
-            meta: { town, responsibility: resp, confidence: warning.aiConfidence, label: warning.label, lat, lon, nearbyPersons: personN },
+            meta: { town, responsibility: resp, confidence: warning.aiConfidence, label: warning.label, lat, lon, gcjLat: gcj ? gcj.lat : null, gcjLon: gcj ? gcj.lon : null, nearbyPersons: personN },
             style: store.kvGet('straw_push_style', null) || {},
           }),
           signal: AbortSignal.timeout(15000),
@@ -1769,7 +1801,8 @@ async function strawWorkflow(warning, opts = {}) {
       const publicBase = (process.env.STRAW_PUSH_BASE || '').trim() || `http://${process.env.PUBLIC_HOST || '111.10.220.226'}:81/jsc/`
       const reviewBase = (style.reviewLinkBase || '').trim() || publicBase
       const reviewUrl = `${reviewBase.replace(/\/+$/, '')}/?openAlert=${encodeURIComponent(warning.id)}`
-      const link = `https://map.qq.com/?pt=${lat},${lon}`
+      // 腾讯地图链接（GCJ-02，已提前转换）：手机端可跳转腾讯地图 App 导航
+      const link = `https://map.qq.com/?pt=${gcj ? gcj.lat : lat},${gcj ? gcj.lon : lon}`
       const tpl = (s = '') => {
         const l = String(warning.label || '').toLowerCase()
         const emoji = l.includes('fire') || l.includes('火') ? '🔥' : l.includes('smoke') || l.includes('烟') ? '💨' : '🚨'
@@ -1790,7 +1823,9 @@ async function strawWorkflow(warning, opts = {}) {
         `> 责任人：${(resp.person || '') + (resp.phone ? '（' + resp.phone + '）' : '')}`,
         `> 置信度：${((warning.aiConfidence || 0) * 100).toFixed(1)}% · ${warning.label || ''}`,
         personTip,
-        `> 坐标：${lat}, ${lon}`,
+        `> 坐标（WGS-84，贴高德/百度请用地图链接）：${lat}, ${lon}`,
+        ...(warning.geoSource === 'default' ? ['> ⚠️ 坐标待精确定位（GPS 定位失败，显示为默认参考位置）'] : []),
+        ...(warning.geoSource === 'visual' ? ['> ⚠️ 坐标为纯视觉估算（激光测距失效，误差可能较大）'] : []),
         `>[点击查看地图](${link})`,
         ...tailLines,
       ].filter(Boolean).join('\n')
@@ -2256,12 +2291,109 @@ app.get('/api/straw/responsibility', (req, res) => {
 // ── IoTCloud AI 视频分析接入 ───────────────────────────────
 iotFetcher.registerRoutes(app)  // /api/iot-analysis, /api/iot-image, /api/iot-fetch/now
 
+// ── P2-D：研判准入 → 接入智治推送链路（warnings → smart_push_events → checkRulesAndPush → 城运中心）──
+//   触发条件：**研判准入** 且 该规则 action='front_and_push'（默认 admit_front 不推送，保持向后兼容）。
+//   幂等：事件 id 用 `judgeevt-<warnings.id>`，重复触发直接跳过（同一条告警只推一次）。
+//   隔离：全部包在 try/catch 里且异步检查规则 —— 推送链路任何异常都不得影响告警入库与前台展示。
+store.onWarningAdmittedForPush((w, meta) => {
+  try {
+    const db = store.getDb()
+    const eventId = `judgeevt-${w.id}`
+    if (db.prepare('SELECT id FROM smart_push_events WHERE id = ?').get(eventId)) return
+    const now = new Date().toLocaleString('sv', { timeZone: 'Asia/Shanghai' })
+    const memberIds = (meta && Array.isArray(meta.memberIds) && meta.memberIds.length) ? meta.memberIds : [w.id]
+    const payload = {
+      memberIds,
+      aiType: w.aiType || '',
+      channelSipId: w.channelSipId || '',
+      channelName: w.channelName || '',
+      judgeRuleId: (meta && meta.ruleId) || null,
+      judgeReason: w.judgeReason || '',
+      source: 'judge-admitted',
+    }
+    db.prepare(`INSERT INTO smart_push_events (id, event_type, location, lat, lon, level, value, standard, description, image_url, raw_json, source, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(eventId, w.aiType || 'AI分析', w.channelName || '',
+        typeof w.lat === 'number' ? w.lat : null, typeof w.lon === 'number' ? w.lon : null,
+        Number(w.level) || 1, 'AI 分析告警', w.standard || '',
+        `研判准入推送：${w.judgeReason || ''}`,
+        // 与存档页同一口径：仅绝对 http(s) 套代理，/api/evidence/… 相对路径原样透传
+        // （下面 absolutizeImageUrls 会把它补成公网绝对地址，城运侧可直接拉取）
+        iotFetcher.toDisplayImageUrl(w.picUrl) || '',
+        JSON.stringify(payload), 'judge-admitted', now)
+    const evt = db.prepare('SELECT * FROM smart_push_events WHERE id = ?').get(eventId)
+    checkRulesAndPush(evt).catch(e => log.error('[研判推送] 检查推送规则异常:', e.message))
+    log.info(`[研判推送] 准入事件进入推送链路 eventId=${eventId}（${w.aiType || '?'} @ ${w.channelName || '?'}，${memberIds.length} 条证据）`)
+  } catch (e) {
+    log.error('[研判推送] 写入推送事件失败:', e.message)
+  }
+})
+
+// ── 告警实时推送（SSE）· 2026-09-14 整改 #2.1 ──
+//   GET /api/warnings/stream?token=<会话> —— 入库即广播，前端延迟从 10s 降到 <1s
+require('./warnings-stream').registerWarningsStream(app, { store, log })
+
+// ── ROI 电子围栏：内部拉取端点（供各识别链，X-Admin-Token 鉴权）──
+//   鉴权复用 ALARM_ADMIN_TOKEN（与 algo-threshold 同一个 token，11/12 机 drop-in 里都有）。
+//   注意：本路径前缀 /api/internal/ 已在 PUBLIC_PATHS 里放行 session 鉴权，**安全全靠下面这个 token 校验**。
+app.get('/api/internal/iot-roi', (req, res) => {
+  const expect = process.env.ALARM_ADMIN_TOKEN || ''
+  if (!expect) return res.status(500).json({ ok: false, error: 'server ALARM_ADMIN_TOKEN 未配置' })
+  const got = req.get('X-Admin-Token') || ''
+  if (got !== expect) return res.status(403).json({ ok: false, error: 'token 不匹配' })
+  const algo = String(req.query.algo || '').trim()
+  const spid = String(req.query.spid || '').trim()
+  try {
+    let list = store.listIotRoiConfigs(algo || undefined)
+    if (spid) list = list.filter(x => x.channelSipId === spid)
+    res.json({ ok: true, algo: algo || null, updatedAt: new Date().toISOString(), count: list.length, items: list })
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+})
+
 // ── IoT 通道接入管理（iot_channels 表 CRUD，管理员）──
 //   通道来源：IoTCloud NVR 设备通道；与驾驶舱视频流 coll_streams 做 1:1 映射
 const adminOnly = (req, res, next) => {
   if (!req.user || req.user.role !== 'admin') return res.status(403).json({ ok: false, error: '仅管理员可操作' })
   next()
 }
+
+// ── 按算法保留期（软归档）· 2026-09-24 ────────────────────────────────────
+// 🔴 必须放在 adminOnly 定义**之后**：adminOnly 是 const（TDZ），前面引用会直接 ReferenceError 崩进程。
+// 语义：**只影响前台实时告警**（列表/聚合/地图告警灯），DB 一行不动 ⇒ 调大天数即可"找回"。
+//   关闭开关或天数填 0 = 不限制（永不归档）。改完立即生效（配置带 10s 缓存 + 写即失效）。
+app.get('/api/algo-retention', adminOnly, (req, res) => {
+  try { res.json({ items: store.listAlgoRetention(), version: store.retentionVersion() }) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+app.put('/api/algo-retention', adminOnly, (req, res) => {
+  try {
+    const b = req.body || {}
+    const item = store.upsertAlgoRetention({
+      aiType: b.aiType ?? b.ai_type,
+      keepDays: b.keepDays ?? b.keep_days,
+      enabled: b.enabled,
+      remark: b.remark,
+    })
+    res.json({ ok: true, item, items: store.listAlgoRetention(), version: store.retentionVersion() })
+  } catch (e) { res.status(400).json({ error: e.message }) }
+})
+app.delete('/api/algo-retention/:aiType', adminOnly, (req, res) => {
+  try {
+    const n = store.deleteAlgoRetention(decodeURIComponent(req.params.aiType || ''))
+    res.json({ ok: true, deleted: n, items: store.listAlgoRetention(), version: store.retentionVersion() })
+  } catch (e) { res.status(400).json({ error: e.message }) }
+})
+// 试运行（只读）：按当前配置预演「哪些算法各有多少条会退出前台」，确认后再启用
+app.post('/api/algo-retention/dry-run', adminOnly, (req, res) => {
+  try { res.json(store.retentionDryRun({ limit: (req.body || {}).limit })) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── 堆头未覆盖链：后台配置读写（代理 11 机 alarm_processor 的 /stack-config*）──
+//   2026-09-20 批次4 Step2。真源在 11 机 /soft/data/stack-chain/stack_config.json；
+//   本模块只做「读→校验→转发→记账」，**不保存第二份配置状态**（避免显示 A 实际跑 B）。
+//   token 只留在本机进程环境变量，绝不下发浏览器。
+require('./stack-config.js').registerStackConfigRoutes(app, { store, log, adminOnly })
+
 // 列出已接入通道（未软删）
 app.get('/api/iot-channels', adminOnly, (req, res) => {
   res.json(store.listIotChannels())
@@ -2276,6 +2408,10 @@ app.get('/api/iot-analysis/iot-channels', adminOnly, async (req, res) => {
 // ── AI 类型主数据（后台可自由增删改，adminOnly）──
 app.get('/api/ai-types', adminOnly, (req, res) => {
   try { res.json(store.listAiTypes()) } catch (e) { res.status(500).json({ error: e.message }) }
+})
+// 2026-09-15 整改（P1 算法健康度）：算法接入状态总览（active/idle7d/never/unbound + 数据量 + 最后一条时间）
+app.get('/api/ai-types/health', adminOnly, (req, res) => {
+  try { res.json(store.getAiTypeHealth()) } catch (e) { res.status(500).json({ error: e.message }) }
 })
 app.post('/api/ai-types', adminOnly, (req, res) => {
   const { name } = req.body || {}
@@ -2297,10 +2433,14 @@ app.get('/api/push-rules', adminOnly, (req, res) => {
   try { res.json(store.listPushRules()) } catch (e) { res.status(500).json({ error: e.message }) }
 })
 app.post('/api/push-rules', adminOnly, (req, res) => {
-  const { name, channelSipId, aiTypes, timeWindowHours, threshold, enabled } = req.body || {}
+  const { name, channelSipId, aiTypes, timeWindowHours, threshold, enabled, minConfidence, minLevel, activeHours, action } = req.body || {}
   if (!name || !Array.isArray(aiTypes) || aiTypes.length === 0) return res.status(400).json({ error: 'name 与 aiTypes（非空数组）必填' })
   try {
-    res.json(store.createPushRule({ name, channel_sip_id: channelSipId || null, ai_types: aiTypes, time_window_hours: timeWindowHours, threshold, enabled }))
+    res.json(store.createPushRule({
+      name, channel_sip_id: channelSipId || null, ai_types: aiTypes, time_window_hours: timeWindowHours, threshold, enabled,
+      // P1-1 / P1-2：维度与动作
+      min_confidence: minConfidence, min_level: minLevel, active_hours: activeHours, action,
+    }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 app.patch('/api/push-rules/:id', adminOnly, (req, res) => {
@@ -2311,6 +2451,60 @@ app.patch('/api/push-rules/:id', adminOnly, (req, res) => {
 app.delete('/api/push-rules/:id', adminOnly, (req, res) => {
   const c = store.deletePushRule(req.params.id)
   res.json({ ok: true, deleted: c })
+})
+
+// ── P0-3：研判默认策略（未命中任何规则时 放行/拦截）+ 覆盖面 ──
+// 之所以要「覆盖面」：默认策略一旦切成"拦截"，未被任何规则覆盖的「通道×算法」会被一次性静音，
+//   必须先让管理员看清会波及哪些组合、各多少条，再决定。
+app.get('/api/judge-policy', adminOnly, (req, res) => {
+  try {
+    res.json({ policy: store.getJudgeDefaultPolicy(), coverage: store.judgeCoverage(Number(req.query.days) || 7) })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+app.put('/api/judge-policy', adminOnly, (req, res) => {
+  try {
+    const policy = store.setJudgeDefaultPolicy((req.body || {}).policy)
+    res.json({ ok: true, policy, coverage: store.judgeCoverage(Number(req.query.days) || 7) })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── P2-F：按「启用通道 × 已接入算法」批量生成研判规则（配合"逐通道逐算法精细配置"）──
+//   dryRun 默认 true：先返回计划（哪些组合会新建、哪些已有），确认后再 confirm=1 落库。
+app.post('/api/push-rules/bulk-generate', adminOnly, (req, res) => {
+  try {
+    const b = req.body || {}
+    const out = store.generatePushRulesForChannels({
+      threshold: Number(b.threshold) || 5,
+      timeWindowHours: Number(b.timeWindowHours) || 24,
+      minConfidence: Number(b.minConfidence) || 0,
+      minLevel: Number(b.minLevel) || 0,
+      activeHours: String(b.activeHours || ''),
+      action: b.action || 'admit_front',
+      overwrite: !!b.overwrite,
+      dryRun: b.confirm !== true,
+    })
+    res.json(out)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── P2：研判规则冲突检测（同一「通道×AI类型」被多条同层规则覆盖 → 后者静默失效）──
+app.get('/api/judge-conflicts', adminOnly, (req, res) => {
+  try { res.json(store.judgeRuleConflicts()) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── P1-3：研判命中统计（阈值调优依据）──
+app.get('/api/judge-stats', adminOnly, (req, res) => {
+  try { res.json(store.judgeStats(Number(req.query.days) || 7)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── P1-4：规则试跑（历史回放，不写库、不产生告警）──
+app.post('/api/judge-dry-run', adminOnly, (req, res) => {
+  try {
+    const { rule, days } = req.body || {}
+    res.json(store.judgeDryRun(rule || {}, Number(days) || 7))
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // ── 告警过滤规则（T6~T8：5 维度条件 → 命中即隐藏，即时生效）──
@@ -2357,6 +2551,8 @@ app.post('/api/warnings/handle-group', (req, res) => {
 // 响应：text/csv；头部 X-Warnings-Total / X-Warnings-Truncated 供前端提示
 const SOURCE_LABEL = { cq_api: '气体监测', iotcloud: 'AI视频', 'straw-engine': '秸秆检测', 'chengyun-platform': '城运中心' }
 const LEVEL_LABEL = { 1: '注意', 2: '轻度', 3: '中度', 4: '重度' }
+// P0-4：研判结论标签（导出 CSV 用）
+const JUDGE_LABEL = { admitted: '准入(进前台)', blocked: '拦下(仅存档)', legacy: '历史(视同准入)' }
 function csvEscape(v) {
   const s = v === null || v === undefined ? '' : String(v)
   return '"' + s.replace(/"/g, '""') + '"'
@@ -2385,7 +2581,7 @@ app.get('/api/warnings/export', adminOnly, (req, res) => {
       if (isNaN(d.getTime())) return raw
       return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d)
     }
-    const head = ['时间', '来源', '类型', '点位', '数值', '限值', '等级', '置信度', '状态', '处理时间', '处理人', '告警ID']
+    const head = ['时间', '来源', '类型', '点位', '数值', '限值', '等级', '置信度', '状态', '处理时间', '处理人', '研判结论', '研判原因', '告警ID']
     const lines = [head.map(csvEscape).join(',')]
     for (const w of rows) {
       const src = store.resolveSourceKey(w)
@@ -2405,6 +2601,9 @@ app.get('/api/warnings/export', adminOnly, (req, res) => {
         w.status === 'handled' ? '已处理' : (w.status === 'pending' ? '未处理' : (w.status || '—')),
         w.handledAt ? fmtTime({ createdAt: w.handledAt }) : '',
         w.handledBy || '',
+        // P0-4：研判留痕（准入=进前台 / 拦下=仅存档 / 历史=改造前存量视同准入）
+        JUDGE_LABEL[w.judgeStatus] || '',
+        w.judgeReason || '',
         w.id || '',
       ].map(csvEscape).join(','))
     }
@@ -2446,6 +2645,15 @@ app.patch('/api/iot-channels/:channelSipId/ai-types', adminOnly, (req, res) => {
   const { aiTypes } = req.body || {}
   try {
     const row = store.updateIotChannelAiTypes(req.params.channelSipId, aiTypes)
+    if (!row) return res.status(404).json({ error: '通道不存在或已删除' })
+    res.json(row)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+// ROI 电子围栏：按通道整体覆盖写入 {算法名: {enable,polygon,...}}（管理员）
+app.patch('/api/iot-channels/:channelSipId/roi', adminOnly, (req, res) => {
+  const { roi } = req.body || {}
+  try {
+    const row = store.updateIotChannelRoi(req.params.channelSipId, roi)
     if (!row) return res.status(404).json({ error: '通道不存在或已删除' })
     res.json(row)
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -2928,10 +3136,13 @@ function fillTemplate(template, vars) {
 // 把报文中所有「相对路径形式」的 /api/iot-image 补全为公网绝对 URL，
 // 以便城运中心等外网平台能直接拉取图片。已是 http(s):// 绝对地址的不重复处理。
 // base 为空则不改写（兼容旧行为）。
+// 2026-09-20：同时补全 /api/evidence/（无人机证据图，后端自托管的相对路径）——
+//   它们不经代理，若不补全会让外网平台拿到裸相对路径而取不到图。
 function absolutizeImageUrls(text, base) {
   if (!text || !base) return text
   const b = base.replace(/\/+$/, '')
-  return text.replace(/(?<!\:\/\/[^\s"']*)\/api\/iot-image/g, b + '/api/iot-image')
+  const out = text.replace(/(?<!\:\/\/[^\s"']*)\/api\/iot-image/g, b + '/api/iot-image')
+  return out.replace(/(?<!\:\/\/[^\s"']*)\/api\/evidence\//g, b + '/api/evidence/')
 }
 
 // 执行 HTTP 推送
@@ -3549,6 +3760,18 @@ app.listen(PORT, () => {
     sikong.registerSikongRoutes(app)
     log.info('司空2 对接模块已启动（/api/sikong/*）')
   } catch (e) { log.error('司空2 对接模块启动失败: ' + e.message) }
+  // 真烟样本工作台 · 采集后端（历史录制抽帧 → 隔离区，防污染）
+  try {
+    const collect = require('./collect.js')
+    collect.registerCollectRoutes(app)
+    log.info('真烟采集模块已启动（/api/collect/*）')
+  } catch (e) { log.error('真烟采集模块启动失败: ' + e.message) }
+  // 司空2 预设航线读取（MySQL spawn + KMZ spawn unzip，不装包，内存缓存）
+  try {
+    const sikongRoutes = require('./sikong-routes.js')
+    sikongRoutes.register(app)
+    log.info('司空2 预设航线模块已启动（/api/sikong/routes*）')
+  } catch (e) { log.error('司空2 预设航线模块启动失败: ' + e.message) }
   // 无人机直播事件链路（T1：webhook 事件落库 + dockSn 白名单过滤 + SSE 广播，弹窗需求前置）
   try {
     const droneEvents = require('./drone-events.js')
