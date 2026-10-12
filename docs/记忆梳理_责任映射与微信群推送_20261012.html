@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆梳理：「责任映射 / 微信群推送」（2026-10-12）</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --blue:#1a5276;--blue2:#2c6ca6;--green:#0f7b4f;--greenbg:#e7f6ee;--red:#b42318;--redbg:#fdeceb;
+  --amber:#9a6700;--amberbg:#fff6e5;--violet:#5b3fb5;--violetbg:#efeafd;--gray:#475569;--graybg:#eef2f7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;line-height:1.72;font-size:15px}
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:22px}header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.4px;color:#0b3d63}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .grayb{background:var(--graybg);color:var(--gray);border:1px solid #d7dee8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px}li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:22px;font-weight:800;color:var(--blue)}.kpi .l{font-size:12.3px;color:var(--muted);margin-top:3px}
+  .src{color:#8b98a8;font-size:11.5px;font-family:Consolas,monospace}
+  .hl{background:#fffbe6;box-shadow:inset 0 -2px 0 #f0dcae}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>记忆梳理报告：「责任映射 / 微信群推送」</h1>
+  <div class="sub">驾驶舱 → 秸秆焚烧监控 → 第 10 个 tab（组件 <code>ResponsibilityManager</code>）</div>
+  <div class="meta">
+    <span class="chip">梳理日期 2026-10-12</span>
+    <span class="chip">源：MEMORY+11 REF ｜ 24 篇日志 ｜ 47 篇归档日志 ｜ 代码 ｜ 生产库实测</span>
+  </div>
+</header>
+
+<h2>0 · 一句话结论</h2>
+<div class="kpi">
+  <div class="box"><div class="n" style="color:var(--green)">链路完整</div><div class="l">代码 5 环全在</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">数据为零</div><div class="l">area_responsibility 0 行</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">静默失败</div><div class="l">推不出但界面正常</div></div>
+  <div class="box"><div class="n">6 项</div><div class="l">待恢复/决策</div></div>
+</div>
+<div class="callout danger">
+  <b>页面的代码链路是完整的，但数据是空的</b> —— `area_responsibility` 表 <b>0 行</b>（与截图完全一致）。
+  该表是 <b>2026-08-21 才引入的业务配置</b>，而当前生产库是 <b>7/9 备份</b>，所以<b>备份里本来就没有它</b>；
+  9/29 生产机被重装又把 8~9 月现场配的数据一并抹掉，<b>至今未恢复</b>。
+  <br><br><b>后果</b>：一旦烟雾模型到位、开始真出告警，<b>每一条告警都会走「责任单位未配置」分支静默丢弃</b>，
+  推送记录页之外<b>看不出任何异常</b> —— 系统"看起来一切正常，实际一条都送不出去"。
+</div>
+
+<h2>1 · 这个页面是什么（与截图逐项对应）</h2>
+<table>
+  <tr><th style="width:150px">截图上看到的</th><th>记忆/代码里的对应</th></tr>
+  <tr><td>tab 名「责任映射 / 微信群推送」</td><td><code>StrawMonitorPage.tsx:74</code> tab <code>'responsibility'</code>，图标 <code>Landmark</code>；同栏还有 <code>'style'</code>（推送样式）与 <code>'pushlog'</code>（推送记录）</td></tr>
+  <tr><td>三张统计卡（0 / 0 / 0）</td><td>责任映射总数 = <code>rows.length</code>；已配置微信群 = 有 <code>webhook</code> 的行数；覆盖乡镇/街道 = <code>new Set(rows.map(r=&gt;r.town)).size</code></td></tr>
+  <tr><td>表格 6 列</td><td>乡镇/街道 · 社区/村 · 责任单位 · 责任人（含电话）· 微信群 Webhook · 操作（编辑/删除）</td></tr>
+  <tr><td>+ 新增责任映射（7 字段表单）</td><td><code>town*</code> · <code>community</code> · <code>unit*</code> · <code>person</code> · <code>phone</code> · <code>webhook</code> · <code>remark</code>；仅 <b>town / unit 必填</b></td></tr>
+  <tr><td>底部说明（社区级优先，乡镇级兜底）</td><td>与后端 <code>findResponsibility()</code> 的三级匹配完全一致（见 §2）</td></tr>
+  <tr><td>空态「暂无责任映射，点击…导入」</td><td><code>rows.length === 0</code> 分支 —— 当前就是这一支</td></tr>
+</table>
+
+<h2>2 · 数据与代码链路（5 个环节）</h2>
+<table>
+  <tr><th style="width:112px">环节</th><th>实现</th></tr>
+  <tr><td><b>① 表</b></td><td><code>area_responsibility(id, district, town, community, unit, person, phone, webhook, remark)</code>，
+      <b><code>UNIQUE(town, community)</code></b>（所以导入是 upsert 语义）<span class="src">store-db.js:282</span></td></tr>
+  <tr><td><b>② 反查</b></td><td><code>findResponsibility(town, community)</code> <b>三级匹配</b>：
+      <code>(town,community)</code> 精确 → <code>(town,'')</code> 乡镇兜底 → <code>(town)</code> 任意 <span class="src">store-db.js:2489</span></td></tr>
+  <tr><td><b>③ API</b></td><td>
+      <code>GET /api/straw/area-responsibility</code> 列表｜<code>POST …/import</code> 批量 upsert（<code>{rows:[…]}</code>）｜
+      <code>DELETE …/:id</code>｜<code>GET /api/straw/responsibility?lng&amp;lat</code> <b>「坐标→PIP 镇街→责任单位」全链路自测口</b>
+      <span class="src">index.js:2144/2262/2270/2281</span></td></tr>
+  <tr><td><b>④ 工作流</b></td><td><code>strawWorkflow(warning)</code>：坐标 → <code>wgs2gcj</code>（腾讯地图卡片用）→ <code>reverseGeocode</code>（镇街）→
+      <code>findResponsibility(town,'')</code> → 复检闸门 <code>gate</code> → 渲染卡片 → 推送 → 回写告警 <code>wechatPush</code> <span class="src">index.js:1758</span></td></tr>
+  <tr><td><b>⑤ 推送收口</b></td><td><code>sendWechatPush()</code> 统一入口：<b>成功 = 企微 <code>errcode===0</code></b>；
+      或<b>微信桥（:18888）<code>errcode=-1</code> 且 errmsg 含 <code>verify/target=</code></b>（已知误报，消息实际已发）；
+      支持失败重试 <span class="src">index.js:1730</span></td></tr>
+</table>
+<div class="callout grayc">
+  <b>推送失败会写进告警</b>：<code>wechatPush = {town, unit, pushed, reason, held, cardUrl, webhook(脱敏)}</code>。
+  失败原因只有三种：<code>责任单位未配置</code>（<b>= 责任表无此行</b>）、<code>未配置微信群</code>（= 有责任人但 webhook 为空）、
+  <code>推送失败(errmsg)</code>。<b>第一种在当前生产上必然命中</b>。
+</div>
+
+<h2>3 · 历史沿革（按时间，均带来源）</h2>
+<table>
+  <tr><th style="width:72px">日期</th><th>事件</th><th style="width:128px">来源</th></tr>
+  <tr><td>08-21</td><td><b>方案 v1.4 确立「微信群卡片分享 + 责任划分」</b>：客户首期提供 <code>area_responsibility</code> 表（区县→镇街→社区/村→责任单位→责任人→微信群 Webhook）；<b>方案 A 优选 = 企业微信群机器人 Webhook</b>（官方支持 markdown，最稳）；原告警去向是"三级城运中心推送"（Smart-Push）</td><td><span class="src">2026-08-21.md</span></td></tr>
+  <tr><td>08-25</td><td>业务口径确认（<b>有人→无人机喊话；无人→推微信群由街道办处置</b>）；⚠️ 推送仍缺责任单位 webhook 配置（当时"已知缺口"）；陈家坝街道 wecom key 失效 → <code>invalid webhook url</code></td><td><span class="src">2026-08-25.md</span></td></tr>
+  <tr><td>08-26</td><td>UX 痛点 <b>P0-3：推送单向、无回执闭环</b></td><td><span class="src">2026-08-26.md</span></td></tr>
+  <tr><td>08-30</td><td>🔴 <b>核心缺口①「推送无把关」</b>：<code>straw-alert</code> 入库后 <code>setImmediate</code> 立即推微信群，复检滞后、<b>误报无法撤回/更正</b>；缺口②视图割裂。排期 4 批共约 5 人日</td><td><span class="src">2026-08-30.md</span></td></tr>
+  <tr><td>08-31</td><td>推送超时 <b>10s → 30s</b>（GUI 操作 5~15s）；龙都街道 webhook 测试配置；<b>wechatauto <code>verify=True</code> 误报</b>（消息实际已发却返回失败）</td><td><span class="src">2026-08-31.md</span></td></tr>
+  <tr><td>09-03</td><td><b>P3 T19 推送状态可视化页</b>（<code>PushLogPage.tsx</code>，状态徽标 pushed/held/failed + 一键重推）；
+      🔴 <b>同时拿到最关键的生产基线</b>：straw-engine 告警 <b>609 条</b>，575 条有 <code>wechatPush</code> ⇒ <b>成功仅 1 / held 47 / 失败 527</b>，
+      且绝大多数 <code>reason = 责任单位未配置</code></td><td><span class="src">2026-09-03.md</span></td></tr>
+  <tr><td>09-03</td><td>P3 T20 复查直达链接 + 标题模板扩展（<code>msgTitle</code> 支持 <code>{id}{unit}{district}{conf}</code>）</td><td><span class="src">2026-09-03.md</span></td></tr>
+  <tr><td>09-14</td><td>调研发现 <b><code>area_responsibility</code> 表当前 0 行</b>；前端"责任人补全/责任单位读取"<b>本次未做</b>（原因就是表为空，做了也没数据可读）</td><td><span class="src">2026-09-14.md</span></td></tr>
+  <tr><td>09-24</td><td>🔴 微信推送链路排障，发现 2 个生产隐患：①<b>桥挂 → 生产告警推不出去</b>；②<b>推送目标群「环保测试」不存在</b>。
+      用户**指定推送目标 = 「军哥」（微信号 <code>junjungege2020</code>）**。随后<b>自动补齐责任映射 16/51 → 51/51 镇街</b>（回滚键：<code>remark LIKE '2026-09-24 自动补齐%'</code>）；<b>仍缺「高梁镇」</b></td><td><span class="src">2026-09-24.md<br>REF_wechat_bridge.md:25-26</span></td></tr>
+  <tr><td>09-25</td><td>起飞/降落推送做成常驻服务（<code>flight-monitor.service</code>，推送重试 <b>5 × 22s</b>）</td><td><span class="src">2026-09-25.md</span></td></tr>
+  <tr><td>09-29<br>~30</td><td>🔴 <b>生产机被整体重装</b>（7TiB 盘被删、无快照）⇒ <b><code>area_responsibility</code> 里 9/24 刚补齐的 51 行全部丢失</b>；
+      当前库 = 7/9 备份（该功能 8/21 才设计，备份里本无此表数据）</td><td><span class="src">MEMORY.md A 级事件</span></td></tr>
+</table>
+
+<h2>4 · 当前生产实况（本次实测，2026-10-12）</h2>
+<table>
+  <tr><th style="width:220px">项</th><th style="width:170px">实测值</th><th>含义</th></tr>
+  <tr class="hl"><td><code>area_responsibility</code></td><td><b class="badge bad">0 行</b></td><td><b>截图空白的原因</b>；任何告警都会命中「责任单位未配置」</td></tr>
+  <tr><td><code>area_boundary</code>（镇街边界）</td><td><span class="badge ok">52 行</span></td><td>✅ 9/30 已恢复，且 <b>含高梁镇</b>（比原生产 51 个更全）⇒ GEO 侧已无障碍</td></tr>
+  <tr><td><code>kv_config</code></td><td>3 行，<b>无 <code>straw_push_style</code></b></td><td>推送样式未自定义 ⇒ 走代码内 <code>DEFAULT_PUSH_STYLE</code></td></tr>
+  <tr><td><code>straw_review_gate</code></td><td><span class="badge warn">未设置</span></td><td>闸门取默认 <code>'off'</code> ⇒ <b>先推后检</b>（不是 <code>pre</code> 的"低置信度先 held"）</td></tr>
+  <tr><td><code>warnings</code></td><td>1800 行，<b>含 <code>wechatPush</code> = 0</b></td><td>当前库无任何推送痕迹（7/9 备份早于该功能上线）</td></tr>
+  <tr><td>后端推送日志（近 14 天）</td><td>只有 <code>[straw-workflow] ENOENT</code></td><td>那是 9/30 geojson 缺失期的报错；<b>无任何真实推送动作</b>（引擎空管线 + 责任表为空）</td></tr>
+  <tr><td>微信桥 172.16.8.15</td><td><span class="badge ok">3389 / 445 通</span></td><td>推送通道（桥）可用</td></tr>
+  <tr><td>其它相关表</td><td><code>push_rules</code> 12 行 · <code>ai_types</code> 8 行 · <code>smart_push_plans</code> 1 行 · <code>straw_samples</code> 0 行</td><td>⚠️ <code>push_rules</code>/<code>smart_push_plans</code> 属**另一套**「智治推送/研判闸门」，别与责任映射混为一谈</td></tr>
+</table>
+<div class="callout grayc">
+  <b>两套推送机制别混</b>：① 本页的「责任映射 → 企业微信群」＝ <b>秸秆告警专用</b>（按镇街定对象）；
+  ② 「智治推送 / push_rules / 研判闸门」＝ 面向城运等外部系统的规则路由。<b>本报告只讲 ①</b>。
+</div>
+
+<h2>5 · 风险与缺口（按优先级）</h2>
+<table>
+  <tr><th style="width:64px">优先级</th><th>缺口</th><th>为什么严重</th></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>责任映射 0 行</b></td>
+      <td>模型一到位就会出告警 ⇒ <b>全部静默丢弃</b>。而且这是<b>沉默失败</b>：前端在"推送记录"页之外看不出异常。
+          历史已经演过一次同源事故 —— 09-03 基线 <b>575 条里失败 527 条</b>，绝大多数就是"责任单位未配置"</td></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>推送目标群未确认</b></td>
+      <td>记忆记载生产曾指向<b>不存在的群「环保测试」</b>（推不出去）；用户指定应为<b>「军哥」<code>junjungege2020</code></b>。<b>重建后必须重新确认群名</b></td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>企业微信 <b>webhook key 需客户提供</b></td>
+      <td>demo 环境是模拟 key；真实 key 由客户提供后才能实战推送（是外部依赖）</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td><b>覆盖完整性没人校验</b></td>
+      <td>原生产曾只覆盖 <b>16/51 镇街 ⇒ 36 个区域（70%）静默不推送</b>，很久才被发现。恢复时必须按 <b>52</b> 个乡镇街道全量核验</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td><b>前端没有批量导入</b></td>
+      <td>后端 <code>/import</code> 支持 <code>{rows:[…]}</code> 数组，但前端只提交<b>1 条</b> ⇒ 恢复 52 行要手工点 52 次（易漏、易错）</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>闸门口径默认 <code>off</code></td>
+      <td>先推后检 ⇒ 误报会先推给街道办，靠 <code>strawCorrection</code> <b>追发更正</b>（<b>企微群机器人无法撤回消息</b>）。是否改 <code>pre</code> 需产品决策</td></tr>
+  <tr><td><span class="badge info">P2</span></td><td>缺少<b>推送成功率主动告警</b></td>
+      <td>"成功 1 / 失败 527"能长期无人发现，说明靠人看页面不可靠；应加成功率阈值告警</td></tr>
+  <tr><td><span class="badge info">P2</span></td><td>前端不校验 webhook 合法性</td>
+      <td>形如 <code>https://qyapi.weixin.qq.com/…</code> 与桥的 <code>:18888/send?group=</code> 都可；填错要等真告警才发现</td></tr>
+</table>
+
+<h2>6 · 建议动作（可直接排期）</h2>
+<table>
+  <tr><th style="width:64px">优先级</th><th>动作</th><th>验证口径</th></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>重建 <code>area_responsibility</code>（52 乡镇街道全量）</b><br>
+      用后端批量接口：<code>POST /api/straw/area-responsibility/import</code> <code>{"rows":[…52 条…]}</code></td>
+      <td><code>SELECT COUNT(*)</code> = 52 且 <code>COUNT(DISTINCT town)</code> = 52；<code>webhook</code> 非空数 = 52</td></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>确认并写死推送目标群</b>（先定群名，例如「军哥」）+ 验证 webhook 真能收到</td>
+      <td>用 <code>GET /api/straw/responsibility?lng=108.372&#38;lat=30.840</code> 应返回 <code>town=周家坝街道</code> + 对应责任单位/群</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>补 <b>批量导入 UI</b>（或 CSV 粘贴导入）</td><td>一次粘贴 52 行导入成功</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>决定 <code>straw_review_gate</code> 口径（<code>off</code> vs <code>pre</code>）</td>
+      <td>选 <code>pre</code> 后：低置信度告警先 <code>held</code>，复核通过才释放推送</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>配置 <code>straw_push_style</code>（至少 <code>reviewLinkBase</code> 指向生产入口）</td>
+      <td>推送消息尾部的「🔎 复核直达」链接可点开且带 <code>?openAlert=&lt;id&gt;</code></td></tr>
+  <tr><td><span class="badge info">P2</span></td><td>加<b>推送成功率看板 + 阈值告警</b></td><td>成功率低于阈值时主动报出来，而不是等人翻页面</td></tr>
+</table>
+
+<h2>7 · 最该记住的一条</h2>
+<div class="callout danger">
+  这个页面是"<b>告警 → 处置</b>"闭环的<b>最后一公里</b>，代码链路完整（表/反查/API/工作流/推送收口 5 环俱在）；
+  但<b>数据丢了而且没人发现</b>。<br><br>
+  <b>核心教训：推送失败是「静默」的。</b>责任映射一旦为空，<b>系统看起来一切正常，实际一条告警都送不出去</b>；
+  而且它<b>已经被演绎过一次</b>（9/03：575 条推送里失败 527 条，绝大多数就是责任表没配）。
+  ⇒ 恢复责任映射之后，<b>必须加一条"推送成功率"的主动监控</b>，否则同类事故还会再来第三次。
+</div>
+
+<footer>
+  梳理范围：<code>MEMORY.md</code> + 11 个 <code>REF_*.md</code> ｜ 24 篇近期日志（09-03 起）｜ 47 篇归档日志（<code>backups/memory_logs_archive_20261003.tar.gz</code>）｜
+  历史会话检索（<b>0 命中</b>，该项目记忆以文件为准）｜ 代码 <code>server/index.js</code>·<code>server/store-db.js</code>·<code>src/app/components/admin/StrawMonitorPage.tsx</code> ｜ 生产库 <code>/data/HBJSC/backend/data/jsc.db</code> 实测
+</footer>
+
+</div>
+</body>
+</html>
