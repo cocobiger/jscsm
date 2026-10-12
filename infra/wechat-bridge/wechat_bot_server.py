@@ -27,8 +27,14 @@
   - Windows + 微信 PC 客户端（建议小号常驻登录，群需在微信「最近会话」出现过）
   - 驱动版本需与微信 PC 版本匹配（见 README.md）
 
-健康检查:
-  GET /health  → {"ok":true,"wx":"connected","driver":"wechatauto","sessions":N} 或错误详情
+健康检查（注意分工，别混用）:
+  GET /ping          → 毫秒级存活探针（绝不触碰微信）
+  GET /health        → **纯内存**的存活/卡死探针（绝不触碰微信）
+  GET /login-state   → 【重】主动探测微信登录态（读窗口 + 驱动 + DB），带结果缓存节流
+  GET /sessions      → 【重】列出可推送会话（全部群 + 最近会话里的个人），带缓存
+  ⚠️ 2026-10-12 实测更正：**不要用 /health 的 driver/sessions/wechat_version 判断登录**
+     —— 那三项由 _refresh_cache() 填充，而该函数全文件仅 1 处调用（发送成功路径），
+     从未推送过时永远是 null。判断登录请用 /login-state。
 """
 
 import argparse
@@ -943,6 +949,288 @@ def reset_stuck():
     _clear_stuck()
     STATE["last_ok_ts"] = time.time()
     return jsonify({"errcode": 0, "errmsg": "stuck 已清除"})
+
+
+# ══════════════════════════════════════════════════════════════════
+# P1 新增（2026-10-12）：登录态探测 + 会话清单
+#   用途：驾驶舱「微信登录」功能点（在线状态 / 离线二维码 / 选择推送对象）
+#
+#   三条纪律（改动前先读）：
+#     ① **不要把重活塞进 /health** —— 它是刻意设计成"纯内存、绝不触碰微信"的
+#        存活/卡死探针（见文件头 STATE 注释：wxauto 一卡它就跟着卡，外部就分不清
+#        "进程死了"还是"业务卡住"）。新能力一律放下面这两个新端点。
+#     ② 两者都是**只读 DB / 只读窗口**，不动微信 UI、不进 WORKER_LOCK ⇒ 可与发送并存。
+#     ③ 登录态探测会调 load_driver()（首次可能几秒：import + DB 密钥解密）。
+#        必须带**结果缓存**节流，否则前端每 5 秒轮询都会触发一次重活。
+#
+#   ⚠️ 为什么不用 /health 的 driver/sessions/wechat_version 判断登录：
+#      它们由 _refresh_cache() 填充，而该函数**全文件只有 1 处调用**（在发送成功路径里）
+#      ⇒ 从未推送过时永远是 null；且 db.py 的 get_self_info() 永远返回 dict
+#      ⇒ `driver` 非空只等于"WeChatDB() 构造成功"，**不等于已登录**。
+# ══════════════════════════════════════════════════════════════════
+LOGIN_TTL_OK = float(os.environ.get('WXBRIDGE_LOGIN_TTL_OK', '30'))       # 已登录：缓存 30s
+LOGIN_TTL_FAIL = float(os.environ.get('WXBRIDGE_LOGIN_TTL_FAIL', '15'))  # 未登录：缓存 15s
+SESSIONS_TTL = float(os.environ.get('WXBRIDGE_SESSIONS_TTL', '60'))      # 会话清单：缓存 60s
+PROBE_WAIT_S = float(os.environ.get('WXBRIDGE_PROBE_WAIT', '8'))          # 抢探测锁的最长等待
+LOGIN_WIN_SIZE = (296, 388)   # 实测（2026-10-12）：微信 4.1.13.12 登录窗几何
+
+_LOGIN_CACHE = {'ts': 0.0, 'data': None}
+_SESSIONS_CACHE = {'ts': 0.0, 'data': None}
+_PROBE_LOCK = threading.Lock()   # 串行化探测，避免并发轮询同时压 DB/驱动
+
+
+def _wechat_windows():
+    """枚举本进程可见的「微信相关窗口」（与 VM 侧 wx_front.py 同一判据）。
+
+    为什么要看窗口几何：2026-10-12 T1 实测定标 —— **未登录时屏幕上唯一的
+    Qt/微信窗口就是登录窗，尺寸恒为 296x388**；登录成功后会变为主界面尺寸。
+    这是"不依赖驱动能不能加载"的一条独立判据，用作兜底与交叉印证。
+    """
+    if os.name != 'nt':
+        return []
+    try:
+        import win32gui
+    except Exception:
+        return []
+    out = []
+
+    def _cb(h, _l):
+        try:
+            if not win32gui.IsWindow(h):
+                return True
+            cls = win32gui.GetClassName(h)
+            txt = win32gui.GetWindowText(h)
+            low = (cls + ' ' + txt).lower()
+            if (('qt' in cls.lower()) and txt.strip()) or ('微信' in txt) \
+                    or ('weixin' in low) or ('wechat' in low):
+                r = win32gui.GetWindowRect(h)
+                out.append({
+                    'hwnd': int(h), 'cls': cls, 'title': txt,
+                    'visible': bool(win32gui.IsWindowVisible(h)),
+                    'rect': [r[0], r[1], r[2], r[3]],
+                    'size': [r[2] - r[0], r[3] - r[1]],
+                    'is_login_size': (r[2] - r[0], r[3] - r[1]) == LOGIN_WIN_SIZE,
+                })
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(_cb, None)
+    except Exception:
+        pass
+    return out
+
+
+def _probe_login_state_uncached():
+    """主动探测一次登录态。**任何异常都收敛成 logged_in=false + error 串，绝不抛出去**
+    （这是个被前端高频轮询的端点，一次 500 会让页面整块红掉）。"""
+    d = {
+        'logged_in': False, 'via': None, 'driver': None, 'self': None,
+        'wechat_version': None, 'sessions_count': None, 'groups_count': None,
+        'windows': [], 'login_window': False, 'main_window': False,
+        'error': '', 'probed_at': time.time(),
+    }
+    try:
+        d['wechat_version'] = detect_wechat_version()
+    except Exception:
+        pass
+
+    # ① 窗口几何（快，无需驱动）
+    try:
+        d['windows'] = _wechat_windows()
+        d['login_window'] = any(w['is_login_size'] and w['visible'] for w in d['windows'])
+        d['main_window'] = any((not w['is_login_size']) and w['visible'] for w in d['windows'])
+    except Exception:
+        pass
+
+    # ② 驱动 + 自信息 + 会话/群数（重活；成功后 load_driver 内部有全局缓存，后续廉价）
+    try:
+        drv, name = load_driver()
+        d['driver'] = name
+        db = drv.get('db') if isinstance(drv, dict) else None
+        if db is not None:
+            try:
+                si = db.get_self_info() or {}
+                d['self'] = {
+                    'wxid': si.get('username') or '',
+                    'nick_name': si.get('nick_name') or '',
+                    'remark': si.get('remark') or '',
+                }
+            except Exception as e:
+                LOG.debug('login-state: get_self_info 失败: %s', e)
+            try:
+                d['sessions_count'] = len(db.get_sessions(limit=100) or [])
+            except Exception as e:
+                LOG.debug('login-state: get_sessions 失败: %s', e)
+            try:
+                d['groups_count'] = len(db.get_groups() or [])
+            except Exception as e:
+                LOG.debug('login-state: get_groups 失败: %s', e)
+            # ⚠️ 判据要**有正面证据**：不能只看 self.wxid ——
+            #    它由账号目录名推导，**磁盘上残留的账号目录即使已退出登录也还在**。
+            #    真正说明"登录着"的是：能解出会话/群数据，或能取到昵称。
+            if (d['sessions_count'] or d['groups_count']
+                    or (d['self'] or {}).get('nick_name')):
+                d['logged_in'] = True
+                d['via'] = 'driver'
+    except Exception as e:
+        d['error'] = '%s: %s' % (type(e).__name__, str(e)[:200])
+
+    # ③ 几何兜底：出现"非登录尺寸"的可见微信窗口 ⇒ 判定已登录
+    if not d['logged_in'] and d['main_window']:
+        d['logged_in'] = True
+        d['via'] = 'window'
+    return d
+
+
+def _list_sessions_uncached():
+    """列出可用于推送的会话（只读 DB，不动 UI）。"""
+    out = {
+        'errcode': 0, 'logged_in': False, 'driver': None,
+        'groups': [], 'contacts': [],
+        'counts': {'groups': 0, 'contacts': 0},
+        'error': '', 'listed_at': time.time(),
+    }
+    try:
+        drv, name = load_driver()
+        out['driver'] = name
+        out['logged_in'] = True
+        db = drv.get('db') if isinstance(drv, dict) else None
+        if db is None:
+            out['errcode'] = -1
+            out['error'] = '当前驱动 %s 不支持列出会话（仅 wechatauto 有本地 DB）' % name
+            return out
+
+        # ① 全部群（chat_room 表，**不受"最近会话"限制**）
+        try:
+            for g in (db.get_groups() or []):
+                nm = (g.get('name') or g.get('username') or '').strip()
+                if not nm:
+                    continue
+                out['groups'].append({
+                    'name': nm,
+                    'wxid': g.get('username') or '',
+                    'member_count': g.get('member_count'),
+                })
+        except Exception as e:
+            out['error'] = 'get_groups 失败: %s' % str(e)[:200]
+
+        # ② 最近会话里的个人（排除 @chatroom）
+        try:
+            seen = set()
+            for s in (db.get_sessions(limit=100) or []):
+                u = (s.get('username') or '').strip()
+                if not u or u.endswith('@chatroom') or u in seen:
+                    continue
+                seen.add(u)
+                try:
+                    nick = db.get_nickname(u) or u
+                except Exception:
+                    nick = u
+                out['contacts'].append({'name': nick, 'wxid': u})
+        except Exception as e:
+            msg = 'get_sessions 失败: %s' % str(e)[:200]
+            out['error'] = (out['error'] + ' | ' + msg) if out['error'] else msg
+    except Exception as e:
+        out['errcode'] = -1
+        out['error'] = '%s: %s' % (type(e).__name__, str(e)[:200])
+
+    out['groups'].sort(key=lambda x: x['name'])
+    out['contacts'].sort(key=lambda x: x['name'])
+    out['counts'] = {'groups': len(out['groups']), 'contacts': len(out['contacts'])}
+    return out
+
+
+def _filter_sessions(data, kw, age):
+    """按关键字过滤 + 附加缓存元信息（不改动缓存里的原始数据）"""
+    d = dict(data)
+    total = dict(data.get('counts') or {})
+    if kw:
+        d['groups'] = [g for g in data.get('groups', [])
+                       if kw in (str(g.get('name')) + ' ' + str(g.get('wxid'))).lower()]
+        d['contacts'] = [c for c in data.get('contacts', [])
+                         if kw in (str(c.get('name')) + ' ' + str(c.get('wxid'))).lower()]
+    d['total'] = total
+    d['counts'] = {'groups': len(d['groups']), 'contacts': len(d['contacts'])}
+    d['cached'] = age > 0
+    d['cache_age_s'] = round(age, 1)
+    return d
+
+
+@app.route("/login-state", methods=["GET"])
+def login_state():
+    """微信登录态探测（P1 新增，供驾驶舱「微信登录」功能点使用）。
+
+    返回：logged_in / via(driver|window) / driver / self{wxid,nick_name,remark} /
+          wechat_version / sessions_count / groups_count / windows[] /
+          login_window / main_window / error / cached / cache_age_s
+
+    节流：成功结果缓存 `WXBRIDGE_LOGIN_TTL_OK`(默认 30s)、失败结果缓存
+          `WXBRIDGE_LOGIN_TTL_FAIL`(默认 15s)。`?force=1` 强制穿透缓存。
+    并发：同一时刻只允许一次探测；8 秒抢不到锁就返回上次结果并标 `probing=true`，
+          避免前端轮询把请求堆在这里。
+    """
+    force = (request.args.get('force') or '') in ('1', 'true', 'yes')
+    got = _PROBE_LOCK.acquire(timeout=PROBE_WAIT_S)
+    if not got:
+        last = dict(_LOGIN_CACHE['data'] or {})
+        last.update({'probing': True, 'cached': True,
+                     'errmsg': '探测进行中，返回上次结果'})
+        return jsonify(last)
+    try:
+        if not force and _LOGIN_CACHE['data'] is not None:
+            age = time.time() - _LOGIN_CACHE['ts']
+            ttl = LOGIN_TTL_OK if _LOGIN_CACHE['data'].get('logged_in') else LOGIN_TTL_FAIL
+            if age < ttl:
+                r = dict(_LOGIN_CACHE['data'])
+                r.update({'cached': True, 'cache_age_s': round(age, 1), 'probing': False})
+                return jsonify(r)
+        data = _probe_login_state_uncached()
+        _LOGIN_CACHE['ts'] = time.time()
+        _LOGIN_CACHE['data'] = data
+    finally:
+        _PROBE_LOCK.release()
+    r = dict(data)
+    r.update({'cached': False, 'cache_age_s': 0.0, 'probing': False})
+    return jsonify(r)
+
+
+@app.route("/sessions", methods=["GET"])
+def sessions():
+    """列出可用于推送的会话（P1 新增，只读 DB、不动 UI）。
+
+    返回 groups（**全部**群聊，来自 chat_room 表）/ contacts（最近会话里的个人）。
+    支持 `?q=<关键字>` 过滤、`?force=1` 穿透缓存（默认缓存 60s）。
+
+    ⚠️ **"列得出来" ≠ "发得出去"**：发送走 resolve_group()，它是在**最近会话**里
+       按关键字匹配的。所以对"从未打开过"的群能否成功发送，必须实测确认；
+       前端应对此提示"请先在微信里打开一次目标群"。
+    """
+    force = (request.args.get('force') or '') in ('1', 'true', 'yes')
+    kw = (request.args.get('q') or '').strip().lower()
+    got = _PROBE_LOCK.acquire(timeout=PROBE_WAIT_S)
+    if not got:
+        d = _SESSIONS_CACHE['data']
+        if d is None:
+            return jsonify({'errcode': -1, 'logged_in': False, 'groups': [], 'contacts': [],
+                            'counts': {'groups': 0, 'contacts': 0},
+                            'error': '会话列表探测进行中，请稍后重试', 'probing': True})
+        return jsonify(dict(_filter_sessions(d, kw, time.time() - _SESSIONS_CACHE['ts']),
+                            probing=True))
+    try:
+        if not force and _SESSIONS_CACHE['data'] is not None:
+            age = time.time() - _SESSIONS_CACHE['ts']
+            if age < SESSIONS_TTL:
+                return jsonify(dict(_filter_sessions(_SESSIONS_CACHE['data'], kw, age),
+                                    probing=False))
+        data = _list_sessions_uncached()
+        _SESSIONS_CACHE['ts'] = time.time()
+        _SESSIONS_CACHE['data'] = data
+    finally:
+        _PROBE_LOCK.release()
+    return jsonify(dict(_filter_sessions(data, kw, 0.0), probing=False))
+
 
 if __name__ == "__main__":
     # 一次性 worker 模式（由父进程 spawn）：不启 Flask，做完一次发送就硬退出

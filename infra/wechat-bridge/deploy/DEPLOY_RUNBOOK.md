@@ -176,6 +176,30 @@ cp 是原地截断会保留 `root:root` 属组，640 也只给到 root 组 ⇒ �
    以 **PNG 体积 ≥ 2500B** 验真伪（实测：真码 ~4.1–6.9KB，截到浏览器 0.3–1.2KB）。
    ⚠️ 别用整窗 PNG 体积：好图 ~16.1KB vs 错图 ~15.6KB，只差 3%，太窄。
 
+## P1 新增端点（2026-10-13）
+| 端点 | 说明 |
+|---|---|
+| `GET /login-state` | 主动探测登录态。成功缓存 30s / 失败 15s；`?force=1` 穿透。返回 `logged_in / via(driver\|window) / driver / self / wechat_version / sessions_count / groups_count / login_window / main_window / windows[] / error` |
+| `GET /sessions` | `groups`（**全部**群，来自 `chat_room` 表）+ `contacts`（最近会话里的个人）。缓存 60s；`?q=` 过滤 |
+> 纪律：`/health` 保持"纯内存、绝不触碰微信"，**重活一律放这两个新端点**。
+
+### 🔴 重启桥的正确姿势（踩过坑）
+```bash
+# ① 把所有监听 18888 的 PID 全部杀掉 —— Windows 允许两个进程同时 bind 同一端口，
+#    实测同时存在 Session 0（WMI 直启的遗留，看不到微信窗口）与 Session 2（正确）两个实例
+for P in $(netstat -ano | findstr LISTENING | findstr :18888 | grep -oE '[0-9]+$' | sort -u); do
+  taskkill /F /PID $P
+done
+# ② 确认端口已释放（/ping 不再 200），再拉起
+schtasks /Run /TN WeChatBridge          # /IT ⇒ Session 2（必须）
+# ③ 收官检查：只能有 1 个实例且在 Session 2，且 /ping 的 uptime_s 是几十秒
+tasklist /FI "IMAGENAME eq python.exe" /FO CSV /NH
+curl -s http://172.16.8.16:18888/ping
+```
+⚠️ 解析 PID 时注意 `wmiexec` 输出**首行是空行** ⇒ `head -1` 会拿到空行、`awk '{print $NF}'` 得到空串。
+用 `grep -oE '[0-9]+$'` 取行尾数字更稳（本仓库踩过这个）。
+⚠️ 本机**没有** `WxBridgeSelfHeal` 任务 ⇒ 桥挂了无人自动拉起。
+
 ## 交付二维码给真人扫
 ```bash
 bash infra/wechat-bridge/deploy/fetch_qr.sh --fresh      # 先强制重置换全新码再取

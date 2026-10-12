@@ -185,6 +185,32 @@ def health():
         return {}
 
 
+def login_state():
+    """
+    向桥要一次登录态（P1 新增端点 GET /login-state）。
+
+    ⚠️ 目前**只用于记录/交叉印证，不参与判定** —— 因为"已登录态"下的 /login-state 尚未实测定标
+       （T1 后半待扫码）。等两边数据齐了再决定是否把它提升为主判据。
+       超时给得宽（45s）：首次探测要 import 驱动 + 解 DB 密钥，可能要几秒到十几秒。
+    """
+    try:
+        with urllib.request.urlopen(BRIDGE + "/login-state", timeout=45) as f:
+            return json.loads(f.read().decode("utf-8", "ignore"))
+    except Exception as e:
+        return {"error": "bridge/login-state 不可达: %r" % e}
+
+
+def _ls_summary(ls):
+    """把 /login-state 压成一行日志用的短摘要"""
+    if not ls:
+        return "无"
+    if ls.get("error") and not ls.get("logged_in"):
+        return "logged_in=false err=%s" % str(ls["error"])[:70]
+    return ("logged_in=%s via=%s driver=%s ver=%s sessions=%s groups=%s"
+            % (ls.get("logged_in"), ls.get("via"), ls.get("driver"),
+               ls.get("wechat_version"), ls.get("sessions_count"), ls.get("groups_count")))
+
+
 def read_verdict():
     """读 wx_front.py 的 VERDICT 行（纯 ASCII，跨 wmiexec 的编码转换不受影响）"""
     out = vm("type " + WIN_TXT, timeout=60)
@@ -284,6 +310,7 @@ def load_state():
         "logged_in_hint": False,
         "last_confirm": 0.0,
         "no_window_rounds": 0,
+        "last_login_state": None,   # 桥 /login-state 的最近一次结果（交叉印证用）
     }
     if os.path.exists(STATE):
         try:
@@ -351,12 +378,16 @@ def main():
                     continue
                 st["last_confirm"] = now
                 v = probe_window(attempts=1, poll_each=6)
+                ls = login_state()
+                st["last_login_state"] = ls
                 if v and v["found"] and not is_login_window(v["rect"]):
-                    log("心跳：仍是已登录态（窗口 %dx%d，非登录窗）" % (v["rect"][2], v["rect"][3]))
+                    log("心跳：仍是已登录态（窗口 %dx%d，非登录窗）｜ 桥 %s"
+                        % (v["rect"][2], v["rect"][3], _ls_summary(ls)))
                     save_state(st)
                     time.sleep(LOOP)
                     continue
-                log("心跳：已看不到登录后的主窗口 ⇒ 可能被登出/关闭，恢复保活")
+                log("心跳：已看不到登录后的主窗口 ⇒ 可能被登出/关闭，恢复保活｜ 桥 %s"
+                    % _ls_summary(ls))
                 st["logged_in_hint"] = False
                 save_state(st)
                 # 继续往下走本轮的保活流程
@@ -388,11 +419,13 @@ def main():
                 time.sleep(4)
 
             if saw_other_window:
+                ls = login_state()
+                st["last_login_state"] = ls
                 st["logged_in_hint"] = True
                 st["last_confirm"] = time.time()
                 st["no_window_rounds"] = 0
                 log("检测到非登录尺寸的微信窗口 ⇒ 判定【已登录】，转入静默（每 %ds 心跳确认一次）"
-                    % LOGGEDIN_RECHECK)
+                    "｜ 桥 %s" % (LOGGEDIN_RECHECK, _ls_summary(ls)))
                 save_state(st)
                 time.sleep(LOOP)
                 continue
