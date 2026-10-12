@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱「微信登录」功能 · 评估与排期</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --blue:#1a5276;--blue2:#2c6ca6;--green:#0f7b4f;--greenbg:#e7f6ee;--red:#b42318;--redbg:#fdeceb;
+  --amber:#9a6700;--amberbg:#fff6e5;--violet:#5b3fb5;--violetbg:#efeafd;--gray:#475569;--graybg:#eef2f7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;line-height:1.72;font-size:15px}
+  .wrap{max-width:1140px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:22px}header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  h4{font-size:14px;color:#374151;margin:16px 0 6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.4px;color:#0b3d63}
+  pre{background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:11px;overflow:auto;font-size:12.3px;line-height:1.6}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px}li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:21px;font-weight:800;color:var(--blue)}.kpi .l{font-size:12.3px;color:var(--muted);margin-top:3px}
+  .hl{background:#fffbe6;box-shadow:inset 0 -2px 0 #f0dcae}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;margin:10px 0}
+  .node{background:#eef3f8;border:1px solid #cbd8e5;border-radius:8px;padding:6px 11px}
+  .arrow{color:#8fa3b8;font-weight:700}
+  .tag{font-size:11.5px;border-radius:5px;padding:1px 6px;background:var(--graybg);color:var(--gray);border:1px solid #d7dee8}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>驾驶舱「微信登录」功能点 · 评估与排期</h1>
+  <div class="sub">
+    需求位置：<b>秸秆焚烧监控 → 责任映射 / 微信群推送</b> 下新增「微信登录」<br>
+    功能：监控微信在线 → 离线显示二维码 → 扫码后显示登录状态 → 超时手动刷新换新码 → 登录后选择推送对象（群/个人）
+  </div>
+  <div class="meta">
+    <span class="chip">2026-10-12 23:10</span>
+    <span class="chip">结论：可行，无技术阻断</span>
+    <span class="chip">~17 h（≈2.5 人日）</span>
+    <span class="chip">⚠️ 含 1 项前置必修（今晚的守护有真 bug）</span>
+    <span class="chip">4 处待你拍板</span>
+  </div>
+</header>
+
+<h2>0 · 一句话结论</h2>
+<div class="kpi">
+  <div class="box"><div class="n" style="color:var(--green)">可行</div><div class="l">5 条需求全部有解</div></div>
+  <div class="box"><div class="n" style="color:var(--green)">比预想好</div><div class="l">能列出<b>全部</b>微信群，非仅最近会话</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">1 项必修</div><div class="l">「已登录」判据现在是错的</div></div>
+  <div class="box"><div class="n">~17 h</div><div class="l">分 5 个阶段，每阶段可独立回滚</div></div>
+</div>
+
+<div class="callout good">
+  <b>好消息（三件）</b>
+  <ul>
+    <li><b>今晚刚做完的二维码保活守护可以直接复用</b>——它已经在 226 上每 60 秒产出一张新鲜二维码
+      （<code>/data/HBJSC/wxb_qr/latest.png</code>，135×135，~7 KB），"离线显示二维码 + 刷新"这条最难的部分<b>已经跑通了</b>。</li>
+    <li><b>「选择推送对象」比预想的好</b>：<code>wechatauto</code> 的 <code>db.py</code> 里有
+      <code>get_groups()</code>，能从 <code>chat_room</code> 表<b>列出该微信号的全部群聊</b>（含群名、成员数），
+      <b>不限于"最近会话"</b>；还有 <code>search_contact()</code> 可搜人。群/个人可区分。</li>
+    <li><b>前端源码在仓库里</b>：<code>src/app/components/admin/StrawMonitorPage.tsx</code> 就是这一页
+      （tab <code>responsibility</code> → <code>&lt;ResponsibilityManager /&gt;</code>）——不是"只在生产构建产物里"的那类页面，
+      可以直接改源码走正常流程。</li>
+  </ul>
+</div>
+
+<div class="callout danger">
+  <b>坏消息：必须先修一个今晚自己引入的真 bug</b><br>
+  我今晚做的保活守护，判断"微信是否已登录"用的是桥 <code>/health</code> 的
+  <code>driver</code> / <code>sessions</code> / <code>wechat_version</code> 三个字段。<br>
+  但读源码发现：<b>这三个字段只在"某次推送成功之后"才会被填</b>
+  （<code>_refresh_cache()</code> 全文件<b>只有 1 处调用</b>，在 <code>wechat_bot_server.py:803</code> 的发送成功路径里）。<br>
+  ⇒ 在"从来没推送过"的当前状态下，它们<b>永远是 null</b> ⇒ 守护的"已登录即静默"分支<b>永远不会触发</b>。<br>
+  ⇒ 这个 bug 会让功能 F1/F3（在线监控、登录状态）直接失效，所以它是<b>本需求的前置必修项</b>。
+</div>
+
+<h2>1 · 需求拆解：5 条 → 5 个可验收的子功能</h2>
+
+<table>
+  <thead><tr><th style="width:64px">编号</th><th>原始需求</th><th>可验收判据（做什么算完成）</th><th style="width:88px">难度</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>F1</b></td>
+      <td>监控微信是否在线</td>
+      <td>页面顶部常驻状态灯；<b>断线 30 秒内变红</b>；能显示"登录的微信号是谁 + 微信版本"</td>
+      <td><span class="badge warn">中</span></td>
+    </tr>
+    <tr>
+      <td><b>F2</b></td>
+      <td>离线则显示登录二维码</td>
+      <td>未登录时自动展示二维码（来自保活守护已产出的 <code>latest.png</code>），<b>并显示码龄</b>（"二维码 12 秒前生成"）</td>
+      <td><span class="badge ok">易</span></td>
+    </tr>
+    <tr>
+      <td><b>F3</b></td>
+      <td>扫码后显示登录状态</td>
+      <td>扫码成功 → <b>5 秒内</b>页面自动切换为"已登录 · 昵称(xxx)"，二维码自动隐藏，目标选择器解锁</td>
+      <td><span class="badge warn">中</span></td>
+    </tr>
+    <tr>
+      <td><b>F4</b></td>
+      <td>超时手动点击刷新按钮 → 重新显示新二维码</td>
+      <td>按钮点击后进入"重置中…"，<b>60 秒内</b>出现<b>与旧码不同</b>的新二维码；并有"码龄超 3 分钟"的自动提醒文案</td>
+      <td><span class="badge warn">中</span></td>
+    </tr>
+    <tr>
+      <td><b>F5</b></td>
+      <td>登录后选择指定微信群或个人为推送对象</td>
+      <td>责任映射表每行的「微信群 Webhook」由<b>手填 URL</b> 改为<b>下拉选择会话</b>（群/个人分开展示、可搜索）；<b>带"发测试消息"按钮</b>验证选得对</td>
+      <td><span class="badge bad">较难</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>2 · 现状盘点：能直接用的 vs 缺什么</h2>
+
+<h3>2.1 已具备（不需要从零做）</h3>
+<table>
+  <thead><tr><th style="width:150px">能力</th><th>现状</th><th style="width:70px">状态</th></tr></thead>
+  <tbody>
+    <tr><td>二维码产出</td><td><code>wx-qr-keepalive.service</code>（226）每 60 s 前置微信窗口 + 截二维码 → <code>/data/HBJSC/wxb_qr/latest.png</code>；含"画面冻死 6 分钟才重启客户端"的兜底</td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>强制换新码</td><td><code>/data/HBJSC/scripts/wx_qr_reset.sh</code>：taskkill + <code>WxLaunchQr</code> 拉起 → 实测 <b>15–20 s</b> 出新码</td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>推送发送</td><td>桥 <code>POST /send?group=&lt;名&gt;</code>；后端 <code>sendWechatPush()</code> 已封装（含 bridge 失败误报识别 + 重试）</td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>责任映射表</td><td><code>area_responsibility(town, community, unit, person, phone, webhook, remark)</code>，<code>UNIQUE(town,community)</code>；后端 4 个路由 + <code>findResponsibility()</code> 已通</td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>前端页面</td><td><code>StrawMonitorPage.tsx</code>（tab <code>responsibility</code> → <code>ResponsibilityManager</code>，含表格/新增/编辑/删除/统计卡）</td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>桥自身健康</td><td><code>/ping</code>（毫秒级、不碰微信）、<code>/health</code>、<code>/status</code>、<code>/reset-stuck</code></td><td><span class="badge ok">有</span></td></tr>
+    <tr><td>群/人列表 <span class="tag">DB 层</span></td><td><code>wechatauto.db.get_groups()</code>（全部群，<code>chat_room</code> 表）、<code>search_contact()</code>、<code>get_sessions()</code>、<code>get_self_info()</code></td><td><span class="badge warn">有但未暴露</span></td></tr>
+  </tbody>
+</table>
+
+<h3>2.2 缺口（要新建的）</h3>
+<table>
+  <thead><tr><th style="width:210px">缺口</th><th>说明</th><th style="width:74px">归属</th></tr></thead>
+  <tbody>
+    <tr><td><b>一个可靠的"微信是否登录"判据</b></td><td>见 §3.1。现有 <code>/health</code> 三个字段不可用；必须实测定标</td><td>桥 + 守护</td></tr>
+    <tr><td>桥无 <code>/login-state</code></td><td>需要主动探测（读 DB 自info + 会话数），并带<b>负缓存节流</b>（否则每次轮询都跑一遍 DB 解密，很重）</td><td>桥</td></tr>
+    <tr><td>桥无 <code>/sessions</code></td><td>把 <code>get_groups()</code> + <code>get_sessions()</code> 暴露成 HTTP，返回 <code>{name, kind:'group'|'contact'}</code></td><td>桥</td></tr>
+    <tr><td>后端读不到二维码</td><td>后端以 <code>User=jsc</code> 运行，而 <code>/data/HBJSC/wxb_qr/</code> 是 <code>drwx------ root root</code> ⇒ <b>权限必须放宽</b></td><td>运维</td></tr>
+    <tr><td>后端无微信登录模块</td><td>需要新的 <code>server/wechat-login.js</code>（照现有 5 个新模块的范式：自注册路由 + <code>adminOnly</code>）</td><td>后端</td></tr>
+    <tr><td>前端无登录面板</td><td><code>WeChatLoginPanel.tsx</code>（状态灯 + 二维码 + 码龄 + 刷新 + 轮询）</td><td>前端</td></tr>
+  </tbody>
+</table>
+
+<h2>3 · 关键技术发现（这 4 条决定方案怎么选）</h2>
+
+<h3>3.1 🔴 登录判据有坑 —— 必须先实测定标（否则 F1/F3 必然失效）</h3>
+<div class="card">
+  <p>读 <code>wechat_bot_server.py</code> 得到的事实：</p>
+  <ul>
+    <li><code>_refresh_cache()</code>（唯一填充 <code>STATE['driver'|'sessions'|'wechat_version']</code> 的地方）
+      全文件<b>只有 1 处调用</b>：<code>line 803</code>，在<b>发送成功</b>之后。</li>
+    <li><code>/health</code> 里 <code>driver</code> 的取值是 <code>STATE['driver'] or DRIVER_NAME</code>，
+      而 <code>DRIVER_NAME</code> 只在 <code>load_driver()</code> 成功后才有值。</li>
+    <li><code>load_driver()</code> 判定成功的条件是 <code>if info:</code>，但
+      <code>get_self_info()</code> <b>永远返回一个 dict（不会是 None/空）</b>
+      —— 即"取不到信息"时它返回 <code>{"username": wxid, "nick_name": "", "remark": ""}</code>。
+      ⇒ <b><code>driver</code> 非空并不等于"已登录"</b>，只等于"<code>WeChatDB()</code> 构造成功"。</li>
+  </ul>
+  <div class="callout warnc">
+    <b>结论</b>：现阶段<b>不能凭 <code>/health</code> 判断登录</b>。必须在 VM 上跑一次
+    <b>对照实验</b>（未登录态 vs 已登录态各采集一遍
+    <code>WeChatDB()</code> / <code>get_self_info()</code> / <code>get_sessions()</code> / <code>get_groups()</code> /
+    <code>WTSGetActiveConsoleSessionId</code> 与窗口几何），
+    找出一个<b>稳定可判</b>的信号，再写进桥和守护。
+  </div>
+  <p class="muted">💡 已有辅助信号可交叉验证：登录窗口几何实测稳定为 <b>296×388</b>，登录后主窗口明显更大 ——
+  <code>wx_front.py</code> 已经在报窗口 rect，可作为"备用判据"，但不建议单用（窗口可能被用户手动缩放）。</p>
+</div>
+
+<h3>3.2 ✅ 能列出「全部群」，不限于最近会话（F5 的关键）</h3>
+<p>从 VM 上取回 <code>wechatauto/db.py</code>（146 KB）后确认以下 API 存在：</p>
+<pre>def get_self_info(self) -&gt; dict                       # 当前登录账号 wxid / nick_name
+def get_sessions(self, limit: int = 100) -&gt; List[dict]  # 会话列表（来自 session.db）
+def search_contact(self, keyword: str) -&gt; List[dict]    # 按昵称/备注/微信号搜联系人
+def get_groups(self) -&gt; List[dict]                       # ★ 列出所有群聊
+                                                         #   username / name / owner / member_count / members
+def group_name_to_id(self, name: str) -&gt; Optional[str]   # 群名 → xxx@chatroom</pre>
+<div class="callout good">
+  <code>get_groups()</code> 直接查 <code>chat_room</code> + <code>chatroom_member</code> 表，
+  <b>不吃"最近会话"这个限制</b> ⇒ 前端下拉里能出现全部群。
+  <br>⚠️ <b>但发送侧仍需验证</b>：桥的 <code>resolve_group()</code> 是在"最近会话"里按关键字找的，
+  <code>quick_send(who=...)</code> 走的是微信侧栏/搜索匹配。所以<b>"列得出来"≠"发得出去"</b>，
+  对"从未打开过的群"必须实测（见排期 T15）。
+</div>
+
+<h3>3.3 权限：后端读不到二维码（必须先调）</h3>
+<table>
+  <thead><tr><th>对象</th><th>现状</th><th>目标</th></tr></thead>
+  <tbody>
+    <tr><td>后端进程身份</td><td><code>jsc-backend.service</code> → <code>User=jsc</code> / <code>WorkingDirectory=/data/HBJSC/backend</code></td><td>不变</td></tr>
+    <tr><td><code>/data/HBJSC/wxb_qr/</code></td><td><code>drwx------ root root</code> ⇒ jsc <b>完全读不到</b></td><td><code>drwxrws--- root:jsc</code>（2770）</td></tr>
+    <tr><td><code>latest.png</code></td><td><code>-rw------- root root</code></td><td><code>-rw-r----- root:jsc</code>（640）</td></tr>
+    <tr><td>刷新请求标志文件</td><td>—</td><td>目录组可写 ⇒ jsc 可创建 <code>reset.request</code></td></tr>
+  </tbody>
+</table>
+<p class="muted">采用 <b>setgid（2）</b>：目录下新建文件的组自动继承 <code>jsc</code>，避免守护每次写文件后权限又变回去。</p>
+
+<h3>3.4 二维码 = 登录令牌 ⇒ 安全边界必须写死</h3>
+<div class="callout danger">
+  <ul>
+    <li>二维码<b>等价于该微信号的登录凭据</b>，谁拿到谁就能登。</li>
+    <li>⇒ 相关接口<b>一律 <code>adminOnly</code></b>，<b>绝不</b>加进 <code>PUBLIC_PATHS</code>/<code>PREFIX_PATHS</code>。</li>
+    <li>⇒ 响应头必须 <code>Cache-Control: no-store, no-cache, must-revalidate</code> + <code>Pragma: no-cache</code>，禁掉浏览器/中间代理缓存。</li>
+    <li>⇒ <b>不落任何"推给用户看"的日志</b>（<code>PushLogPage</code> 之类），也不进 git。</li>
+    <li>⇒ 建议用<b>小号</b>登录（README 已有此建议）。</li>
+  </ul>
+</div>
+
+<h2>4 · 方案对比：3 个关键选择</h2>
+
+<h3>4.1 二维码怎么送到浏览器？</h3>
+<table>
+  <thead><tr><th style="width:34px"></th><th style="width:230px">方案</th><th>做法</th><th style="width:300px">评价</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>A</b></td>
+      <td><b>后端直接读本地文件</b> <span class="badge ok">推荐</span></td>
+      <td>后端（就在 226 上）<code>GET /api/wechat/qr</code> → 读 <code>/data/HBJSC/wxb_qr/latest.png</code> → 流式返回</td>
+      <td>✅ 零新增依赖、零额外网络跳、文件系统天然是最新态<br>⚠️ 需调目录权限（§3.3）</td>
+    </tr>
+    <tr>
+      <td>B</td>
+      <td>桥新增 <code>/qr</code></td>
+      <td>桥在 Windows 上自己截图并返回 PNG</td>
+      <td>❌ 桥在 Windows、二维码在 Linux，桥<b>拿不到那个文件</b>；要桥自己截图就<b>重复实现</b>守护已有的逻辑（还多一份要维护的静默错图风险）</td>
+    </tr>
+    <tr>
+      <td>C</td>
+      <td>nginx 直接静态暴露</td>
+      <td>把 <code>wxb_qr/</code> 挂到 nginx 下</td>
+      <td>❌ <b>安全不可接受</b>：等于把登录令牌放到公网静态路径上，绕过 <code>adminOnly</code> 鉴权</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>4.2 「手动刷新」怎么触发重置？</h3>
+<table>
+  <thead><tr><th style="width:34px"></th><th style="width:230px">方案</th><th>做法</th><th style="width:300px">评价</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>A</b></td>
+      <td><b>标志文件</b> <span class="badge ok">推荐</span></td>
+      <td>后端写 <code>wxb_qr/reset.request</code> → 守护轮询到就执行重置并删掉标志；接口立即返回 <code>202 {status:'resetting'}</code>，前端轮询状态</td>
+      <td>✅ <b>重置权只归守护一家</b>（避免两处同时 taskkill 打架）<br>✅ 后端（jsc）不需要 root、不需要 SSH 凭据<br>⚠️ 最坏延迟 = 守护循环间隔 30 s + 重置 25 s ≈ 55 s（可接受，UI 有进度态）</td>
+    </tr>
+    <tr>
+      <td>B</td>
+      <td>后端 spawn <code>wx_qr_reset.sh</code></td>
+      <td>后端 <code>child_process.spawn</code> 脱离执行脚本</td>
+      <td>⚠️ 脚本要读 <code>/root/.wxbridge.env</code> + 调 <code>wmiexec.py</code> ⇒ 后端得跑成 root（<b>降安全</b>）或改权限；且与守护可能并发 taskkill</td>
+    </tr>
+    <tr>
+      <td>C</td>
+      <td>桥自管 <code>/relaunch</code></td>
+      <td>桥暴露"自杀+重启微信"端点，后端代理</td>
+      <td>⚠️ 桥自杀式端点有历史教训（会把端口交接/自愈脚本搅在一起）；且它<b>看不见</b>二维码文件，无法确认"新码出来了"</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>4.3 「推送对象」怎么存？</h3>
+<table>
+  <thead><tr><th style="width:34px"></th><th style="width:230px">方案</th><th>做法</th><th style="width:300px">评价</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>A</b></td>
+      <td><b>复用 <code>area_responsibility.webhook</code></b>（只改交互） <span class="badge ok">推荐</span></td>
+      <td>库里仍存 URL（<code>http://172.16.8.16:18888/send?group=&lt;群名&gt;</code>），前端把"手填 URL"换成"下拉选会话"，并保留"自定义 URL"兜底</td>
+      <td>✅ <b>后端推送逻辑一行都不用改</b>（<code>findResponsibility</code> → <code>sendWechatPush</code> 原样跑）<br>✅ 向后兼容：已配的企微 webhook 仍能用<br>✅ 风险最小、可独立回滚</td>
+    </tr>
+    <tr>
+      <td>B</td>
+      <td>新建 <code>wechat_target</code> 表 + 映射</td>
+      <td>独立存"会话名 → 对象"，再关联到镇街</td>
+      <td>⚠️ 引入<b>第二个真源</b>，与 <code>area_responsibility.webhook</code> 可能不一致；违背"口径唯一真源"的既有教训</td>
+    </tr>
+    <tr>
+      <td>C</td>
+      <td>全局默认对象 + 逐行覆盖</td>
+      <td>选一个全局默认群，个别镇街单独覆盖</td>
+      <td>✅ 实际运维更省事（51 个镇街不用逐个选）<br>⇒ <b>建议作为 A 的增值项</b>（<code>kv_config</code> 里存一个默认对象，<code>findResponsibility</code> 取不到时回落）</td>
+    </tr>
+  </tbody>
+</table>
+<p><b>推荐组合：A + C</b>（逐行为主、全局默认兜底）。</p>
+
+<h2>5 · 落地设计</h2>
+
+<h3>5.1 新增接口契约（6 个，全部 <code>adminOnly</code>）</h3>
+<table>
+  <thead><tr><th style="width:250px">接口</th><th>作用</th><th style="width:300px">返回要点</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/wechat/status</code></td><td>F1 在线状态</td><td><code>{loggedIn, self:{nick, wxid}, wechatVersion, driver, sessionsCount, qrAgeSec, resetting}</code></td></tr>
+    <tr><td><code>GET /api/wechat/qr</code></td><td>F2 二维码图</td><td>PNG（<code>image/png</code> + <code>no-store</code>）；未登录时才可读</td></tr>
+    <tr><td><code>POST /api/wechat/qr/refresh</code></td><td>F4 手动刷新</td><td><code>202 {ok:true, status:'resetting'}</code>；落 <code>reset.request</code></td></tr>
+    <tr><td><code>GET /api/wechat/targets?q=</code></td><td>F5 下拉数据</td><td><code>{groups:[{name,memberCount}], contacts:[{name}]}</code></td></tr>
+    <tr><td><code>POST /api/wechat/test-send</code></td><td>F5 验证选择</td><td>向指定会话发一条测试消息，返回桥的 <code>errcode/errmsg</code></td></tr>
+    <tr><td><code>PUT /api/wechat/default-target</code></td><td>F5 全局默认（方案 C）</td><td>写 <code>kv_config</code>，无需重启</td></tr>
+  </tbody>
+</table>
+
+<h3>5.2 桥侧新增（2 个只读 + 1 个受控）</h3>
+<table>
+  <thead><tr><th style="width:250px">接口</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /login-state</code></td><td>主动探测登录态；<b>必须带负缓存节流</b>（如失败结果缓存 10 s），否则前端每 5 秒轮询都会触发一次全驱动 import + DB 解密</td></tr>
+    <tr><td><code>GET /sessions</code></td><td><code>{groups:[...], contacts:[...]}</code>；群来自 <code>get_groups()</code>，个人来自 <code>get_sessions()</code> 里非 <code>@chatroom</code> 的项 + <code>get_nickname()</code> 转显示名</td></tr>
+    <tr><td><code>GET /login-qr.png</code> <span class="muted">（可选）</span></td><td>若将来桥与守护合体才需要；当前方案 A 下<b>不做</b></td></tr>
+  </tbody>
+</table>
+<div class="callout warnc">
+  <b>并发约束（必须遵守）</b>：<code>wechatauto</code> 的 UI 操作<b>不是并发安全的</b>（现有代码用 <code>WORKER_LOCK</code> + 一次性 worker 子进程串行化）。
+  <code>/login-state</code>、<code>/sessions</code> 都是<b>只读 DB</b>，不进 UI 队列，因此可与发送并存；
+  但一旦要"点一下微信窗口"（如切换会话）就必须走同一把锁。<b>设计上严格区分「读 DB」与「动 UI」两类操作。</b>
+</div>
+
+<h3>5.3 页面结构（在现有 tab 内新增，不动导航）</h3>
+<div class="flow">
+  <span class="node">秸秆焚烧监控</span><span class="arrow">›</span>
+  <span class="node">责任映射 / 微信群推送</span><span class="arrow">›</span>
+  <span class="node" style="background:#dff0e6;border-color:#b7dfc8">🟢 微信登录（新）</span>
+</div>
+<pre>ResponsibilityManager
+├─ <b>WeChatLoginPanel</b>                        ← 新增，置顶
+│   ├─ 状态灯：🟢已登录 昵称(小号A) · 微信 4.1.13.12   ／ 🔴未登录
+│   ├─ 未登录时：二维码图 + “二维码 12 秒前生成” + [手动刷新] 按钮
+│   ├─ 点击刷新 → “重置中…” 进度态 → 轮询到新码后自动替换
+│   └─ 已登录时：显示 [默认推送对象] 选择器（方案 C）
+├─ 统计卡（原有 3 个，保持不动）
+├─ 新增/编辑表单
+│   └─ 「微信群 Webhook」→ 改为 <b>会话下拉</b>（群/个人分组 + 可搜索 + “自定义 URL”兜底）
+└─ 列表表格
+    └─ 新增「[发测试]」按钮（按该行的 webhook 发一条测试消息）</pre>
+
+<h2>6 · 落地步骤（P0–P4，每阶段可独立验收与回滚）</h2>
+
+<table>
+  <thead><tr><th style="width:70px">阶段</th><th style="width:260px">内容</th><th>验收判据</th><th style="width:96px">回滚方式</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>P0</b><br><span class="muted">必修</span></td>
+      <td>① 登录判据实测定标<br>② 修保活守护的登录判据<br>③ 放宽 <code>wxb_qr/</code> 权限</td>
+      <td>守护日志能正确打印"★ 已登录"；<code>latest.png</code> 仍每 60 s 刷新</td>
+      <td>守护脚本有 git 版本，单文件回退</td>
+    </tr>
+    <tr>
+      <td><b>P1</b></td>
+      <td>桥新增 <code>/login-state</code>、<code>/sessions</code></td>
+      <td>从 226 <code>curl</code> 两个端点均 200；未登录时不报错、返回 <code>loggedIn:false</code></td>
+      <td>桥代码在仓库；改完 <code>restart_wxbridge</code> 即可</td>
+    </tr>
+    <tr>
+      <td><b>P2</b></td>
+      <td>后端新模块 <code>wechat-login.js</code> + 6 个路由；修若有的登录判据消费方</td>
+      <td><code>node --check</code> 全绿；接口逐个 <code>curl</code> 200；<b>不影响既有 51 张表与推送链路</b></td>
+      <td>新文件 + <code>index.js</code> 1 行 <code>require</code>；删掉即回滚</td>
+    </tr>
+    <tr>
+      <td><b>P3</b></td>
+      <td>前端：<code>api-types.ts</code> 契约 → <code>WeChatLoginPanel</code> → 下拉选择器 → 测试发送</td>
+      <td><code>npm run verify</code> 全绿；构建产物 md5 磁盘==远端、HTTP 200</td>
+      <td>前端每次上线前 <code>cp</code> 备份（既有惯例），<code>index-*.js</code> 可秒回退</td>
+    </tr>
+    <tr>
+      <td><b>P4</b></td>
+      <td>部署 + 端到端验收 + 文档</td>
+      <td>一条<b>真实秸秆告警</b>端到端推到选定的群；<code>warnings.data_json.wechatPush</code> 有痕迹</td>
+      <td>同上；webhook 值可整表快照回滚</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7 · 任务排期</h2>
+
+<table>
+  <thead><tr>
+    <th style="width:56px">任务</th><th style="width:52px">阶段</th><th>内容</th>
+    <th style="width:64px">工时</th><th style="width:150px">依赖 / 阻塞</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><b>T1</b></td><td>P0</td><td><b>登录判据对照实测</b>：未登录态 vs 已登录态，各采集 <code>WeChatDB()</code>/<code>get_self_info()</code>/<code>get_sessions()</code>/<code>get_groups()</code>/窗口几何，产出定标结论</td><td>1 h</td><td class="hl">🔴 需你先扫码（已登录态才有得测）</td></tr>
+    <tr><td><b>T2</b></td><td>P0</td><td>按 T1 结论改守护的登录判据（改走桥新端点或新信号）。<br><span class="muted">过渡期可先用<b>零风险</b>的窗口几何判据：找到微信窗口 <b>且不是 296×388</b> ⇒ 视为已登录、静默（避免每 60 s 抢一次前台）；<b>找不到窗口</b>则维持现状继续尝试</span></td><td>0.5 h</td><td>T1</td></tr>
+    <tr><td><b>T3</b></td><td>P0</td><td>放宽 <code>wxb_qr/</code> 权限为 <code>2770 root:jsc</code> + 文件 <code>640</code>，并复验守护仍能写、后端能读</td><td>0.5 h</td><td>无</td></tr>
+    <tr><td><b>T4</b></td><td>P1</td><td>桥 <code>GET /login-state</code>（含负缓存节流、异常不外抛）</td><td>1.5 h</td><td>T1（判据）</td></tr>
+    <tr><td><b>T5</b></td><td>P1</td><td>桥 <code>GET /sessions</code>（群用 <code>get_groups()</code>，个人用 <code>get_sessions()</code>+<code>get_nickname()</code>；标 <code>kind</code>；去重排序）</td><td>1.5 h</td><td>登录成功（拿得到会话）</td></tr>
+    <tr><td><b>T6</b></td><td>P2</td><td>后端 <code>wechat-login.js</code> 骨架 + <code>GET /api/wechat/status</code>（代理 + 码龄）</td><td>1 h</td><td>T4</td></tr>
+    <tr><td><b>T7</b></td><td>P2</td><td><code>GET /api/wechat/qr</code>（本地 PNG + <code>no-store</code> + 未登录才可读）</td><td>0.5 h</td><td>T3</td></tr>
+    <tr><td><b>T8</b></td><td>P2</td><td><code>POST /api/wechat/qr/refresh</code>（落标志文件 + 202）＋ 守护侧消费标志</td><td>1.5 h</td><td>T3</td></tr>
+    <tr><td><b>T9</b></td><td>P2</td><td><code>GET /api/wechat/targets</code>（代理 <code>/sessions</code>，服务端做一次归一化与缓存 30 s）</td><td>0.5 h</td><td>T5</td></tr>
+    <tr><td><b>T10</b></td><td>P2</td><td><code>POST /api/wechat/test-send</code>（复用 <code>sendWechatPush</code>，含重试与误报识别）</td><td>1 h</td><td>无</td></tr>
+    <tr><td><b>T11</b></td><td>P2</td><td>路由注册（<code>require</code> 放 <code>adminOnly</code> 之后）+ <code>node --check</code> + 逐端点 <code>curl</code></td><td>0.5 h</td><td>T6–T10</td></tr>
+    <tr><td><b>T12</b></td><td>P3</td><td><code>api-types.ts</code> 补 6 个接口的类型契约（唯一出处）</td><td>0.5 h</td><td>T11</td></tr>
+    <tr><td><b>T13</b></td><td>P3</td><td><code>WeChatLoginPanel.tsx</code>：状态灯 + 二维码 + 码龄 + 刷新进度态 + 5 s 轮询（未登录才拉图，已登录停轮询）</td><td>2.5 h</td><td>T12</td></tr>
+    <tr><td><b>T14</b></td><td>P3</td><td>责任映射表「Webhook」列 → 会话下拉（群/个人分组 + 搜索 + 自定义 URL 兜底）</td><td>1.5 h</td><td>T9</td></tr>
+    <tr><td><b>T15</b></td><td>P3</td><td><b>「发测试」按钮 + 未打开过的群能否发送的实测</b>（这是 F5 的真正验收）</td><td>1 h</td><td class="hl">需你把目标群在微信里打开一次</td></tr>
+    <tr><td><b>T16</b></td><td>P3</td><td>全局默认推送对象（<code>kv_config</code>）+ <code>findResponsibility</code> 回落（方案 C）</td><td>1 h</td><td>T10</td></tr>
+    <tr><td><b>T17</b></td><td>P3</td><td><code>npm run verify</code> 全绿 + 构建</td><td>0.5 h</td><td>T13–T16</td></tr>
+    <tr><td><b>T18</b></td><td>P4</td><td>备份 → 部署后端 + 前端 → md5 磁盘==HTTP 校验</td><td>1 h</td><td>T17</td></tr>
+    <tr><td><b>T19</b></td><td>P4</td><td>端到端验收：扫码 → 选群 → 测试发送 → 真实告警走通（<code>data_json.wechatPush</code>）</td><td>1 h</td><td class="hl">🔴 需 <code>area_responsibility</code> 有数据 + 有真实告警</td></tr>
+    <tr><td><b>T20</b></td><td>P4</td><td>文档：更新 <code>REF_wechat_bridge.md</code> / <code>REF_push_domain.md</code> / 部署手册</td><td>0.5 h</td><td>T19</td></tr>
+    <tr style="background:#eef3f8"><td colspan="3"><b>合计</b></td><td><b>≈ 19.5 h（≈3 人日）</b></td><td></td></tr>
+  </tbody>
+</table>
+
+<div class="card">
+  <h4>关键路径与外部依赖</h4>
+  <ul>
+    <li><b>关键路径</b>：T1（需你扫码）→ T4 → T6 → T12 → T13 → T17 → T18 → T19。其余任务可并行。</li>
+    <li><b>卡在你这边的两件事</b>：
+      <ol>
+        <li><b>扫码登录小号</b>（T1 的已登录态采集、T5、T15、T19 都等它）；</li>
+        <li><b>把目标群在微信「最近会话」里各打开一次</b>（T15 要验证能否发到"从未打开过"的群）。</li>
+      </ol>
+    </li>
+    <li><b>不阻塞、可先做的</b>：T3、T7、T8、T10、T16 —— 这 5 项（约 4 h）在你扫码之前就能全部做完。</li>
+  </ul>
+</div>
+
+<h2>8 · 冲突排查（逐条对照既有约束）</h2>
+<table>
+  <thead><tr><th style="width:230px">风险点</th><th>排查结论</th></tr></thead>
+  <tbody>
+    <tr><td><b>TDZ 崩进程</b></td><td>新模块的 <code>require</code> <b>必须放在 <code>adminOnly</code> 定义之后</b>（<code>index.js:2494</code>）。这是 <code>const</code> TDZ 陷阱，前面引用会 <code>ReferenceError</code> 直接崩后端。已列入 T11 验收项。</td></tr>
+    <tr><td><b>不得动研判闸门</b></td><td>本需求<b>完全不碰</b> <code>judgeWarning</code> / <code>isGateExemptWarning</code> / <code>queryWarningsAggregated</code>；只"读会话列表 + 改 webhook 值"，推送链路代码零改动。</td></tr>
+    <tr><td><b>两条推送链路混淆</b></td><td>本需求只服务<b>链路 A（秸秆）</b>；<b>不涉及</b>链路 B 的 <code>smart_push_history</code> / <code>cyzx_report_log</code>。</td></tr>
+    <tr><td><b>前端类型门禁</b></td><td>发布前必跑 <code>npm run verify</code>；契约唯一出处 <code>src/app/lib/api-types.ts</code>（T12 先行，避免类型漂移）。</td></tr>
+    <tr><td><b>与保活守护争夺"重置权"</b></td><td>采用标志文件（§4.2 A）⇒ <b>重置动作仍只由守护执行</b>，不会出现两处同时 <code>taskkill</code>。</td></tr>
+    <tr><td><b>轮询压力打爆桥</b></td><td><code>/login-state</code> 走 DB 解密，重。<b>必须有负缓存节流 + 前端 5 s 轮询 + 后端 3 s 结果缓存</b>（两层）。否则每次轮询都跑一遍驱动探测。</td></tr>
+    <tr><td><b>UI 并发安全</b></td><td>只读 DB 的端点不进 <code>WORKER_LOCK</code>；任何"点微信窗口"的操作必须进锁。设计上把"读 DB"与"动 UI"严格分开。</td></tr>
+    <tr><td><b>二维码被缓存/泄露</b></td><td><code>no-store</code> + <code>adminOnly</code> + 不进 <code>PUBLIC_PATHS</code> + 不写操作日志（§3.4）。</td></tr>
+    <tr><td><b>后端用户读不到文件</b></td><td>T3 先行；<code>setgid</code> 保证守护后续写入仍继承 <code>jsc</code> 组。</td></tr>
+    <tr><td><b>构建产物内嵌凭据</b></td><td>前端只拿"会话名"，<b>不该出现任何 bridge 端口之外的东西</b>；上线前跑一次既有 skill <code>build-artifact-credential-leak-audit</code>。</td></tr>
+  </tbody>
+</table>
+
+<h2>9 · 风险与回滚</h2>
+<table>
+  <thead><tr><th style="width:190px">风险</th><th style="width:74px">概率</th><th style="width:74px">影响</th><th>缓解 / 回滚</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>登录判据定标失败</b>（找不出稳定信号）</td>
+      <td><span class="badge warn">中</span></td>
+      <td><span class="badge bad">高</span></td>
+      <td>备用判据：窗口几何（登录窗 296×388）+ <code>get_self_info().nick_name</code> 非空 + <code>get_sessions()</code> 非空，三取二。已在 T1 里预留交叉验证</td>
+    </tr>
+    <tr>
+      <td><b>「列得出来但发不出去」</b>（从未打开过的群）</td>
+      <td><span class="badge warn">中</span></td>
+      <td><span class="badge warn">中</span></td>
+      <td>T15 专门实测；若确实发不出去，则下拉只展示"最近会话里的群"，并在 UI 明写"请先在微信里打开一次目标群"</td>
+    </tr>
+    <tr>
+      <td>轮询频率过高导致桥/VM 负载上升</td>
+      <td><span class="badge ok">低</span></td>
+      <td><span class="badge warn">中</span></td>
+      <td>两级缓存 + 已登录时<b>停止轮询二维码</b>（只保留 60 s 一次状态心跳）</td>
+    </tr>
+    <tr>
+      <td>二维码被非管理员看到</td>
+      <td><span class="badge ok">低</span></td>
+      <td><span class="badge bad">高</span></td>
+      <td><code>adminOnly</code> + <code>no-store</code>；上线后用<b>非 admin 账号实测 403</b>（列为验收项）</td>
+    </tr>
+    <tr>
+      <td>改动波及既有推送链路</td>
+      <td><span class="badge ok">低</span></td>
+      <td><span class="badge bad">高</span></td>
+      <td>方案 A（复用 <code>webhook</code> 字段）⇒ 后端推送代码零改动；新模块纯新增、自注册；<code>index.js</code> 仅 +1 行 <code>require</code></td>
+    </tr>
+    <tr>
+      <td>微信客户端被升级 / 掉线</td>
+      <td><span class="badge warn">中</span></td>
+      <td><span class="badge warn">中</span></td>
+      <td>保活守护已做"画面冻死 6 分钟自动重启"；UI 上直接暴露状态与二维码，值班人员可自助恢复</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card">
+  <h4>统一回滚口径</h4>
+  <ul>
+    <li><b>后端</b>：新模块 <code>wechat-login.js</code> 是纯新增文件；回滚 = 删文件 + 删 <code>index.js</code> 那 1 行 <code>require</code> + 重启服务。</li>
+    <li><b>前端</b>：沿用既有惯例——上线前 <code>cp</code> 一份 <code>frontend_bak_&lt;时间&gt;</code>，回退只需换回旧 <code>index-*.js</code>。</li>
+    <li><b>桥</b>：新端点纯新增，回滚 = 换回旧 <code>wechat_bot_server.py</code> + 重启桥。</li>
+    <li><b>数据</b>：<code>area_responsibility.webhook</code> 批量改动前整表快照到 <code>area_responsibility_bak_&lt;日期&gt;</code>（已有 <code>rollback_webhook.js</code> 可复用）。</li>
+  </ul>
+</div>
+
+<h2>10 · 待你拍板（4 个决策点）</h2>
+<table>
+  <thead><tr><th style="width:44px">#</th><th style="width:300px">问题</th><th>我的建议</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>①</b></td>
+      <td><b>是否现在就做？</b>（P1–P4 约 19.5 h）</td>
+      <td>建议<b>先做 P0（约 2 h，含修今晚那个真 bug）</b>——它不依赖扫码、且是 F1/F3 的前提。P1 之后再按你的节奏推进。</td>
+    </tr>
+    <tr>
+      <td><b>②</b></td>
+      <td><b>推送对象存哪？</b>逐行 <code>webhook</code>（方案 A）／独立表（B）／全局默认+逐行覆盖（C）</td>
+      <td>建议 <b>A + C</b>：逐行为主、全局默认兜底。后端推送代码零改动，风险最小。</td>
+    </tr>
+    <tr>
+      <td><b>③</b></td>
+      <td><b>要不要重建 <code>area_responsibility</code>（52 条）？</b><br><span class="muted">这是<b>第 4 次</b>问了。该表现在是 <b>0 行</b></span></td>
+      <td>🔴 <b>强烈建议一并做</b>。否则本功能做完，"选推送对象"选得再漂亮，告警照样一条都推不出去——因为反查不到责任单位。这个是"桥通了也推不出去"的唯一堵点。</td>
+    </tr>
+    <tr>
+      <td><b>④</b></td>
+      <td><b>默认推送对象用哪个会话？</b>（方案 C 需要）</td>
+      <td>登录成功后由你在页面上选；我先把选择器做出来。</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>附录 · 本次侦察的原始证据</h2>
+<table>
+  <thead><tr><th style="width:230px">结论</th><th>证据（命令 / 文件 / 行号）</th></tr></thead>
+  <tbody>
+    <tr><td><code>/health</code> 三字段只在发送后被填</td><td><code>wechat_bot_server.py:138</code> <code>_refresh_cache()</code> 定义；<code>grep -n "_refresh_cache"</code> ⇒ <b>仅 1 处调用：<code>:803</code></b>（发送成功路径）</td></tr>
+    <tr><td><code>get_self_info()</code> 永远返回 dict</td><td><code>db.py:564-577</code>：取不到时 <code>return {"username": self.wxid, "nick_name": "", "remark": ""}</code> ⇒ <code>load_driver()</code> 的 <code>if info:</code> 恒为真</td></tr>
+    <tr><td>能列出全部群</td><td><code>db.py:2380</code> <code>def get_groups()</code> —— 查 <code>chat_room</code> + <code>chatroom_member</code> + <code>contact</code>，返回 <code>username/name/owner/member_count/members</code></td></tr>
+    <tr><td>会话/联系人 API</td><td><code>db.py:2228 get_sessions(limit=100)</code>（<code>SessionTable</code>）、<code>db.py:2251 search_contact(keyword)</code>、<code>db.py:2281 get_nickname(user)</code>、<code>db.py:2445 group_name_to_id(name)</code></td></tr>
+    <tr><td>后端身份与权限</td><td><code>/etc/systemd/system/jsc-backend.service</code> → <code>User=jsc</code>；<code>ls -la /data/HBJSC/wxb_qr/</code> → <code>drwx------ root root</code></td></tr>
+    <tr><td>前端页面位置</td><td><code>src/app/components/admin/StrawMonitorPage.tsx:74</code> tab <code>['responsibility','责任映射 / 微信群推送',Landmark]</code>；<code>:96</code> <code>&lt;ResponsibilityManager /&gt;</code>；<code>:104</code> 组件定义</td></tr>
+    <tr><td>推送收口与桥识别</td><td><code>server/index.js:1861</code> <code>sendWechatPush()</code>；<code>:1864</code> <code>const isBridge = /:18888(\/|$|\?)/.test(webhook)</code>；<code>:1897</code>/<code>:1974</code> <code>findResponsibility</code> → 推送</td></tr>
+    <tr><td>责任映射路由与表结构</td><td><code>server/index.js:2284/2402/2410/2421</code>；<code>server/store-db.js:318</code> 建表（<code>UNIQUE(town,community)</code>）、<code>:2621 findResponsibility()</code></td></tr>
+    <tr><td>鉴权与 TDZ</td><td><code>server/index.js:72 PUBLIC_PATHS</code>、<code>:2494 const adminOnly</code>、<code>:2500</code> 注释明确"必须放在 adminOnly 定义之后"</td></tr>
+    <tr><td>保活守护现状</td><td><code>systemctl is-active wx-qr-keepalive</code> → <code>active</code>；<code>latest.png</code> 23:04 更新、7 KB、135×135</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  驾驶舱「微信登录」功能 · 评估与排期 &nbsp;|&nbsp; 2026-10-12 23:10 &nbsp;|&nbsp;
+  依据：本机仓库源码 + 生产 unit/权限实测 + VM 上 <code>wechatauto/db.py</code> 取回分析
+</footer>
+
+</div>
+</body>
+</html>
