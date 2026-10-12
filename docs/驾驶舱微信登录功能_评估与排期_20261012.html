@@ -67,6 +67,26 @@
 </header>
 
 <h2>0 · 一句话结论</h2>
+
+<div class="callout good">
+  <b>⏱ 施工进度（2026-10-13 01:40 更新）</b>
+  <table style="margin:8px 0 0">
+    <thead><tr><th style="width:70px">阶段</th><th style="width:96px">状态</th><th>实测证据</th></tr></thead>
+    <tbody>
+      <tr><td><b>P0</b></td><td><span class="badge ok">已完成</span></td>
+        <td>T1 未登录态基线：<code>auto_detect_db_dir()=null</code>、<code>WeChatDB()</code> 抛
+          <i>未找到微信数据库目录</i>、唯一窗口 <code>296x388</code>；T2 判据改窗口几何；T3 权限 <code>2770/640 root:jsc</code>（<code>sudo -u jsc</code> 读 PNG/写标志均通过）</td></tr>
+      <tr><td><b>P1</b></td><td><span class="badge ok">已完成</span></td>
+        <td>桥新增 <code>/login-state</code>（缓存 30s/15s）、<code>/sessions</code>（缓存 60s）；未登录态干净失败（非 500）；顺手收敛了「18888 两个实例同时监听」的事故面</td></tr>
+      <tr><td><b>P2</b></td><td><span class="badge ok">已完成</span></td>
+        <td><code>server/wechat-login.js</code> 6 个端点全部实测通过；无 token 一律 <b>401</b>；
+          <b>F4 手动刷新端到端 52 秒出新码</b>；<code>/api/gas-alert</code> 回归门禁 401（未被打坏）</td></tr>
+      <tr><td><b>P3</b></td><td><span class="badge warn">待开工</span></td><td>前端 <code>WeChatLoginPanel</code> + 责任映射表下拉选会话（约 7 h）</td></tr>
+      <tr><td><b>P4</b></td><td><span class="badge info">待开工</span></td><td>部署前端 + 端到端验收（<b>依赖 <code>area_responsibility</code> 有数据</b>）</td></tr>
+    </tbody>
+  </table>
+</div>
+
 <div class="kpi">
   <div class="box"><div class="n" style="color:var(--green)">可行</div><div class="l">5 条需求全部有解</div></div>
   <div class="box"><div class="n" style="color:var(--green)">比预想好</div><div class="l">能列出<b>全部</b>微信群，非仅最近会话</div></div>
@@ -88,14 +108,15 @@
   </ul>
 </div>
 
-<div class="callout danger">
-  <b>坏消息：必须先修一个今晚自己引入的真 bug</b><br>
-  我今晚做的保活守护，判断"微信是否已登录"用的是桥 <code>/health</code> 的
+<div class="callout warnc">
+  <b>⚠️ 曾有 1 项前置必修（已在 P0 修掉，此处留档）</b><br>
+  保活守护原先判断"微信是否已登录"用的是桥 <code>/health</code> 的
   <code>driver</code> / <code>sessions</code> / <code>wechat_version</code> 三个字段。<br>
   但读源码发现：<b>这三个字段只在"某次推送成功之后"才会被填</b>
-  （<code>_refresh_cache()</code> 全文件<b>只有 1 处调用</b>，在 <code>wechat_bot_server.py:803</code> 的发送成功路径里）。<br>
-  ⇒ 在"从来没推送过"的当前状态下，它们<b>永远是 null</b> ⇒ 守护的"已登录即静默"分支<b>永远不会触发</b>。<br>
-  ⇒ 这个 bug 会让功能 F1/F3（在线监控、登录状态）直接失效，所以它是<b>本需求的前置必修项</b>。
+  （<code>_refresh_cache()</code> 全文件<b>只有 1 处调用</b>，在 <code>wechat_bot_server.py:803</code> 的发送成功路径里），
+  且 <code>db.py:564 get_self_info()</code> 永远返回 dict ⇒ <code>driver</code> 非空<b>不等于</b>已登录。<br>
+  <span class="badge ok">已修</span> 现判据 = <b>微信窗口几何</b>（未登录时唯一窗口恒为 <code>296x388</code>），
+  并在 P1 之后叠加桥的 <code>/login-state</code> 做交叉印证。
 </div>
 
 <h2>1 · 需求拆解：5 条 → 5 个可验收的子功能</h2>

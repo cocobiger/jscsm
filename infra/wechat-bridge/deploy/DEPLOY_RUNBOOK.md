@@ -200,6 +200,25 @@ curl -s http://172.16.8.16:18888/ping
 用 `grep -oE '[0-9]+$'` 取行尾数字更稳（本仓库踩过这个）。
 ⚠️ 本机**没有** `WxBridgeSelfHeal` 任务 ⇒ 桥挂了无人自动拉起。
 
+## P2 后端模块 `/api/wechat/*`（2026-10-13）
+模块：`server/wechat-login.js`；在 `index.js` 里 1 行 `require` 注册（**必须在 `adminOnly` 定义之后**）。
+
+| 端点 | 作用 |
+|---|---|
+| `GET /api/wechat/status` | 在线状态 + 二维码码龄 + 是否正在重置 + 全局默认对象 |
+| `GET /api/wechat/qr` | 二维码 PNG（`no-store`；已登录时 409；未登录才给） |
+| `POST /api/wechat/qr/refresh` | 落 `reset.request` → **202 异步**；120s 内重复点返回 `alreadyPending` |
+| `GET /api/wechat/targets` | 可推送会话（群/个人，服务端已拼好 `webhook`）；支持 `?q=` |
+| `POST /api/wechat/test-send` | 向指定会话发测试消息（复用 `sendWechatPush` 含重试与误报识别） |
+| `GET/PUT /api/wechat/default-target` | 全局默认推送对象（`kv_config.wechat_default_target`）|
+
+- **全部 adminOnly**（二维码=登录令牌）；**绝不可**加进 `PUBLIC_PATHS`/`PREFIX_PATHS`。无 token 实测 **401**。
+- **刷新链路是"标志文件"**：后端只写 `wxb_qr/reset.request`，真正的重置由 `wx-qr-keepalive` 执行
+  ⇒ **重置权只归守护一家**，无 `taskkill` 竞态；后端（`User=jsc`）也不需要 root/SSH 凭据。
+  该文件能写，靠的是 `wxb_qr` 目录的 **setgid + 组写权限（2770 root:jsc）**。
+- ⚠️ `PUT /default-target` 目前**只提供配置读写**；让推送链路回落到它要改 `strawWorkflow`（P3 的 T16）。
+- 实测（2026-10-13）：6 个端点全通过；F4 从点击到出新码 **52 秒**。
+
 ## 交付二维码给真人扫
 ```bash
 bash infra/wechat-bridge/deploy/fetch_qr.sh --fresh      # 先强制重置换全新码再取

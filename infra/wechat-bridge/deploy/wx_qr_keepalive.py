@@ -60,6 +60,10 @@ QRPNG = os.path.join(OUTDIR, "qr.png")          # 本轮二维码区截图
 WINPNG = os.path.join(OUTDIR, "win.png")        # 本轮整窗截图（诊断用）
 META = os.path.join(OUTDIR, "latest.json")
 STATE = os.path.join(OUTDIR, "state.json")
+# 手动刷新请求标志：后端（jsc 用户，靠 setgid 目录的组写权限）落一个文件，本守护消费并删除。
+# 为什么用标志文件而不是让后端自己 taskkill：① 重置动作**只归守护一家**，避免两处并发杀微信；
+# ② 后端跑在 User=jsc 下，杀 Windows 进程需要 SSH 凭据（在 /root，600），不该下放。
+RESET_FLAG = os.path.join(OUTDIR, "reset.request")
 
 # 权限：目录 2770（setgid，新建文件自动继承 jsc 组，后端能读）；对外发布的文件 640
 DIR_MODE = 0o2770
@@ -290,6 +294,17 @@ def grab_qr(rect):
     return hashlib.md5(data).hexdigest(), len(data)
 
 
+def consume_reset_request():
+    """消费后端的"手动刷新二维码"请求（存在即取出并删除，返回 True）"""
+    if not os.path.exists(RESET_FLAG):
+        return False
+    try:
+        os.remove(RESET_FLAG)
+    except Exception as e:
+        log("删除 reset.request 失败: %r" % e)
+    return True
+
+
 def restart_weixin(reason):
     """兜底重置：杀掉微信客户端并在交互式会话里重新拉起"""
     log(">>> 重启微信客户端：%s" % reason)
@@ -370,6 +385,30 @@ def main():
                 continue
 
             now = time.time()
+
+            # ── 手动刷新请求（后端 /api/wechat/qr/refresh 落的标志）──
+            # 必须放在"已登录即静默"分支**之前**，否则用户点了刷新页面却毫无反应。
+            if consume_reset_request():
+                log("收到手动刷新请求（reset.request）")
+                st["logged_in_hint"] = False
+                st["last_confirm"] = 0.0
+                v = probe_window(attempts=1, poll_each=6)
+                if v and v["found"] and not is_login_window(v["rect"]):
+                    log("  当前窗口 %dx%d 非登录窗 ⇒ 判定已登录，忽略本次刷新请求"
+                        % (v["rect"][2], v["rect"][3]))
+                    st["logged_in_hint"] = True
+                    st["last_confirm"] = time.time()
+                    save_state(st)
+                    time.sleep(LOOP)
+                    continue
+                # 人工动作允许绕过"每小时 ≤6 次"的自动护栏（后端已用 120s
+                # alreadyPending 做防连点），但仍保留 60s 最小间隔，避免连续杀微信。
+                if now - st["last_restart"] >= 60:
+                    do_restart(st, now, "用户手动点击刷新二维码")
+                    st["last_front"] = 0.0     # 让下一轮立刻抓新码
+                else:
+                    log("  距上次重置不足 60s，跳过（避免连续杀掉微信）")
+                save_state(st)
 
             # ── 已登录：低频心跳确认，避免每 60s 抢一次前台 ──
             if st.get("logged_in_hint"):

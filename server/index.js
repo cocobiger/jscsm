@@ -2565,6 +2565,16 @@ require('./stack-exempt.js').registerStackExemptRoutes(app, { store, log, adminO
 //   放在此处是必须的（adminOnly 是 const，TDZ 下提前引用会崩进程）。
 require('./push-caliber.js').registerPushCaliberRoutes(app, { store, log, adminOnly })
 
+// ── 驾驶舱「微信登录」功能点（秸秆焚烧监控 → 责任映射 / 微信群推送）· 2026-10-13 ──
+//   /api/wechat/{status,qr,qr/refresh,targets,test-send,default-target}
+//   ① 二维码走**后端读本机文件**（/data/HBJSC/wxb_qr/latest.png，由 226 上的保活守护每 60s 产出）
+//      —— 不放桥、更不做 nginx 静态暴露（后者会绕过 adminOnly，等于把登录令牌放公网）；
+//   ② 刷新走**标志文件**（reset.request），真正的重置由守护执行 ⇒ 重置权只归一家，无 taskkill 竞态；
+//   ③ 推送链路代码零改动：仍然走 area_responsibility.webhook → sendWechatPush（只是值由前端下拉生成）。
+//   🔴 二维码是登录令牌 ⇒ 本模块全部路由 adminOnly，**绝不可**加进 PUBLIC_PATHS/PREFIX_PATHS。
+//   放在此处是必须的（adminOnly 是 const，TDZ 下提前引用会崩进程）。
+require('./wechat-login.js').registerWechatLoginRoutes(app, { store, log, adminOnly, sendWechatPush })
+
 // 列出已接入通道（未软删）
 app.get('/api/iot-channels', adminOnly, (req, res) => {
   res.json(store.listIotChannels())
