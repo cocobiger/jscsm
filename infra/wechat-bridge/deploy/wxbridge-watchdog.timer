@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the WeChat bridge watchdog every minute
+Documentation=file:/usr/local/bin/wxbridge_watchdog.sh
+
+[Timer]
+# 开机 2 分钟后开始，之后每分钟一次
+OnBootSec=120
+OnUnitActiveSec=60
+AccuracySec=5s
+# 关机期间错过的运行不必补跑
+Persistent=false
+Unit=wxbridge-watchdog.service
+
+[Install]
+WantedBy=timers.target

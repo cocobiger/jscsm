@@ -219,6 +219,37 @@ curl -s http://172.16.8.16:18888/ping
 - ⚠️ `PUT /default-target` 目前**只提供配置读写**；让推送链路回落到它要改 `strawWorkflow`（P3 的 T16）。
 - 实测（2026-10-13）：6 个端点全通过；F4 从点击到出新码 **52 秒**。
 
+## 桥看门狗（自愈）· 2026-10-13
+重建后**没有** `WxBridgeSelfHeal` 任务（老 8/15 机上有）⇒ 桥挂了无人拉起，告警静默全丢。现补：
+```
+/usr/local/bin/wxbridge_watchdog.sh          （每分钟由 timer 触发）
+/etc/systemd/system/wxbridge-watchdog.service
+/etc/systemd/system/wxbridge-watchdog.timer  OnBootSec=120 OnUnitActiveSec=60
+/var/log/wxbridge_watchdog.log               （含**心跳行**，健康时也写）
+/var/lib/wxbridge_watchdog.state             （每小时重启计数，上限 6 次）
+```
+逻辑：`/ping` 连续 3 次不通 → **把所有监听 18888 的 PID 全杀**（收敛重复实例）→ 等端口释放
+→ `schtasks /Run /TN WeChatBridge`（`/IT` ⇒ 交互式会话）→ 恢复后**核对「桥 session == 微信 session」**
+（不相等 ⇒ 桥看不到微信窗口、发送必败，日志打 `RECOVERED_WARN`）。
+- 判据用 `/ping` 而非 `/health`：`/ping` 是毫秒级、绝不触碰微信的纯存活探针。
+- **为什么放 226 而不是 Windows 计划任务**：拉起桥的正解是 `schtasks /Run /TN WeChatBridge`（`/IT`），
+  若在 Windows 侧再建一个任务去拉起，任务自身若落在 Session 0，拉起来的桥也在 Session 0 → 看不到微信窗口。
+- ⚠️ **日志时间戳必须每行现算**：曾写成脚本启动时算一次的变量，结果一次自愈的十几行日志带同一个
+  时间戳，完全看不出哪一步花了多久。
+- 实测：杀掉桥 → `ALERT` → **25 秒**恢复到「实例数=1，bridge session=2，weixin session=2 ✅」。
+
+## 责任映射表 `area_responsibility`（2026-10-13 重建）
+原表随 2026-09-29 重装丢失，**本地无任何含该表的副本**（7/9 整机备份里连表都没建）。
+现按 **2026-09-24 那次经用户认可的同一规则**重建 52 行：
+- `town` 取自 `area_boundary`（52 个，含新 geojson 补上的**高梁镇**）—— 反查真源，必须一一对应
+- `unit` 后缀推导：`X街道`→`X街道办事处`／`X镇`→`X镇人民政府`／`X乡`→`X乡人民政府`
+- `district='万州区'`、`community=''`、**`person`/`phone` 留空**（用户 9/24 明确：推送按街道定对象，不细分责任人）
+- `webhook` 沿用历史目标 `军哥`，IP 换成新桥 `172.16.8.16` ⚠️ **属占位**，登录后应在页面上按实际群/人重选
+- 种子文件（可复现）：`deploy/HBJSC/data/area_responsibility_seed_20261013.json`
+- 备份（含回滚 SQL）：`/data/HBJSC/backups/area_resp_backup_<ts>.json`
+- 实测：导入 52 行；`unit`/`webhook` 无空值；**边界↔责任 52/52 全覆盖、无多余**；
+  反查回归 **52/52 命中**；真实告警坐标 `(108.4319,30.7555)` → 百安坝街道 → 百安坝街道办事处 ✅
+
 ## 交付二维码给真人扫
 ```bash
 bash infra/wechat-bridge/deploy/fetch_qr.sh --fresh      # 先强制重置换全新码再取

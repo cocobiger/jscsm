@@ -1,0 +1,528 @@
+{
+  "generatedAt": "2026-10-13 01:43:47",
+  "rule": "unit 后缀推导；person/phone 留空（不细分责任人）",
+  "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+  "count": 52,
+  "rows": [
+    {
+      "district": "万州区",
+      "town": "九池乡",
+      "community": "",
+      "unit": "九池乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "五桥街道",
+      "community": "",
+      "unit": "五桥街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "余家镇",
+      "community": "",
+      "unit": "余家镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "分水镇",
+      "community": "",
+      "unit": "分水镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "双河口街道",
+      "community": "",
+      "unit": "双河口街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "后山镇",
+      "community": "",
+      "unit": "后山镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "周家坝街道",
+      "community": "",
+      "unit": "周家坝街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "响水镇",
+      "community": "",
+      "unit": "响水镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "地宝乡",
+      "community": "",
+      "unit": "地宝乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "大周镇",
+      "community": "",
+      "unit": "大周镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "天城镇",
+      "community": "",
+      "unit": "天城镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "太安镇",
+      "community": "",
+      "unit": "太安镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "太白街道",
+      "community": "",
+      "unit": "太白街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "太龙镇",
+      "community": "",
+      "unit": "太龙镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "孙家镇",
+      "community": "",
+      "unit": "孙家镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "小周镇",
+      "community": "",
+      "unit": "小周镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "弹子镇",
+      "community": "",
+      "unit": "弹子镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "恒合乡",
+      "community": "",
+      "unit": "恒合乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "新乡镇",
+      "community": "",
+      "unit": "新乡镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "新田镇",
+      "community": "",
+      "unit": "新田镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "普子乡",
+      "community": "",
+      "unit": "普子乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "李河镇",
+      "community": "",
+      "unit": "李河镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "柱山乡",
+      "community": "",
+      "unit": "柱山乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "梨树乡",
+      "community": "",
+      "unit": "梨树乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "武陵镇",
+      "community": "",
+      "unit": "武陵镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "沙河街道",
+      "community": "",
+      "unit": "沙河街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "溪口乡",
+      "community": "",
+      "unit": "溪口乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "瀼渡镇",
+      "community": "",
+      "unit": "瀼渡镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "熊家镇",
+      "community": "",
+      "unit": "熊家镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "燕山乡",
+      "community": "",
+      "unit": "燕山乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "牌楼街道",
+      "community": "",
+      "unit": "牌楼街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "甘宁镇",
+      "community": "",
+      "unit": "甘宁镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "白土镇",
+      "community": "",
+      "unit": "白土镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "白羊镇",
+      "community": "",
+      "unit": "白羊镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "百安坝街道",
+      "community": "",
+      "unit": "百安坝街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "罗田镇",
+      "community": "",
+      "unit": "罗田镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "茨竹乡",
+      "community": "",
+      "unit": "茨竹乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "走马镇",
+      "community": "",
+      "unit": "走马镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "郭村镇",
+      "community": "",
+      "unit": "郭村镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "钟鼓楼街道",
+      "community": "",
+      "unit": "钟鼓楼街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "铁峰乡",
+      "community": "",
+      "unit": "铁峰乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "长坪乡",
+      "community": "",
+      "unit": "长坪乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "长岭镇",
+      "community": "",
+      "unit": "长岭镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "长滩镇",
+      "community": "",
+      "unit": "长滩镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "陈家坝街道",
+      "community": "",
+      "unit": "陈家坝街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "高峰镇",
+      "community": "",
+      "unit": "高峰镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "高梁镇",
+      "community": "",
+      "unit": "高梁镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "高笋塘街道",
+      "community": "",
+      "unit": "高笋塘街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "黄柏乡",
+      "community": "",
+      "unit": "黄柏乡人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "龙沙镇",
+      "community": "",
+      "unit": "龙沙镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "龙都街道",
+      "community": "",
+      "unit": "龙都街道办事处",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    },
+    {
+      "district": "万州区",
+      "town": "龙驹镇",
+      "community": "",
+      "unit": "龙驹镇人民政府",
+      "person": "",
+      "phone": "",
+      "webhook": "http://172.16.8.16:18888/send?group=%E5%86%9B%E5%93%A5",
+      "remark": "2026-10-13 重建（原表随 2026-09-29 重装丢失）"
+    }
+  ]
+}

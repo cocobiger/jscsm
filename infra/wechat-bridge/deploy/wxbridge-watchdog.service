@@ -1,0 +1,11 @@
+[Unit]
+Description=WeChat bridge watchdog (restart the bridge when /ping dies)
+Documentation=file:/usr/local/bin/wxbridge_watchdog.sh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# 心跳与事件都写 /var/log/wxbridge_watchdog.log（脚本自己 append）
+ExecStart=/usr/local/bin/wxbridge_watchdog.sh
+TimeoutStartSec=300
