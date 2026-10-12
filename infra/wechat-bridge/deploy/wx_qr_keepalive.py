@@ -5,24 +5,37 @@
 
 问题：用户扫的是【截图】，截图与扫描之间隔了几分钟 ⇒ 二维码已过期 ⇒ 反复"失效"。
 目标：在【微信未登录】期间，让屏幕上永远有一张新鲜二维码可截取（码龄 <= FRONT_EVERY 秒），
-      并在「画面连续静止超过 FREEZE_SEC」时自动重启微信客户端重新出码（兜底重置）。
-      一旦检测到已登录（/health 的 driver/wechat_version/sessions 非 null），立即停止一切动作。
+      并在「画面连续静止超过 FREEZE_SEC」或「窗口长时间消失」时自动重启微信客户端。
+      一旦检测到已登录，立即停止一切动作（只保留低频心跳确认）。
+
+── 登录判据（2026-10-12 T1 实测定标）────────────────────────────────
+  在 VM 上跑 wx_login_probe.py 采集"未登录态"基线，结论：
+    * auto_detect_db_dir() 返回 null   ⇒ 未登录时**连微信数据库目录都不存在**
+    * WeChatDB() 直接抛 RuntimeError   ⇒ 未登录时桥的 load_driver() 必然全败
+    * 屏幕上唯一的 Qt/微信窗口 = 登录窗，尺寸 **296x388**
+  另读源码确认：桥 `<wechat_bot_server.py>` 的 /health 里 driver/sessions/wechat_version
+    **只在"某次推送成功之后"才会被填**（_refresh_cache() 全文件仅 1 处调用，在 :803），
+    且 db.py:564 get_self_info() 永远返回 dict（取不到也是 dict）⇒ **不能拿它判断登录**。
+  ⇒ P0 采用的判据 = **微信窗口几何**：
+      found=0                     → 微信没起来/崩了（≠ 已登录！要尝试拉起）
+      found=1 且尺寸 == 296x388   → 登录界面（未登录）→ 继续保活
+      found=1 且尺寸 != 296x388   → 已登录（主界面）→ 转入静默 + 低频心跳
 
 设计要点 / 取舍：
   * 不用「定时重启客户端」做主手段：微信对频繁的登录二维码请求有风控嫌疑，
     且重启会打断「已扫码、正在手机上确认」的窗口期。
   * 只把「窗口前置」当主手段：无副作用，且能让微信自身的过期自动换码机制正常工作。
-  * 「重启」仅作兜底，且必须满足「画面 6 分钟没变」+ 冷却 5 分钟 + 每小时 <= 6 次，三重护栏。
+  * 「重启」仅作兜底，且必须满足三重护栏：冷却 5 分钟 + 每小时 <= 6 次 + 已登录即停。
 
-判据提醒（踩过的坑）：
-  * /health 里的 wx:"connected" 是内存态假健康，不能判断登录；只有 driver/sessions/wechat_version
-    这三项非 null 才代表驱动真的起来了。
+其它踩过的坑（都已修，改动前请先读）：
   * wx_front_out.txt 里同时列出了屏幕**其他**窗口的 rect ⇒ 必须只认 VERDICT 行。
   * 前置动作是异步的（计划任务）⇒ 触发前**先删掉输出文件**，否则会读到上一次的陈旧 VERDICT，
     导致"以为抢到前台了、其实没有"，进而按窗口 rect 截到压在上面的浏览器（静默错图）。
-  * 截回来的图必须**验证内容真的是二维码**再用：直接截「登录窗口内二维码那一小块」，
-    以 PNG 体积做判据（实测：真二维码 ~4.1KB，截错的浏览器区域 0.3~1.2KB）。
-    阈值 2500B 分离得很干净，且不需要在服务器上安装任何图像库。
+  * 截回来的图必须**验证内容真的是二维码**再用：只截「登录窗口内二维码那一小块」，
+    以 PNG 体积做判据（实测：真二维码 ~4.1–6.9KB，截错的浏览器区域 0.3–1.2KB）。
+  * **权限**：/data/HBJSC/wxb_qr 必须是 2770 root:jsc、文件 640 ——
+    后端 jsc-backend.service 以 User=jsc 运行，要读 latest.png 给前端展示。
+    以前这里写死 0700/0600，会把权限打回去、导致后端读不到。
 """
 
 import hashlib
@@ -48,6 +61,52 @@ WINPNG = os.path.join(OUTDIR, "win.png")        # 本轮整窗截图（诊断用
 META = os.path.join(OUTDIR, "latest.json")
 STATE = os.path.join(OUTDIR, "state.json")
 
+# 权限：目录 2770（setgid，新建文件自动继承 jsc 组，后端能读）；对外发布的文件 640
+DIR_MODE = 0o2770
+FILE_MODE = 0o640
+
+
+def _jsc_gid():
+    """后端 jsc-backend.service 以 User=jsc 运行；发布的文件必须归 jsc 组才能被读走"""
+    try:
+        import grp
+        return grp.getgrnam("jsc").gr_gid
+    except Exception:
+        return 0
+
+
+JSC_GID = _jsc_gid()
+
+
+def publish(src, dst, mode=FILE_MODE, as_json=None):
+    """
+    把 src 发布成 dst（并保证权限/属组正确）。
+    ⚠️ 不能直接 `cp -f` 覆盖已存在的文件 —— cp 是**原地截断**，会保留原有的 owner:group
+    （此前是 root:root），于是即便 chmod 640，后端 jsc 仍然读不到（只有 root 组能读）。
+    正解 = **先删再拷**：新文件在 setgid 目录下会继承 jsc 组；再兜底 chown/chmod。
+    """
+    try:
+        if os.path.exists(dst):
+            os.remove(dst)
+    except Exception:
+        pass
+    if as_json is not None:
+        # 自己写（避免 cp 的归属问题）：写临时文件 + 原子替换
+        tmp = dst + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(as_json, f)
+        os.replace(tmp, dst)
+    else:
+        subprocess.run(["cp", "-f", src, dst])
+    try:
+        os.chmod(dst, mode)
+    except Exception:
+        pass
+    try:
+        os.chown(dst, 0, JSC_GID)
+    except Exception:
+        pass
+
 WIN_TXT = r"C:\wxbridge\deploy\wx_front_out.txt"
 SCREEN_W, SCREEN_H = 1440, 900
 DISPLAY = os.environ.get("DISPLAY", ":99")
@@ -55,18 +114,21 @@ DISPLAY = os.environ.get("DISPLAY", ":99")
 # 微信登录窗口的几何（实测稳定）：整窗 296x388，其中二维码区在窗口内偏移 (80,85) 尺寸 135x135
 LOGIN_WIN = (296, 388)
 QR_REL = (80, 85, 135, 135)
-# 二维码区 PNG 体积下限：真码实测 ~3.5–5KB；截到浏览器/空白时 0.3–1.2KB
+# 二维码区 PNG 体积下限：真码实测 ~3.5–6.9KB；截到浏览器/空白时 0.3–1.2KB
 QR_MIN_BYTES = 2500
 
-FRONT_EVERY = 60        # 每 60s 前置 + 抓一张新的 latest.png（= 码龄上限）
+FRONT_EVERY = 60        # 未登录时：每 60s 前置 + 抓一张新的 latest.png（= 码龄上限）
 LOOP = 30               # 主循环间隔
+LOGGEDIN_RECHECK = 300  # 已登录后：每 300s 做一次低频心跳确认（万一被登出要能恢复保活）
 FREEZE_SEC = 360        # 画面连续静止超过 6 分钟 ⇒ 认为自刷新卡死 ⇒ 重启客户端
+NO_WINDOW_ROUNDS = 5    # 连续 5 轮（≈5 分钟）找不到微信窗口 ⇒ 视为客户端挂了 ⇒ 重启拉起
 RESTART_COOLDOWN = 300  # 两次重启最小间隔
 RESTART_MAX_PER_HOUR = 6
 GRAB_ROUND_MAX = 100    # 单轮内为拿到有效二维码最多花多少秒
 
 VERDICT_RE = re.compile(
-    r"VERDICT\s+fronted=(\d+)\s+hwnd=(\d+)\s+fg=(\d+)\s+vis=(\d+)\s+rect=\((-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\)"
+    r"VERDICT\s+fronted=(\d+)\s+found=(\d+)\s+hwnd=(\d+)\s+fg=(\d+)\s+vis=(\d+)"
+    r"\s+rect=\((-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\)"
 )
 
 
@@ -123,51 +185,50 @@ def health():
         return {}
 
 
-def is_logged_in(h):
-    return bool(h.get("driver") or h.get("wechat_version") or h.get("sessions"))
-
-
 def read_verdict():
-    """
-    读 wx_front.py 的输出，取末尾那行机器可读的 VERDICT；只有「真的抢到前台」才返回窗口 rect。
-    返回 (x, y, w, h) 或 None。
-    """
+    """读 wx_front.py 的 VERDICT 行（纯 ASCII，跨 wmiexec 的编码转换不受影响）"""
     out = vm("type " + WIN_TXT, timeout=60)
     m = None
     for mm in VERDICT_RE.finditer(out):
         m = mm
     if not m:
         return None
-    fronted, hwnd, fg, vis = (int(m.group(i)) for i in range(1, 5))
-    x0, y0, x1, y1 = (int(m.group(i)) for i in range(5, 9))
-    if not (fronted and hwnd and vis and fg == hwnd):
-        return None
+    fronted, found, hwnd, fg, vis = (int(m.group(i)) for i in range(1, 6))
+    x0, y0, x1, y1 = (int(m.group(i)) for i in range(6, 10))
     x0 = max(0, min(x0, SCREEN_W))
     y0 = max(0, min(y0, SCREEN_H))
     x1 = max(0, min(x1, SCREEN_W))
     y1 = max(0, min(y1, SCREEN_H))
-    w, hh = x1 - x0, y1 - y0
-    if w < 80 or hh < 80:
-        return None
-    return (x0, y0, w, hh)
+    return {
+        "fronted": bool(fronted),
+        "found": bool(found) and hwnd != 0,
+        "hwnd": hwnd,
+        "fg_ok": bool(fg) and fg == hwnd,
+        "vis": bool(vis),
+        "rect": (x0, y0, x1 - x0, y1 - y0),
+    }
 
 
-def front_and_rect(attempts=4, poll_each=10):
+def probe_window(attempts=4, poll_each=10):
     """
-    前置微信窗口，直到**确认**抢到前台为止。
-    关键：触发计划任务前先删掉 wx_front_out.txt —— 前置是异步的，不删的话可能读到
-    上一次运行残留的 VERDICT（显示"成功了"），实际窗口还没抢到前台 ⇒ 截到压在上面的浏览器。
+    前置微信窗口并返回 VERDICT。
+    触发前**先删掉 wx_front_out.txt**：前置是异步的，不删的话可能读到上一次运行残留的
+    VERDICT（显示"成功了"），实际窗口还没抢到前台 ⇒ 后续会截到压在上面的浏览器。
     """
     for i in range(attempts):
         vm("del /F /Q " + WIN_TXT)
         vm("schtasks /Run /TN WxFront")
         for _ in range(poll_each):
             time.sleep(2)
-            rect = read_verdict()
-            if rect:
-                return rect
-        log("  前置未生效（第 %d/%d 次），重试" % (i + 1, attempts))
+            v = read_verdict()
+            if v:
+                return v
+        log("  前置探测未出结果（第 %d/%d 次），重试" % (i + 1, attempts))
     return None
+
+
+def is_login_window(rect):
+    return (rect[2], rect[3]) == LOGIN_WIN
 
 
 def scrot(region, out_path):
@@ -186,16 +247,11 @@ def scrot(region, out_path):
 
 def grab_qr(rect):
     """
-    截「登录窗口内的二维码区」并验证内容真是二维码。
-    为什么要截子区域而不是整窗：① 子区域的 PNG 体积可以当"是否真是二维码"的免费判据；
-    ② 后续放大取码也只需要这一块。返回 (md5, 字节数) 或 None。
+    截「登录窗口内的二维码区」并验证内容真是二维码。返回 (md5, 字节数) 或 None。
+    为什么要截子区域而不是整窗：① 子区域 PNG 体积可当"是否真是二维码"的免费判据；
+    ② 后续放大取码也只需要这一块。
     """
-    x, y, w, h = rect
-    if (w, h) != LOGIN_WIN:
-        log("  窗口 %dx%d 不是登录窗口 %dx%d（可能已换界面），跳过" % (w, h, LOGIN_WIN[0], LOGIN_WIN[1]))
-        return None
-
-    qx, qy, qw, qh = x + QR_REL[0], y + QR_REL[1], QR_REL[2], QR_REL[3]
+    qx, qy, qw, qh = rect[0] + QR_REL[0], rect[1] + QR_REL[1], QR_REL[2], QR_REL[3]
     data = scrot((qx, qy, qw, qh), QRPNG)
     if data is None:
         log("  scrot 失败")
@@ -204,15 +260,13 @@ def grab_qr(rect):
         log("  二维码区体积仅 %dB < %dB ⇒ 内容不像二维码（截到别的窗口？），丢弃"
             % (len(data), QR_MIN_BYTES))
         return None
-
-    # 顺带留一张整窗图，便于人工排查
-    scrot((x, y, w, h), WINPNG)
+    scrot(rect, WINPNG)     # 顺带留整窗图便于人工排查
     return hashlib.md5(data).hexdigest(), len(data)
 
 
-def restart_weixin():
-    """兜底重置：杀掉微信客户端并在交互式会话里重新拉起 ⇒ 必然得到全新二维码"""
-    log(">>> 画面长时间静止，重置二维码：重启微信客户端")
+def restart_weixin(reason):
+    """兜底重置：杀掉微信客户端并在交互式会话里重新拉起"""
+    log(">>> 重启微信客户端：%s" % reason)
     vm("taskkill /F /IM Weixin.exe")
     time.sleep(5)
     vm("schtasks /Run /TN WxLaunchQr")
@@ -227,6 +281,9 @@ def load_state():
         "freeze_from": 0.0,
         "changed_at": 0.0,
         "restarts": [],
+        "logged_in_hint": False,
+        "last_confirm": 0.0,
+        "no_window_rounds": 0,
     }
     if os.path.exists(STATE):
         try:
@@ -247,15 +304,36 @@ def save_state(st):
         log("状态写入失败: " + repr(e))
 
 
+def allow_restart(st, now):
+    """重启的三重护栏：冷却 + 每小时上限（"已登录即停"由调用方保证）"""
+    st["restarts"] = [t for t in st["restarts"] if now - t < 3600]
+    return (now - st["last_restart"] >= RESTART_COOLDOWN
+            and len(st["restarts"]) < RESTART_MAX_PER_HOUR)
+
+
+def do_restart(st, now, reason):
+    restart_weixin(reason)
+    st["last_restart"] = time.time()
+    st["restarts"].append(st["last_restart"])
+    st["freeze_from"] = 0.0
+    st["prev_md5"] = ""
+    st["no_window_rounds"] = 0
+
+
 def main():
     load_env()
     os.makedirs(OUTDIR, exist_ok=True)
-    os.chmod(OUTDIR, 0o700)          # 二维码是登录令牌 ⇒ 目录仅 root 可读
+    # ⚠️ 必须是 2770（setgid）+ 文件 640：后端 jsc-backend.service 以 User=jsc 运行，
+    #    要读 latest.png 给前端展示。以前写死 0700/0600 会把权限打回去、后端读不到。
+    try:
+        os.chmod(OUTDIR, DIR_MODE)
+    except Exception as e:
+        log("chmod 目录失败: %r" % e)
     st = load_state()
 
-    log("守护启动  loop=%ds  front_every=%ds  freeze=%ds" % (LOOP, FRONT_EVERY, FREEZE_SEC))
+    log("守护启动  loop=%ds  front_every=%ds  freeze=%ds  已登录心跳=%ds"
+        % (LOOP, FRONT_EVERY, FREEZE_SEC, LOGGEDIN_RECHECK))
 
-    logged = None
     while True:
         try:
             h = health()
@@ -264,46 +342,76 @@ def main():
                 time.sleep(LOOP)
                 continue
 
-            if is_logged_in(h):
-                if logged is not True:
-                    log("★ 已登录：driver=%r ver=%r sessions=%r"
-                        % (h.get("driver"), h.get("wechat_version"), h.get("sessions")))
-                    logged = True
-                    st["freeze_from"] = 0.0
-                    st["prev_md5"] = ""
-                    save_state(st)
-                time.sleep(LOOP)     # 已登录 ⇒ 什么都不做，静默守候
-                continue
-
-            if logged is True:
-                log("回到未登录态（可能被踢下线）⇒ 恢复保活")
-                logged = False
-
             now = time.time()
+
+            # ── 已登录：低频心跳确认，避免每 60s 抢一次前台 ──
+            if st.get("logged_in_hint"):
+                if now - st.get("last_confirm", 0) < LOGGEDIN_RECHECK:
+                    time.sleep(LOOP)
+                    continue
+                st["last_confirm"] = now
+                v = probe_window(attempts=1, poll_each=6)
+                if v and v["found"] and not is_login_window(v["rect"]):
+                    log("心跳：仍是已登录态（窗口 %dx%d，非登录窗）" % (v["rect"][2], v["rect"][3]))
+                    save_state(st)
+                    time.sleep(LOOP)
+                    continue
+                log("心跳：已看不到登录后的主窗口 ⇒ 可能被登出/关闭，恢复保活")
+                st["logged_in_hint"] = False
+                save_state(st)
+                # 继续往下走本轮的保活流程
+
             if now - st["last_front"] < FRONT_EVERY:
                 time.sleep(LOOP)
                 continue
             st["last_front"] = now
 
-            # ── 单轮：反复前置+截图，直到拿到一张验证通过的二维码（或超时） ──
+            # ── 单轮：探测窗口 → 分流（已登录 / 未登录取码 / 找不到窗口） ──
             deadline = now + GRAB_ROUND_MAX
             got = None
+            saw_other_window = False
+            saw_window = False
             while time.time() < deadline:
-                rect = front_and_rect(attempts=2, poll_each=8)
-                if not rect:
+                v = probe_window(attempts=2, poll_each=8)
+                if not v or not v["found"]:
                     time.sleep(3)
                     continue
-                got = grab_qr(rect)
-                if got:
+                saw_window = True
+                if not is_login_window(v["rect"]):
+                    saw_other_window = True
                     break
+                # 抢到前台才允许截图（否则会截到压在上面的浏览器）
+                if v["fronted"] and v["fg_ok"]:
+                    got = grab_qr(v["rect"])
+                    if got:
+                        break
                 time.sleep(4)
 
-            if not got:
-                log("本轮多次尝试仍未取到有效二维码，下轮继续")
+            if saw_other_window:
+                st["logged_in_hint"] = True
+                st["last_confirm"] = time.time()
+                st["no_window_rounds"] = 0
+                log("检测到非登录尺寸的微信窗口 ⇒ 判定【已登录】，转入静默（每 %ds 心跳确认一次）"
+                    % LOGGEDIN_RECHECK)
                 save_state(st)
                 time.sleep(LOOP)
                 continue
 
+            if not got:
+                if not saw_window:
+                    st["no_window_rounds"] = st.get("no_window_rounds", 0) + 1
+                    log("本轮看不到微信窗口（连续 %d/%d 轮）"
+                        % (st["no_window_rounds"], NO_WINDOW_ROUNDS))
+                    if st["no_window_rounds"] >= NO_WINDOW_ROUNDS and allow_restart(st, now):
+                        do_restart(st, now, "微信窗口长时间不存在（客户端可能已退出）")
+                else:
+                    st["no_window_rounds"] = 0
+                    log("本轮未取到有效二维码，下轮继续")
+                save_state(st)
+                time.sleep(LOOP)
+                continue
+
+            st["no_window_rounds"] = 0
             md5, nbytes = got
             changed = (md5 != st["prev_md5"])
             if changed:
@@ -312,28 +420,22 @@ def main():
                 st["freeze_from"] = now
             st["prev_md5"] = md5
 
-            # 每次抓取都发布为 latest.png（用户取到的永远是最近一份有效二维码）
-            subprocess.run(["cp", "-f", QRPNG, LATEST])
-            os.chmod(LATEST, 0o600)
+            # 每次抓取都发布为 latest.png（用户/后端取到的永远是最近一份有效二维码）
+            publish(QRPNG, LATEST)
             if changed:
                 st["changed_at"] = now
-            with open(META, "w") as f:
-                json.dump({"at": now, "rect": rect, "md5": md5, "bytes": nbytes,
-                           "changed_at": st.get("changed_at", 0.0)}, f)
+            publish(None, META, as_json={
+                "at": now, "rect": list(v["rect"]), "md5": md5, "bytes": nbytes,
+                "changed_at": st.get("changed_at", 0.0),
+            })
 
             frozen = (now - st["freeze_from"]) if st["freeze_from"] else 0.0
-            log("二维码快照 rect=%s %dB md5=%s %s 冻结=%.0fs"
-                % (rect, nbytes, md5[:12], "已刷新" if changed else "未变", frozen))
+            log("二维码快照 rect=(%d,%d,%d,%d) %dB md5=%s %s 冻结=%.0fs"
+                % (v["rect"][0], v["rect"][1], v["rect"][2], v["rect"][3],
+                   nbytes, md5[:12], "已刷新" if changed else "未变", frozen))
 
-            st["restarts"] = [t for t in st["restarts"] if now - t < 3600]
-            if (frozen >= FREEZE_SEC
-                    and now - st["last_restart"] >= RESTART_COOLDOWN
-                    and len(st["restarts"]) < RESTART_MAX_PER_HOUR):
-                restart_weixin()
-                st["last_restart"] = time.time()
-                st["restarts"].append(st["last_restart"])
-                st["freeze_from"] = 0.0
-                st["prev_md5"] = ""
+            if frozen >= FREEZE_SEC and allow_restart(st, now):
+                do_restart(st, now, "画面连续 %.0fs 未变化（自刷新可能卡死）" % frozen)
 
             save_state(st)
             time.sleep(LOOP)

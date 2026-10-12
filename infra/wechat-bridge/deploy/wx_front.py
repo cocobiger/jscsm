@@ -10,9 +10,13 @@ wx_front.py —— 在 VM 的交互式会话里把微信窗口提到前台，并
     本脚本改为 AttachThreadInput 抢输入队列 + 多次重试，并**明确报告是否真的抢到前台**。
 
 输出：C:\\wxbridge\\deploy\\wx_front_out.txt（UTF-8，含诊断清单 + 末尾 VERDICT 行）
-VERDICT 行格式（供 Linux 侧守护解析，勿改字段名）：
-  VERDICT fronted=1 hwnd=852498 fg=852498 vis=1 rect=(572,240,868,628)
-  VERDICT fronted=0 hwnd=0 fg=721528 vis=0 rect=(0,0,0,0)
+VERDICT 行格式（供 Linux 侧守护解析，勿改字段名/顺序）：
+  VERDICT fronted=1 found=1 hwnd=852498 fg=852498 vis=1 rect=(572,240,868,628)
+
+字段语义（Linux 侧据此判断登录态）：
+  found=0  ⇒ 屏幕上**找不到**微信窗口（微信没起来/崩了）—— 与"已登录"是两回事，别混淆
+  found=1 且 rect 尺寸 == 296x388  ⇒ 处在**登录界面**（未登录）
+  found=1 且 rect 尺寸 != 296x388  ⇒ 大概率**已登录**（主界面）
 """
 import ctypes
 import sys
@@ -145,7 +149,7 @@ def main():
         if is_wx:
             suspects.append((hwnd, cls, txt, rect, vis))
 
-    # 优先选：可见 + 类名含 Qt + 标题非空（= 微信主窗口）
+    # 优先选：可见 + 类名含 Qt + 标题非空（= 微信主窗口/登录窗口）
     suspects.sort(key=lambda t: (not t[4], "qt" not in t[1].lower(), not t[2].strip()))
 
     log("--- 疑似微信窗口（按优先级排序）---")
@@ -154,18 +158,27 @@ def main():
     if not suspects:
         log("  （未匹配到任何微信窗口）")
 
-    ok, fg = False, 0
     target = suspects[0][0] if suspects else 0
+    ok, fg = False, 0
     if target:
         log("--- 前置 hwnd=%s ---" % target)
         ok, fg = front(user32, k32, target)
 
-    if ok:
-        rect = win32gui.GetWindowRect(target)
-        log("VERDICT fronted=1 hwnd=%d fg=%d vis=%d rect=(%d,%d,%d,%d)"
-            % (target, fg, bool(win32gui.IsWindowVisible(target)), rect[0], rect[1], rect[2], rect[3]))
+    # ── VERDICT：无论成功与否都报出"找到了没 + 真实 rect + 可见性" ──
+    # 为什么失败时也要报 rect：否则 Linux 侧无法区分
+    #   「没找到窗口」（微信没起来）与「找到了但抢不到前台」（内容可能被遮挡）——
+    #   这两种情况的处置完全不同。
+    if target:
+        try:
+            r = win32gui.GetWindowRect(target)
+            vis = 1 if win32gui.IsWindowVisible(target) else 0
+        except Exception:
+            r, vis = (0, 0, 0, 0), 0
     else:
-        log("VERDICT fronted=0 hwnd=%d fg=%d vis=0 rect=(0,0,0,0)" % (target, fg))
+        r, vis = (0, 0, 0, 0), 0
+
+    log("VERDICT fronted=%d found=%d hwnd=%d fg=%d vis=%d rect=(%d,%d,%d,%d)"
+        % (1 if ok else 0, 1 if target else 0, target, fg, vis, r[0], r[1], r[2], r[3]))
 
     log("=== wx_front 结束 ===")
     flush()

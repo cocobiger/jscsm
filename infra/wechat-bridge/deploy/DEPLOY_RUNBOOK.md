@@ -127,8 +127,35 @@ bash infra/wechat-bridge/deploy/fetch_qr.sh            # → tmp/wxb_shots/qr_li
 - **兜底重置**：仅当「画面连续 6 分钟完全没变」（= 自刷新卡死）时，才 `taskkill Weixin.exe`
   + `WxLaunchQr` 重新拉起。三重护栏：冷却 5 分钟 / 每小时 ≤ 6 次 / 已登录即停。
   ⚠️ **不做定时重启**：微信对频繁登录二维码请求有风控嫌疑，且重启会打断"已扫码待手机确认"的窗口期。
-- **已登录即静默**：判据是 `/health` 的 `driver` / `sessions` / `wechat_version` **非 null**。
-  ⚠️ `/health` 的 `wx:"connected"` 是**内存态假健康**，不能用来判断登录！
+- **已登录即静默**：判据原文（**2026-10-12 已更正，别再按旧版做**）——
+  ~~`/health` 的 `driver`/`sessions`/`wechat_version` 非 null~~
+  🔴 **那三项只在"某次推送成功之后"才被填**（`_refresh_cache()` 全文件仅 1 处调用：`wechat_bot_server.py:803`），
+  且 `get_self_info()` 永远返回 dict ⇒ **不能用来判断登录**。
+  ✅ **现用判据 = 微信窗口几何**（实测基线：未登录时唯一窗口 = 登录窗 `296x388`）：
+  | 观测 | 含义 | 处置 |
+  |---|---|---|
+  | `found=0` | 微信没起来 / 崩了（**≠ 已登录**） | 连续 5 轮找不到 ⇒ 重启客户端拉起 |
+  | `found=1` 且尺寸 `296x388` | 登录界面（未登录） | 继续保活取码 |
+  | `found=1` 且尺寸 ≠ `296x388` | 已登录（主界面） | 静默 + 每 300s 心跳确认 |
+
+## 登录态探针（T1 定标，可复用）
+```bash
+ssh -p 22233 root@111.10.220.226 "bash /data/HBJSC/scripts/run_login_probe.sh"
+```
+跑在 VM 的**交互式会话**（与桥同条件），采集 `auto_detect_db_dir()` / `WeChatDB()` /
+`get_self_info()` / `get_sessions()` / `get_groups()` / 窗口几何，并给出"未登录 vs 已登录"对照。
+**已记录的未登录态基线**：`auto_detect_db_dir()=null`、`WeChatDB()` 抛
+`RuntimeError: 未找到微信数据库目录`、唯一窗口 `296x388`。
+
+## 目录权限（P0 T3，必须保持）
+```
+/data/HBJSC/wxb_qr/        drwxrws---  root jsc   2770（setgid）
+  latest.png/latest.json   -rw-r-----  root jsc   640
+```
+后端 `jsc-backend.service` 以 `User=jsc` 运行，要读 `latest.png` 给前端展示；jsc 还要能在该目录
+**创建 `reset.request`**（P2 的"手动刷新二维码"就靠它）。
+⚠️ 两个坑：① 守护脚本里**别写死 0700/0600**；② 发布文件**不能直接 `cp -f` 覆盖**——
+cp 是原地截断会保留 `root:root` 属组，640 也只给到 root 组 ⇒ 必须**先删再拷**再 `chmod/chown`。
 
 ## 实测踩坑（都已修）
 1. **`SetForegroundWindow` 会静默失败**（Windows 前台锁）→ 此时按窗口 rect 去 scrot 会截到
