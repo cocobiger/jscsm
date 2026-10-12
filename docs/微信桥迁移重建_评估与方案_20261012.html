@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信桥迁移与重建 · 评估与方案（172.16.8.15 → 172.16.8.16）</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --blue:#1a5276;--blue2:#2c6ca6;--green:#0f7b4f;--greenbg:#e7f6ee;--red:#b42318;--redbg:#fdeceb;
+  --amber:#9a6700;--amberbg:#fff6e5;--violet:#5b3fb5;--violetbg:#efeafd;--gray:#475569;--graybg:#eef2f7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;line-height:1.72;font-size:15px}
+  .wrap{max-width:1140px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:22px}header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.4px;color:#0b3d63}
+  pre{background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:11px;overflow:auto;font-size:12.3px;line-height:1.6}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px}li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:21px;font-weight:800;color:var(--blue)}.kpi .l{font-size:12.3px;color:var(--muted);margin-top:3px}
+  .hl{background:#fffbe6;box-shadow:inset 0 -2px 0 #f0dcae}
+  .toc{font-size:13.5px}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>微信桥迁移与重建 · 评估与方案</h1>
+  <div class="sub">场景：桥机 IP 由 <code>172.16.8.15</code> 改为 <code>172.16.8.16</code>（同机换址）—— 但实测发现<b>整条链路需重建</b></div>
+  <div class="meta">
+    <span class="chip">2026-10-12 18:10</span>
+    <span class="chip">结论：不能只改 IP，须整链重建</span>
+    <span class="chip">源码/安装包均在仓库 ✅</span>
+    <span class="chip">3 处待你决策</span>
+  </div>
+</header>
+
+<h2>0 · 一句话结论</h2>
+<div class="kpi">
+  <div class="box"><div class="n" style="color:var(--green)">同机</div><div class="l">证书 CN 一致（未换机器）</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">全丢</div><div class="l">Python + C:\wxbridge 都不在</div></div>
+  <div class="box"><div class="n" style="color:var(--green)">有解</div><div class="l">4.1.13.12 已被 v2 服务支持</div></div>
+  <div class="box"><div class="n">~3 人时</div><div class="l">重建工时（含人工扫码）</div></div>
+</div>
+<div class="callout good">
+  <b>好消息</b>：这不是"换机器"，是<b>同一台 VM 换 IP</b>（RDP 证书 CN 仍是 <code>DESKTOP-PAQ2NAV</code>）。
+  而且<b>桥的全部源码与安装包都在你本机仓库里</b>（<code>outputs/wechat-bridge/</code>，含
+  <code>wechat_bot_server.py</code>、<code>weixin_4.0.5.27.exe</code> 198MB、部署脚本全套）⇒ 不需要重新开发。
+</div>
+<div class="callout danger">
+  <b>坏消息</b>：Windows 上给桥用的运行时<b>已经全没了</b> ——
+  <code>C:\wxbridge\</code> ❌、<code>C:\Python311\</code> ❌（6 个常见路径全查过）。
+  只留下一个 8/31 创建的启动快捷方式化石 <code>Startup\WeChatBridge.lnk</code>。
+  ⇒ <b>必须从零重建 Windows 侧</b>，而其中「装 Python + pip 依赖 + 微信扫码登录」无法完全自动化。
+</div>
+
+<h2>1 · 侦察结果（决定性事实）</h2>
+<table>
+  <tr><th style="width:200px">检查项</th><th style="width:190px">实测</th><th>含义</th></tr>
+  <tr><td>RDP TLS 证书 CN</td><td><span class="badge ok">DESKTOP-PAQ2NAV</span></td><td>与 8.15 时代<b>同名</b> ⇒ 同一台 VM（换 IP，非换机）</td></tr>
+  <tr><td>3389 / 445 / 139 / 135</td><td><span class="badge ok">全通</span></td><td>SMB 可读写；RDP 可连</td></tr>
+  <tr><td>SMB 凭据</td><td><span class="badge ok">可登录</span></td><td><code>ADMIN$ / C$ / IPC$</code> 均可访问；<b>C: 可写</b>（已实测建目录+写文件+删除）</td></tr>
+  <tr class="hl"><td><code>C:\wxbridge\</code></td><td><span class="badge bad">不存在</span></td><td>桥服务代码、日志、nssm 全无</td></tr>
+  <tr class="hl"><td><code>C:\Python311\</code> 等 6 处</td><td><span class="badge bad">全部不存在</span></td><td><b>VM 上没有任何 Python</b></td></tr>
+  <tr><td><code>:18888</code> 桥服务</td><td><span class="badge bad">不通</span></td><td>服务未运行（无 Python 也无法运行）</td></tr>
+  <tr><td>微信客户端</td><td><span class="badge warn">4.1.13.12</span></td><td>装在 <code>C:\Program Files\Tencent\<b>Weixin</b>\4.1.13.12\Weixin.exe</code>（4.x 改名为 Weixin）</td></tr>
+  <tr><td>启动文件夹</td><td><span class="badge warn">WeChatBridge.lnk 仍在</span></td><td>8/31 的化石 ⇒ 进一步确认是同源 VM；但指向的目标已不存在</td></tr>
+  <tr><td><code>Program Files (x86)\Tencent\*</code></td><td>不存在</td><td>无 3.9.x 旧版残留</td></tr>
+  <tr><td>管理员用户目录</td><td>仅 <code>Administrator</code></td><td>无 <code>KCW5ngfxteFx</code> 目录；凭据是本地账户名（SMB 可用）</td></tr>
+  <tr><td>VM 是否联网</td><td><span class="badge info">推断：有</span></td><td><code>Program Files</code> 里有 10/8、10/10 的 Chrome/Edge 安装器日志 ⇒ 能联网下载</td></tr>
+</table>
+<div class="callout grayc">
+  <b>旁证</b>：VM 的 <code>C:\$WINDOWS.~BT</code>（9/7）与 <code>Recovery</code>（9/7）提示这台机器在 9 月初做过
+  Windows 升级/重置 —— 这很可能是 <code>C:\Python311</code> 与 <code>C:\wxbridge</code> 消失的原因
+  （升级重置清掉了非标准路径的运行时；微信被保留了）。
+</div>
+
+<h2>2 · 🔎 一处重要更正：README 说"4.1.12+ 无方案"**已经过时**</h2>
+<table>
+  <tr><th style="width:180px">微信 PC 版本</th><th style="width:260px">可用驱动</th><th>依据</th></tr>
+  <tr><td>3.9.x</td><td><code>wxauto</code>（原版，已停更）</td><td>README 三方矩阵</td></tr>
+  <tr><td><b>4.0.5</b></td><td><code>wxauto4</code>（AngeCoo 分支）</td><td><b>唯一支持 4.0.5</b>；仓库有 <code>weixin_4.0.5.27.exe</code> 存档</td></tr>
+  <tr class="hl"><td><b>4.1.12+</b>（含现在的 4.1.13.12）</td><td><b><code>wechatauto-replica</code> 1.2.0+（UIA + OCR 混合驱动）</b></td><td><b>服务源码已是 v2 多驱动版</b>，按 <code>wechatauto → wxauto4 → wxauto</code> 优先级自动探测</td></tr>
+</table>
+<div class="callout warnc">
+  README（写于 8/31）里"<b>4.1.12+ ❌ 无方案</b>"那条<b>已不再成立</b> —— 之后桥服务升级为
+  <b>v2 多驱动版</b>，新增了 <code>wechatauto-replica</code>（UIA+OCR）支持 4.1.12+。
+  它需要额外依赖 <code>winsdk</code> + <code>pypinyin</code>（<code>requirements.txt</code> 已列）。
+  <br>⇒ <b>VM 上现装的 4.1.13.12 可以直接用，不必降级</b>。
+</div>
+
+<h2>3 · 两条技术路线对比</h2>
+<table>
+  <tr><th style="width:150px">对比项</th><th>路线 A · 保留微信 4.1.13.12</th><th>路线 B · 降级到微信 4.0.5</th></tr>
+  <tr><td>驱动</td><td><code>wechatauto-replica</code>（UIA + <b>OCR</b>）</td><td><code>wxauto4</code>（纯 UIA）</td></tr>
+  <tr><td>需装什么</td><td>Python + flask/requests/pywin32 + <b>winsdk + pypinyin</b></td><td>Python + flask/requests/pywin32 + wxauto4，并<b>卸载 4.1.13 装 4.0.5</b></td></tr>
+  <tr><td>成熟度</td><td><span class="badge warn">较新</span>（OCR 路径，依赖屏幕渲染）</td><td><span class="badge ok">已验证</span>（8/31 那套跑通过）</td></tr>
+  <tr><td>风险</td><td>OCR 对分辨率/DPI/主题敏感；发送靠模拟点击，稳定性待实测</td><td>需卸载重装微信（<b>登录态会丢</b>），且要<b>立刻关自动更新</b>否则又升回 4.1.13</td></tr>
+  <tr><td>仓库有安装包</td><td>不需要（用现有）</td><td>✅ <code>weixin_4.0.5.27.exe</code>（198MB）已在仓库</td></tr>
+  <tr><td><b>建议</b></td><td colspan="2"><b>先试路线 A</b>（不动微信、改动最小）；若 OCR 发送不稳定，再退到路线 B</td></tr>
+</table>
+
+<h2>4 · 重建方案（分三部分，标注自动化程度）</h2>
+
+<h3>4.1 Windows 侧（172.16.8.16）—— 主要工作量</h3>
+<table>
+  <tr><th style="width:44px">#</th><th>步骤</th><th style="width:110px">可否自动</th><th>说明</th></tr>
+  <tr><td>1</td><td>建 <code>C:\wxbridge\</code>，通过 SMB 上传 <code>wechat_bot_server.py</code> + <code>requirements.txt</code> + 一键部署脚本</td><td><span class="badge ok">✅ 我现在就能做</span></td><td>SMB 可写已实测</td></tr>
+  <tr><td>2</td><td>装 Python 3.11（VM 无 Python）。两种方式：① VM 联网→静默安装；② 走 <b>embeddable zip</b>（免安装，SMB 传即可）</td><td><span class="badge warn">⚠ 需在 VM 执行</span></td><td>推荐 embeddable，避开 GUI 安装器</td></tr>
+  <tr><td>3</td><td><code>pip install -r requirements.txt</code> + 驱动库</td><td><span class="badge warn">⚠ 需 VM 联网</span></td><td>若无外网：本机 <code>pip download</code> 出 wheel 包再 SMB 传</td></tr>
+  <tr><td>4</td><td>启动服务 + 防火墙放行 TCP 18888 + 开机自启（NSSM 已无 → 用<b>计划任务</b>或启动文件夹）</td><td><span class="badge warn">⚠ 需在 VM 执行</span></td><td>一次 <code>-File</code> 跑完</td></tr>
+  <tr class="hl"><td>5</td><td><b>微信扫码登录小号</b>；把目标群在「最近会话」打开一次；<b>关闭微信自动更新</b></td><td><span class="badge bad">❌ 必须人工</span></td><td>扫码无法自动化（README 明确）</td></tr>
+  <tr><td>6</td><td>跑 <code>list_groups.ps1</code> 导出群名清单</td><td><span class="badge ok">✅ 可自动</span></td><td>用于填 webhook 的 <code>group=</code></td></tr>
+</table>
+<div class="callout danger">
+  <b>执行方式必须先定</b>：第 2/3/4 步要在 VM 上跑命令，三条路：
+  <ul>
+    <li><b>(a) 你手动</b>：我把一键 <code>deploy_bridge.ps1</code> 通过 SMB 放好，你在 VM 上双击/跑一次 —— <b>最稳，推荐</b></li>
+    <li><b>(b) RDP 自动化</b>：我已装好 <code>Xvfb + xfreerdp + xdotool</code>，可自动注入 ——
+        ⚠️ <b>但记忆里有真实事故</b>：xdotool 焦点错位会把整段命令打进微信输入框并回车发出。
+        安全姿势只允许「<code>super+r</code> → 粘<b>文件路径</b> → Enter 跑 <code>-File</code>」</li>
+    <li><b>(c) 计划任务</b>：需先创建任务，而创建本身也要执行命令 ⇒ 仍绕回 (a) 或 (b)</li>
+  </ul>
+</div>
+
+<h3>4.2 Linux 侧（111.10.220.226）</h3>
+<table>
+  <tr><th style="width:44px">#</th><th>步骤</th><th style="width:110px">状态</th></tr>
+  <tr><td>1</td><td>装 <code>smbclient</code> / <code>freerdp2-x11</code> / <code>xdotool</code> / <code>scrot</code>（Xvfb 已有）</td><td><span class="badge ok">✅ 已完成</span></td></tr>
+  <tr><td>2</td><td>RDP 保活：<code>Xvfb :99</code> + <code>xfreerdp /v:172.16.8.16</code>（wxauto 系列<b>必须</b>有交互式桌面会话，不可 Session 0）</td><td><span class="badge warn">⏳ 待做</span></td></tr>
+  <tr><td>3</td><td>健康探活 + 看门狗（<code>/health</code> 不通即记录/告警；<b>不做自动注入</b>）</td><td><span class="badge warn">⏳ 待做</span></td></tr>
+  <tr><td>4</td><td>systemd 单元/timer（含新 IP 与凭据，<b>凭据只进 <code>.env</code>/脚本且 600，不进仓库</b>）</td><td><span class="badge warn">⏳ 待做</span></td></tr>
+</table>
+
+<h3>4.3 配置侧（推送目标）</h3>
+<table>
+  <tr><th style="width:44px">#</th><th>步骤</th><th>说明</th></tr>
+  <tr class="hl"><td>1</td><td><code>area_responsibility.webhook</code> → <code>http://172.16.8.16:18888/send?group=&lt;群名&gt;</code></td>
+      <td>⚠️ <b>该表当前 0 行</b>（9/29 重装丢的）⇒ 这步与「重建 52 条责任映射」是同一件事，建议合并做</td></tr>
+  <tr><td>2</td><td><code>flight-monitor</code>（起飞/降落推送）里的桥地址</td><td>该脚本本身也随重装丢了，需一并重建</td></tr>
+  <tr><td>3</td><td>群名映射：用 <code>list_groups.ps1</code> 的清单填 <code>group_mapping.json</code></td><td>仓库有 <code>switch_webhook.js</code> 可批量切（含回滚）</td></tr>
+</table>
+
+<h2>5 · 风险提示</h2>
+<ul>
+  <li><b>封号风险</b>：wxauto 系属非官方自动化，违反微信用户协议 ⇒ <b>务必用小号</b>、控制频率（README 已强调）。</li>
+  <li><b>升级即失效</b>：微信一旦升到不支持的版本，桥立即废。⇒ 无论走哪条路线，<b>都必须关掉自动更新</b>并记录当前版本。</li>
+  <li><b>单点依赖</b>：Windows 机掉线 / 微信掉线 = 推送全断。历史已因"桥挂着"丢过 4 条推送（9/25）。⇒ 必须加 <code>/health</code> 探活。</li>
+  <li><b>OCR 路线的不确定性</b>：路线 A 的 <code>wechatauto-replica</code> 依赖屏幕渲染，对分辨率/DPI 敏感；<b>需实测发送成功率</b>，别假设它能一次跑通。</li>
+  <li><b>不要用 RDP 自动化注入命令</b>：有真实事故（命令被打进微信输入框发出去）。若用自动化，只允许"粘文件路径跑 <code>-File</code>"。</li>
+</ul>
+
+<h2>6 · 待你决策（3 件）</h2>
+<table>
+  <tr><th style="width:52px">#</th><th>决策点</th><th>选项</th></tr>
+  <tr><td>1</td><td><b>微信版本路线</b></td>
+      <td><b>A</b> 保留 4.1.13.12 + <code>wechatauto-replica</code>（<b>推荐</b>，不动微信）／
+          <b>B</b> 降级 4.0.5 + <code>wxauto4</code>（更成熟但动微信、登录态会丢）</td></tr>
+  <tr><td>2</td><td><b>Windows 侧怎么执行</b></td>
+      <td><b>(a)</b> 你手动跑我给的一键脚本（<b>推荐，最稳</b>）／
+          <b>(b)</b> 我用 RDP 自动化（有误注入风险，会严格限定为"粘路径跑 -File"）</td></tr>
+  <tr><td>3</td><td><b>是否顺带把责任映射建起来</b></td>
+      <td>桥通了但 <code>area_responsibility</code> 是 0 行 ⇒ 秸秆告警照样推不出去。是否本轮一起重建（52 条）？</td></tr>
+</table>
+<div class="callout grayc">
+  <b>我可以立刻做的（不需要你决策）</b>：把 <code>C:\wxbridge\</code> 建好并通过 SMB 上传
+  <code>wechat_bot_server.py</code> + <code>requirements.txt</code> + 一键 <code>deploy_bridge.ps1</code>，
+  再写好 Linux 侧的 RDP 保活 + 看门狗脚本。这样你（或我）在 VM 上只需跑一次脚本。
+</div>
+
+<footer>
+  依据：SMB/RDP/端口实测（2026-10-12 18:00–18:15）｜
+  <code>outputs/wechat-bridge/README.md</code>（架构与版本矩阵）｜<code>deploy/DEPLOY_RUNBOOK.md</code>（部署清单）｜
+  <code>wechat_bot_server.py</code>（v2 多驱动源码）｜<code>.workbuddy/memory/REF_wechat_bridge.md</code>（运维细则与事故记录）｜
+  <code>docs/记忆梳理_责任映射与微信群推送_20261012.html</code>
+</footer>
+
+</div>
+</body>
+</html>
