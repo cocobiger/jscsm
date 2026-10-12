@@ -1,0 +1,20 @@
+[Unit]
+Description=WeChat login-QR keep-alive (keeps a fresh QR on the RDP desktop)
+Documentation=file:/data/HBJSC/scripts/wx_qr_keepalive.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# scrot 必须打到 RDP 所在的 Xvfb 显示上
+Environment=DISPLAY=:99
+Environment=WXB_BRIDGE=http://172.16.8.16:18888
+# 凭据由脚本自己解析 /root/.wxbridge.env（不用 EnvironmentFile，避免引号解析歧义）
+ExecStart=/usr/bin/python3 /data/HBJSC/scripts/wx_qr_keepalive.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/wx_qr_keepalive.log
+StandardError=append:/var/log/wx_qr_keepalive.log
+
+[Install]
+WantedBy=multi-user.target
