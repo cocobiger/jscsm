@@ -81,10 +81,37 @@
       <tr><td><b>P2</b></td><td><span class="badge ok">已完成</span></td>
         <td><code>server/wechat-login.js</code> 6 个端点全部实测通过；无 token 一律 <b>401</b>；
           <b>F4 手动刷新端到端 52 秒出新码</b>；<code>/api/gas-alert</code> 回归门禁 401（未被打坏）</td></tr>
-      <tr><td><b>P3</b></td><td><span class="badge warn">待开工</span></td><td>前端 <code>WeChatLoginPanel</code> + 责任映射表下拉选会话（约 7 h）</td></tr>
-      <tr><td><b>P4</b></td><td><span class="badge info">待开工</span></td><td>部署前端 + 端到端验收（<b>依赖 <code>area_responsibility</code> 有数据</b>）</td></tr>
+      <tr><td><b>P3</b></td><td><span class="badge warn">源码已完成 / <b>部署被阻塞</b></span></td>
+        <td>前端源码改完并通过 <code>npm run verify</code>（tsc 0 错 + vite 构建成功）；
+          <b>但发现生产前端源码树不在本仓库</b>（详见下方 ⛔ 阻塞项），直接部署会大范围回退功能 ⇒ <b>暂不部署</b></td></tr>
+      <tr><td><b>P4</b></td><td><span class="badge info">待开工</span></td><td>部署前端 + 端到端验收（<b>依赖 P3 阻塞项解除</b>）</td></tr>
     </tbody>
   </table>
+</div>
+
+<div class="callout danger">
+  <b>⛔ P3 阻塞项（2026-10-13 02:00 发现，必须先解决）</b><br>
+  本轮把前端源码改完并构建成功后，按惯例做「部署前功能比对」——把生产 bundle
+  (<code>index-DXyw-ApW.js</code>, 10-12 22:13, 3,153,094 B) 与本机新构建
+  (<code>index-CtgYgbj_.js</code>, 2,959,874 B) 做特征对照，结果是：
+  <b>生产独有中文文案 1418 条，本机独有仅 213 条</b>。逐项核对：
+  <table style="margin:8px 0 0">
+    <thead><tr><th style="width:230px">功能域（关键词命中数）</th><th style="width:90px">生产</th><th style="width:90px">本机 src</th></tr></thead>
+    <tbody>
+      <tr><td>城运码表 / 城运贯通 / 研判规则</td><td>12 / 60 / 48</td><td class="hl">0 / 21 / 21</td></tr>
+      <tr><td>围栏 / 掩膜 / 参考图</td><td>15 / 3 / 7</td><td class="hl">0 / 0 / 0</td></tr>
+      <tr><td>渣土车冒装 / 车牌</td><td>22 / 23</td><td class="hl">0 / 3</td></tr>
+      <tr><td>视频缓存回看（precap 接口）</td><td>13 / 3</td><td class="hl">1 / 0</td></tr>
+      <tr><td>作业区豁免 / 一键批量生成规则</td><td>3 / 3</td><td class="hl">0 / 0</td></tr>
+      <tr><td>堆头未覆盖 / 智治推送</td><td>25 / 11</td><td>13 / 4</td></tr>
+    </tbody>
+  </table>
+  <b>根因</b>：生产 bundle 构建于 <code>10-12 22:13</code>（目录属主为 Windows 映射 uid ⇒ 大概率是从
+  <b>本仓库之外的源码树</b>构建后经 SMB 推上去的）；<code>git log --all</code>（仅 master、无 stash）
+  <b>从未包含</b> <code>precap-config</code> / <code>城运码值</code> 等源码 ⇒ <b>本仓库 src/ 不是生产前端的真源</b>，
+  且已落后约 6 周（与既有记忆「本机 src 停在 2026-09-26」一致）。
+  <br><b>结论</b>：<b>暂不部署前端</b>（否则会删掉上面这些页面）。本轮前端改动已入库、类型门禁全绿，
+  待前端真源合并后即可直接生效。<b>需你提供生产前端源码树的位置</b>。
 </div>
 
 <div class="kpi">

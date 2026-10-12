@@ -291,3 +291,97 @@ export interface EnterpriseRow {
   created_at?: string
   updated_at?: string
 }
+
+// ─────────────────────────────────────────────────────────────
+// ⑨ 微信登录（P3 · 2026-10-13）
+//    后端：server/wechat-login.js（代理微信桥 :18888 的 /login-state、/sessions）
+//    ⚠️ 判据口径：`loggedIn` 由后端合成（桥的 driver 证据 或 窗口几何兜底），
+//       **不能**拿 /health 的 driver/sessions/wechat_version 判断（那三项只在推送成功后才被填）。
+//    ⚠️ `qr` 是**登录令牌**：接口全部 adminOnly + `Cache-Control: no-store`，
+//       前端必须带 Authorization 头取（用 blob），不能直接 <img src>。
+// ─────────────────────────────────────────────────────────────
+export interface WechatBridgeState {
+  reachable: boolean
+  httpStatus?: number | null
+  error?: string
+}
+export interface WechatQrState {
+  available: boolean
+  ageSec: number | null          // 码龄（秒）；守护每 60s 换一张，> qrStaleSec 应提示刷新
+  changedAtText: string | null
+  md5: string | null             // 值变化 = 换码了；用作 <img> 的 cache-buster 与「是否换新」判据
+}
+export interface WechatSelf {
+  wxid?: string
+  nick_name?: string
+  remark?: string
+}
+export interface WechatTarget {
+  name: string
+  wxid: string
+  kind: 'group' | 'contact'
+  memberCount?: number | null
+  webhook: string                // 服务端已拼好（地址只在一处写死），前端直接写库
+}
+export interface WechatDefaultTarget {
+  name: string
+  kind: 'group' | 'contact'
+  webhook: string
+  setBy?: string
+  setAt?: string
+}
+export interface WechatStatusResp {
+  ok: boolean
+  loggedIn: boolean
+  via: 'driver' | 'window' | null   // 判据来源：driver=读到微信DB；window=窗口几何兜底
+  driver: string | null
+  self: WechatSelf | null
+  wechatVersion: string | null
+  sessionsCount: number | null
+  groupsCount: number | null
+  loginWindow: boolean              // 屏幕上存在登录窗（未登录）
+  mainWindow: boolean               // 屏幕上存在主界面窗（已登录）
+  bridge: WechatBridgeState
+  qr: WechatQrState
+  resetting: boolean                // 正在重置二维码（有人点了刷新，守护还在跑）
+  resetAgeSec: number | null
+  qrStaleSec: number
+  defaultTarget: WechatDefaultTarget | null
+  error?: string
+}
+export const WECHAT_STATUS_REQUIRED = ['ok', 'loggedIn', 'bridge', 'qr', 'resetting']
+
+export interface WechatTargetsResp {
+  ok: boolean
+  loggedIn: boolean
+  driver: string | null
+  error?: string
+  bridge: { reachable: boolean }
+  groups: WechatTarget[]
+  contacts: WechatTarget[]
+  counts: { groups: number; contacts: number }
+  total?: { groups: number; contacts: number }
+  cacheAgeMs?: number
+  caveat?: string                   // 「列得出来 ≠ 发得出去」的提示语，直接展示
+}
+export const WECHAT_TARGETS_REQUIRED = ['ok', 'loggedIn', 'groups', 'contacts']
+
+export interface WechatRefreshResp {
+  ok: boolean
+  status?: string
+  alreadyPending?: boolean
+  pendingSec?: number
+  hint?: string
+  error?: string
+}
+export interface WechatTestSendResp {
+  ok: boolean
+  errcode?: number
+  errmsg?: string
+  isVerifyFP?: boolean              // 桥的已知误报（errcode=-1 且 errmsg 含 verify）——消息通常已发出
+  attempts?: number
+  target?: string | null
+  note?: string
+  error?: string
+}
+export const WECHAT_TEST_SEND_REQUIRED = ['ok']

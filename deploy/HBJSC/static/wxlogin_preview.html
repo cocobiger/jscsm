@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信登录 · 功能预览（临时）</title>
+<style>
+  :root{--bg:#040e23;--panel:rgba(4,14,35,.7);--line:rgba(0,80,150,.25);--ink:#c8e6ff;--muted:#5a8aaa;
+        --cyan:#00aaff;--green:#4ade80;--red:#ff4444;--amber:#ffb74d;--orange:#ff7043}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px}
+  .wrap{max-width:1060px;margin:0 auto;padding:22px 18px 60px;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:17px;margin:0;display:flex;align-items:center;gap:10px}
+  .bar{width:3px;height:18px;background:var(--orange);border-radius:1px}
+  .muted{color:var(--muted);font-size:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  button{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;border-radius:4px;cursor:pointer;font-weight:600;
+         border:1px solid rgba(255,112,67,.35);background:rgba(255,112,67,.12);color:var(--orange)}
+  button.ghost{border-color:rgba(0,150,220,.3);background:rgba(0,80,180,.12);color:#7ab8e0}
+  button.ok{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.1);color:var(--green)}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  select,input{background:rgba(0,20,60,.6);color:var(--ink);border:1px solid rgba(0,150,220,.3);border-radius:3px;padding:5px 8px;font-size:12px}
+  input{min-width:340px}
+  #qb{background:#fff;padding:10px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;min-width:160px;min-height:160px}
+  #qi{width:160px;height:160px;image-rendering:pixelated;display:none}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{border-bottom:1px solid rgba(0,50,100,.2);padding:6px 8px;text-align:left}
+  th{color:var(--muted);font-weight:600}
+  .msg{font-size:12px;min-height:18px}
+  .warn{color:var(--amber)} .bad{color:var(--red)} .good{color:var(--green)}
+  code{background:rgba(0,40,80,.6);padding:1px 5px;border-radius:4px;font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="bar"></span>微信登录 · 功能预览<span class="muted">（临时页面，用于在正式前端合并前验证 P2 后端接口；可随时删除）</span></h1>
+  <div class="muted">本页复用驾驶舱登录态（同一域名下的 <code>jsc:token</code>）。所有接口均为 adminOnly。</div>
+
+  <!-- 状态 + 二维码 -->
+  <div class="card">
+    <div class="row">
+      <span class="dot" id="dot" style="background:#ffb74d"></span>
+      <b id="head">加载中…</b>
+      <span class="muted" id="who"></span>
+      <span class="muted" id="age"></span>
+      <span style="margin-left:auto"></span>
+      <button id="btnRefresh">手动刷新二维码</button>
+      <button class="ghost" id="btnForce">强制刷新状态</button>
+    </div>
+    <div class="msg" id="note"></div>
+    <div class="msg bad" id="err"></div>
+    <div class="row" id="qrbox" style="align-items:flex-start;margin-top:10px">
+      <div id="qb"><span class="muted" id="qtag">二维码加载中…</span><img id="qi" alt="微信登录二维码"></div>
+      <div class="muted" style="line-height:1.9;min-width:280px;max-width:520px">
+        1. 用<b>推送用的那个微信号</b>在手机上扫码（建议小号）<br>
+        2. 手机确认后本页 5 秒内自动变「已登录」<br>
+        3. 登录后可在下方选择推送对象，并「发测试」验证<br>
+        <span class="warn">⚠️ 二维码约 2–5 分钟过期；过期点「手动刷新二维码」即可（约 1 分钟出新码）。守护每 60 秒会自动换新。</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 推送对象 -->
+  <div class="card">
+    <div class="row">
+      <b>可推送对象</b>
+      <span class="muted" id="cnt"></span>
+      <span style="margin-left:auto"></span>
+      <button class="ghost" id="btnReloadT">刷新列表</button>
+    </div>
+    <div class="msg warn" id="caveat"></div>
+    <div class="msg bad" id="terr"></div>
+    <div style="max-height:340px;overflow:auto;margin-top:8px">
+      <table>
+        <thead><tr><th style="width:60px">类型</th><th>名称</th><th style="width:110px">成员数</th><th style="width:330px">推送地址</th><th style="width:120px">操作</th></tr></thead>
+        <tbody id="tlist"><tr><td colspan="5" class="muted">（微信登录后才可读取）</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 全局默认对象 -->
+  <div class="card">
+    <div class="row">
+      <b>全局默认推送对象</b>
+      <select id="defSel"><option value="">— 请选择群 / 个人 —</option></select>
+      <button class="ok" id="btnSetDef">设为默认</button>
+      <button class="ghost" id="btnClrDef">清除</button>
+      <span class="muted" id="defNow"></span>
+    </div>
+    <div class="muted" style="margin-top:6px">
+      说明：当前后端只提供「读写配置」。让推送链路真正回落到它需要改 <code>strawWorkflow</code>（P3 的 T16 单独一步）。
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TK = 'jsc:token'
+  function token() { try { return localStorage.getItem(TK) || '' } catch (e) { return '' } }
+  function H() { var t = token(); return t ? { 'Authorization': 'Bearer ' + t } : {} }
+  function $(id) { return document.getElementById(id) }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] }) }
+
+  var st = null, lastMd5 = '', qrUrl = '', refreshing = false
+  $('defSel').innerHTML = '<option value="">— 请选择群 / 个人 —</option>'
+
+  if (!token()) {
+    $('err').textContent = '未检测到登录态（localStorage 里没有 ' + TK + '）。请先登录驾驶舱，再打开本页。'
+  }
+
+  function paint() {
+    var s = st
+    if (!s) return
+    var bd = s.bridge && !s.bridge.reachable
+    var li = !!s.loggedIn
+    $('dot').style.background = bd ? '#ff4444' : li ? '#4ade80' : '#ffb74d'
+    $('dot').style.boxShadow = '0 0 8px ' + (bd ? '#ff4444' : li ? '#4ade80' : '#ffb74d')
+    $('head').textContent = bd ? '桥不可达' : li ? '已登录' : '未登录 · 请扫码'
+    $('head').className = bd ? 'bad' : li ? 'good' : 'warn'
+    $('who').textContent = li
+      ? ((s.self && (s.self.remark || s.self.nick_name || s.self.wxid)) || '未知账号') +
+        (s.wechatVersion ? ' · 微信 ' + s.wechatVersion : '') +
+        (s.via ? ' · 判据=' + (s.via === 'driver' ? '数据库' : '窗口几何') : '') +
+        (typeof s.groupsCount === 'number' ? ' · 群 ' + s.groupsCount : '') +
+        (typeof s.sessionsCount === 'number' ? ' · 会话 ' + s.sessionsCount : '')
+      : ''
+    if (!li && s.qr) {
+      var a = s.qr.ageSec
+      var stale = a !== null && a > (s.qrStaleSec || 150)
+      $('age').textContent = a === null ? '（码龄未知）' : (stale ? '⚠️ 二维码已生成 ' + a + ' 秒，建议刷新' : '二维码 ' + a + ' 秒前生成')
+      $('age').className = 'muted ' + (stale ? 'warn' : '')
+    } else { $('age').textContent = '' }
+    $('qrbox').style.display = (li || bd) ? 'none' : 'flex'
+    $('err').textContent = bd ? ((s.bridge.error || '桥不可达') + '　（看门狗每分钟自愈一次：/var/log/wxbridge_watchdog.log）') : ''
+  }
+
+  async function loadStatus(force) {
+    try {
+      var r = await fetch('/api/wechat/status' + (force ? '?force=1' : ''), { headers: H() })
+      if (r.status === 401) { $('err').textContent = '401 未授权：请先登录驾驶舱（token 可能已过期）'; return }
+      st = await r.json(); paint(); maybeQr()
+    } catch (e) { $('err').textContent = '状态查询失败: ' + e.message }
+  }
+
+  async function maybeQr() {
+    var s = st; if (!s || s.loggedIn || !s.qr || !s.qr.available) return
+    var m = s.qr.md5 || ''
+    if (m && m === lastMd5 && qrUrl) return
+    try {
+      var r = await fetch('/api/wechat/qr' + (m ? '?v=' + m : ''), { headers: H() })
+      if (!r.ok) { var j = await r.json().catch(function () { return {} }); $('qtag').textContent = j.error || ('HTTP ' + r.status); return }
+      var b = await r.blob()
+      if (qrUrl) URL.revokeObjectURL(qrUrl)
+      qrUrl = URL.createObjectURL(b); lastMd5 = m
+      $('qi').src = qrUrl; $('qi').style.display = 'block'; $('qtag').style.display = 'none'
+    } catch (e) { $('qtag').textContent = '取二维码失败: ' + e.message }
+  }
+
+  async function refresh() {
+    refreshing = true; $('btnRefresh').disabled = true; $('btnRefresh').textContent = '重置中…'
+    $('note').textContent = '已请求重置，守护最迟 30 秒内动手，约 1 分钟出新码…'
+    try {
+      var r = await fetch('/api/wechat/qr/refresh', { method: 'POST', headers: H() })
+      var d = await r.json(); if (d.hint) $('note').textContent = d.hint
+    } catch (e) { $('note').textContent = '刷新请求失败: ' + e.message }
+    var before = lastMd5
+    for (var i = 0; i < 40; i++) {
+      await new Promise(function (z) { setTimeout(z, 3000) })
+      await loadStatus(true)
+      if (st && !st.loggedIn && st.qr && st.qr.md5 && st.qr.md5 !== before) { $('note').textContent = '✅ 已生成新的二维码'; break }
+      if (st && st.loggedIn) { $('note').textContent = '✅ 微信已登录'; break }
+    }
+    refreshing = false; $('btnRefresh').disabled = false; $('btnRefresh').textContent = '手动刷新二维码'
+  }
+
+  async function loadTargets(force) {
+    $('terr').textContent = ''
+    try {
+      var r = await fetch('/api/wechat/targets' + (force ? '?force=1' : ''), { headers: H() })
+      var d = await r.json()
+      $('cnt').textContent = '群 ' + d.counts.groups + ' / 个人 ' + d.counts.contacts
+      $('caveat').textContent = d.caveat ? '⚠️ ' + d.caveat : ''
+      if (d.error) $('terr').textContent = d.error
+      else if (!d.loggedIn) $('terr').textContent = '微信未登录，无法列出会话'
+      var all = (d.groups || []).concat(d.contacts || [])
+      var rows = all.map(function (t) {
+        return '<tr><td>' + (t.kind === 'group' ? '群' : '个人') + '</td><td>' + esc(t.name) + '</td><td>' +
+          (t.memberCount == null ? '—' : t.memberCount) + '</td><td class="muted" style="word-break:break-all">' +
+          esc(t.webhook) + '</td><td><button class="ok" data-w="' + esc(t.webhook) + '" data-n="' + esc(t.name) + '">发测试</button></td></tr>'
+      }).join('')
+      $('tlist').innerHTML = rows || '<tr><td colspan="5" class="muted">（无可选会话）</td></tr>'
+      // 填默认对象下拉
+      var opts = '<option value="">— 请选择群 / 个人 —</option>'
+      if (d.groups.length) opts += '<optgroup label="微信群（' + d.groups.length + '）">' + d.groups.map(function (t) {
+        return '<option value="' + esc(t.name) + '" data-k="group">' + esc(t.name) + '</option>' }).join('') + '</optgroup>'
+      if (d.contacts.length) opts += '<optgroup label="个人（' + d.contacts.length + '）">' + d.contacts.map(function (t) {
+        return '<option value="' + esc(t.name) + '" data-k="contact">' + esc(t.name) + '</option>' }).join('') + '</optgroup>'
+      $('defSel').innerHTML = opts
+      $('defNow').textContent = st && st.defaultTarget ? ('当前：' + st.defaultTarget.name + (st.defaultTarget.setAt ? '（' + st.defaultTarget.setAt + '）' : '')) : '当前：未设置'
+    } catch (e) { $('terr').textContent = '会话列表读取失败: ' + e.message }
+  }
+
+  document.addEventListener('click', async function (ev) {
+    var b = ev.target.closest && ev.target.closest('button[data-w]')
+    if (!b) return
+    var txt = b.textContent; b.disabled = true; b.textContent = '发送中'
+    try {
+      var r = await fetch('/api/wechat/test-send', {
+        method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, H()),
+        body: JSON.stringify({ target: b.getAttribute('data-n'), webhook: b.getAttribute('data-w') }),
+      })
+      var d = await r.json()
+      b.textContent = d.ok ? '✓ 已发送' : (d.isVerifyFP ? '⚠ 误报' : '✗ 失败')
+      if (!d.ok && !d.isVerifyFP) { b.title = d.errmsg || d.error || ''; $('terr').textContent = esc(d.errmsg || d.error || '') }
+      setTimeout(function () { b.textContent = txt; b.disabled = false }, 4000)
+    } catch (e) { b.textContent = '✗'; setTimeout(function () { b.textContent = txt; b.disabled = false }, 4000) }
+  })
+
+  $('btnRefresh').onclick = refresh
+  $('btnForce').onclick = function () { loadStatus(true) }
+  $('btnReloadT').onclick = function () { loadTargets(true) }
+  $('btnSetDef').onclick = async function () {
+    var v = $('defSel').value
+    if (!v) { $('note').textContent = '请先选择一个对象'; return }
+    var k = $('defSel').options[$('defSel').selectedIndex].getAttribute('data-k') || 'group'
+    var r = await fetch('/api/wechat/default-target', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H()), body: JSON.stringify({ target: v, kind: k }) })
+    var d = await r.json(); $('note').textContent = d.ok ? '✓ 已设为默认：' + v : ('失败: ' + (d.error || ''))
+    loadStatus(true)
+  }
+  $('btnClrDef').onclick = async function () {
+    var r = await fetch('/api/wechat/default-target', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H()), body: JSON.stringify({ clear: true }) })
+    var d = await r.json(); $('note').textContent = d.ok ? '✓ 已清除默认对象' : ('失败: ' + (d.error || ''))
+    loadStatus(true)
+  }
+
+  // 轮询：未登录 5s / 已登录 30s
+  ;(function loop() {
+    loadStatus(false).then(function () {
+      var li = st && st.loggedIn
+      if (li) loadTargets(false)
+      setTimeout(loop, li ? 30000 : 5000)
+    })
+  })()
+})()
+</script>
+</body>
+</html>

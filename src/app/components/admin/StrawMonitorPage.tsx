@@ -7,8 +7,10 @@ import { SikongPanel } from './SikongPanel'
 import { NegClassifyVerify } from './NegClassifyVerify'
 import { PushLogPage } from './PushLogPage'
 import { DroneDiagPanel } from './DroneDiagPanel'
+import { WeChatLoginPanel, TestSendButton, useWechatTargets, webhookOf, selectStyle } from './WeChatLoginPanel'
 import { authFetch } from '../../lib/apiFetch'
 import type { CurrentUser } from '../../lib/auth'
+import type { WechatStatusResp, WechatTargetsResp } from '../../lib/api-types'
 
 import { Brain, Workflow, Radar, Video, Satellite, Landmark, ClipboardList, Save, Palette, ListChecks, PenLine, Eye, ScanSearch, ScanEye, Send, Activity } from 'lucide-react'
 
@@ -100,13 +102,17 @@ export function StrawMonitorPage({ user }: Props) {
   )
 }
 
-// ── 责任映射管理：乡镇 → 责任单位 → 微信群 webhook ──
+// ── 责任映射管理：乡镇 → 责任单位 → 推送对象（微信群/个人）──
 function ResponsibilityManager() {
   const [rows, setRows] = useState<RespRow[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  // 微信登录态：由 WeChatLoginPanel 上报；用来决定「推送对象」下拉是否可用
+  const [wx, setWx] = useState<WechatStatusResp | null>(null)
+  const wxLoggedIn = !!wx?.loggedIn
+  const { targets, loading: tLoading, error: tError, reload: reloadTargets } = useWechatTargets(wxLoggedIn)
 
   const load = useCallback(() => {
     authFetch('/api/straw/area-responsibility')
@@ -116,6 +122,9 @@ function ResponsibilityManager() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // 登录成功后自动拉一次会话清单（否则用户得手动点刷新）
+  useEffect(() => { if (wxLoggedIn) reloadTargets() }, [wxLoggedIn])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
     if (!form.town || !form.unit) { setMsg('乡镇与责任单位必填'); return }
@@ -166,6 +175,9 @@ function ResponsibilityManager() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 微信登录：在线状态 / 离线二维码 / 手动刷新 / 全局默认推送对象 */}
+      <WeChatLoginPanel onStatusChange={setWx} />
+
       {/* 统计卡 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         <div style={{ ...card }}>
@@ -202,13 +214,26 @@ function ResponsibilityManager() {
         <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
           {([
             ['town', '乡镇/街道*'], ['community', '社区/村（可选）'], ['unit', '责任单位*'],
-            ['person', '责任人'], ['phone', '电话'], ['webhook', '微信群 Webhook'], ['remark', '备注'],
+            ['person', '责任人'], ['phone', '电话'], ['remark', '备注'],
           ] as const).map(([key, label]) => (
             <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span style={{ color: '#5a8aaa', fontSize: 11 }}>{label}</span>
               <input value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={inputStyle} />
             </div>
           ))}
+
+          {/* 推送对象：从微信会话列表里选（群/个人），也允许退回手填 webhook */}
+          <PushTargetField
+            value={form.webhook}
+            onChange={v => setForm(f => ({ ...f, webhook: v }))}
+            targets={targets}
+            loggedIn={wxLoggedIn}
+            loading={tLoading}
+            error={tError}
+            onReload={reloadTargets}
+            inputStyle={inputStyle}
+          />
+
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button onClick={submit} disabled={busy} style={{
               padding: '7px 20px', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', borderRadius: 4,
@@ -223,7 +248,7 @@ function ResponsibilityManager() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'rgba(4,14,35,0.98)', borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
-              {['乡镇/街道', '社区/村', '责任单位', '责任人', '微信群 Webhook', '操作'].map(h => (
+              {['乡镇/街道', '社区/村', '责任单位', '责任人', '推送对象', '操作'].map(h => (
                 <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#5a8aaa', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -240,16 +265,17 @@ function ResponsibilityManager() {
                 <td style={{ padding: '7px 10px', color: '#c8e6ff' }}>{r.person || '—'}{r.phone ? `（${r.phone}）` : ''}</td>
                 <td style={{ padding: '7px 10px', fontSize: 11 }}>
                   {r.webhook ? (
-                    <span style={{ color: GREEN, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
-                      ✓ {r.webhook.replace(/^https?:\/\//, '').slice(0, 34)}…
+                    <span style={{ color: GREEN }}>
+                      ✓ {targetNameOf(r.webhook, targets) || (r.webhook.replace(/^https?:\/\//, '').slice(0, 34) + '…')}
                     </span>
                   ) : (
                     <span style={{ color: AMBER }}>未配置</span>
                   )}
                 </td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                  <TestSendButton webhook={r.webhook} target={targetNameOf(r.webhook, targets) || r.town} disabled={!r.webhook} />
                   <button onClick={() => edit(r)} style={{
-                    padding: '2px 10px', fontSize: 11, cursor: 'pointer', marginRight: 6, borderRadius: 3,
+                    padding: '2px 10px', fontSize: 11, cursor: 'pointer', margin: '0 6px 0 8px', borderRadius: 3,
                     border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,80,180,0.12)', color: '#7ab8e0',
                   }}>编辑</button>
                   <button onClick={() => remove(r)} style={{
@@ -264,9 +290,99 @@ function ResponsibilityManager() {
       </div>
 
       <div style={{ fontSize: 11, color: '#3a5a70', lineHeight: 1.8 }}>
-        <b style={{ color: '#5a8aaa' }}>说明</b>：告警触发后按 乡镇/街道 → 社区/村 匹配责任单位（社区级优先，无则乡镇兜底），再推送到对应微信群。
-        微信 Webhook 为 <code style={{ color: AMBER }}>企业微信群机器人</code> 地址（https://qyapi.weixin.qq.com/...）。demo 环境使用模拟 key，真实 key 由客户提供后即可实战推送。
+        <b style={{ color: '#5a8aaa' }}>说明</b>：告警触发后按 乡镇/街道 → 社区/村 匹配责任单位（社区级优先，无则乡镇兜底），
+        再推送到该行配置的<b>推送对象</b>。
+        推送对象现在从<b>微信会话列表</b>里下拉选择（微信群或个人），底层仍是 webhook 地址
+        <code style={{ color: AMBER }}>http://172.16.8.16:18888/send?group=…</code>（由服务端拼装，前端不硬编码地址）；
+        也支持手填企微机器人地址（<code style={{ color: AMBER }}>https://qyapi.weixin.qq.com/…</code>）作为兼容。
+        点每行的<b>「发测试」</b>可立刻验证该对象能不能收到。
       </div>
+    </div>
+  )
+}
+
+/** 由 webhook 反查展示用的对象名（匹配不到就返回空串，由调用方退回显示地址） */
+function targetNameOf(webhook: string, t: WechatTargetsResp): string {
+  if (!webhook) return ''
+  const hit = [...t.groups, ...t.contacts].find(x => x.webhook === webhook)
+  return hit ? hit.name : ''
+}
+
+/** 推送对象选择器：优先从微信会话列表选；也可退回手填 webhook 地址 */
+function PushTargetField({ value, onChange, targets, loggedIn, loading, error, onReload, inputStyle }: {
+  value: string
+  onChange: (v: string) => void
+  targets: WechatTargetsResp
+  loggedIn: boolean
+  loading: boolean
+  error: string
+  onReload: () => void
+  inputStyle: React.CSSProperties
+}) {
+  const [manual, setManual] = useState(false)
+  const all = [...targets.groups, ...targets.contacts]
+  const matched = all.find(t => t.webhook === value)
+  const unknown = !!value && !matched          // 有值但不在当前会话清单里（旧值/手填/企微地址）
+  const showInput = manual || unknown
+  const selVal = matched ? matched.name : (unknown ? '__custom__' : '')
+
+  const btn: React.CSSProperties = {
+    padding: '5px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
+    border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,80,180,0.12)', color: '#7ab8e0',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: 'span 2', minWidth: 300 }}>
+      <span style={{ color: '#5a8aaa', fontSize: 11 }}>
+        推送对象（微信群 / 个人）{loading && <span>　读取会话中…</span>}
+      </span>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select
+          disabled={!loggedIn}
+          value={selVal}
+          onChange={e => {
+            const v = e.target.value
+            if (v === '__custom__') { setManual(true); return }
+            if (!v) { setManual(false); onChange(''); return }
+            setManual(false)
+            onChange(webhookOf(v, targets))
+          }}
+          style={{ ...selectStyle, opacity: loggedIn ? 1 : 0.5 }}
+        >
+          <option value="">— 选择群 / 个人 —</option>
+          {targets.groups.length > 0 && (
+            <optgroup label={`微信群（${targets.groups.length}）`}>
+              {targets.groups.map(t => (
+                <option key={t.wxid || t.name} value={t.name}>{t.name}{t.memberCount ? `（${t.memberCount}人）` : ''}</option>
+              ))}
+            </optgroup>
+          )}
+          {targets.contacts.length > 0 && (
+            <optgroup label={`个人（${targets.contacts.length}）`}>
+              {targets.contacts.map(t => <option key={t.wxid || t.name} value={t.name}>{t.name}</option>)}
+            </optgroup>
+          )}
+          <option value="__custom__">自定义 Webhook 地址…</option>
+        </select>
+        <button type="button" onClick={onReload} disabled={!loggedIn || loading} style={{ ...btn, opacity: !loggedIn || loading ? 0.5 : 1 }}>
+          {loading ? '读取中…' : '刷新列表'}
+        </button>
+        {manual && <button type="button" onClick={() => { setManual(false); onChange('') }} style={btn}>返回从列表选</button>}
+      </div>
+      {showInput && (
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{ ...inputStyle, minWidth: 340 }}
+          placeholder="http://172.16.8.16:18888/send?group=群名　或　企微机器人 https://qyapi.weixin.qq.com/…"
+        />
+      )}
+      <span style={{ fontSize: 11, color: loggedIn ? '#3a5a70' : AMBER, lineHeight: 1.7 }}>
+        {!loggedIn
+          ? '微信未登录 → 暂时拉不到会话列表，可先手填地址；登录后这里会变成可选的下拉。'
+          : `可选：群 ${targets.counts.groups} 个 / 个人 ${targets.counts.contacts} 个。选定后自动写入该行的推送地址。`}
+        {error && <span style={{ color: AMBER }}>　{error}</span>}
+      </span>
     </div>
   )
 }
