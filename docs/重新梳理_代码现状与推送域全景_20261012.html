@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重新梳理：代码现状 + 推送域全景（2026-10-12 16:20）</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --blue:#1a5276;--blue2:#2c6ca6;--green:#0f7b4f;--greenbg:#e7f6ee;--red:#b42318;--redbg:#fdeceb;
+  --amber:#9a6700;--amberbg:#fff6e5;--violet:#5b3fb5;--violetbg:#efeafd;--gray:#475569;--graybg:#eef2f7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;line-height:1.72;font-size:15px}
+  .wrap{max-width:1140px;margin:0 auto;padding:36px 22px 80px}
+  header.top{border-radius:16px;padding:26px 28px;color:#fff;background:linear-gradient(135deg,#1a5276,#2c6ca6);box-shadow:0 6px 20px rgba(26,82,118,.18)}
+  header.top h1{margin:0 0 8px;font-size:22px}header.top .sub{opacity:.93;font-size:13.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:19px;color:var(--blue);margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--blue2)}
+  h3{font-size:15.5px;color:#2c3e50;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:14px 0;box-shadow:0 1px 3px rgba(16,30,54,.04)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.4px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:#1f3a52;font-weight:600}
+  tr:nth-child(even) td{background:#fafcfe}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  code{background:#eef1f5;border-radius:5px;padding:1.5px 6px;font-family:Consolas,Menlo,monospace;font-size:12.4px;color:#0b3d63}
+  pre{background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:11px;overflow:auto;font-size:12.3px;line-height:1.6}
+  .badge{display:inline-block;border-radius:6px;padding:1.5px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .ok{background:var(--greenbg);color:var(--green);border:1px solid #bfe6d2}
+  .bad{background:var(--redbg);color:var(--red);border:1px solid #f3c4c0}
+  .warn{background:var(--amberbg);color:var(--amber);border:1px solid #f0dcae}
+  .info{background:var(--violetbg);color:var(--violet);border:1px solid #d6c9f8}
+  .grayb{background:var(--graybg);color:var(--gray);border:1px solid #d7dee8}
+  .callout{border-radius:12px;padding:14px 16px;margin:12px 0;font-size:14px;border:1px solid}
+  .callout.danger{background:var(--redbg);border-color:#f3c4c0}
+  .callout.warnc{background:var(--amberbg);border-color:#f0dcae}
+  .callout.good{background:var(--greenbg);border-color:#bfe6d2}
+  .callout.grayc{background:var(--graybg);border-color:#d7dee8}
+  ul{margin:8px 0 8px 2px;padding-left:20px}li{margin:4px 0}
+  .muted{color:var(--muted);font-size:13px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:22px;font-weight:800;color:var(--blue)}.kpi .l{font-size:12.3px;color:var(--muted);margin-top:3px}
+  .hl{background:#fffbe6;box-shadow:inset 0 -2px 0 #f0dcae}
+  footer{margin-top:44px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>重新梳理：代码现状 + 推送域全景</h1>
+  <div class="sub">服务器 ↔ 本机全量对账 ｜ 两条推送链路 ｜ 5 个新模块 ｜ 含对上一份报告的结论更正</div>
+  <div class="meta">
+    <span class="chip">2026-10-12 16:20</span>
+    <span class="chip">基线：本机 HEAD <code>6ae4bc6</code>（工作区干净）</span>
+    <span class="chip">对账对象：<code>/data/HBJSC</code> 生产</span>
+  </div>
+</header>
+
+<h2>0 · 先说三句结论</h2>
+<div class="kpi">
+  <div class="box"><div class="n" style="color:var(--red)">5 个</div><div class="l">生产有、本机没有的模块</div></div>
+  <div class="box"><div class="n" style="color:var(--red)">≈2 周</div><div class="l">本机仓库落后生产</div></div>
+  <div class="box"><div class="n">2 条</div><div class="l">推送链路（不是 1 条）</div></div>
+  <div class="box"><div class="n" style="color:var(--amber)">1 处</div><div class="l">需更正上午的结论</div></div>
+</div>
+<div class="callout danger">
+  <b>① 最要紧的不是功能，是仓库脱节。</b>本机工作区是干净的（HEAD <code>6ae4bc6</code>），但生产后端比它多出
+  <b>5 个模块</b>（共 172 KB）且 <code>index.js</code>/<code>store-db.js</code> 等 13 个文件都更新过
+  （<code>index.js</code> 194 KB → <b>237 KB</b>）；前端 <code>src/</code> 停在 <b>09-26</b>，而生产前端是
+  <b>今天 12:13</b> 构建的。<br>
+  ⇒ <b>这正是 9/29 事故里"关键源码只在服务器上"那个隐形单点，又长回来了</b>（当时代价：<code>main.py</code> 750 行重写）。
+  这台机器再出一次事，这 2 周全部归零。
+</div>
+<div class="callout grayc">
+  <b>② 我上午那份报告的范围偏窄。</b>上午只梳理了「责任映射 / 微信群推送」——它其实只是
+  <b>秸秆链路</b>的末端；你这轮真正在做的是<b>推送域的整体治理</b>（口径统一 + 城运贯通 + 智治自检 + 豁免名单）。
+</div>
+<div class="callout warnc">
+  <b>③ 有一处结论要更正</b>（见 §4）：上午把「774 条告警没有 <code>wechatPush</code>」解读成"推送静默失败"——
+  不准确，那是**另一条链路**的告警，本来就不写这个字段。
+</div>
+
+<h2>1 · 🔴 对账结果：本机仓库 vs 生产</h2>
+<h3>1.1 生产有、本机完全没有的模块</h3>
+<table>
+  <tr><th style="width:180px">模块</th><th class="num" style="width:80px">大小</th><th style="width:110px">最后改动</th><th>定位（摘自文件头注释）</th></tr>
+  <tr><td><code>cyzx.js</code></td><td class="num">98 KB</td><td>10-11 14:20</td><td><b>「三级城运中心贯通」</b>——把 AI 事件贯通到三级城运中心（事件中心）；<b>双口径双路径</b>：聚合类走研判准入，<b>逐条类走独立扫描触发点</b>（否则低位点永远攒不到阈值 ⇒ 静默 blocked ⇒ 永久漏推）</td></tr>
+  <tr><td><code>push-caliber.js</code></td><td class="num">18 KB</td><td><b>10-12 02:57</b></td><td><b>「推送口径统一台」</b>——现网有<b>三个都叫"推送规则"</b>的东西且窗口/阈值/置信度三处口径互不一致；本模块建"统一口径表"作唯一真源，再<b>显式下发</b>到那三处</td></tr>
+  <tr><td><code>stack-exempt.js</code></td><td class="num">21 KB</td><td><b>10-12 10:20</b></td><td><b>「堆头未覆盖·点位豁免名单」</b>——用户裁定：<b>靠近江边的作业区（码头/装卸/施工堆料）不受"防尘网未覆盖&gt;40%即违规"约束</b>；作业区是点位属性，做成后台可配名单</td></tr>
+  <tr><td><code>smartpush-health.js</code></td><td class="num">15 KB</td><td>10-11 15:34</td><td><b>「智治推送」自检/监控/干跑</b>——此前平台/预案/规则/订阅四表之间的引用关系<b>全靠人工记忆</b>，配错只打一条 <code>log.warn</code>，界面完全看不出</td></tr>
+  <tr><td><code>precap-config.js</code></td><td class="num">10 KB</td><td>10-10 19:35</td><td><b>「视频缓存（B′ 回看）」后台配置</b>——代理 11 机 <code>alarm_processor:7002</code>，让驾驶舱直接调回看档位/锚点延迟/通道/写入器参数，不必登 11 机改 systemd</td></tr>
+</table>
+<h3>1.2 同名但生产更新的文件（共 13 个）</h3>
+<table>
+  <tr><th style="width:200px">文件</th><th class="num">本机</th><th class="num">生产</th><th class="num">增量</th><th>说明</th></tr>
+  <tr class="hl"><td><code>index.js</code></td><td class="num">194,497</td><td class="num"><b>237,719</b></td><td class="num">+43 KB</td><td>新增 5 个模块的 require 注册（2539~2560 行）</td></tr>
+  <tr class="hl"><td><code>store-db.js</code></td><td class="num">188,263</td><td class="num"><b>206,521</b></td><td class="num">+18 KB</td><td>新表：cyzx×9 / push_caliber×2 / stack_exempt_points 等</td></tr>
+  <tr><td><code>iot-fetcher.js</code></td><td class="num">60,948</td><td class="num">74,765</td><td class="num">+14 KB</td><td>IoTCloud 接入侧改动</td></tr>
+  <tr><td><code>monitor.js</code></td><td class="num">9,348</td><td class="num">24,334</td><td class="num">+15 KB</td><td>监控侧改动（10-05）</td></tr>
+  <tr><td>其余 9 个</td><td colspan="2" class="muted">collect / dji-bridge / drone-events / init_enterprises / migrate-warning-source / poc_gen_closure_pdf / review / tune / warnings-stream / _prod_selftest / _verify_tpl</td><td class="num">小幅</td><td class="muted">多为 10-01~10-02 的补齐</td></tr>
+</table>
+<h3>1.3 前端同样脱节</h3>
+<table>
+  <tr><th style="width:220px">项</th><th>实测</th></tr>
+  <tr><td>本机 <code>src/</code> 最新改动</td><td><b>2026-09-26 14:54</b></td></tr>
+  <tr><td>生产前端构建</td><td><b>2026-10-12 12:13</b>（今日）</td></tr>
+  <tr><td>新功能关键词在本机 <code>src/</code> 的命中</td><td><code>推送口径</code> 0 ｜ <code>口径统一</code> 0 ｜ <code>豁免</code> 0 ｜ <code>预采集/视频缓存</code> 0 ｜ <code>智治推送自检</code> 0 ｜ <code>stack-exempt</code> 0 ｜ <code>push-caliber</code> 0 ｜ <code>cyzx</code> 0 ⇒ <b>全部 0</b></td></tr>
+  <tr><td>生产前端另有</td><td><code>frontend/tmp/ztc_review_v5_{A1,A2,B1,B2,C1}.html</code>（5 个，各 5~7 MB，10-12 11:05 生成）＋ 一串 <code>index.html.bak_*_20261012_*</code>（s3/s4/s5/s25/caliber/exempt/revert_caliber）</td></tr>
+</table>
+<div class="callout danger">
+  <b>结论</b>：<b>本机对生产的了解已经过期约 2 周</b>。这不是"代码好不好"的问题，是<b>资产安全问题</b>——
+  9/29 那次重装之后我们立过铁律「服务器上写的服务，源码必须回落本机仓库」，现在必须执行一次。
+</div>
+
+<h2>2 · 你这套模块的「共同范式」（值得固化成规范）</h2>
+<div class="card">
+从 5 个新模块的文件头看，你已经形成了一套很稳定的做法，<b>建议直接写成新模块模板</b>：
+<pre>① 纯新增、最小侵入：自建表 + 自管配置 + 自注册路由；index.js 只加 1 行 require
+   🔴 require 必须放在 adminOnly 定义之后 —— const TDZ，提前引用会 ReferenceError 崩进程
+② 不动研判闸门：judgeWarning / isGateExemptWarning / queryWarningsAggregated 一律不碰
+   （改它们会同时改变前台实时告警量与 SSOT 口径）
+③ 真源在 DB（kv_config / 自建表），env 只作首次初始化 ⇒ 后台填完即生效、无需重启
+④ 时间一律上海时 UTC+8（getUTC* + 8h），禁用 toLocaleString / 本地时区
+⑤ 内网端点：PUBLIC_PATHS 放行 session 鉴权，路由内自校验 X-Admin-Token（复用 ALARM_ADMIN_TOKEN）
+⑥ 高危动作走 dry-run 预览 → 确认 → 批量应用 + 快照（可一键回滚）
+⑦ 出站禁止兜底：映射未命中 = 不上报（错码值进政府系统且事件单难撤回）</pre>
+</div>
+
+<h2>3 · 推送域全景：现在是「两条链路 + 三道闸」</h2>
+<h3>3.1 两条链路（这是上午没区分开的关键）</h3>
+<table>
+  <tr><th style="width:96px">链路</th><th>触发源</th><th>路径</th><th>末端</th><th>现状</th></tr>
+  <tr>
+    <td><b>A · 秸秆</b></td><td><code>straw-engine</code>（模型检测）</td>
+    <td><code>/api/straw-alert</code> → <code>strawWorkflow()</code> → 坐标反查镇街 → <b>责任映射</b> → 复检闸门 → 渲染卡片 → <code>sendWechatPush</code></td>
+    <td><b>企业微信群 / 微信桥</b>（<code>area_responsibility.webhook</code>）</td>
+    <td><span class="badge bad">无数据</span> 引擎空管线（无模型）</td>
+  </tr>
+  <tr>
+    <td><b>B · IoT 视频</b></td><td><code>IoTCloud</code>（172.16.8.11）</td>
+    <td><code>iot-fetcher.js</code> → <code>warnings</code>（<code>iot-video-analysis</code>）→ <b>研判闸门 <code>judgeWarning</code></b> → <code>onWarningAdmittedForPush</code> → 推送规则 / 送达规则</td>
+    <td><b>智治推送（城运平台）</b> + <code>cyzx.js</code> 三级城运贯通</td>
+    <td><span class="badge ok">在真跑</span> 近 7 天 admitted 730 / blocked 44</td>
+  </tr>
+</table>
+<div class="callout warnc">
+  <b>最容易被误读的一点</b>：链路 B 的告警<b>不写 <code>wechatPush</code> 字段</b>（那是链路 A 的产物）。
+  所以"774 条没有 <code>wechatPush</code>"是<b>设计如此</b>，不代表推送坏了——<b>我上午的解读需要更正</b>。
+  两条链路唯一的交汇点是 <code>warnings</code> 表。
+</div>
+<h3>3.2 三道闸与「口径统一台」要解决的问题</h3>
+<table>
+  <tr><th style="width:52px">#</th><th style="width:210px">闸</th><th>作用</th><th style="width:90px">现状</th></tr>
+  <tr><td>①</td><td><code>push_rules</code>（研判规则）</td><td>进不进<b>驾驶舱前台</b>（逐通道；窗口/阈值/min_confidence）</td><td class="num">12 行</td></tr>
+  <tr><td>②</td><td><code>smart_push_rules</code>（送达规则）</td><td>发不发<b>城运平台</b>（类型级；窗口/触发次数）</td><td class="num">1 行</td></tr>
+  <tr><td>③</td><td><code>alert_filter_rules</code>（展示过滤）</td><td>列表<b>显不显示</b>（类型级；min_confidence）</td><td class="num">2 行</td></tr>
+  <tr class="hl"><td>★</td><td><code>push-caliber.js</code>（<b>本次新增</b>）</td><td>三处口径<b>互不一致</b> ⇒ 建统一口径表作唯一真源，<b>显式下发</b>到 ①②③（dry-run 预览 → 确认 → 批量 UPDATE，<b>下发前整行快照可回滚</b>）</td><td><code>push_caliber</code> 0 行<br><code>apply_log</code> <b>1 条</b></td></tr>
+</table>
+
+<h2>4 · ⚠️ 对上午那份报告的更正</h2>
+<table>
+  <tr><th style="width:150px">项</th><th>上午的说法</th><th>更正后</th></tr>
+  <tr>
+    <td>774 条告警无 <code>wechatPush</code></td>
+    <td class="hl">解读为「推送<b>静默失败</b>正在持续发生」</td>
+    <td><b>不准确。</b>这 774 条是 <code>iot-video-analysis</code>（IoTCloud 视频分析，链路 B），
+        <b>根本不经过 <code>strawWorkflow</code></b> ⇒ 没有该字段是设计如此。</td>
+  </tr>
+  <tr>
+    <td>推送状态实测</td>
+    <td>（同上一行）</td>
+    <td>近 7 天 774 条：<b>773 条无 <code>wechatPush</code> 字段</b> + <b>1 条"推送成功"</b>——
+        而那 1 条是 <code>streamId="e2e-test-stream"</code> 的 <b>E2E 测试数据</b>，不是真实告警。</td>
+  </tr>
+  <tr>
+    <td>责任映射 0 行</td>
+    <td>会让秸秆告警推不出去</td>
+    <td><b>结论不变、成立</b>。补充证据：<code>straw_detections</code> <b>0 行</b>、
+        <code>data_json</code> 含「秸秆」的告警<b>仅 1 条</b>（就是那条测试）⇒ <b>秸秆链路目前完全没有真实数据</b>，
+        所以"0 行"暂时没造成可见损失，但<b>模型一上线就会立刻踩中</b>。</td>
+  </tr>
+</table>
+
+<h2>5 · 各模块落地状态（本次实测）</h2>
+<table>
+  <tr><th style="width:190px">模块</th><th style="width:250px">关键表 / 配置</th><th style="width:130px">实测</th><th>判定</th></tr>
+  <tr><td><b>城运贯通</b> <code>cyzx.js</code></td><td><code>cyzx_eventtype_map</code> <b>28 行</b>；<code>cyzx_area_code</code>/<code>org_code</code>/<code>report_log</code>/<code>task_order</code>/<code>disposal</code> 等 8 张 <b>0 行</b></td><td><span class="badge warn">半就绪</span></td>
+      <td><b>事件类型映射已配好，但从未真实上报过一条事件</b>（<code>report_log</code> 为 0）</td></tr>
+  <tr><td><b>推送口径统一台</b> <code>push-caliber.js</code></td><td><code>push_caliber</code> 0 行；<code>push_caliber_apply_log</code> <b>1 条</b>（<b>2026-10-12 02:59 by admin</b>，<code>before_json</code> 是「堆头未覆盖」各通道的 pushRules 快照）</td><td><span class="badge warn">已用过一次</span></td>
+      <td>下发机制<b>已经真实跑过一次</b>且留了快照（可回滚）；但统一口径表本身为空 ⇒ 目前是"全继承"状态</td></tr>
+  <tr><td><b>堆头豁免</b> <code>stack-exempt.js</code></td><td><code>stack_exempt_points</code> <b>0 行</b>；<code>kv_config.stack_exempt_source = "push_rule"</code></td><td><span class="badge warn">待录名单</span></td>
+      <td>模块与来源推导已就绪，<b>豁免名单还没录</b>（作业区点位属性需人工确认）</td></tr>
+  <tr><td><b>智治推送自检</b> <code>smartpush-health.js</code></td><td><code>smart_push_events</code> 1 行 / <code>history</code> 0 行 / <code>plans</code> 1 / <code>rules</code> 1 / <code>subscriptions</code> <b>未创建</b></td><td><span class="badge bad">基本没跑</span></td>
+      <td>自检工具已就位（只读 + 干跑，不会成为新故障源）；但被检对象本身配置极少</td></tr>
+  <tr><td><b>预采集配置</b> <code>precap-config.js</code></td><td>代理 11 机：7002（不落本地表）</td><td><span class="badge info">代理型</span></td>
+      <td>真源在 11 机 <code>/soft/data/plate-precap/precap_config.json</code>，本模块只做"读→校验→转发→记账"</td></tr>
+  <tr class="hl"><td><b>责任映射</b>（上午那份）</td><td><code>area_responsibility</code> <b>0 行</b></td><td><span class="badge bad">空</span></td>
+      <td>链路 A 末端；<b>模型上线前必须补齐 52 行</b></td></tr>
+  <tr><td><b>研判闸门</b>（既有）</td><td>近 7 天 <code>judge_status</code>：<b>admitted 730 / blocked 44</b></td><td><span class="badge ok">在真跑</span></td><td>链路 B 的核心闸门工作正常</td></tr>
+  <tr><td><b>告警总量</b></td><td><code>warnings</code> <b>1841 行</b>（近 7 天 <b>+774</b>，≈110/天，全部 <code>iot-video-analysis</code>）</td><td><span class="badge ok">持续产生</span></td><td>库共 <b>51 张表</b>；<code>straw_detections</code> 0 / <code>straw_samples</code> 0</td></tr>
+</table>
+
+<h2>6 · 建议动作</h2>
+<table>
+  <tr><th style="width:60px">优先级</th><th>动作</th><th>为什么</th></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>把生产的 5 个新模块 + 13 个改动文件回落本机仓库并提交</b><br>
+      <code>cyzx.js · push-caliber.js · stack-exempt.js · smartpush-health.js · precap-config.js</code> ＋
+      <code>index.js · store-db.js · iot-fetcher.js · monitor.js</code> 等</td>
+      <td>这是<b>资产安全</b>，不是代码整洁。9/29 已因同类问题付过一次代价（<code>main.py</code> 750 行重写）。
+          且这些文件里含<b>大量业务口径</b>（双口径、出站禁兜底、豁免规则），丢了极难复原</td></tr>
+  <tr><td><span class="badge bad">P0</span></td><td><b>前端 <code>src/</code> 也要回落</b>（生产已构建到 10-12，本机停在 09-26）</td>
+      <td>否则<b>下次从本机构建就会把这些新页面覆盖掉</b>——比后端更危险（一次构建即回退）</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>建立<b>定期 × 自动</b>的生产↔本机对账（我现在是手工 <code>find -mmin</code> + md5 对账）</td>
+      <td>这次是"顺手发现"的，下次未必。可做成一条定时任务：每周拉一次生产文件清单 + md5，差异自动报出来</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td>把 §2 的<b>共同范式写成"新模块模板"</b>（放 repo，含 TDZ 位置说明、dry-run/快照骨架）</td>
+      <td>你已经在 5 个模块里重复了同一套规范，固化后新模块不必再从零回忆</td></tr>
+  <tr><td><span class="badge warn">P1</span></td><td><b>责任映射 52 行</b>（链路 A 恢复）＋ 确认推送目标群与企微 key</td>
+      <td>秸秆模型一上线就会踩中；现在补成本最低</td></tr>
+  <tr><td><span class="badge info">P2</span></td><td>城运<b>真上报联调</b>（映射 28 行已就绪，<code>report_log</code> 仍为 0）</td>
+      <td>模块骨架完成但未经真实链路验证，越早打通越好</td></tr>
+  <tr><td><span class="badge info">P2</span></td><td>堆头豁免名单录入（<code>stack_exempt_points</code> 0 行）</td>
+      <td>需要人工确认"哪些点位属江边作业区"</td></tr>
+</table>
+
+<footer>
+  对账方法：本机 <code>git status/diff</code>（工作区 <b>0 改动</b>）＋ <code>find -mmin</code> ＋ 文件名/大小/mtime 双向 <code>comm</code> 差异；
+  生产侧直读 <code>/data/HBJSC/backend</code> 文件清单、<code>jsc.db</code>（51 表）、systemd 状态。<br>
+  关联：<code>docs/记忆梳理_责任映射与微信群推送_20261012.html</code>（上午那份，本文更正其 §0/§4 的一处结论）
+  ｜ <code>docs/驾驶舱实时推送与预警通道梳理_20260914.html</code> ｜ <code>docs/城运中心对接联调手册.md</code> ｜ <code>docs/AI分析推送规则_V2_实施方案.md</code>
+</footer>
+
+</div>
+</body>
+</html>
