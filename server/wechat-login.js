@@ -133,6 +133,7 @@ function registerWechatLoginRoutes(app, { store, log, adminOnly, sendWechatPush 
           groupsCount: (d.groups_count === undefined ? null : d.groups_count),
           loginWindow: !!d.login_window,
           mainWindow: !!d.main_window,
+          updating: !!d.updating,   // 微信正在自动更新 ⇒ 前端应提示等待，不要催扫码
           windows: Array.isArray(d.windows) ? d.windows : [],
           error: d.error || '',
         }

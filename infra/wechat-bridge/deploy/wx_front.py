@@ -32,6 +32,14 @@ SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW = 0x0002, 0x0001, 0x0040
 
 KEY = ("weixin", "wechat", "\u5fae\u4fe1")   # weixin / wechat / 微信
 
+# 窗口尺寸判据（2026-10-13 实测，与桥 wechat_bot_server.py 保持一致）
+#   已登录  ：只有主窗 896x648
+#   被踢下线：登录窗 296x388 ＋「提示」弹窗 330x314（弹窗标题居然是 "Weixin"）
+#   ⇒ 不能按标题挑；要按尺寸挑。**取码时要的是"小窗"**（登录窗/弹窗），
+#     所以排序把小窗排在前面；已登录时没有小窗，自然落到主窗。
+LOGIN_UI_MAX = (420, 460)
+MAIN_UI_MIN = (700, 500)
+
 lines = []
 
 
@@ -149,8 +157,21 @@ def main():
         if is_wx:
             suspects.append((hwnd, cls, txt, rect, vis))
 
-    # 优先选：可见 + 类名含 Qt + 标题非空（= 微信主窗口/登录窗口）
-    suspects.sort(key=lambda t: (not t[4], "qt" not in t[1].lower(), not t[2].strip()))
+    # 取码要的是「小窗」（登录窗/弹窗）：登录窗 296x388、被踢弹窗 330x314
+    # 排序优先级：可见 > 尺寸区间像"小窗" > 标题非空 > 面积大
+    def _rank(t):
+        _hwnd, cls, txt, rect, vis = t
+        w, h = rect[2] - rect[0], rect[3] - rect[1]
+        is_small = (w <= LOGIN_UI_MAX[0] and h <= LOGIN_UI_MAX[1])
+        is_main = (w >= MAIN_UI_MIN[0] and h >= MAIN_UI_MIN[1])
+        return (not vis,        # 可见优先
+                not is_small,   # 小窗优先（登录窗/弹窗）
+                not is_main,    # 其次才是主窗
+                "qt" not in cls.lower(),
+                not txt.strip(),
+                -(w * h))
+
+    suspects.sort(key=_rank)
 
     log("--- 疑似微信窗口（按优先级排序）---")
     for hwnd, cls, txt, rect, vis in suspects:
@@ -177,8 +198,15 @@ def main():
     else:
         r, vis = (0, 0, 0, 0), 0
 
-    log("VERDICT fronted=%d found=%d hwnd=%d fg=%d vis=%d rect=(%d,%d,%d,%d)"
-        % (1 if ok else 0, 1 if target else 0, target, fg, vis, r[0], r[1], r[2], r[3]))
+    # 全量窗口的尺寸分类（供 Linux 侧交叉印证登录态；判据以桥 /login-state 为准）
+    _vis = [t for t in suspects if t[4]]
+    login_ui = any((t[3][2] - t[3][0]) <= LOGIN_UI_MAX[0] and (t[3][3] - t[3][1]) <= LOGIN_UI_MAX[1] for t in _vis)
+    main_ui = any((t[3][2] - t[3][0]) >= MAIN_UI_MIN[0] and (t[3][3] - t[3][1]) >= MAIN_UI_MIN[1] for t in _vis)
+    log("尺寸分类：login_ui=%d main_ui=%d（小窗=登录窗/弹窗；主窗>=700x500）" % (login_ui, main_ui))
+
+    log("VERDICT fronted=%d found=%d hwnd=%d fg=%d vis=%d rect=(%d,%d,%d,%d) login_ui=%d main_ui=%d"
+        % (1 if ok else 0, 1 if target else 0, target, fg, vis, r[0], r[1], r[2], r[3],
+           int(login_ui), int(main_ui)))
 
     log("=== wx_front 结束 ===")
     flush()

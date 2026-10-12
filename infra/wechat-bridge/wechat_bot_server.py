@@ -968,15 +968,57 @@ def reset_stuck():
 #      ⇒ 从未推送过时永远是 null；且 db.py 的 get_self_info() 永远返回 dict
 #      ⇒ `driver` 非空只等于"WeChatDB() 构造成功"，**不等于已登录**。
 # ══════════════════════════════════════════════════════════════════
-LOGIN_TTL_OK = float(os.environ.get('WXBRIDGE_LOGIN_TTL_OK', '30'))       # 已登录：缓存 30s
-LOGIN_TTL_FAIL = float(os.environ.get('WXBRIDGE_LOGIN_TTL_FAIL', '15'))  # 未登录：缓存 15s
+LOGIN_TTL_OK = float(os.environ.get('WXBRIDGE_LOGIN_TTL_OK', '10'))       # 已登录：缓存 10s
+LOGIN_TTL_FAIL = float(os.environ.get('WXBRIDGE_LOGIN_TTL_FAIL', '6'))   # 未登录：缓存 6s（UI 判据很便宜）
 SESSIONS_TTL = float(os.environ.get('WXBRIDGE_SESSIONS_TTL', '60'))      # 会话清单：缓存 60s
 PROBE_WAIT_S = float(os.environ.get('WXBRIDGE_PROBE_WAIT', '8'))          # 抢探测锁的最长等待
-LOGIN_WIN_SIZE = (296, 388)   # 实测（2026-10-12）：微信 4.1.13.12 登录窗几何
+COUNTS_TTL = float(os.environ.get('WXBRIDGE_COUNTS_TTL', '300'))          # 群数（要遍历成员表，很重）
+
+# ── 窗口尺寸判据（2026-10-13 实测，**改动前务必看这段**）────────────────────
+#   已登录      ：只有一个主窗口，实测 **896x648**
+#   被踢下线    ：登录窗 **296x388**（标题「微信」，底部有「切换账号 | 仅传输文件」）
+#                 ＋「提示」弹窗 **330x314**（标题是 "Weixin" —— 弹窗复用了主窗口的标题！）
+#   ⇒ **不能用标题**（会串），也**不能只看"某一个大窗"**（弹窗只有 330x314）。
+#     唯一稳的是**尺寸区间**：小窗（登录窗/弹窗）与真主窗差一个量级。
+LOGIN_UI_MAX = (420, 460)      # 宽 <=420 且 高 <=460 ⇒ 「登录窗 / 弹窗」这类小窗
+MAIN_UI_MIN = (700, 500)       # 宽 >=700 且 高 >=500 ⇒ 真正的微信主窗口
+LOGIN_WIN_SIZE = (296, 388)    # 登录窗精确尺寸（保留 is_login_size 兼容字段）
 
 _LOGIN_CACHE = {'ts': 0.0, 'data': None}
 _SESSIONS_CACHE = {'ts': 0.0, 'data': None}
+_COUNTS_CACHE = {'ts': 0.0, 'groups': None}
 _PROBE_LOCK = threading.Lock()   # 串行化探测，避免并发轮询同时压 DB/驱动
+
+
+def _is_login_ui(size):
+    return size[0] <= LOGIN_UI_MAX[0] and size[1] <= LOGIN_UI_MAX[1]
+
+
+def _is_main_ui(size):
+    return size[0] >= MAIN_UI_MIN[0] and size[1] >= MAIN_UI_MIN[1]
+
+
+def reset_driver():
+    """
+    清掉驱动 / DB 缓存，让下次 load_driver() 从零重来。
+
+    【为什么必须有】原来的判断只依赖"能不能读到 DB" —— 但**这不是登录态**：
+      * `DRIVER`/`DRIVER_NAME` 是模块级**永久**缓存（`if DRIVER is not None: return`）
+      * `WeChatDB` 已解出的密钥还会缓存到 workdir/keys.json
+      ⇒ 微信在别处登录被顶下线后，磁盘 DB 仍能解密、session/chat_room 仍有 100/106 行，
+        于是"驱动证据"**永远为真**，状态页永远显示已登录（2026-10-13 实际故障）。
+    """
+    global DRIVER, DRIVER_NAME
+    if DRIVER is None and DRIVER_NAME is None:
+        return False
+    with WX_LOCK:
+        DRIVER = None
+        DRIVER_NAME = None
+    STATE['driver'] = None
+    STATE['sessions'] = None
+    STATE['wechat_version'] = None
+    LOG.info('检测到已退出登录 → 已清除驱动/DB 缓存（下次会重新初始化）')
+    return True
 
 
 def _wechat_windows():
@@ -1004,12 +1046,15 @@ def _wechat_windows():
             if (('qt' in cls.lower()) and txt.strip()) or ('微信' in txt) \
                     or ('weixin' in low) or ('wechat' in low):
                 r = win32gui.GetWindowRect(h)
+                size = (r[2] - r[0], r[3] - r[1])
                 out.append({
                     'hwnd': int(h), 'cls': cls, 'title': txt,
                     'visible': bool(win32gui.IsWindowVisible(h)),
                     'rect': [r[0], r[1], r[2], r[3]],
-                    'size': [r[2] - r[0], r[3] - r[1]],
-                    'is_login_size': (r[2] - r[0], r[3] - r[1]) == LOGIN_WIN_SIZE,
+                    'size': [size[0], size[1]],
+                    'is_login_ui': _is_login_ui(size),   # 登录窗 / 弹窗这类小窗
+                    'is_main_ui': _is_main_ui(size),     # 真正的微信主窗口
+                    'is_login_size': size == LOGIN_WIN_SIZE,   # 兼容旧字段
                 })
         except Exception:
             pass
@@ -1024,11 +1069,20 @@ def _wechat_windows():
 
 def _probe_login_state_uncached():
     """主动探测一次登录态。**任何异常都收敛成 logged_in=false + error 串，绝不抛出去**
-    （这是个被前端高频轮询的端点，一次 500 会让页面整块红掉）。"""
+    （这是个被前端高频轮询的端点，一次 500 会让页面整块红掉）。
+
+    判定优先级（2026-10-13 修正，原因见 reset_driver 的注释）：
+      ① **窗口 UI 是权威**：只要能看到任何微信窗口，就以窗口尺寸判：
+           有「小窗」(登录窗/弹窗) ⇒ **未登录**（硬否决，不看 DB 证据）
+           只有「主窗」          ⇒ 已登录
+         —— 因为"能不能读 DB"在掉线后依然为真，**不能**当登录判据。
+      ② 完全看不到微信窗口时，才退回驱动/DB 证据（并标注 via=driver）。
+    """
     d = {
         'logged_in': False, 'via': None, 'driver': None, 'self': None,
         'wechat_version': None, 'sessions_count': None, 'groups_count': None,
         'windows': [], 'login_window': False, 'main_window': False,
+        'login_ui': False, 'main_ui': False, 'ui_known': False, 'updating': False,
         'error': '', 'probed_at': time.time(),
     }
     try:
@@ -1036,15 +1090,48 @@ def _probe_login_state_uncached():
     except Exception:
         pass
 
-    # ① 窗口几何（快，无需驱动）
+    # ① 窗口尺寸判据（快，无需驱动）
     try:
         d['windows'] = _wechat_windows()
-        d['login_window'] = any(w['is_login_size'] and w['visible'] for w in d['windows'])
-        d['main_window'] = any((not w['is_login_size']) and w['visible'] for w in d['windows'])
+        vis = [w for w in d['windows'] if w['visible']]
+        d['ui_known'] = bool(vis)
+        d['login_ui'] = any(w['is_login_ui'] for w in vis)
+        d['main_ui'] = any(w['is_main_ui'] for w in vis)
+        d['login_window'] = d['login_ui']       # 兼容旧字段名
+        d['main_window'] = d['main_ui']
     except Exception:
         pass
 
-    # ② 驱动 + 自信息 + 会话/群数（重活；成功后 load_driver 内部有全局缓存，后续廉价）
+    # 「微信正在自动更新」窗口（实测 548x380，标题 'weixin update'）：
+    #   它落在尺寸判据的死区（既不是小窗也不是主窗）。此时进程可能已被替换掉，
+    #   重启客户端会打断更新甚至有损坏风险 ⇒ 明确标记 updating，让守护**别动手**。
+    try:
+        d['updating'] = any(('update' in (w.get('title') or '').lower()) for w in (d.get('windows') or []) if w.get('visible'))
+    except Exception:
+        d['updating'] = False
+    # ⚠️ 只有在「**没有**可用登录窗」时，更新窗口才算"挡着不让动手"。
+    #    实测升级完成后 update 窗会残留一小会儿，而此时登录窗已经出来了 ——
+    #    那种情况必须照常取码，否则会一直卡在"更新中"。
+    if d['updating'] and not d['login_ui']:
+        d['logged_in'] = False
+        d['via'] = 'ui'
+        d['error'] = '微信正在自动更新（weixin update 窗口，且尚无登录窗），请等待完成后再扫码'
+        reset_driver()
+        return d
+
+    if d['ui_known'] and not d['main_ui']:
+        # 看得到微信窗口，但**没有主窗** ⇒ 未登录。
+        # 覆盖三种实测状态：登录窗 296x388 / 「已在别处登录」提示弹窗 330x314 / 更新窗 548x380。
+        # 不做重活：驱动探测此时必然走一遍失败的 import 链，又慢又没意义。
+        d['logged_in'] = False
+        d['via'] = 'ui'
+        d['error'] = ('屏幕上只有登录窗/弹窗（%s），没有微信主窗 ⇒ 未登录'
+                      % '、'.join('%dx%d' % (w['size'][0], w['size'][1])
+                                  for w in d['windows'] if w['visible']))[:200]
+        reset_driver()
+        return d
+
+    # ② 驱动 / DB 证据（重活；成功后 load_driver 内部有全局缓存，后续廉价）
     try:
         drv, name = load_driver()
         d['driver'] = name
@@ -1063,24 +1150,26 @@ def _probe_login_state_uncached():
                 d['sessions_count'] = len(db.get_sessions(limit=100) or [])
             except Exception as e:
                 LOG.debug('login-state: get_sessions 失败: %s', e)
-            try:
-                d['groups_count'] = len(db.get_groups() or [])
-            except Exception as e:
-                LOG.debug('login-state: get_groups 失败: %s', e)
-            # ⚠️ 判据要**有正面证据**：不能只看 self.wxid ——
-            #    它由账号目录名推导，**磁盘上残留的账号目录即使已退出登录也还在**。
-            #    真正说明"登录着"的是：能解出会话/群数据，或能取到昵称。
-            if (d['sessions_count'] or d['groups_count']
-                    or (d['self'] or {}).get('nick_name')):
+            # 群数要遍历 chat_room + chatroom_member + contact，很重 ⇒ 单独长缓存
+            if time.time() - _COUNTS_CACHE['ts'] > COUNTS_TTL:
+                try:
+                    _COUNTS_CACHE['groups'] = len(db.get_groups() or [])
+                except Exception as e:
+                    LOG.debug('login-state: get_groups 失败: %s', e)
+                _COUNTS_CACHE['ts'] = time.time()
+            d['groups_count'] = _COUNTS_CACHE['groups']
+            # ⚠️ 判据要**有正面证据**：不能只看 self.wxid —— 它由账号目录名推导，
+            #    磁盘上残留的账号目录即使已退出登录也还在。
+            if d['sessions_count'] or (d['self'] or {}).get('nick_name'):
                 d['logged_in'] = True
                 d['via'] = 'driver'
     except Exception as e:
         d['error'] = '%s: %s' % (type(e).__name__, str(e)[:200])
 
-    # ③ 几何兜底：出现"非登录尺寸"的可见微信窗口 ⇒ 判定已登录
-    if not d['logged_in'] and d['main_window']:
+    # ③ UI 已确认（ui_known 且 main_ui）⇒ 已登录；即使驱动暂时读不到也算（窗口是真事实）
+    if d['ui_known'] and d['main_ui']:
         d['logged_in'] = True
-        d['via'] = 'window'
+        d['via'] = 'ui' if not d.get('via') else d['via']
     return d
 
 

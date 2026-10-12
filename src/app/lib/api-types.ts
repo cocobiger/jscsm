@@ -339,8 +339,9 @@ export interface WechatStatusResp {
   wechatVersion: string | null
   sessionsCount: number | null
   groupsCount: number | null
-  loginWindow: boolean              // 屏幕上存在登录窗（未登录）
-  mainWindow: boolean               // 屏幕上存在主界面窗（已登录）
+  loginWindow: boolean              // 屏幕上只有登录窗/弹窗（未登录）
+  mainWindow: boolean               // 屏幕上存在真主窗（已登录的**唯一** UI 判据）
+  updating?: boolean                // 微信正在自动更新（weixin update 窗口）⇒ 提示等待，别催扫码
   bridge: WechatBridgeState
   qr: WechatQrState
   resetting: boolean                // 正在重置二维码（有人点了刷新，守护还在跑）

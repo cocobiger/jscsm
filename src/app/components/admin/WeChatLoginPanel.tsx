@@ -73,8 +73,9 @@ export function WeChatLoginPanel({ onStatusChange }: { onStatusChange?: (s: Wech
     const tick = async () => {
       await loadStatus()
       if (!alive) return
-      const loggedIn = stRef.current?.loggedIn
-      timer = setTimeout(tick, loggedIn ? 30000 : 5000)
+      // 2026-10-13 用户反馈"被别处登录后不实时"：原先已登录时 30s 才轮询一次，太慢。
+      // 后端对桥状态有 3s 缓存、桥自己有 6~10s 缓存，5s 轮询不会压垮链路。
+      timer = setTimeout(tick, 5000)
     }
     tick()
     return () => { alive = false; clearTimeout(timer) }
@@ -146,8 +147,11 @@ export function WeChatLoginPanel({ onStatusChange }: { onStatusChange?: (s: Wech
   const stale = ageSec !== null && st != null && ageSec > st.qrStaleSec
   const pending = refreshing || !!st?.resetting
 
-  const dot = bridgeDown ? RED : loggedIn ? GREEN : AMBER
-  const headline = bridgeDown ? '桥不可达' : loggedIn ? '已登录' : '未登录 · 请扫码'
+  const updating = !!st?.updating
+  const dot = bridgeDown ? RED : updating ? AMBER : loggedIn ? GREEN : AMBER
+  const headline = bridgeDown ? '桥不可达'
+    : updating ? '微信正在自动更新 · 请稍候'
+    : loggedIn ? '已登录' : '未登录 · 请扫码'
 
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>

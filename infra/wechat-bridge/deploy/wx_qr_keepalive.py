@@ -117,13 +117,25 @@ DISPLAY = os.environ.get("DISPLAY", ":99")
 
 # 微信登录窗口的几何（实测稳定）：整窗 296x388，其中二维码区在窗口内偏移 (80,85) 尺寸 135x135
 LOGIN_WIN = (296, 388)
+# 窗口尺寸判据（2026-10-13 实测）：已登录=只有主窗 896x648；
+# 被顶下线=登录窗 296x388 ＋「提示」弹窗 330x314（弹窗标题还是 "Weixin"，不能按标题挑）
+LOGIN_UI_MAX = (420, 460)
 QR_REL = (80, 85, 135, 135)
-# 二维码区 PNG 体积下限：真码实测 ~3.5–6.9KB；截到浏览器/空白时 0.3–1.2KB
+# 二维码区 PNG 体积下限：真码实测 ~3.5–8.9KB；截到浏览器/空白时 0.3–1.2KB
 QR_MIN_BYTES = 2500
+# ⚠️ 光看体积**不够**：微信升级后登录窗会显示「上次登录账号卡片（头像+昵称+登录按钮）」，
+#    头像让体积达 3.3KB 骗过下限。实测该区域**暗像素占比只有 0.036**，而真二维码是 0.473
+#    ⇒ 必须再加一条按像素的判据。（2026-10-13 实际踩到）
+QR_DARK_MIN = 0.30
+QR_DARK_MAX = 0.62
 
 FRONT_EVERY = 60        # 未登录时：每 60s 前置 + 抓一张新的 latest.png（= 码龄上限）
 LOOP = 30               # 主循环间隔
-LOGGEDIN_RECHECK = 300  # 已登录后：每 300s 做一次低频心跳确认（万一被登出要能恢复保活）
+LOGGEDIN_RECHECK = 60   # 已登录后：每 60s 问一次桥（/login-state 未登录时只扫窗口、已登录时驱动有缓存，很便宜）
+                       #   ⚠️ 早先是 300s 且每次都抢微信前台；2026-10-13 实测"被别处登录顶下线"
+                       #      后 5 分钟才发现，太慢 —— 改为只问桥、不抢前台。
+NO_QR_ROUNDS = 3        # 连续 3 轮「看得到登录窗却取不到二维码」⇒ 重启客户端
+                        #   （典型场景：被顶下线后「提示」弹窗盖住了二维码，扫码界面出不来）
 FREEZE_SEC = 360        # 画面连续静止超过 6 分钟 ⇒ 认为自刷新卡死 ⇒ 重启客户端
 NO_WINDOW_ROUNDS = 5    # 连续 5 轮（≈5 分钟）找不到微信窗口 ⇒ 视为客户端挂了 ⇒ 重启拉起
 RESTART_COOLDOWN = 300  # 两次重启最小间隔
@@ -210,9 +222,10 @@ def _ls_summary(ls):
         return "无"
     if ls.get("error") and not ls.get("logged_in"):
         return "logged_in=false err=%s" % str(ls["error"])[:70]
-    return ("logged_in=%s via=%s driver=%s ver=%s sessions=%s groups=%s"
+    return ("logged_in=%s via=%s driver=%s ver=%s sessions=%s groups=%s%s"
             % (ls.get("logged_in"), ls.get("via"), ls.get("driver"),
-               ls.get("wechat_version"), ls.get("sessions_count"), ls.get("groups_count")))
+               ls.get("wechat_version"), ls.get("sessions_count"), ls.get("groups_count"),
+               " UPDATING" if ls.get("updating") else ""))
 
 
 def read_verdict():
@@ -261,6 +274,33 @@ def is_login_window(rect):
     return (rect[2], rect[3]) == LOGIN_WIN
 
 
+def is_small_ui(rect):
+    """「登录窗 / 弹窗」这类小窗 —— 宽高都小于阈值即认为是。主窗实测 896x648，差一个量级。
+    为什么不用精确 296x388：被顶下线时前面还盖着一个 330x314 的「提示」弹窗。"""
+    return rect[2] <= LOGIN_UI_MAX[0] and rect[3] <= LOGIN_UI_MAX[1]
+
+
+def _qr_dark_ratio(png_path):
+    """解码 PNG 算暗像素占比；没装 PIL 就返回 None（退回只看体积）。
+    真二维码 ≈0.47（黑白格子各半）；账号卡片/提示弹窗 ≈0.03~0.1。"""
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    try:
+        im = Image.open(png_path).convert("L")
+        w, h = im.size
+        px = im.load()
+        dark = 0
+        for y in range(h):
+            for x in range(w):
+                if px[x, y] < 110:
+                    dark += 1
+        return dark / float(w * h)
+    except Exception:
+        return None
+
+
 def scrot(region, out_path):
     env = dict(os.environ, DISPLAY=DISPLAY)
     try:
@@ -290,7 +330,16 @@ def grab_qr(rect):
         log("  二维码区体积仅 %dB < %dB ⇒ 内容不像二维码（截到别的窗口？），丢弃"
             % (len(data), QR_MIN_BYTES))
         return None
+    # 体积之外再看暗像素占比：防"账号卡片头像"之类的高熵图案骗过体积下限
+    ratio = _qr_dark_ratio(QRPNG)
+    if ratio is not None and not (QR_DARK_MIN <= ratio <= QR_DARK_MAX):
+        log("  二维码区暗像素占比 %.3f 不在 %.2f~%.2f ⇒ 不是二维码"
+            "（多半是账号卡片/提示弹窗），丢弃" % (ratio, QR_DARK_MIN, QR_DARK_MAX))
+        scrot(rect, WINPNG)     # 留证据便于人工排查
+        return None
     scrot(rect, WINPNG)     # 顺带留整窗图便于人工排查
+    if ratio is not None:
+        log("  二维码判据通过：%dB 暗占比=%.3f" % (len(data), ratio))
     return hashlib.md5(data).hexdigest(), len(data)
 
 
@@ -325,6 +374,7 @@ def load_state():
         "logged_in_hint": False,
         "last_confirm": 0.0,
         "no_window_rounds": 0,
+        "no_qr_rounds": 0,
         "last_login_state": None,   # 桥 /login-state 的最近一次结果（交叉印证用）
     }
     if os.path.exists(STATE):
@@ -360,6 +410,7 @@ def do_restart(st, now, reason):
     st["freeze_from"] = 0.0
     st["prev_md5"] = ""
     st["no_window_rounds"] = 0
+    st["no_qr_rounds"] = 0
 
 
 def main():
@@ -390,12 +441,10 @@ def main():
             # 必须放在"已登录即静默"分支**之前**，否则用户点了刷新页面却毫无反应。
             if consume_reset_request():
                 log("收到手动刷新请求（reset.request）")
-                st["logged_in_hint"] = False
-                st["last_confirm"] = 0.0
-                v = probe_window(attempts=1, poll_each=6)
-                if v and v["found"] and not is_login_window(v["rect"]):
-                    log("  当前窗口 %dx%d 非登录窗 ⇒ 判定已登录，忽略本次刷新请求"
-                        % (v["rect"][2], v["rect"][3]))
+                ls0 = login_state()
+                st["last_login_state"] = ls0
+                if ls0.get("logged_in") is True:
+                    log("  桥报告已登录 ⇒ 忽略本次刷新请求｜ 桥 %s" % _ls_summary(ls0))
                     st["logged_in_hint"] = True
                     st["last_confirm"] = time.time()
                     save_state(st)
@@ -410,45 +459,79 @@ def main():
                     log("  距上次重置不足 60s，跳过（避免连续杀掉微信）")
                 save_state(st)
 
-            # ── 已登录：低频心跳确认，避免每 60s 抢一次前台 ──
+            # ── 已登录：低频心跳。**只问桥，不再周期性抢微信前台** ──
             if st.get("logged_in_hint"):
                 if now - st.get("last_confirm", 0) < LOGGEDIN_RECHECK:
                     time.sleep(LOOP)
                     continue
                 st["last_confirm"] = now
-                v = probe_window(attempts=1, poll_each=6)
                 ls = login_state()
                 st["last_login_state"] = ls
-                if v and v["found"] and not is_login_window(v["rect"]):
-                    log("心跳：仍是已登录态（窗口 %dx%d，非登录窗）｜ 桥 %s"
-                        % (v["rect"][2], v["rect"][3], _ls_summary(ls)))
+                if ls.get("logged_in") is True:
+                    log("心跳：仍是已登录态 ｜ 桥 %s" % _ls_summary(ls))
                     save_state(st)
                     time.sleep(LOOP)
                     continue
-                log("心跳：已看不到登录后的主窗口 ⇒ 可能被登出/关闭，恢复保活｜ 桥 %s"
-                    % _ls_summary(ls))
+                log("心跳：桥报告【已退出登录】⇒ 恢复保活（开始取二维码）｜ 桥 %s" % _ls_summary(ls))
                 st["logged_in_hint"] = False
+                st["last_front"] = 0.0          # 让下面立刻取码
                 save_state(st)
                 # 继续往下走本轮的保活流程
+
+            # ── 登录态判定：主判据 = 桥 /login-state ──────────────────────────
+            #   桥内部已把"能不能读 DB"降级为辅助证据（掉线后 DB 仍可解密、永远为真），
+            #   以窗口尺寸为权威。这里再用**本机窗口尺寸**交叉确认一次，防桥误判，
+            #   桥不可用时也靠它兜底。两个信号都指向"已登录"才真的静默。
+            ls = login_state()
+            st["last_login_state"] = ls
+            bridge_decided = ls.get("logged_in") in (True, False)
+            bridge_in = ls.get("logged_in") is True
+
+            if bridge_in:
+                st["logged_in_hint"] = True
+                st["last_confirm"] = time.time()
+                st["no_window_rounds"] = 0
+                st["no_qr_rounds"] = 0
+                log("桥报告【已登录】⇒ 转入静默（每 %ds 心跳确认一次）｜ 桥 %s"
+                    % (LOGGEDIN_RECHECK, _ls_summary(ls)))
+                save_state(st)
+                time.sleep(LOOP)
+                continue
+
+            # 微信正在自动更新「且还没有可用的登录窗」⇒ 什么都不做：
+            # 重启客户端会打断升级、甚至有损坏风险。
+            # （升级完成后 update 窗会残留一会儿，但登录窗已出来 ⇒ 不能因此停摆）
+            if ls.get("updating") and not ls.get("login_ui"):
+                log("微信正在自动更新（weixin update 窗口）⇒ 本轮不取码、不重启，等更新完成")
+                save_state(st)
+                time.sleep(LOOP)
+                continue
 
             if now - st["last_front"] < FRONT_EVERY:
                 time.sleep(LOOP)
                 continue
             st["last_front"] = now
 
-            # ── 单轮：探测窗口 → 分流（已登录 / 未登录取码 / 找不到窗口） ──
+            # ── 单轮：取二维码（同时用窗口尺寸交叉确认）──
             deadline = now + GRAB_ROUND_MAX
             got = None
-            saw_other_window = False
             saw_window = False
+            v = None
             while time.time() < deadline:
                 v = probe_window(attempts=2, poll_each=8)
                 if not v or not v["found"]:
                     time.sleep(3)
                     continue
                 saw_window = True
-                if not is_login_window(v["rect"]):
-                    saw_other_window = True
+                if not is_small_ui(v["rect"]):
+                    # 取中的是主窗 ⇒ 实际已登录（多半是桥不可用或判定不一致）⇒ 静默，且**不重启**
+                    st["logged_in_hint"] = True
+                    st["last_confirm"] = time.time()
+                    st["no_window_rounds"] = 0
+                    st["no_qr_rounds"] = 0
+                    log("窗口 %dx%d 像主窗（桥判定不一致或不可用）⇒ 判定已登录，转入静默｜ 桥 %s"
+                        % (v["rect"][2], v["rect"][3], _ls_summary(ls)))
+                    save_state(st)
                     break
                 # 抢到前台才允许截图（否则会截到压在上面的浏览器）
                 if v["fronted"] and v["fg_ok"]:
@@ -457,33 +540,38 @@ def main():
                         break
                 time.sleep(4)
 
-            if saw_other_window:
-                ls = login_state()
-                st["last_login_state"] = ls
-                st["logged_in_hint"] = True
-                st["last_confirm"] = time.time()
-                st["no_window_rounds"] = 0
-                log("检测到非登录尺寸的微信窗口 ⇒ 判定【已登录】，转入静默（每 %ds 心跳确认一次）"
-                    "｜ 桥 %s" % (LOGGEDIN_RECHECK, _ls_summary(ls)))
-                save_state(st)
+            if st.get("logged_in_hint"):
                 time.sleep(LOOP)
                 continue
 
             if not got:
                 if not saw_window:
                     st["no_window_rounds"] = st.get("no_window_rounds", 0) + 1
+                    st["no_qr_rounds"] = 0
                     log("本轮看不到微信窗口（连续 %d/%d 轮）"
                         % (st["no_window_rounds"], NO_WINDOW_ROUNDS))
                     if st["no_window_rounds"] >= NO_WINDOW_ROUNDS and allow_restart(st, now):
                         do_restart(st, now, "微信窗口长时间不存在（客户端可能已退出）")
                 else:
                     st["no_window_rounds"] = 0
-                    log("本轮未取到有效二维码，下轮继续")
+                    # 看得到登录窗却取不到二维码 —— 典型是"已在别处登录"的提示弹窗盖住了二维码。
+                    # 重启客户端可回到干净的扫码界面。**只在桥也明确说未登录时才做**，
+                    # 否则可能把正常登录着的微信误杀。
+                    if bridge_decided and not bridge_in:
+                        st["no_qr_rounds"] = st.get("no_qr_rounds", 0) + 1
+                        log("看得到登录窗但取不到二维码（连续 %d/%d 轮）"
+                            % (st["no_qr_rounds"], NO_QR_ROUNDS))
+                        if st["no_qr_rounds"] >= NO_QR_ROUNDS and allow_restart(st, now):
+                            do_restart(st, now, "登录窗被弹窗遮挡 / 二维码不可得 ⇒ 重启客户端恢复扫码界面")
+                            st["no_qr_rounds"] = 0
+                    else:
+                        log("本轮未取到有效二维码，下轮继续")
                 save_state(st)
                 time.sleep(LOOP)
                 continue
 
             st["no_window_rounds"] = 0
+            st["no_qr_rounds"] = 0
             md5, nbytes = got
             changed = (md5 != st["prev_md5"])
             if changed:

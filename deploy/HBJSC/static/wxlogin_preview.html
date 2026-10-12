@@ -117,8 +117,11 @@
     var li = !!s.loggedIn
     $('dot').style.background = bd ? '#ff4444' : li ? '#4ade80' : '#ffb74d'
     $('dot').style.boxShadow = '0 0 8px ' + (bd ? '#ff4444' : li ? '#4ade80' : '#ffb74d')
-    $('head').textContent = bd ? '桥不可达' : li ? '已登录' : '未登录 · 请扫码'
-    $('head').className = bd ? 'bad' : li ? 'good' : 'warn'
+    var up = !!s.updating
+    $('head').textContent = bd ? '桥不可达'
+      : up ? '微信正在自动更新 · 请稍候'
+      : li ? '已登录' : '未登录 · 请扫码'
+    $('head').className = (bd || up) ? (bd ? 'bad' : 'warn') : (li ? 'good' : 'warn')
     $('who').textContent = li
       ? ((s.self && (s.self.remark || s.self.nick_name || s.self.wxid)) || '未知账号') +
         (s.wechatVersion ? ' · 微信 ' + s.wechatVersion : '') +
@@ -132,8 +135,10 @@
       $('age').textContent = a === null ? '（码龄未知）' : (stale ? '⚠️ 二维码已生成 ' + a + ' 秒，建议刷新' : '二维码 ' + a + ' 秒前生成')
       $('age').className = 'muted ' + (stale ? 'warn' : '')
     } else { $('age').textContent = '' }
-    $('qrbox').style.display = (li || bd) ? 'none' : 'flex'
-    $('err').textContent = bd ? ((s.bridge.error || '桥不可达') + '　（看门狗每分钟自愈一次：/var/log/wxbridge_watchdog.log）') : ''
+    $('qrbox').style.display = (li || bd || up) ? 'none' : 'flex'
+    $('err').textContent = bd
+      ? ((s.bridge.error || '桥不可达') + '　（看门狗每分钟自愈一次：/var/log/wxbridge_watchdog.log）')
+      : (up ? '微信正在自动更新中，界面不可用；完成后再扫码登录。' : '')
   }
 
   async function loadStatus(force) {
@@ -236,11 +241,15 @@
   }
 
   // 轮询：未登录 5s / 已登录 30s
+  var lastT = 0, lastLogged = null
   ;(function loop() {
     loadStatus(false).then(function () {
       var li = st && st.loggedIn
-      if (li) loadTargets(false)
-      setTimeout(loop, li ? 30000 : 5000)
+      var now = Date.now()
+      // 会话清单：登录态一变就拉；登录后每 60s 兜底刷新（后端缓存 30s，不会压桥）
+      if (li && (li !== lastLogged || now - lastT > 60000)) { lastT = now; loadTargets(false) }
+      lastLogged = li
+      setTimeout(loop, 5000)
     })
   })()
 })()
