@@ -1,0 +1,24 @@
+{
+  "_comment": "switch_webhook.js --batch 参数。id 对应 area_responsibility.id, group 是微信群名(支持模糊匹配, 写'秸秆'能命中'万州区秸秆处置群'等)。先在 Windows VM 跑 list_groups.ps1 拿到完整群名清单, 再填本表。",
+  "_example": [{"id": 1, "group": "万州区秸秆处置群"}],
+  "mapping": [
+    { "id": 1, "group": "" },
+    { "id": 2, "group": "" },
+    { "id": 3, "group": "" },
+    { "id": 4, "group": "" },
+    { "id": 5, "group": "" },
+    { "id": 6, "group": "" },
+    { "id": 7, "group": "" },
+    { "id": 8, "group": "" },
+    { "id": 9, "group": "" },
+    { "id": 10, "group": "" },
+    { "id": 11, "group": "" },
+    { "id": 12, "group": "" },
+    { "id": 13, "group": "" },
+    { "id": 14, "group": "" },
+    { "id": 15, "group": "" },
+    { "id": 16, "group": "" },
+    { "id": 17, "group": "" },
+    { "id": 18, "group": "" }
+  ]
+}

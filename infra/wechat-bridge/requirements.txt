@@ -1,0 +1,12 @@
+flask>=3.0
+requests>=2.31
+pywin32>=306; sys_platform == 'win32'
+# ── 微信驱动（按微信版本二选一/三选一） ───────────────
+# 微信 3.9.x   → pip install wxauto         (原版 cluic, 2025-10 停更但 3.9.x 仍可用)
+# 微信 4.0.5   → pip install wxauto4        (AngeCoo 分支, 仅支持 4.0.5)
+# 微信 4.1.12+ → pip install wechatauto-replica  (fanyuantaier, UIA+OCR 混合驱动, 4.1.12+)
+# 服务启动时自动按优先级探测 (wechatauto → wxauto4 → wxauto)
+# 装完禁用微信自动更新（一旦升 4.1.12+ 旧驱动失效）
+# OCR 发送路径需要 winsdk + pypinyin (wechatauto 依赖)
+winsdk>=1.0; sys_platform == 'win32'
+pypinyin>=0.51
