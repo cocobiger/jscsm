@@ -140,3 +140,19 @@ bash infra/wechat-bridge/deploy/fetch_qr.sh            # → tmp/wxb_shots/qr_li
 3. `wx_front.py` 每次启动**先落一次盘**（此时还没有 VERDICT）⇒ Linux 侧若在本次未结束时来读，
    会正确地"读不到→重试"，而不是误用上一次的陈旧判定。
 4. `/health` 的 `wechat_version`/`driver`/`sessions` 全 null = 驱动从未初始化（未登录）。
+5. **计划任务是异步的 ⇒ 会读到上一次残留的判定**：`schtasks /Run` 后新进程要几秒才起来，
+   若这时去读 `wx_front_out.txt`，读到的是**上一次**的 `VERDICT`（写着 fronted=1）
+   ⇒ "以为抢到前台了、其实没有" ⇒ 截到压在上面的浏览器。
+   正解：**触发前先 `del` 掉输出文件，再轮询直到 VERDICT 出现**（确定性，不依赖时序）。
+6. **判据要落在像素内容上**：窗口 rect 一直是对的，错的是"那个位置当前显示谁"。
+   零依赖做法 = **只截二维码子区域**（登录窗口 296x388，二维码区偏移 (80,85) 尺寸 135x135），
+   以 **PNG 体积 ≥ 2500B** 验真伪（实测：真码 ~4.1–6.9KB，截到浏览器 0.3–1.2KB）。
+   ⚠️ 别用整窗 PNG 体积：好图 ~16.1KB vs 错图 ~15.6KB，只差 3%，太窄。
+
+## 交付二维码给真人扫
+```bash
+bash infra/wechat-bridge/deploy/fetch_qr.sh --fresh      # 先强制重置换全新码再取
+```
+`latest.png` 码龄最长可达 ~3–4 分钟（= 微信自身换码周期），**直接交付可能"还没扫就过期"**，
+所以要交给真人时加 `--fresh`（实测 20s 内出新码）。
+`--fresh` 背后是 `/data/HBJSC/scripts/wx_qr_reset.sh`：taskkill → `WxLaunchQr` → 轮询新 md5。

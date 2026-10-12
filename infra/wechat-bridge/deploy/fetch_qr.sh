@@ -6,9 +6,21 @@
 #   /data/HBJSC/wxb_qr/latest.png （目录 700 / 文件 600）
 # 本脚本拉回该图、按二维码 bbox 裁切并 6× 放大，产出可直接扫的图。
 #
-# 用法：  bash infra/wechat-bridge/deploy/fetch_qr.sh [输出目录]
+# 用法：  bash fetch_qr.sh [--fresh] [输出目录]
+#   --fresh  先强制重置（重启微信客户端）拿一张全新码再取 —— **要交给真人扫时建议加**，
+#            因为 latest.png 的码龄最长可达 ~3-4 分钟（微信自身换码周期），可能"还没扫就过期"
 # 依赖：  SSH_ASKPASS（本机无 sshpass，见 REF_sandbox_pitfalls）、Python + Pillow
 set -e
+
+FRESH=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --fresh) FRESH=1 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+set -- "${ARGS[@]:-}"
 
 HOST=${WXB_SSH_HOST:-111.10.220.226}
 PORT=${WXB_SSH_PORT:-22233}
@@ -26,44 +38,53 @@ SCPOPT="-P $PORT $SSHOPT"
 
 mkdir -p "$OUTDIR"
 
+if [ "$FRESH" = "1" ]; then
+  echo "[0/3] --fresh：强制重置，换一张全新二维码（约 1–2 分钟）"
+  ssh $SSHOPTP "root@$HOST" "bash /data/HBJSC/scripts/wx_qr_reset.sh 180"
+fi
+
 echo "[1/3] 取 latest.png + latest.json + 守护日志尾部"
 scp $SCPOPT "root@$HOST:$REMOTE_QR/latest.png" "$OUTDIR/qr_live.png" >/dev/null
 ssh $SSHOPTP "root@$HOST" "cat $REMOTE_QR/latest.json; echo; tail -3 /var/log/wx_qr_keepalive.log" > "$OUTDIR/qr_live.meta.txt"
 
-echo "[2/3] 裁切 + 6x 放大"
+echo "[2/3] 裁切/放大"
 "$PY" - "$OUTDIR" <<'PYEOF'
-import sys, json, time
+import sys
 from PIL import Image
 
 out = sys.argv[1]
 im = Image.open(out + "/qr_live.png").convert("L")
 W, H = im.size
 
-# 二维码在登录窗口里水平居中、垂直约 39% 处；按比例框定搜索带，
-# 左右各留 12% 安全边避开窗口外的背景像素（否则暗像素包围盒会被背景文字带偏）
-XL, XR = int(W * 0.12), int(W * 0.88)
-y0, y1 = int(H * 0.16), int(H * 0.60)
-band = im.crop((XL, y0, XR, y1))
-px = band.load()
-xs, ys = [], []
-for yy in range(band.height):
-    for xx in range(band.width):
-        if px[xx, yy] < 110:
-            xs.append(xx); ys.append(yy)
-if not xs:
-    print("!! 未在窗口内找到二维码像素，可能当前不是登录界面（已登录？）")
-    sys.exit(2)
+if W >= 200 and H >= 200:
+    # 旧格式：整窗截图（296x388）⇒ 先按比例框出二维码区
+    # 左右各留 12% 安全边，避开窗口外的背景像素（否则暗像素包围盒会被背景文字带偏）
+    XL, XR = int(W * 0.12), int(W * 0.88)
+    y0, y1 = int(H * 0.16), int(H * 0.60)
+    band = im.crop((XL, y0, XR, y1))
+    px = band.load()
+    xs, ys = [], []
+    for yy in range(band.height):
+        for xx in range(band.width):
+            if px[xx, yy] < 110:
+                xs.append(xx); ys.append(yy)
+    if not xs:
+        print("!! 未在窗口内找到二维码像素（已登录？当前不是登录界面？）")
+        sys.exit(2)
+    x0, x1 = XL + min(xs), XL + max(xs)
+    yy0, yy1 = y0 + min(ys), y0 + max(ys)
+    print("   qr bbox = (%d,%d)-(%d,%d)  %dx%d" % (x0, yy0, x1, yy1, x1 - x0, yy1 - yy0))
+    if abs((x1 - x0) - (yy1 - yy0)) > 20:
+        print("   ⚠️ 二维码区域不是方形，判据可能失效，请人工看图确认")
+    M = 8
+    qr = im.crop((max(0, x0 - M), max(0, yy0 - M), min(W, x1 + M), min(H, yy1 + M)))
+else:
+    # 新格式：latest.png 本身就是二维码区（135x135），无需再裁
+    print("   已是二维码区 %dx%d，直接放大" % (W, H))
+    qr = im
 
-x0, x1 = XL + min(xs), XL + max(xs)
-yy0, yy1 = y0 + min(ys), y0 + max(ys)
-w, h = x1 - x0, yy1 - yy0
-print("   qr bbox = (%d,%d)-(%d,%d)  %dx%d" % (x0, yy0, x1, yy1, w, h))
-if abs(w - h) > 20:
-    print("   ⚠️ 二维码区域不是方形，判据可能失效，请人工看图确认")
-
-M = 8
-qr = im.crop((max(0, x0 - M), max(0, yy0 - M), min(W, x1 + M), min(H, yy1 + M)))
-big = qr.resize((qr.width * 6, qr.height * 6), Image.LANCZOS).convert("RGB")
+scale = max(1, 900 // max(qr.width, 1))
+big = qr.resize((qr.width * scale, qr.height * scale), Image.LANCZOS).convert("RGB")
 big.save(out + "/qr_live_only.png")
 big.save(out + "/qr_latest.png")
 print("   已保存 %s/qr_live_only.png (%dx%d)" % (out, big.width, big.height))
@@ -73,4 +94,4 @@ echo "[3/3] 元信息"
 cat "$OUTDIR/qr_live.meta.txt" 2>/dev/null | head -5
 echo
 echo "👉 可扫码图：$OUTDIR/qr_live_only.png"
-echo "   （二维码约 2–5 分钟过期；守护每 60s 换一张新的，随时重跑本脚本即可拿最新）"
+echo "   （守护每 60s 换一张；要交给真人扫时加 --fresh 可强制换全新码）"
