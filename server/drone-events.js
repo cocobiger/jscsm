@@ -1,7 +1,20 @@
 'use strict'
 // 内部端点共享密钥（供 straw-engine 读取无人机 OSD；文件优先，便于轮换）
 const SECRET_INTERNAL = (() => {
-  try { return require('fs').readFileSync('/opt/jsc/backend/.internal-secret', 'utf8').trim() } catch (e) { return '' }
+  // 🔴 2026-10-02 P0-B：旧根 /opt/jsc 已随迁移删除 ⇒ env 优先 + 新根兜底 + 存在性判据。
+  //    若三者皆空，/api/internal/drone-osd 会因 !want 一律 403（fail-closed：安全，但功能不可用），
+  //    故显式 warn，避免「静默不可用」。
+  const _env = String(process.env.JSC_INTERNAL_SECRET || '').trim()
+  if (_env) return _env
+  const _p = process.env.JSC_INTERNAL_SECRET_FILE || '/data/HBJSC/backend/.internal-secret'
+  try {
+    const _s = require('fs').readFileSync(_p, 'utf8').trim()
+    if (_s) return _s
+    console.warn('[drone-events] 内部密钥文件为空: ' + _p)
+  } catch (e) {
+    console.warn('[drone-events] 读不到内部密钥(' + _p + ')：/api/internal/drone-osd 将一律 403')
+  }
+  return ''
 })()
 /**
  * 无人机直播事件链路（弹窗需求 T1 · 决策4 dockSn 白名单）
@@ -241,7 +254,7 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
   })
 
   // ── ④d 内部端点：无人机高度/垂直速度（供 straw-engine 降落判定，2026-09-11）──
-  // 安全：共享密钥（/opt/jsc/backend/.internal-secret 或 env JSC_INTERNAL_SECRET），
+  // 安全：共享密钥（env JSC_INTERNAL_SECRET / $JSC_INTERNAL_SECRET_FILE / /data/HBJSC/backend/.internal-secret），
   // 无密钥/密钥不符一律 403；路径列入 PUBLIC_PATHS 但数据仍需密钥，公网无法直接取用。
   app.get('/api/internal/drone-osd', async (req, res) => {
     try {

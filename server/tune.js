@@ -11,7 +11,11 @@ const { spawn, execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-const ENGINE_DIR = '/opt/jsc/straw-engine'
+// 🔴 2026-10-01：旧根 `/opt/jsc/straw-engine` 已随迁移删除 ⇒ 改为新根 + env 可覆盖。
+//   ⚠️ 实测新根下 tune_run.sh / tune_engine.py / config/algorithms.json **均不存在**，
+//      即调参模块整体未部署（readAlgorithms() 会被 try/catch 吞成 `{}` → 前端看到空算法列表）。
+//      此处仅纠正路径口径；要恢复该模块需另行补部署引擎文件。
+const ENGINE_DIR = process.env.STRAW_ENGINE_ROOT || '/data/HBJSC/straw-engine'
 const RUNNER = path.join(ENGINE_DIR, 'tune_run.sh')
 const ALGO_FILE = path.join(ENGINE_DIR, 'config/algorithms.json')
 const TUNE_DIR = path.join(ENGINE_DIR, 'evidence/tune')

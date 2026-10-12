@@ -173,7 +173,14 @@ function init(dataDir, logger) {
   // 迁移种子：把原硬编码的 7 个算法 key 落到 ai_types.source_key（幂等）
   try {
     const KEY_SEED = [
-      ['unsoilcover', '堆头未覆盖'],   // 唯一真正在跑的算法（底层类型名 spill / 业务标签「冒装」）
+      // 🆕 2026-10-09 算法字典补全：把「渣土车冒装」单列为一个算法族（原被错并进「堆头未覆盖」）。
+      //   权威键 = cover_det（网关 /meta/algo-types 的 source_key）；历史键 unsoilcover / spill
+      //   属同一族（别名解析见 iot-fetcher 的 tier① 网关字典 + tier③ AI_TYPE_MAP）。
+      //   🔴 2026-10-10 口径统一（用户拍板）：词条名以**网关 SSOT 的 name_zh =「渣土车冒装」**为准。
+      //      口语「渣土车帽盖」不再单列词条（否则后台名 ≠ 记录名，统计/研判对不上）。
+      //   ⚠️ 与「堆头未覆盖」（stockpile_cover，堆场料堆 6 路港口堆场）**分族**，不合并展示。
+      ['cover_det', '渣土车冒装'],        // 主键 → 词条（sort_order=19，排最前）
+      ['stockpile_cover', '堆头未覆盖'],  // 堆场料堆：保留词条，不再挂 unsoilcover
       ['uncovered', '裸土未覆盖'],
       ['person', '人员入侵'],
       ['vehicle', '车辆违停'],
@@ -184,10 +191,39 @@ function init(dataDir, logger) {
     const t0 = new Date().toISOString()
     const insIfMissing = db.prepare('INSERT OR IGNORE INTO ai_types (name, sort_order, created_at, source_key) VALUES (?,?,?,?)')
     const fillKey = db.prepare("UPDATE ai_types SET source_key = ? WHERE name = ? AND (source_key IS NULL OR source_key = '')")
+    const setKey = db.prepare('UPDATE ai_types SET source_key = ? WHERE name = ?')
     for (const [key, name] of KEY_SEED) {
-      insIfMissing.run(name, 20, t0, key)   // 表里没有该中文名 → 补建（sort_order=20，排在业务类之后）
-      fillKey.run(key, name)                // 已有该中文名 → 仅补 source_key
+      const order = (name === '渣土车冒装') ? 19 : 20
+      insIfMissing.run(name, order, t0, key)   // 表里没有该中文名 → 补建（sort_order 排在业务类之后）
+      fillKey.run(key, name)                   // 已有该中文名 → 仅补 source_key
     }
+    // 🔴 2026-10-09 一次性纠正（幂等）：老库里「堆头未覆盖」被错绑到 unsoilcover（实测 unsoilcover
+    //   检出的其实是渣土车冒装）。让给「渣土车冒装」族：堆头未覆盖改挂 stockpile_cover，
+    //   unsoilcover 在本地字典里不再命中 → 由 iot-fetcher 的 AI_TYPE_MAP 归入「渣土车冒装」。
+    setKey.run('stockpile_cover', '堆头未覆盖')
+    // 🔴 2026-10-10 口径统一（幂等）：把 10-09 误建的「渣土车帽盖」词条并入「渣土车冒装」，
+    //   并撤销上一版误加到通道白名单/研判规则里的旧名（记录永远不会用「帽盖」这个名字，
+    //   留着只会让管理员配出永不命中的死规则）。
+    try {
+      const legacy = db.prepare("SELECT name FROM ai_types WHERE name = '渣土车帽盖'").get()
+      if (legacy) {
+        const hasNew = db.prepare("SELECT 1 FROM ai_types WHERE name = '渣土车冒装'").get()
+        if (hasNew) db.prepare("DELETE FROM ai_types WHERE name = '渣土车帽盖'").run()
+        else db.prepare("UPDATE ai_types SET name = '渣土车冒装', sort_order = 19 WHERE name = '渣土车帽盖'").run()
+      }
+      const chs = db.prepare('SELECT channel_sip_id, ai_types FROM iot_channels').all()
+      const updCh = db.prepare('UPDATE iot_channels SET ai_types = ? WHERE channel_sip_id = ?')
+      for (const c of chs) {
+        const arr = parseArr(c.ai_types)
+        if (arr.includes('渣土车帽盖')) updCh.run(JSON.stringify(arr.filter(x => x !== '渣土车帽盖')), c.channel_sip_id)
+      }
+      const rls = db.prepare('SELECT id, ai_types FROM push_rules').all()
+      const updR = db.prepare('UPDATE push_rules SET ai_types = ? WHERE id = ?')
+      for (const r of rls) {
+        const arr = parseArr(r.ai_types)
+        if (arr.includes('渣土车帽盖')) updR.run(JSON.stringify(arr.filter(x => x !== '渣土车帽盖')), r.id)
+      }
+    } catch (e) { /* 失败不影响启动 */ }
     // 顺手修正历史 sort_order 冲突（「堆头未覆盖」与「堆场扬尘」都是 0）
     db.prepare("UPDATE ai_types SET sort_order = 9 WHERE name = '堆场扬尘' AND sort_order = 0").run()
   } catch (e) { /* 迁移失败不影响启动 */ }
@@ -482,6 +518,9 @@ function init(dataDir, logger) {
   // 存量行一次性回填 legacy（幂等：只补 NULL，绝不覆盖已有判定）
   db.exec("UPDATE warnings SET judge_status = 'legacy' WHERE judge_status IS NULL")
   db.exec('CREATE INDEX IF NOT EXISTS idx_warnings_judge ON warnings(judge_status);')
+  // 🔴 2026-10-01（A′）：列表/面板/导出/研判统计统一改为 `ORDER BY created_at DESC, rowid DESC`。
+  //   本库曾长期 2.9 万行，无索引时每次都要全表排序 ⇒ 加升序索引即可同时服务 DESC 扫描。
+  db.exec('CREATE INDEX IF NOT EXISTS idx_warnings_created_at ON warnings(created_at);')
 
   // ── 通用键值设置（P0-3 起用：研判默认策略等）────────────────────────────
   // 之所以单独建表而不是塞进 push_rules：这是「系统级开关」，不是一条研判规则，
@@ -526,8 +565,20 @@ function init(dataDir, logger) {
   //   action          'admit_front' 进前台（默认）/ 'archive_only' 仅存档（强制不报）
   addColumnIfMissing('push_rules', 'min_confidence', 'REAL NOT NULL DEFAULT 0')
   addColumnIfMissing('push_rules', 'min_level', 'INTEGER NOT NULL DEFAULT 0')
+  // 2026-10-11：第 5 维度「最低车牌置信度」（%，0=不限；>0 时要求必须有牌）
+  addColumnIfMissing('push_rules', 'min_plate_confidence', 'REAL NOT NULL DEFAULT 0')
   addColumnIfMissing('push_rules', 'active_hours', "TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing('push_rules', 'action', "TEXT NOT NULL DEFAULT 'admit_front'")
+
+  // ── 🆕 2026-10-12 S1：为「算法过滤收口」预留的 3 个可空字段（REF §H35.14 / S0 清单）──────
+  //   🔴 全部**可空**：NULL＝未设置＝**现行为**。本步只让它们"能读能写能显示"，
+  //      **不接任何判定路径**（judgeWarning / alertFilterRuleHit 一行不动）⇒ 零行为变化。
+  //   record_min_confidence  单条展示门槛（% 0-100）。S2 用于替代「告警过滤」的单条 conf 门槛
+  //   exempt                 作业区豁免。S3 用于替代 stack_exempt_points（靠近江边作业区不受 40% 规则）
+  //   report_enabled         上报开关。S4 用于把「送达规则」降级为引用：NULL＝跟随②；1＝强制上报；0＝不上报
+  addColumnIfMissing('push_rules', 'record_min_confidence', 'REAL')
+  addColumnIfMissing('push_rules', 'exempt', 'INTEGER')
+  addColumnIfMissing('push_rules', 'report_enabled', 'INTEGER')
 
   // ── 研判闸门改「逐通道逐算法精细配置」：一次性停用历史全局通配规则（2026-09-19 业务决策）──
   // 用 app_settings 打标记，**只做一次**：之后管理员若在后台重新启用它，重启不会再被改回。
@@ -1103,22 +1154,40 @@ function closeSmartPushHistory(id, operator) {
 // 超时：status='pushed' 且未收到任何回执，超过阈值（默认24h）即视为超时（前端红色告警）
 // status 支持: pushed | processing | closed | timeout(特殊：内存过滤 is_timeout=1)
 const SMART_PUSH_TIMEOUT_HOURS = 24
-function getSmartPushHistory({ eventType, status, location, start, end, platformId, limit } = {}) {
-  let sql = 'SELECT h.*, p.name AS platform_name FROM smart_push_history h LEFT JOIN smart_push_platforms p ON h.platform_id = p.id'
-  const args = []
+// 🔴 2026-10-11 审计修复（P2-1）：把筛条件抽成**唯一出处**，供 getSmartPushHistory 与
+//   countSmartPushHistory 共用 —— 两处各写一份必然会漂移（"列表数字对不上总数"）。
+function _smartPushHistoryWhere({ eventType, status, location, start, end, platformId } = {}) {
   const where = []
+  const args = []
   if (eventType) { where.push('h.event_type = ?'); args.push(eventType) }
   if (status && status !== 'timeout') { where.push('h.status = ?'); args.push(status) }
-  // 点位：模糊匹配（与规则「点位匹配(模糊)」口径一致）
+  // 点位：包含匹配（与规则「点位匹配」口径一致）
   if (location) { where.push('h.location LIKE ?'); args.push('%' + String(location).trim() + '%') }
   // 目标平台：精确匹配 platform_id
   if (platformId) { where.push('h.platform_id = ?'); args.push(platformId) }
   // 时间段：created_at 为可词法排序的 'YYYY-MM-DD HH:MM:SS' 文本，直接字符串比较
   if (start) { where.push('h.created_at >= ?'); args.push(String(start)) }
   if (end) { where.push('h.created_at <= ?'); args.push(String(end)) }
+  return { where, args }
+}
+
+/** 命中条数（与 getSmartPushHistory 完全同口径）—— 供服务端分页显示"共 N 条"与总页数 */
+function countSmartPushHistory(filters) {
+  const { where, args } = _smartPushHistoryWhere(filters || {})
+  const sql = 'SELECT COUNT(*) AS c FROM smart_push_history h'
+    + (where.length ? ' WHERE ' + where.join(' AND ') : '')
+  return db.prepare(sql).get(...args).c
+}
+
+function getSmartPushHistory({ eventType, status, location, start, end, platformId, limit, offset } = {}) {
+  let sql = 'SELECT h.*, p.name AS platform_name FROM smart_push_history h LEFT JOIN smart_push_platforms p ON h.platform_id = p.id'
+  const { where, args } = _smartPushHistoryWhere({ eventType, status, location, start, end, platformId })
   if (where.length) sql += ' WHERE ' + where.join(' AND ')
-  sql += ' ORDER BY h.created_at DESC LIMIT ?'
+  // 🔴 P2-1：加 offset 支持服务端翻页；排序补 `h.id DESC` 兜底
+  //   —— created_at 只到秒，同秒多条时仅按时间排序结果不稳定（翻页会重复/丢行）。
+  sql += ' ORDER BY h.created_at DESC, h.id DESC LIMIT ? OFFSET ?'
   args.push(parseInt(limit) || 100)
+  args.push(Math.max(parseInt(offset) || 0, 0))
   const rows = db.prepare(sql).all(...args)
   const now = Date.now()
   const timeoutMs = SMART_PUSH_TIMEOUT_HOURS * 3600 * 1000
@@ -1684,7 +1753,9 @@ function retentionKeepDays(w) {
 }
 /** 是否被保留期软归档（true = 不进前台）。
  *  ⚠️ 时间口径：createdAt 存的是**上海时间字符串**或 ISO，统一走 parseWarningTime（上海时）。
- *  时间无法解析 → **不归档**（宁可显示，避免静默吞掉）。 */
+ *  时间无法解析 → **不归档**（宁可显示，避免静默吞掉）。
+ *  ⚠️ 2026-10-01：「渣土车冒装」等判罚证据类（GATE_EXEMPT_AI_TYPES）**不豁免保留期** ——
+ *     它们豁免的是 gatePassed / 过滤规则 / 聚合折叠，超期软归档属既定留痕策略，仍然生效。 */
 function warningRetentionExpired(w, nowMs) {
   if (!w) return false
   const kd = retentionKeepDays(w)
@@ -1692,6 +1763,26 @@ function warningRetentionExpired(w, nowMs) {
   const t = parseWarningTime(w.createdAt)
   if (!Number.isFinite(t)) return false
   return ((nowMs || Date.now()) - t) > kd * 86400000
+}
+
+/** 🆕 S2.5（2026-10-12）：保留期摘要 —— **只暴露天数**，供前台/①页面标注。
+ *  与 listAlgoRetention（含 remark 等管理信息、仅管理员）区分：这里最小暴露面。
+ *  days=null 表示**不限制**（永不软归档）。
+ */
+function retentionInfoSummary() {
+  const out = { defaultDays: null, byType: {}, note: '' }
+  try {
+    const cfg = retentionConfig()
+    const norm = it => (it && it.enabled && it.keepDays > 0) ? it.keepDays : null
+    out.defaultDays = norm(cfg.get(RETENTION_DEFAULT_KEY))
+    for (const k of cfg.keys()) {
+      if (k === RETENTION_DEFAULT_KEY || k === RETENTION_GAS_KEY) continue
+      out.byType[k] = norm(cfg.get(k))
+    }
+    out.gasDays = norm(cfg.get(RETENTION_GAS_KEY))
+    out.note = '前台列表仅显示最近 N 天（按算法）；超期记录为**软归档**（数据一行未删），可在「AI分析存档」查看'
+  } catch (e) { /* 表缺失 → 返回空摘要，绝不因此报错 */ }
+  return out
 }
 
 function _mapRetentionRow(r) {
@@ -1783,7 +1874,7 @@ function deleteAlgoRetention(aiType) {
 function retentionDryRun({ limit } = {}) {
   const now = Date.now()
   const cap = Math.min(Math.max(Number(limit) || 30000, 1000), 200000)
-  const rows = db.prepare('SELECT id, created_at, data_json FROM warnings ORDER BY rowid DESC LIMIT ?').all(cap)
+  const rows = db.prepare('SELECT id, created_at, data_json FROM warnings ORDER BY created_at DESC, rowid DESC LIMIT ?').all(cap)
   let truncated = false
   try {
     const tot = db.prepare('SELECT COUNT(*) AS n FROM warnings').get()
@@ -1834,7 +1925,7 @@ function judgeCoverage(days = 7) {
   const since = Date.now() - n * 86400000
   const rules = listPushRules().filter(r => r.enabled)
   const rows = db.prepare(
-    "SELECT created_at, data_json FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY rowid DESC LIMIT 20000"
+    "SELECT created_at, data_json FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY created_at DESC, rowid DESC LIMIT 20000"
   ).all()
   const map = new Map()
   for (const r of rows) {
@@ -1916,6 +2007,7 @@ function judgeRuleConflicts() {
  *  已存在同「通道+算法」规则的组合默认跳过（overwrite=true 才更新其阈值等参数）。 */
 function generatePushRulesForChannels({
   threshold = 5, timeWindowHours = 24, minConfidence = 0, minLevel = 0,
+  minPlateConfidence = 0,
   activeHours = '', action = 'admit_front', overwrite = false, dryRun = true,
 } = {}) {
   const rules = listPushRules()
@@ -1947,6 +2039,7 @@ function generatePushRulesForChannels({
         updatePushRule(p.existingRuleId, {
           threshold: Number(threshold) || 5, timeWindowHours: Number(timeWindowHours) || 24,
           minConfidence: Number(minConfidence) || 0, minLevel: Number(minLevel) || 0,
+          minPlateConfidence: Number(minPlateConfidence) || 0,
           activeHours: String(activeHours || ''), action, enabled: true,
         })
         created.push({ ...p, action: 'updated' })
@@ -1954,7 +2047,7 @@ function generatePushRulesForChannels({
         const r = createPushRule({
           name, channel_sip_id: p.channelSipId, ai_types: [p.aiType],
           time_window_hours: timeWindowHours, threshold, enabled: true,
-          min_confidence: minConfidence, min_level: minLevel, active_hours: activeHours, action,
+          min_confidence: minConfidence, min_level: minLevel, min_plate_confidence: minPlateConfidence, active_hours: activeHours, action,
         })
         created.push({ ...p, action: 'created', ruleId: r && r.id })
       }
@@ -1978,7 +2071,7 @@ function judgeStats(days = 7) {
   const n = Math.max(1, Math.min(Number(days) || 7, 90))
   const since = Date.now() - n * 86400000
   const rows = db.prepare(
-    "SELECT created_at, judge_rule_id, judge_status FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY rowid DESC LIMIT 20000"
+    "SELECT created_at, judge_rule_id, judge_status FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY created_at DESC, rowid DESC LIMIT 20000"
   ).all()
   const byRule = new Map()
   const noRule = { admitted: 0, blocked: 0 }
@@ -2027,11 +2120,12 @@ function judgeDryRun(draft = {}, days = 7) {
     threshold: Number(draft.threshold) || 20,
     minConfidence: Number(draft.minConfidence ?? draft.min_confidence) || 0,
     minLevel: Number(draft.minLevel ?? draft.min_level) || 0,
+    minPlateConfidence: Number(draft.minPlateConfidence ?? draft.min_plate_confidence) || 0,
     activeHours: String(draft.activeHours ?? draft.active_hours ?? ''),
     action: normAction(draft.action),
   }
   const rows = db.prepare(
-    "SELECT created_at, data_json FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY rowid DESC LIMIT 20000"
+    "SELECT created_at, data_json FROM warnings WHERE json_extract(data_json,'$.source') IN ('iotcloud','straw-engine') ORDER BY created_at DESC, rowid DESC LIMIT 20000"
   ).all()
   const items = []
   for (const r of rows) {
@@ -2077,6 +2171,27 @@ function judgeDryRun(draft = {}, days = 7) {
 /** 规则匹配（**唯一出处**：查询期聚合与本处闸门共用，避免两处逻辑漂移）
  *  优先级：业务方「具体类型」规则 > 系统默认「通配(空 ai_types)」规则
  *  （否则通配总抢先命中、自定义阈值失效 —— 沿用 queryWarningsAggregated 既有口径） */
+/** 🆕 S4（2026-10-12）：① 的「上报开关」`push_rules.report_enabled`（S1 建字段，本步接线）
+ *  作为**点位级上报覆盖**，与②送达规则的关系：
+ *    'inherit' ＝ NULL 未设置 ⇒ 跟随②送达规则（**＝现行为**）
+ *    'force'   ＝ 1        ⇒ 强制上报：忽略②的**节流阈值**（仍走②的点位匹配/预案解析，否则无从投递）
+ *    'deny'    ＝ 0        ⇒ 不上报：即使②配了也不发
+ *  🔴 职责边界：① 管「进不进前台」，② 管「进前台的要不要对外报」；②**不判定"是否违规"**。
+ *  ⚠️ 必须命中一条**启用的①规则**才谈得上覆盖（复用 pickPushRule，与研判/门槛同一选取口径）。
+ */
+function reportOverride(w) {
+  if (!w) return 'inherit'
+  const ai = String(w.aiType || w.event_type || '')
+  if (!ai) return 'inherit'
+  let rule = null
+  try { rule = pickPushRule(listPushRules().filter(r => r.enabled), warningChannelKey(w), ai) } catch (e) { return 'inherit' }
+  if (!rule) return 'inherit'
+  const v = s1IntOrNull(rule.reportEnabled)
+  if (v === 1) return 'force'
+  if (v === 0) return 'deny'
+  return 'inherit'
+}
+
 function pickPushRule(rules, cid, ai) {
   const matchByType = (rl) => (rl.channelSipId == null || rl.channelSipId === cid) && rl.aiTypes.includes(ai)
   const matchWildcard = (rl) => rl.aiTypes.length === 0 && (rl.channelSipId == null || rl.channelSipId === cid)
@@ -2132,6 +2247,16 @@ function evalRuleAgainst(rule, w, nth, nowTs) {
   const minLv = Number(rule.minLevel) || 0
   const lv = Number(w.level)
   if (minLv > 0 && Number.isFinite(lv) && lv > 0 && lv < minLv) return `等级 ${lv} < 门槛 ${minLv}`
+  // 维度⑦ 最低车牌置信度（2026-10-11 新增）：>0 时要求「已识别到车牌」且「车牌置信度 ≥ 门槛」
+  //   口径：% 数值（0-100）；plateConfidence 可能为小数(0.996)或百分数(93)，统一归一化。
+  const minPlate = Number(rule.minPlateConfidence) || 0
+  if (minPlate > 0) {
+    const lp = w.licensePlate || ''
+    if (!lp) return `未识别到车牌（规则要求有牌且车牌置信度 ≥ ${minPlate}%）`
+    const praw = Number(w.plateConfidence)
+    const ppct = Number.isFinite(praw) ? (praw > 1 ? praw : praw * 100) : null
+    if (ppct !== null && ppct < minPlate) return `车牌置信度 ${ppct.toFixed(0)}% < 门槛 ${minPlate}%`
+  }
   // 维度⑤ 生效时段（上海时）
   const ts = parseWarningTime(w.createdAt)
   const at = Number.isNaN(ts) ? (nowTs || Date.now()) : ts
@@ -2167,10 +2292,11 @@ function judgeWarning(w) {
   const winMs = winH * 3600 * 1000
   const now = Date.now()
   // 累计口径：窗口内**全部同组原始记录**（含此前被拦下的）—— 即"这类现象在窗口内出现了几次"。
-  //   刻意不在 SQL 里按 created_at 做字符串比较：本库 created_at 存在 ISO(UTC) 与上海本地串两种格式，
-  //   字符串比较会漏算；统一走 parseWarningTime（与聚合口径一致）。warnings 上限 2000 行，扫描有界。
+  //   时间判定仍统一走 parseWarningTime（与聚合口径一致），不在 SQL 里做时间比较。
+  //   ⚠️ 2026-10-01（A′）：`created_at` 已归一为单一格式（上海本地串）；此处 LIMIT 3000 也必须**按时间**取，
+  //   否则一旦某类型累计超过 3000 条，取到的是"最旧的 3000 条"（rowid 序）而非"最近的 3000 条"，窗口会算错。
   const prior = db.prepare(
-    "SELECT id, created_at, data_json FROM warnings WHERE COALESCE(json_extract(data_json,'$.aiType'),'(未知)') = ? ORDER BY rowid DESC LIMIT 3000"
+    "SELECT id, created_at, data_json FROM warnings WHERE COALESCE(json_extract(data_json,'$.aiType'),'(未知)') = ? ORDER BY created_at DESC, rowid DESC LIMIT 3000"
   ).all(ai)
   const sameGroup = []
   for (const r of prior) {
@@ -2196,6 +2322,7 @@ function describeGates(rule) {
   const parts = []
   if (Number(rule.minConfidence) > 0) parts.push(`置信度≥${rule.minConfidence}%`)
   if (Number(rule.minLevel) > 0) parts.push(`等级≥${rule.minLevel}`)
+  if (Number(rule.minPlateConfidence) > 0) parts.push(`车牌置信度≥${rule.minPlateConfidence}%`)
   if (rule.activeHours) parts.push(`时段「${rule.activeHours}」`)
   return parts.length ? `，且满足 ${parts.join('、')}` : ''
 }
@@ -2308,7 +2435,12 @@ function queryWarnings({ type, excludeType, limit, status, includeBlocked, from,
   //   AI 存档页需要完整留档 → 传 includeBlocked:true（见 iot-fetcher.getArchive）
   if (!includeBlocked) where.push("(judge_status IS NULL OR judge_status <> 'blocked')")
   if (where.length) sql += ' WHERE ' + where.join(' AND ')
-  sql += ' ORDER BY rowid DESC'
+  // 🔴 2026-10-01（A′）：原为 `ORDER BY rowid DESC` —— rowid 只是**插入序**的隐式代理，
+  //   仅在「插入序 ≈ 时间序」时等价于"按时间倒序"。历史回捞/批量补录会把大量**旧记录**以更大的
+  //   rowid 追加进来 ⇒ 该接口的**可见窗口被整体挪走**（实测：面板从"今天"变成"9月"，实时区为空）。
+  //   现改为**显式按时间**排序；`created_at` 已在同期归一为同一口径（上海本地串 `YYYY-MM-DD HH:mm:ss`），
+  //   字典序即时间序。同秒记录用 rowid 兜底保证稳定序。
+  sql += ' ORDER BY created_at DESC, rowid DESC'
   if (limit) { sql += ' LIMIT ?'; args.push(Number(limit)) }
   // T7：命中告警过滤规则（enabled alert_filter_rules）的记录从列表剔除，不出现在前端
   let out = db.prepare(sql).all(...args).map(r => JSON.parse(r.data_json)).filter(w => !alertFilterRuleHit(w))
@@ -2748,10 +2880,22 @@ function mapPushRule(r) {
     // P1-1 / P1-2（2026-09-19）：维度补全 + 动作
     minConfidence: Number(r.min_confidence) || 0,   // 百分比 0-100，0=不限
     minLevel: Number(r.min_level) || 0,             // 1-4，0=不限
+    minPlateConfidence: Number(r.min_plate_confidence) || 0,  // 2026-10-11：%，0=不限（>0 要求有牌）
     activeHours: r.active_hours || '',              // 上海时间；空=全天
     action: r.action || 'admit_front',              // admit_front | front_and_push | archive_only
+    // 🆕 S1（2026-10-12）：3 个可空字段 —— **保留 NULL**（NULL＝未设置＝现行为），不要 coerce 成 0
+    recordMinConfidence: s1NumOrNull(r.record_min_confidence),  // % 0-100；NULL=不做单条展示门槛
+    exempt: s1IntOrNull(r.exempt) === 1 ? 1 : 0,               // 1=作业区豁免；0=NULL=不豁免
+    reportEnabled: s1IntOrNull(r.report_enabled),              // NULL=跟随②送达规则；1=强制上报；0=不上报
   }
 }
+/** 🆕 S1：可空数值归一 —— null/undefined/'' ⇒ **NULL**（＝未设置）；其余转数字（0 保留为 0） */
+function s1NumOrNull(v) {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+function s1IntOrNull(v) { const n = s1NumOrNull(v); return n === null ? null : Math.round(n) }
 function listPushRules() {
   // P2：必须带 rowid 兜底排序 —— 只按 created_at DESC 时，**同毫秒创建的多条规则排序不确定**，
   //   而 pickPushRule 取第一条 → 会导致"哪条规则生效"随机（实测已复现）。
@@ -2762,13 +2906,14 @@ function getPushRule(id) {
   const r = db.prepare('SELECT * FROM push_rules WHERE id = ?').get(id)
   return r ? mapPushRule(r) : null
 }
-function createPushRule({ name, channel_sip_id, ai_types, time_window_hours, threshold, enabled, min_confidence, min_level, active_hours, action }) {
+function createPushRule({ name, channel_sip_id, ai_types, time_window_hours, threshold, enabled, min_confidence, min_level, min_plate_confidence, active_hours, action, record_min_confidence, exempt, report_enabled }) {
   const id = require('crypto').randomUUID()
   const now = new Date().toISOString()
   const arr = Array.isArray(ai_types) ? ai_types : (ai_types ? [ai_types] : [])
-  db.prepare('INSERT INTO push_rules (id,name,channel_sip_id,ai_type,ai_types,time_window_hours,threshold,enabled,created_at,updated_at,min_confidence,min_level,active_hours,action) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+  db.prepare('INSERT INTO push_rules (id,name,channel_sip_id,ai_type,ai_types,time_window_hours,threshold,enabled,created_at,updated_at,min_confidence,min_level,min_plate_confidence,active_hours,action,record_min_confidence,exempt,report_enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(id, name, channel_sip_id ?? null, arr[0] || '', JSON.stringify(arr), Number(time_window_hours) || 24, Number(threshold) || 20, enabled === false ? 0 : 1, now, now,
-      Number(min_confidence) || 0, Number(min_level) || 0, String(active_hours || ''), normAction(action))
+      Number(min_confidence) || 0, Number(min_level) || 0, Number(min_plate_confidence) || 0, String(active_hours || ''), normAction(action),
+      s1NumOrNull(record_min_confidence), s1IntOrNull(exempt), s1IntOrNull(report_enabled))
   return getPushRule(id)
 }
 function updatePushRule(id, patch) {
@@ -2778,12 +2923,18 @@ function updatePushRule(id, patch) {
   const p = { ...(patch || {}) }
   if (p.min_confidence !== undefined) p.minConfidence = p.min_confidence
   if (p.min_level !== undefined) p.minLevel = p.min_level
+  if (p.min_plate_confidence !== undefined) p.minPlateConfidence = p.min_plate_confidence
   if (p.active_hours !== undefined) p.activeHours = p.active_hours
+  // 🆕 S1：新 3 维的 snake_case 兼容（与上面同样的理由：两种命名都要能改到）
+  if (p.record_min_confidence !== undefined) p.recordMinConfidence = p.record_min_confidence
+  if (p.exempt !== undefined) p.exempt = p.exempt
+  if (p.report_enabled !== undefined) p.reportEnabled = p.report_enabled
   const next = { ...cur, ...p, id, updated_at: new Date().toISOString() }
   const arr = Array.isArray(next.aiTypes) ? next.aiTypes : (next.aiType ? [next.aiType] : [])
-  db.prepare('UPDATE push_rules SET name=?, channel_sip_id=?, ai_type=?, ai_types=?, time_window_hours=?, threshold=?, enabled=?, updated_at=?, min_confidence=?, min_level=?, active_hours=?, action=? WHERE id=?')
+  db.prepare('UPDATE push_rules SET name=?, channel_sip_id=?, ai_type=?, ai_types=?, time_window_hours=?, threshold=?, enabled=?, updated_at=?, min_confidence=?, min_level=?, min_plate_confidence=?, active_hours=?, action=?, record_min_confidence=?, exempt=?, report_enabled=? WHERE id=?')
     .run(next.name, next.channelSipId ?? null, arr[0] || '', JSON.stringify(arr), Number(next.timeWindowHours) || 24, Number(next.threshold) || 20, next.enabled ? 1 : 0, next.updated_at,
-      Number(next.minConfidence) || 0, Number(next.minLevel) || 0, String(next.activeHours || ''), normAction(next.action), id)
+      Number(next.minConfidence) || 0, Number(next.minLevel) || 0, Number(next.minPlateConfidence) || 0, String(next.activeHours || ''), normAction(next.action),
+      s1NumOrNull(next.recordMinConfidence), s1IntOrNull(next.exempt), s1IntOrNull(next.reportEnabled), id)
   return getPushRule(id)
 }
 function deletePushRule(id) {
@@ -2821,7 +2972,7 @@ function queryWarningsForExport({ status = 'all', sources, levels, from, to, q, 
   // P0-1：导出与前台列表同口径（被研判拦下的记录不出现在告警历史导出里；存档页仍可查）
   where.push("(judge_status IS NULL OR judge_status <> 'blocked')")
   if (where.length) sql += ' WHERE ' + where.join(' AND ')
-  sql += ' ORDER BY rowid DESC'
+  sql += ' ORDER BY created_at DESC, rowid DESC'   // 🔴 A′ 2026-10-01：勿改回 rowid（导出顺序同样会被批量补录挪走）
   const rows = db.prepare(sql).all(...args).map(r => JSON.parse(r.data_json))
   const out = []
   for (const w of rows) {
@@ -2992,8 +3143,76 @@ function filterHasBeforeTimeCol() {
   } catch (e) { _filterHasBeforeTime = false }   // 列不存在（老库）→ 退回旧行为，绝不因此报错
   return _filterHasBeforeTime
 }
-function alertFilterRuleHit(w) {
+// ── 业务口径 SSOT：免降噪过滤的告警类型（2026-10-01 用户拍板）────────────
+// 🔴「渣土车冒装」（口语『渣土车帽盖』，aiTypeFamily=cover_det）＝**判罚证据**，
+//    口径为「不聚合、不过滤、逐条直出」。三条约束，新增任何过滤/聚合逻辑前必须先读这里：
+//      ① 不受 `gatePassed`（入库门限标记）影响 —— 低于 min_spill_conf 的记录同样必须可见。
+//         实测（2026-10-01）：104 条冒装中 98 条 gatePassed=false；若按门限过滤只剩 6 条＝把证据丢掉。
+//      ② 不被「告警过滤规则 alert_filter_rules」隐藏 —— 否则一条误配的降噪规则就能吞掉判罚证据。
+//      ③ 不参与「N 小时 ≥ M 条」的聚合折叠（冒装逐条直出，不做频发聚合）。
+//    ⚠️ **保留期（algo_retention）不在此豁免范围**：冒装默认留 7 天，超期软归档属既定留痕策略。
+//    ⚠️ 反面参照：`stockpile_cover`（堆头未覆盖）走「24h≥5」聚合推送，是**相反**口径，勿混。
+const GATE_EXEMPT_AI_TYPES = ['渣土车冒装', '渣土车帽盖']
+/** 是否属于「免降噪过滤」类型（判罚证据类）。用于 alertFilterRuleHit / 聚合折叠的豁免。 */
+function isGateExemptWarning(w) {
   if (!w) return false
+  const t = String(w.aiType || w.aggregateAiType || w.type || '')
+  return GATE_EXEMPT_AI_TYPES.some(n => t.includes(n))
+}
+
+// ── 🆕 S2（2026-10-12）：单条展示门槛「上移到①」────────────────────────────────
+//   背景：现网 ③「告警过滤」(alert_filter_rules) 与 ①「事件研判逻辑」(push_rules) 是两处配同一种事
+//   （"这条记录该不该让人看见"）。S2 把 ③ 的能力上移进①的 `record_min_confidence`（S1 已建字段）。
+//   🔴 设计要点：
+//     ① **开关控制**：app_settings.record_threshold_source 默认 'filter'（＝现行为）；
+//        切成 'push_rule' 才启用新机制 ⇒ 可 A/B、可零重启回退。
+//     ② **保留业务约束**：判罚证据类（GATE_EXEMPT_AI_TYPES）**永不**被过滤隐藏 —— 与旧实现一致。
+//     ③ 无置信度 ⇒ **不隐藏**（宁可显示，避免静默吞掉）。
+//     ④ 匹配口径：(channelSipId, aiType) 精确命中①规则；该规则 record_min_confidence 为 NULL ⇒ 不设门槛。
+/** 按①的单条展示门槛判断该记录是否应从列表隐藏（true＝隐藏）
+ *  🔴 复用项目既有权威口径，**不重复实现**：
+ *     · conf 归一 → warningConfPct（兼容 0-1 与 0-100）
+ *     · 规则选取 → pickPushRule（与 judgeWarning 同一条规则，含通配兜底）
+ *     · 通道键   → warningChannelKey（channelSipId 缺失时退用 streamId）
+ */
+function pushRuleThresholdHit(w) {
+  if (!w) return false
+  if (isGateExemptWarning(w)) return false          // 🔴 判罚证据类永久豁免（业务约束②）
+  const cp = warningConfPct(w)
+  if (cp === null) return false                     // 无置信度 ⇒ 不隐藏（宁可显示）
+  const ai = String(w.aiType || '')
+  if (!ai) return false
+  let rule = null
+  try { rule = pickPushRule(listPushRules().filter(r => r.enabled), warningChannelKey(w), ai) } catch (e) { return false }
+  if (!rule) return false                           // 无规则 ⇒ 不设门槛（与研判口径一致）
+  const th = s1NumOrNull(rule.recordMinConfidence)
+  return th !== null && cp < th
+}
+
+/** 单条展示门槛的真源：'filter'＝旧③（默认，现行为）｜'push_rule'＝新① */
+function recordThresholdSource() {
+  try {
+    const r = db.prepare("SELECT value FROM app_settings WHERE key = 'record_threshold_source'").get()
+    return (r && String(r.value || '').trim() === 'push_rule') ? 'push_rule' : 'filter'
+  } catch (e) { return 'filter' }
+}
+function setRecordThresholdSource(v) {
+  const val = v === 'push_rule' ? 'push_rule' : 'filter'
+  db.prepare('INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?,?,?)')
+    .run('record_threshold_source', val, new Date().toISOString())
+  return val
+}
+
+/** 🆕 S2 分派器：默认走旧实现（**零行为变化**）；切开关后走①的新机制 */
+function alertFilterRuleHit(w) {
+  return recordThresholdSource() === 'push_rule' ? pushRuleThresholdHit(w) : alertFilterRuleHitLegacy(w)
+}
+
+/** 🆕 S2：旧实现（③ alert_filter_rules 驱动），原样保留供 A/B 对照与回退 */
+function alertFilterRuleHitLegacy(w) {
+  if (!w) return false
+  // 🔴 判罚证据类（渣土车冒装）**永不**被告警过滤规则隐藏 —— 见 GATE_EXEMPT_AI_TYPES 约束②
+  if (isGateExemptWarning(w)) return false
   const FILTER_COLS = filterHasBeforeTimeCol()
     ? 'SELECT sources, locations, min_confidence, severities, before_time FROM alert_filter_rules WHERE enabled = 1'
     : 'SELECT sources, locations, min_confidence, severities FROM alert_filter_rules WHERE enabled = 1'
@@ -3109,6 +3328,11 @@ function queryWarningsAggregated({ limit, lightweight, retention } = {}) {
     "SELECT id, created_at, data_json FROM warnings WHERE status='pending' AND json_extract(data_json,'$.source') IN ('iotcloud','chengyun-platform','straw-engine')"
     // P0-1：研判拦下的记录不进前台（列表轨与 SSE 轨同口径）
     + " AND (judge_status IS NULL OR judge_status <> 'blocked')"
+    // 🔴 2026-10-01（A′）：原查询**没有 ORDER BY** ⇒ SQLite 按 rowid **ASC** 返回 ⇒
+    //   在「`listPushRules()` 为空 → 走下方短路分支直接 slice(0,limit)」的路径上，
+    //   该接口会**恒定返回最旧的记录**（实测前 20 条＝2026-06-07 九龙沙场堆头，实时告警面板因此永远看不到当天数据）。
+    //   现显式按时间倒序；同秒用 rowid 兜底。
+    + " ORDER BY created_at DESC, rowid DESC"
   ).all()
   // T7：先应用告警过滤规则（命中即隐藏，不参与后续聚合），再走聚合折叠
   const kept = rawRows.map(r => ({ id: r.id, created_at: r.created_at, w: JSON.parse(r.data_json) }))
@@ -3140,6 +3364,8 @@ function queryWarningsAggregated({ limit, lightweight, retention } = {}) {
     //   归一为 null → 走 '全部通道' 兜底。
     const [cidRaw, ai] = key.split('|')
     const cid = cidRaw && cidRaw !== 'null' ? cidRaw : null
+    // 🔴 判罚证据类（渣土车冒装）不做频发聚合 → 逐条直出（见 GATE_EXEMPT_AI_TYPES 约束③）
+    if (isGateExemptWarning(items[0].w)) { for (const it of items) result.push(it.w); continue }
     // 规则优先级：业务方「具体类型」规则 > 系统默认「通配(空 ai_types)」规则（否则通配总抢先命中、自定义阈值失效）
     // 2026-09-19：匹配逻辑抽成 pickPushRule 唯一出处，与入库期闸门 judgeWarning 共用（防双轨口径漂移）
     const rule = pickPushRule(rules, cid, ai)
@@ -3490,6 +3716,17 @@ function listIotChannels() {
 function countIotChannelsAll() {
   return db.prepare('SELECT COUNT(*) c FROM iot_channels').get().c
 }
+// 🔴 2026-10-10：按「流名称」反查 coll_streams.id。
+//   供首次种子（iot-fetcher 的 seedIfEmpty）在无前端参与时把「通道 ↔ 视频流」映射一并落库；
+//   用名称而不是硬编码 uuid —— 流被删除重建后 uuid 会变，名称相对稳定，找不到就返回 null（不绑流）。
+function findStreamIdByName(name) {
+  const n = String(name || '').trim()
+  if (!n) return null
+  try {
+    const r = db.prepare("SELECT id FROM coll_streams WHERE json_extract(data_json,'$.name') = ? LIMIT 1").get(n)
+    return r ? r.id : null
+  } catch (e) { return null }
+}
 // 接入（upsert）：已存在（含软删）则复活+刷新快照，否则新增
 function upsertIotChannel(ch) {
   const now = new Date().toISOString()
@@ -3592,10 +3829,14 @@ module.exports = {
   streamFallbackName, sikongStreamLabel, SIM_STREAM_LABEL,
   // 告警过滤规则
   listAlertFilterRules, getAlertFilterRule, createAlertFilterRule, updateAlertFilterRule, deleteAlertFilterRule,
-  resolveSourceKey, alertFilterRuleHit, sikongStreamLabel,
+  resolveSourceKey, alertFilterRuleHit, alertFilterRuleHitLegacy, pushRuleThresholdHit, reportOverride,
+  recordThresholdSource, setRecordThresholdSource, sikongStreamLabel,
+  // 🔴 免降噪过滤白名单（判罚证据类）· 2026-10-01（导出以便自检脚本断言）
+  GATE_EXEMPT_AI_TYPES, isGateExemptWarning,
   // 按算法保留期（软归档）· 2026-09-24
   listAlgoRetention, getAlgoRetention, upsertAlgoRetention, deleteAlgoRetention,
   retentionKeepDays, warningRetentionExpired, retentionDryRun, retentionVersion, invalidateRetentionCache,
+  retentionInfoSummary,   // 🆕 S2.5：只含天数的保留期摘要（供前台标注）
   RETENTION_DEFAULT_KEY, RETENTION_GAS_KEY, RETENTION_RESERVED_KEYS, RETENTION_KEY_LABEL,
   queryWarningsAggregated, handleGroupWarnings, getWarningsByIds, computeAiConfidenceStats,
   queryWarningsForExport, exportWarningLevel,
@@ -3610,12 +3851,12 @@ module.exports = {
   userByName, userById, userCount, listUsers, insertUser, updateUser, deleteUser,
   createSession, getSession, deleteSession, deleteUserSessions, purgeExpiredSessions,
   // IoT 通道接入
-  listIotChannels, countIotChannelsAll, upsertIotChannel, getIotChannel, updateIotChannel, updateIotChannelAiTypes, clearStreamMapping, softDeleteIotChannel,
+  listIotChannels, countIotChannelsAll, findStreamIdByName, upsertIotChannel, getIotChannel, updateIotChannel, updateIotChannelAiTypes, clearStreamMapping, softDeleteIotChannel,
   updateIotChannelRoi, listIotRoiConfigs,
   // IoT recordId 去重留痕
   iotSeenAll, iotMarkSeen, iotSeenPrune,
   // 智治推送回调闭环
-  markEventsPushed, recordSmartPushCallback, closeSmartPushHistory, getSmartPushHistory,
+  markEventsPushed, recordSmartPushCallback, closeSmartPushHistory, getSmartPushHistory, countSmartPushHistory,
   // P2 目标平台
   listSmartPushPlatforms, getSmartPushPlatform, upsertSmartPushPlatform, deleteSmartPushPlatform, platformSubscribes,
   // 第③环 PDF 结案报告模板

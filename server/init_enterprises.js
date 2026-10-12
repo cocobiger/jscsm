@@ -1,5 +1,5 @@
 const Database = require('better-sqlite3')
-const db = new Database('/opt/jsc/backend/data/jsc.db')
+const db = new Database('/data/HBJSC/backend/data/jsc.db')
 
 try {
   // 创建 enterprises 表

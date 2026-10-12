@@ -53,6 +53,20 @@ const IOT = {
   ],
   // 通道触发后摄像头图标保持告警状态的时长（毫秒），超时后自动熄灭
   alertTtlMs: 30 * 60 * 1000,
+  // 🆕 2026-10-10：「6 路道路枪机」→「渣土车冒装」接入表（与 scripts/bind-road-cameras.js 同源、同口径）。
+  //   用途：**仅在 iot_channels 表完全为空时**（首次部署 / 库重建 / 新环境）随其它种子一起写入，
+  //   保证这套接入关系可复现；已有数据的库不受影响（管理员在后台的增删不会被覆盖）。
+  //   streamName：按 coll_streams.data_json.name 解析 stream_id；null = 不绑流（页面显示「未映射」）。
+  //   ⚠️ 口径名用网关 SSOT 的「渣土车冒装」，不要写口语「渣土车帽盖」。
+  roadCameras: [
+    { sip: '56331706881318000308', name: '50ch8 高铁站龙四路交汇', deviceId: '50010100001310000003', streamName: '高铁站龙四路交汇' },
+    { sip: '56331706881318000305', name: '50ch5 龙四路',          deviceId: '50010100001310000003', streamName: null },
+    { sip: '56331706881318000202', name: '51ch2 龙湖路路口',       deviceId: '50010100001310000002', streamName: '九龙园龙湖路道路' },
+    { sip: '56331706881318000204', name: '51ch4 九沙三叉路口',      deviceId: '50010100001310000002', streamName: '九龙路三叉支路' },
+    { sip: '56331706881318000205', name: '51ch5 九沙三叉路口对面',   deviceId: '50010100001310000002', streamName: '九龙路三叉支路2号机' },
+    { sip: '56331706881318000206', name: '51ch6 龙湖路宜化对面',     deviceId: '50010100001310000002', streamName: '九龙园龙湖路宜化路口' },
+  ],
+  roadCameraAiType: '渣土车冒装',
 }
 
 if (!process.env.IOT_CLOUD_PASSWORD) {
@@ -61,8 +75,14 @@ if (!process.env.IOT_CLOUD_PASSWORD) {
 }
 
 // AI 类型映射（analyseInfo JSON key → 中文）
+// 🆕 2026-10-09：补「渣土车冒装」族 —— 权威键 cover_det，历史键 unsoilcover / spill 同族；
+//   原 unsoilcover→「堆头未覆盖」系误命名（实测检出对象是渣土车，不是堆场料堆），现归正。
+//   🔴 2026-10-10 口径统一：名字以网关 SSOT 的 name_zh =「渣土车冒装」为准（不再用口语「帽盖」）。
 const AI_TYPE_MAP = {
-  unsoilcover: '堆头未覆盖',
+  cover_det: '渣土车冒装',      // 网关 /meta/algo-types 的 source_key（首选键）
+  unsoilcover: '渣土车冒装',    // 平台/TASK 历史键（= 同一算法）
+  spill: '渣土车冒装',          // 告警层别名（8.11:7100 的 event/label「冒装」）
+  stockpile_cover: '堆头未覆盖', // 堆场料堆未盖防尘网（与冒装分族，保留词条）
   uncovered: '裸土未覆盖',
   person: '人员入侵',
   vehicle: '车辆违停',
@@ -278,40 +298,87 @@ function algoFamilyKey(rec) {
   return t ? String(t) : ''
 }
 
+// ── 车牌提取（2026-09-26 新增）───────────────────────
+// 🔴 背景：「渣土车冒装/帽盖」事件的车牌**一直由 11 机 alarm-processor 写在 analyseInfo 里**
+//    （形如 [{"unsoilcover":0.9,"plate":"渝AG97V","plate_conf":0.855}]，来源 plate-service:7001
+//    的 plate_crnn 模型），但本模块原先「只取第一个键的数值」，把 plate 直接丢了
+//    ⇒ 驾驶舱的冒装告警缺车牌、事件不完整。
+// 兼容实测并存的三种形态：
+//   ① 同元素：  {"unsoilcover":0.9,"plate":"渝A12345","plate_conf":0.85}
+//   ② 独立元素：[{"unsoilcover":0.9},{"plate":"渝A12345","plate_conf":0.85}]
+//   ③ 键名变体：plate / plate_number、plate_conf / plate_confidence（网关 /meta 的 aliases 同款）
+// 取不到时返回空字符串 —— 由前端统一显示「车牌未获取」（**不编造、不留 null**）。
+const PLATE_KEYS = ['plate', 'plate_number', 'plate_conf', 'plate_confidence']
+function extractPlate(arr) {
+  let plate = ''
+  let conf = null
+  if (!Array.isArray(arr)) return { plate, conf }
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') continue
+    if (!plate) {
+      for (const k of ['plate', 'plate_number']) {
+        const v = it[k]
+        if (typeof v === 'string' && v.trim()) { plate = v.trim(); break }
+      }
+    }
+    if (conf === null) {
+      for (const k of ['plate_conf', 'plate_confidence']) {
+        const v = it[k]
+        if (typeof v === 'number' && isFinite(v)) { conf = v; break }
+      }
+    }
+  }
+  return { plate, conf }
+}
+
 // ── analyseInfo 解析 ─────────────────────────────────
 // 🔴 P1：优先用网关下发的 rec.aiType（**可区分算法族**）来定中文名；
 //    它取不到时才退回现有的「取 analyseInfo 第一个键」老逻辑（完全向后兼容）。
+// 🔴 2026-09-26：同时把 plate / plate_conf 解析出来（此前被丢弃）。
 function parseAnalyseInfo(infoStr, rec) {
   // ① P1：网关已给定可区分键（cover_det / stockpile_cover / …）
   const fam = algoFamilyKey(rec)
-  try {
-    const arr = JSON.parse(infoStr)
-    if (!Array.isArray(arr) || arr.length === 0) {
-      return { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0, raw: infoStr,
-               family: fam || '' }
-    }
-    const first = arr[0]
-    const key = Object.keys(first)[0]
-    const value = first[key]
-    // ② 置信度仍从 analyseInfo 数值取（网关的 aiType 只表达"哪类算法"）
-    let conf = typeof value === 'number' ? value : 0
-    if (typeof value !== 'number') {
-      for (const k2 of Object.keys(first)) {
-        if (typeof first[k2] === 'number') { conf = first[k2]; break }
-      }
-    }
-    return {
-      type: resolveAiType(fam || key),
-      confidence: conf,
-      raw: infoStr,
-      // P1：算法族键透传给前端，便于按业务分色/分层/分统计
-      family: fam || '',
-      typeRaw: key,
-    }
-  } catch {
-    return { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0, raw: infoStr,
-             family: fam || '' }
+  let arr = []
+  try { arr = JSON.parse(infoStr) } catch { arr = [] }
+  const plateInfo = extractPlate(arr)
+  const base = {
+    raw: infoStr,
+    // P1：算法族键透传给前端，便于按业务分色/分层/分统计
+    family: fam || '',
+    plate: plateInfo.plate,
+    plateConf: plateInfo.conf,
   }
+  if (!Array.isArray(arr) || arr.length === 0) {
+    return Object.assign(base, { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0 })
+  }
+  // 🔴 2026-09-26：先跳过「车牌元素」再定类型键 / 置信度键 ——
+  //    否则 analyseInfo 若是 [{"plate":"渝A12345","plate_conf":0.85}]，
+  //    会把算法名解析成「车牌识别」（plate_ocr 的别名），并把 plate_conf 当成冒装置信度。
+  let det = null
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') continue
+    const ks = Object.keys(it).filter(k => !PLATE_KEYS.includes(k))
+    if (ks.length > 0) { det = { obj: it, ks }; break }
+  }
+  if (!det) {
+    // 整条只有车牌信息（无算法键）→ 无算法置信度可言
+    return Object.assign(base, { type: fam ? resolveAiType(fam) : 'AI分析', confidence: 0 })
+  }
+  const { obj, ks } = det
+  const key = ks[0]
+  // ② 置信度仍从 analyseInfo 数值取（网关的 aiType 只表达"哪类算法"）
+  let conf = 0
+  if (typeof obj[key] === 'number') conf = obj[key]
+  else {
+    for (const k2 of ks) {
+      if (typeof obj[k2] === 'number') { conf = obj[k2]; break }
+    }
+  }
+  return Object.assign(base, {
+    type: resolveAiType(fam || key),
+    confidence: conf,
+    typeRaw: key,
+  })
 }
 
 // ── 单条记录 → Warning 对象 ─────────────────────────
@@ -342,9 +409,17 @@ function transformToWarning(rec) {
     aiTypeFamily: ai.family || '',      // 🔴 P1：算法族键（cover_det/stockpile_cover…），供前端区分
     aiTypeRaw: ai.typeRaw || '',        // 🔴 P1：analyseInfo 原始键，便于排查
     aiConfidence: ai.confidence,
+    // 🔴 2026-09-26：车牌（alarm-processor 写在 analyseInfo 的 plate / plate_conf）。
+    //    「渣土车冒装/帽盖」是判罚证据，缺车牌就不是一个完整事件 ⇒ 一并入库、透传到前端。
+    //    取不到一律空串（前端显示「车牌未获取」），不要写 null/undefined 以保持口径统一。
+    licensePlate: ai.plate || '',
+    plateConfidence: (typeof ai.plateConf === 'number' && isFinite(ai.plateConf)) ? ai.plateConf : null,
     // 🔴 09-17 P0-2b：门限内外标记（网关下发）。
-    //   false = 这条是「低于 min_spill_conf 的全量分析记录」→ 只进「AI分析存档」，
-    //   不进「实时告警」（由 store.queryWarningsAggregated 与 warnings-stream 排除）。
+    //   false = 这条是「低于 min_spill_conf 的全量分析记录」（**仅作标记**，供存档页/口径展示用）。
+    // ⚠️ 2026-10-01 更正：本处原注释写「不进实时告警（由 store.queryWarningsAggregated 与 warnings-stream 排除）」
+    //   —— 实为**错误注释**：全仓 grep 证实 `gatePassed` **只写不读**，后端与前端都没有任何基于它的过滤。
+    //   即门限内外记录**都会**进前台与实时告警。请勿据旧注释去新增 gate 过滤（那会把判罚证据一起吞掉）。
+    //   口径依据见 store-db.js 的 GATE_EXEMPT_AI_TYPES（冒装＝判罚证据，不聚合/不过滤）。
     //   undefined（历史记录无此字段）→ 视为已过门限，保持原可见性，不误伤老数据。
     gatePassed: rec.gatePassed,
     ruleId: rec.ruleId,
@@ -362,6 +437,43 @@ function transformToWarning(rec) {
 }
 
 // ── 拉取一轮数据 ─────────────────────────────────────
+// ── 单条记录 → 入库（fetchOnce 与 catchUpBacklog 共用，避免两处白名单逻辑漂移）──
+// 返回 'new' | 'dup' | 'skipUnreg' | 'skipAlgo' | 'err'
+function tryIngest(rec, channels) {
+  if (!rec || rec.recordId == null) return 'err'
+  // 去重（🔴 统一按字符串：网关给的是 number，去重集里两种来源类型不同）
+  const rid = String(rec.recordId)
+  if (_lastRecordIds.has(rid)) return 'dup'
+  _lastRecordIds.add(rid)
+
+  const warning = transformToWarning(rec)
+
+  // 2026-09-15 整改（通道算法配置「真生效」· 白名单语义）
+  //   ⚠️ 实测 IoTCloud 的 /sip/analyse/record/list 对 channelSpid **过滤不严格** ——
+  //   请求某通道会返回该 NVR 下其它通道的记录（日志证据：每个登记通道都"新增 1 条"，
+  //   而拉到的却是 205/204/305 等未登记通道的记录）。
+  //   因此必须按**记录自身的 channelSipId** 去查配置，而不是按"请求的通道"。
+  //   规则：① 记录所属通道未登记 → 不收（配置即白名单）
+  //        ② 已登记但 aiType 不在该通道 ai_types 配置内 → 不收
+  const recCh = channels.find(c => c.channelSipId === warning.channelSipId)
+  if (!recCh) {
+    if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rid, warning.channelSipId)
+    return 'skipUnreg'
+  }
+  const allow = recCh.aiTypes || []
+  if (allow.length > 0 && !allow.includes(warning.aiType)) {
+    if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rid, recCh.channelSipId)
+    return 'skipAlgo'
+  }
+
+  if (_store) {
+    _store.insertWarning(warning)
+    // 入库成功后留痕（DB 持久化，进程重启后不再重拉覆盖 handled 状态）
+    if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rid, recCh.channelSipId)
+  }
+  return 'new'
+}
+
 async function fetchOnce() {
   if (!await ensureToken()) return
 
@@ -397,38 +509,10 @@ async function fetchOnce() {
 
       const rows = res.body.rows || []
       for (const rec of rows) {
-        // 去重
-        if (_lastRecordIds.has(rec.recordId)) continue
-        _lastRecordIds.add(rec.recordId)
-
-        const warning = transformToWarning(rec)
-
-        // 2026-09-15 整改（通道算法配置「真生效」· 白名单语义）
-        //   ⚠️ 实测 IoTCloud 的 /sip/analyse/record/list 对 channelSpid **过滤不严格** ——
-        //   请求某通道会返回该 NVR 下其它通道的记录（日志证据：每个登记通道都"新增 1 条"，
-        //   而拉到的却是 205/204/305 等未登记通道的记录）。
-        //   因此必须按**记录自身的 channelSipId** 去查配置，而不是按"请求的通道"。
-        //   规则：① 记录所属通道未登记 → 不收（配置即白名单）
-        //        ② 已登记但 aiType 不在该通道 ai_types 配置内 → 不收
-        const recCh = channels.find(c => c.channelSipId === warning.channelSipId)
-        if (!recCh) {
-          skippedUnreg++
-          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, warning.channelSipId)
-          continue
-        }
-        const allow = recCh.aiTypes || []
-        if (allow.length > 0 && !allow.includes(warning.aiType)) {
-          skippedAlgo++
-          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, recCh.channelSipId)
-          continue
-        }
-
-        if (_store) {
-          _store.insertWarning(warning)
-          // 入库成功后留痕（DB 持久化，进程重启后不再重拉覆盖 handled 状态）
-          if (typeof _store.iotMarkSeen === 'function') _store.iotMarkSeen(rec.recordId, recCh.channelSipId)
-        }
-        totalNew++
+        const r = tryIngest(rec, channels)
+        if (r === 'new') totalNew++
+        else if (r === 'skipUnreg') skippedUnreg++
+        else if (r === 'skipAlgo') skippedAlgo++
       }
 
       if (rows.length > 0 && _log) {
@@ -442,6 +526,76 @@ async function fetchOnce() {
     _log.info(`[IoT] 通道配置过滤：未登记通道跳过 ${skippedUnreg} 条 · 算法不匹配跳过 ${skippedAlgo} 条（本轮新增 ${totalNew} 条）`)
   }
   return totalNew
+}
+
+// ── 🔴 历史回捞（仅进程启动时跑一次）────────────────────────────
+// 背景（2026-10-01 生产实测）：`fetchOnce` 每通道每轮**只请求 `pageNum=1&pageSize=20`**。
+//   一旦去重台账被清空（重部署 / 首次部署 / 表被重建），启动后的首批只能吃到
+//   「每通道最新 20 条」；更早的记录**只存在于 page 2..N**，而轮询永远只看 page 1
+//   ⇒ 历史差集**永久不可达**。且表面完全正常：每轮日志照打「拉取完成…新增 0 条」。
+//   实测代价：4 路枪机**告警级**（spill≥0.50）冒装记录网关 486 条、驾驶舱只入库 **105 条（21.6%）**，
+//   真漏 381 条（含 32 条 conf≥0.80 的最强判罚证据），全程零报错。
+//
+// ⚠️ 停止条件**不能**写成「遇到已见记录就停」：实测**每个通道的 page 1 整页都是已见**
+//   （因为最新 20 条早已入库），那样会立刻停止、一条都捞不到。
+//   正确条件是：**该页为空**（或记录数 < 页大小 = 最后一页），并叠加页数/总量硬上限兜底。
+//
+// 设计取舍：只在**启动时跑一次**，不进 30s 轮询 ⇒ 稳态请求量与原实现**完全一致**；
+//   而每次重启都会重走一遍 ⇒ 台账再被清空也能自愈（无需人工干预）。
+const BACKFILL_ON_START = String(process.env.IOT_BACKFILL_ON_START ?? '1') !== '0'
+const BACKFILL_PAGE_SIZE = Number(process.env.IOT_BACKFILL_PAGE_SIZE || 20)   // 与服务端封顶一致
+const BACKFILL_MAX_PAGE = Number(process.env.IOT_BACKFILL_MAX_PAGE || 100)    // 单通道最多翻 100 页
+const BACKFILL_MAX_TOTAL = Number(process.env.IOT_BACKFILL_MAX_TOTAL || 5000) // 单轮最多入库条数（防失控）
+
+async function catchUpBacklog(channels) {
+  if (!BACKFILL_ON_START) {
+    if (_log) _log.info('[IoT] 历史回捞已禁用（IOT_BACKFILL_ON_START=0）')
+    return 0
+  }
+  if (!channels || channels.length === 0) return 0
+
+  // 字典/坐标先就位，保证回捞记录的中文算法名与坐标与稳态一致
+  await refreshMetaAlgoTypes(false)
+  _aiTypeKeyMap = (_store && typeof _store.getAiTypeKeyMap === 'function') ? _store.getAiTypeKeyMap() : {}
+  resolveChannelGeo(channels.map(c => ({ spid: c.channelSipId, name: c.channelName, streamId: c.streamId })))
+
+  let newTotal = 0, unreg = 0, algo = 0, pages = 0, done = 0
+  const t0 = Date.now()
+  for (const ch of channels) {
+    if (newTotal >= BACKFILL_MAX_TOTAL) break
+    let pn = 1
+    for (; pn <= BACKFILL_MAX_PAGE; pn++) {
+      let rows = []
+      try {
+        const res = await iotRequest('GET',
+          `/sip/analyse/record/list?pageNum=${pn}&pageSize=${BACKFILL_PAGE_SIZE}&channelSpid=${ch.channelSipId}&deviceId=${ch.deviceSipId}`)
+        if (res.status !== 200 || !res.body?.rows) {
+          if (_log) _log.warn(`[IoT] 历史回捞中断 [${ch.channelName}] p${pn}: HTTP ${res.status}`)
+          break
+        }
+        rows = res.body.rows || []
+      } catch (e) {
+        if (_log) _log.warn(`[IoT] 历史回捞异常 [${ch.channelName}] p${pn}: ${e.message}`)
+        break
+      }
+      if (rows.length === 0) break                       // ← 正常终止：该通道已翻到底
+      pages++
+      for (const rec of rows) {
+        const r = tryIngest(rec, channels)
+        if (r === 'new') newTotal++
+        else if (r === 'skipUnreg') unreg++
+        else if (r === 'skipAlgo') algo++
+      }
+      if (rows.length < BACKFILL_PAGE_SIZE) break         // ← 最后一页
+      if (newTotal >= BACKFILL_MAX_TOTAL) break
+    }
+    done++
+  }
+  if (_log) {
+    _log.info(`[IoT] 历史回捞完成：通道 ${done}/${channels.length} · 翻 ${pages} 页 · `
+      + `新增入库 ${newTotal} 条（未登记跳过 ${unreg} / 算法不符跳过 ${algo}）· 耗时 ${Date.now() - t0}ms`)
+  }
+  return newTotal
 }
 
 // ── 通道 → 视频流地理坐标解析 ──────────────────────
@@ -553,6 +707,10 @@ function getArchive(opts) {
       fullTime: createdAt,
       aiType: w.aiType || '',
       aiConfidence: w.aiConfidence || 0,
+      // 🔴 2026-09-26：车牌（「渣土车冒装/帽盖」判罚证据必备字段）。
+      //    空串 = 该帧没抓到车牌（前端显示「车牌未获取」）。旧记录无此字段 ⇒ 自然为空串。
+      licensePlate: w.licensePlate || '',
+      plateConfidence: (typeof w.plateConfidence === 'number' && isFinite(w.plateConfidence)) ? w.plateConfidence : null,
       level: w.level || 1,
       // 只对绝对 http(s) 套代理；/api/evidence/… 相对路径原样透传（否则代理 400 → 空蓝块）
       imageUrl: toDisplayImageUrl(w.picUrl),
@@ -918,7 +1076,14 @@ function registerRoutes(app) {
     // P0-3：透传时间范围（?from=YYYY-MM-DD&to=YYYY-MM-DD 或 datetime-local）
     // 2026-09-20：默认排除「模拟/测试流」；?includeSim=1 可把它们放回来（排障用，无需发版）
     const includeSim = req.query.includeSim === '1' || req.query.includeSim === 'true'
-    const key = `${req.query.from || ''}|${req.query.to || ''}|${includeSim ? 1 : 0}`
+    // 🔴 2026-10-11 审计修复（P2-3）：缓存 key 改为「**归一化后的全部查询参数**」。
+    //   原实现是手工拼白名单（from|to|includeSim）⇒ 今后给本接口**加任何过滤参数**
+    //   （例如 channel / aiType / judgeStatus），新参数不会进 key ⇒
+    //   不同条件的请求会命中同一条缓存、**返回别人的数据**（串数据）。
+    //   改成"键名排序后整体序列化"后，新增参数自动进 key，不会再有这个坑。
+    const key = 'v2:' + Object.keys(req.query).sort()
+      .map(k => k + '=' + String(req.query[k]))
+      .join('&')
     const now = Date.now()
     const hit = _arcCache.get(key)
     if (hit && now - hit.at < ARC_CACHE_TTL_MS) {
@@ -1116,16 +1281,42 @@ function registerRoutes(app) {
 }
 
 // ── 首次种子迁移：iot_channels 表完全为空（含软删行）时，把硬编码 IOT.channels 写入一次 ──
-function seedIfEmpty() {
-  if (!_store || typeof _store.countIotChannelsAll !== 'function') return
-  if (_store.countIotChannelsAll() > 0) return
+//   storeArg 可选：显式传入 store 便于**离线自检**（不依赖 install() 设好的 _store）。
+function seedIfEmpty(storeArg) {
+  const S = storeArg || _store
+  if (!S || typeof S.countIotChannelsAll !== 'function') return { channels: 0, roadCameras: 0 }
+  if (S.countIotChannelsAll() > 0) return { channels: 0, roadCameras: 0, skipped: true }
   for (const ch of IOT.channels) {
-    _store.upsertIotChannel({
+    S.upsertIotChannel({
       channelSipId: ch.spid, channelName: ch.name, deviceSipId: ch.deviceId,
       deviceName: '', streamId: ch.streamId, enabled: true, remark: '种子迁移',
     })
   }
   if (_log && IOT.channels.length) _log.info(`[IoT] 首次启动：已种子 ${IOT.channels.length} 条通道到 iot_channels 表`)
+  // 🆕 2026-10-10：一并种子「6 路道路枪机 → 渣土车冒装」接入（流按名称解析 + 勾选算法）。
+  //   背景：线上这 5 条通道曾被软删导致整条链断流（实测 10-08 17:42 起停止入库），
+  //   而原种子只写了 1 条通道 ⇒ 库重建后接入关系会全部丢失。此处补齐，保证可复现。
+  //   ⚠️ 只在空表时执行，绝不影响已有库（管理员在后台的增删不会被覆盖）。
+  const road = IOT.roadCameras || []
+  let nRoad = 0
+  for (const rc of road) {
+    try {
+      const streamId = rc.streamName && typeof S.findStreamIdByName === 'function'
+        ? S.findStreamIdByName(rc.streamName) : null
+      S.upsertIotChannel({
+        channelSipId: rc.sip, channelName: rc.name, deviceSipId: rc.deviceId,
+        deviceName: '', streamId, enabled: true, remark: '道路枪机 → 渣土车冒装（种子）',
+      })
+      if (IOT.roadCameraAiType && typeof S.updateIotChannelAiTypes === 'function') {
+        S.updateIotChannelAiTypes(rc.sip, [IOT.roadCameraAiType])
+      }
+      nRoad++
+    } catch (e) {
+      if (_log) _log.warn(`[IoT] 种子道路枪机失败 [${rc.sip}]: ${e.message}`)
+    }
+  }
+  if (_log && nRoad) _log.info(`[IoT] 首次启动：已种子 ${nRoad} 条「道路枪机 → ${IOT.roadCameraAiType}」接入`)
+  return { channels: IOT.channels.length, roadCameras: nRoad }
 }
 
 // ── T5: 启动时把「已见过的 recordId」加载进内存去重集合 ──
@@ -1141,7 +1332,12 @@ function loadSeenIds() {
     const fromWarnings = (_store && typeof _store.getDb === 'function')
       ? (_store.getDb().prepare("SELECT json_extract(data_json,'$.recordId') rid FROM warnings WHERE warning_type='iot-video-analysis' AND json_extract(data_json,'$.recordId') IS NOT NULL").all().map(r => r.rid).filter(Boolean))
       : []
-    _lastRecordIds = new Set([...fromSeen, ...fromWarnings])
+    // 🔴 2026-10-01：**统一归一为字符串**。实测网关返回的 `recordId` 是 **number**（如 1400000607），
+    //   而 `iot_record_seen.record_id` 是 TEXT（"1400000007"）、warnings 里 `json_extract` 出来的是 number
+    //   ⇒ 原实现把两种类型混在同一个 Set 里：`has(number)` 只能命中 warnings 来源那一半，
+    //   **iot_record_seen 那一半永远匹配不上**（去重台账形同虚设，被跳过的记录每轮都被重新评估）。
+    //   归一后 `tryIngest` 用 `String(rec.recordId)` 查询，两侧口径一致。
+    _lastRecordIds = new Set([...fromSeen, ...fromWarnings].map(x => String(x)))
     if (_lastRecordIds.size > 0 && _log) _log.info(`[IoT] 去重集加载完成: ${_lastRecordIds.size} 条历史 recordId`)
   } catch (e) {
     if (_log) _log.warn(`[IoT] 去重集加载失败(降级为仅内存去重): ${e.message}`)
@@ -1172,12 +1368,19 @@ function start(opts = {}) {
         ? _store.listIotChannels().filter(c => c.enabled) : []
       resolveChannelGeo(channels.map(c => ({ spid: c.channelSipId, name: c.channelName, streamId: c.streamId })))
       fixExistingRows()
-      // 立即拉取一次
-      fetchOnce()
-      // 定时轮询（每轮从表热加载通道）
-      _timer = setInterval(fetchOnce, intervalMs)
-      _log.info(`[IoT] 启动成功，每 ${(intervalMs / 1000)}s 拉取一次（通道来源 iot_channels 表）`)
-      _log.info(`[IoT] 算法字典来源: /meta/algo-types ${IOT_META_ENABLED ? '已启用' : '已禁用(IOT_META_ENABLED=0)'}`)
+      // 🔴 2026-10-01：启动时**先做一次历史回捞**（分页翻到页空为止，见 catchUpBacklog 注释），
+      //   完成后才进入稳态轮询。顺序是刻意的：回捞与轮询都走同一个去重集，
+      //   串行可避免两处并发重复入库。
+      catchUpBacklog(channels)
+        .catch(e => _log.warn(`[IoT] 历史回捞失败（不影响稳态轮询）: ${e.message}`))
+        .finally(() => {
+          // 立即拉取一次（补上回捞期间新产生的记录）
+          fetchOnce()
+          // 定时轮询（每轮从表热加载通道）
+          _timer = setInterval(fetchOnce, intervalMs)
+          _log.info(`[IoT] 启动成功，每 ${(intervalMs / 1000)}s 拉取一次（通道来源 iot_channels 表）`)
+          _log.info(`[IoT] 算法字典来源: /meta/algo-types ${IOT_META_ENABLED ? '已启用' : '已禁用(IOT_META_ENABLED=0)'}`)
+        })
     } else {
       _log.error('[IoT] 启动失败：无法登录 IoTCloud')
     }
@@ -1192,6 +1395,8 @@ function stop() {
 
 module.exports = {
   start, stop, registerRoutes, fetchOnce, IOT,
+  // 🆕 2026-10-10：导出种子入口（可显式传 store），便于离线自检「空库 → 通道+道路枪机接入」是否齐备
+  seedIfEmpty,
   // 图片 URL 归一（只对绝对 http(s) 套 /api/iot-image 代理，相对路径原样透传）
   // 供 index.js 的城运推送桥等处复用，保证全站同一口径。
   toDisplayImageUrl,
@@ -1207,5 +1412,9 @@ module.exports = {
     AI_TYPE_MAP,
     _setMetaMapForTest(map) { _metaAlgoMap = map || {}; _metaLoadedAt = Date.now(); _metaFailCount = 0 },
     _setAiTypeKeyMapForTest(map) { _aiTypeKeyMap = map || {} },
+    // 🔴 2026-10-01：历史回捞（可离线 dry-run：外部脚本注入 store + 字典后调用）
+    catchUpBacklog,
+    tryIngest,
+    _lastRecordIds: () => _lastRecordIds,
   },
 }

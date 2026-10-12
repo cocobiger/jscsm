@@ -94,7 +94,7 @@ function render(html, d) {
   const exe = findChrome();
   if (!exe) { console.error('ERROR: chromium not found'); process.exit(2); }
   console.log('Using chromium:', exe);
-  const outDir = '/opt/jsc/backend/data/reports';
+  const outDir = '/data/HBJSC/backend/data/reports';
   fs.mkdirSync(outDir, { recursive: true });
   const outFile = path.join(outDir, 'sample-closure-report.pdf');
   const browser = await chromium.launch({

@@ -10,7 +10,7 @@
  * 用法：node migrate-warning-source.js [--dry-run]
  */
 const { DatabaseSync } = require('node:sqlite')
-const DB = '/opt/jsc/backend/data/jsc.db'
+const DB = '/data/HBJSC/backend/data/jsc.db'
 const dryRun = process.argv.includes('--dry-run')
 
 function inferSourceKey(w) {

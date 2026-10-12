@@ -61,12 +61,23 @@ function djiStreamId(cfg) {
 // ── 角色权限矩阵 ──────────────────────────────────────────────
 // 公开（无需登录）：登录接口 + 短信平台机器回调（靠 IP 白名单保障）
 // 🔴 内部端点（供各识别链拉取配置）：不在 session 鉴权范围，**由路由内自校验 X-Admin-Token**
-const PUBLIC_PATHS = new Set(['/api/internal/iot-roi', '/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/iot-analysis/archive', '/api/iot-analysis/status', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check', '/api/drone-events/ingest', '/api/collect/image'])
+// 🔴 2026-10-11 审计修复（P0-1）：`/api/iot-analysis/archive` 与 `/api/iot-analysis/status`
+//   已从此白名单移除。原因：archive 返回**车牌号 / 点位经纬度 / 现场图 URL**，
+//   实测免登录公网可取到 200 + 935KB（1579 条记录、其中 467 条带车牌）。
+//   移除依据：全仓检索确认这两个接口**只被 IotArchivePage / IotArchiveModal / DashboardContext 调用**，
+//     三处均走 apiFetch/authFetch（自带 token），且都在 App.tsx 的登录门禁之后
+//     ⇒ 移出后**前端零改动**。
+//   ⚠️ 如需给外部大屏放行，请**不要**把它加回这里（那等于无鉴权全量开放）；
+//      正确做法是按登录态分流：未登录只返回摘要 + limited:true。
+const PUBLIC_PATHS = new Set(['/api/internal/iot-roi', '/api/internal/stack-exempt', '/api/auth/login', '/api/sms/report', '/api/sms/upstream', '/api/device-status', '/api/map-points', '/api/events', '/api/weather', '/api/display-config', '/api/iot-image', '/api/thumb', '/api/smart-push/callback', '/api/straw-alert', '/api/zlm/publish-check', '/api/drone-events/ingest', '/api/collect/image',
+  // 2026-10-03：气体溯源系统（QITIJSC）的无人机载气体告警入口。
+  // 放进白名单只是**跳过 JWT 中间件**；该端点由 handler 自己用内网共享密钥
+  // （GAS_ALERT_SECRET + 头 x-internal-secret）鉴权 —— 比 straw-alert 的完全公开更严。
+  '/api/gas-alert'])
 // 任意登录用户（含访客）可用的写操作：视频播放、登出、改自己密码
 const ANY_USER_WRITES = new Set([
   '/api/auth/logout', '/api/auth/me', '/api/auth/change-password',
   '/api/stream/start',
-  '/api/smart-push/events',  // 智治推送：告警事件入库（MQTT 告警同步）
 ])
 // 值守员及以上可用的写操作（前缀匹配）
 const OPERATOR_WRITE_PREFIXES = [
@@ -74,6 +85,11 @@ const OPERATOR_WRITE_PREFIXES = [
   '/api/sms/send',        // 手动发短信 / send-template
   '/api/collect/run',     // 手动触发采集
   '/api/smart-push/history', // 智治推送人工一键结案
+  // 🔴 2026-10-11 审计修复（P1-1）：`/api/smart-push/events` 原是「任意登录用户可写」。
+  //   但该端点**落库后会立刻 checkRulesAndPush()** ⇒ 写入即可能触发**对外真实推送**
+  //   ⇒ 等于把"对外发消息"的权限下放给了只读 viewer。现提到 operator。
+  //   （生产 MQTT 通道已停用，该链无活跃调用方；将来启用时 viewer 被拦下也是期望行为。）
+  '/api/smart-push/events', // 智治推送：告警事件入库（MQTT 告警同步）
 ]
 // 判断一个写请求所需的最低角色
 function requiredRoleForWrite(path) {
@@ -1611,7 +1627,7 @@ app.get('/api/health', (req, res) => {
 // 背景（2026-09-26 排查）：原 standard 硬编码 '阈值 >=40%'，而引擎实际用 confSmoke=0.15（15%）
 //   → 界面写着"阈值 >=40%"，让值班看到 13%~18% 的告警时误以为"没达标却放行"。
 // 现改为按 streamId 取 config 里该流的 confSmoke（带 mtime 缓存，不频繁读盘）。
-const STRAW_CFG_PATH = process.env.STRAW_ENGINE_CONFIG || '/opt/jsc/straw-engine/config/config.json'
+const STRAW_CFG_PATH = process.env.STRAW_ENGINE_CONFIG || '/data/HBJSC/straw-engine/config/config.json'
 let _strawCfg = { at: 0, data: null }
 function strawThreshold(streamId) {
   const DEFAULT = 0.4
@@ -1693,8 +1709,125 @@ app.post('/api/straw-alert', async (req, res) => {
   res.json({ ok: true, warningId: warning.id, detId: warning.detId })
 })
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 无人机载气体告警接收（来源：隔壁「万州区气体溯源系统」QITIJSC）─────────────
+//   与 /api/straw-alert 同构，但有三处**刻意不同**，都不是随意选择：
+//
+//   ① warningType 用 'gas-drone'
+//      ⚠️ 绝不可复用 'iot-video-analysis' —— 驾驶舱的 GasMonitorPage（气体监测页）
+//      拉的正是 `/api/warnings?exclude_type=iot-video-analysis`
+//      ⇒ 复用会让气体告警被排除、在气体页面里**根本看不见**。
+//
+//   ② source 用 'qitijsc-gas'（不在 store-db.js 的 JUDGE_SOURCES=['iotcloud','straw-engine'] 里）
+//      ⇒ judgeWarning() 命中「非 AI 分析类来源，不适用研判 → 直接准入」⇒ judge_status='admitted'
+//      ⇒ 进驾驶舱前台 + 经 warnings-stream 的 SSE 立即广播。
+//      这是有意为之：研判闸门是为 AI 视频类的连帧误报降噪设计的，
+//      气体超标在源头系统里已有自己的告警引擎与「事件是否已闭环」去重口径，不应二次降噪。
+//
+//   ③ 加内网共享密钥鉴权（straw-alert 是完全公开无鉴权的）
+//
+//   入库后由 warnings-stream.onWarningInsert → SSE `/api/warnings/stream` 广播，
+//   驾驶舱前端 <1 秒可见（另有一条 60s 轮询兜底）。本端点**不改动任何既有行为**。
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔴 共享密钥只从 env 取，**不留硬编码兜底**（内网共享密钥不进仓库）。
+//   未配置 ⇒ 500 直接拒绝；**不能"跳过校验"** —— 原写法 `if (SECRET && secret !== SECRET)` 在 SECRET 为空时
+//   会直接放行，等于端点完全开放（比硬编码兜底更危险）。
+const GAS_ALERT_SECRET = process.env.GAS_ALERT_SECRET || ''
+const GAS_LEVEL_MAP = { WARN: 1, ALARM: 2, SEVERE: 3 }
+app.post('/api/gas-alert', (req, res) => {
+  if (!GAS_ALERT_SECRET) {
+    return res.status(500).json({ ok: false, error: 'server GAS_ALERT_SECRET 未配置' })
+  }
+  const secret = req.get('x-internal-secret') || (req.body && req.body.secret) || ''
+  if (secret !== GAS_ALERT_SECRET) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  }
+  const b = req.body || {}
+  const { alarmId, deviceSn, deviceName, paramKey, paramName, paramValue, threshold,
+    unit, level, exceedRatio, lat, lon, geoSource, occurredAt, message, taskId } = b
+  if (!paramKey || paramValue === undefined) {
+    return res.status(400).json({ ok: false, error: 'paramKey / paramValue 必填' })
+  }
+
+  // 幂等：同一 alarmId 只入一条 —— 源头系统侧失败重试时不会在驾驶舱产生重复告警
+  const id = 'gas-' + (alarmId != null ? String(alarmId) : `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
+  try {
+    if (store.getDb().prepare('SELECT id FROM warnings WHERE id = ?').get(id)) {
+      return res.json({ ok: true, warningId: id, duplicate: true })
+    }
+  } catch (e) { /* 查重失败不阻断，INSERT OR REPLACE 本身也是幂等的 */ }
+
+  const isNum = v => typeof v === 'number' && isFinite(v)
+  // 坐标 (0,0) 视为「无定位」——设备在机库内收不到卫星信号时会报 0
+  const hasGeo = isNum(lat) && isNum(lon) && !(lat === 0 && lon === 0)
+  const pName = paramName || String(paramKey).toUpperCase()
+  const lv = GAS_LEVEL_MAP[String(level || '').toUpperCase()] || 1
+  const lvTxt = lv >= 3 ? '严重' : lv === 2 ? '报警' : '预警'
+  const unitTxt = unit || 'µg/m³'
+  const valTxt = `${Number(paramValue)}${unitTxt}`
+  const thrNum = isNum(Number(threshold)) && Number(threshold) > 0 ? Number(threshold) : null
+  const ratio = isNum(Number(exceedRatio)) ? Number(exceedRatio)
+    : (thrNum ? Number(paramValue) / thrNum : 0)
+
+  // 有坐标才反查乡镇（reverseGeocode 在文件后段 require，此处为请求期调用，无 TDZ 问题）
+  let town = null
+  if (hasGeo) {
+    try { town = reverseGeocode.reverseGeocode(Number(lon), Number(lat)) } catch (e) { /* 反查失败不影响入库 */ }
+  }
+
+  const createdAt = occurredAt || new Date().toISOString()
+  const warning = {
+    id,
+    createdAt,
+    status: 'pending',
+    // 列字段取 row.warningType（见 store-db.insertWarning），data_json 里两者都留
+    warning_type: 'gas-drone',
+    warningType: 'gas-drone',
+    source: 'qitijsc-gas',
+    // ── 以下字段名刻意对齐驾驶舱前端告警卡片的既有读取口径 ──
+    type: `无人机气体监测 · ${pName}`,
+    value: valTxt,
+    standard: thrNum ? `阈值 ${thrNum}${unitTxt}` : '',
+    level: lv,
+    location: [
+      deviceName || deviceSn || '未知设备',
+      town && town.name ? town.name : null,
+      hasGeo ? null : '无定位',
+    ].filter(Boolean).join(' · '),
+    time: String(createdAt).slice(11, 19),
+    lat: hasGeo ? Number(lat) : null,
+    lon: hasGeo ? Number(lon) : null,
+    geoSource: hasGeo ? (geoSource || 'dock') : null,
+    // ── 业务原文（供详情弹窗与后续扩展）──
+    deviceSn: deviceSn || null,
+    deviceName: deviceName || null,
+    paramKey,
+    paramName: pName,
+    paramValue: Number(paramValue),
+    threshold: thrNum,
+    unit: unitTxt,
+    exceedRatio: Number(ratio.toFixed(2)),
+    alarmLevelText: lvTxt,
+    message: message || `${pName} ${valTxt}，占阈值 ${(ratio * 100).toFixed(0)}%（${lvTxt}）`,
+    taskId: taskId != null ? taskId : null,
+    picUrl: '',
+    evidence: { source: 'qitijsc-gas', alarmId: alarmId != null ? alarmId : null },
+  }
+
+  try {
+    store.insertWarning(warning)
+  } catch (e) {
+    console.error('[gas-alert] 入库失败:', e.message)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+  log.info(`[gas-alert] 入库 ${id} · ${pName} ${valTxt} · ${lvTxt}${town ? ' · ' + town.name : ''}`)
+  // 本期渠道口径（2026-10-03 用户拍板）：只做「驾驶舱前端可见」+ 源头系统双显示，
+  // 暂不推企业微信 —— 且 area_responsibility 当前为空表，推也查不到责任人。
+  res.json({ ok: true, warningId: warning.id, level: lv, town: town ? town.name : null })
+})
+
 // ── 秸秆证据图静态服务（读 straw-engine/evidence 目录）──
-const STRAW_EVIDENCE_ROOT = process.env.STRAW_EVIDENCE_ROOT || '/opt/jsc/straw-engine/evidence'
+const STRAW_EVIDENCE_ROOT = process.env.STRAW_EVIDENCE_ROOT || '/data/HBJSC/straw-engine/evidence'
 app.get('/api/evidence/*', (req, res) => {
   try {
     const rel = req.params[0] || ''
@@ -2040,22 +2173,29 @@ app.get('/api/straw-engine/snapshot', async (req, res) => {
 
 // ── dock-guard 机场人员检测（布防配置 + 健康状态，驾驶舱「机场布防」页数据源）──
 const DOCK_GUARD_URL = () => process.env.DOCK_GUARD_URL || 'http://127.0.0.1:7210'
+// 🔴 2026-10-02 P0-C：dock-guard 属「可选 / 未部署」上游（默认 :7210）。统一返回带 degraded 语义的结构，
+//    让前端能区分「上游未部署或不可达」与「业务错误」，而不是只拿到一个裸 error。
+const DOCK_GUARD_UNAVAILABLE = (res, e, code) => res.status(502).json({
+  ok: false, degraded: true, code: code || 'UPSTREAM_UNREACHABLE',
+  module: 'dock-guard', upstream: DOCK_GUARD_URL(),
+  error: (e && e.message) || String(e),
+})
 app.get('/api/dock-guard/status', async (req, res) => {
   try {
     const r = await fetch(DOCK_GUARD_URL() + '/health', { signal: AbortSignal.timeout(5 * 1000) })
-    if (!r.ok) return res.status(r.status).json({ error: 'dock-guard health ' + r.status })
+    if (!r.ok) return res.status(r.status).json({ ok: false, degraded: true, code: 'UPSTREAM_ERROR', module: 'dock-guard', upstream: DOCK_GUARD_URL(), error: 'dock-guard health ' + r.status })
     res.json(await r.json())
   } catch (e) {
-    res.status(502).json({ error: e.message })
+    DOCK_GUARD_UNAVAILABLE(res, e)
   }
 })
 app.get('/api/dock-guard/config', async (req, res) => {
   try {
     const r = await fetch(DOCK_GUARD_URL() + '/api/config', { signal: AbortSignal.timeout(5 * 1000) })
-    if (!r.ok) return res.status(r.status).json({ error: 'dock-guard config ' + r.status })
+    if (!r.ok) return res.status(r.status).json({ ok: false, degraded: true, code: 'UPSTREAM_ERROR', module: 'dock-guard', upstream: DOCK_GUARD_URL(), error: 'dock-guard config ' + r.status })
     res.json(await r.json())
   } catch (e) {
-    res.status(502).json({ error: e.message })
+    DOCK_GUARD_UNAVAILABLE(res, e)
   }
 })
 app.put('/api/dock-guard/config', async (req, res) => {
@@ -2070,7 +2210,7 @@ app.put('/api/dock-guard/config', async (req, res) => {
     if (!r.ok) return res.status(r.status).json(data)
     res.json(data)
   } catch (e) {
-    res.status(502).json({ error: e.message })
+    DOCK_GUARD_UNAVAILABLE(res, e)
   }
 })
 
@@ -2388,11 +2528,42 @@ app.post('/api/algo-retention/dry-run', adminOnly, (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── 🆕 S2.5（2026-10-12）：保留期摘要（**需登录，任意角色**；只暴露天数）──
+//   动机：保留期会「软归档」超期记录（不进前台）。不标注 ⇒ 值班会以为"告警变少/系统坏了"。
+//   与上面 adminOnly 的 /api/algo-retention 区分：**只回天数**，不含 remark/配置等管理信息，最小暴露面。
+app.get('/api/retention-info', (req, res) => {
+  try { res.json(Object.assign({ ok: true }, store.retentionInfoSummary())) }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+})
+
 // ── 堆头未覆盖链：后台配置读写（代理 11 机 alarm_processor 的 /stack-config*）──
 //   2026-09-20 批次4 Step2。真源在 11 机 /soft/data/stack-chain/stack_config.json；
 //   本模块只做「读→校验→转发→记账」，**不保存第二份配置状态**（避免显示 A 实际跑 B）。
 //   token 只留在本机进程环境变量，绝不下发浏览器。
 require('./stack-config.js').registerStackConfigRoutes(app, { store, log, adminOnly })
+// ── 视频缓存（B′ 回看）：后台配置读写（代理 11 机 alarm_processor 的 /precap-config*）──
+require('./precap-config.js').registerPrecapConfigRoutes(app, { store, log, adminOnly })
+// ── 三级城运中心贯通（批次 0 骨架：仅配置与记账，**不发送任何请求**）──────────────
+//   独立模块：自建 cyzx_* 表、自管配置（kv_config）、自注册 /api/cyzx/*。
+//   放在此处是**必须**的：adminOnly 是 const（TDZ），前面引用会 ReferenceError 崩进程。
+require('./cyzx.js').registerCyzxRoutes(app, { store, log, adminOnly })
+// ── 智治推送自检 / 干跑 / 失败明细（审计批次 D）──
+//   独立模块：只读检查 + 本地渲染，**不发送、不落库、无定时器**；
+//   放在此处是必须的（adminOnly 是 const，TDZ 下提前引用会崩进程）。
+require('./smartpush-health.js').registerSmartPushHealthRoutes(app, { store, log, adminOnly })
+// ── 堆头未覆盖·点位豁免名单（作业区豁免）· 2026-10-11 ──────────────────────────
+//   背景：靠近江边的作业区（码头作业面/装卸区）不受「未覆盖 > 40% 即违规」约束（用户裁定）。
+//   独立模块：自建 stack_exempt_points 表、自注册 /api/stack-exempt/*（adminOnly）+ 影响预演。
+//   同文件另注册 **内网拉取端点** /api/internal/stack-exempt（X-Admin-Token，供 11 机堆头链，
+//   与 /api/internal/iot-roi 同构；该路径已加进 PUBLIC_PATHS）。
+//   放在此处是必须的（adminOnly 是 const，TDZ 下提前引用会崩进程）。
+require('./stack-exempt.js').registerStackExemptRoutes(app, { store, log, adminOnly })
+// ── 推送口径统一台（三处口径 ①研判/②送达/③展示过滤 归一 + 差异预演 + 一键下发）· 2026-10-12 ──
+//   背景：现网三个「推送规则」窗口/阈值/置信度互不一致（REF §H35.10）。
+//   独立模块：自建 push_caliber + push_caliber_apply_log 表、自注册 /api/push-caliber/*（adminOnly）。
+//   🔴 不改任何读取路径：生效＝显式「下发」（先快照→再批量 UPDATE→记日志，可回滚）。
+//   放在此处是必须的（adminOnly 是 const，TDZ 下提前引用会崩进程）。
+require('./push-caliber.js').registerPushCaliberRoutes(app, { store, log, adminOnly })
 
 // 列出已接入通道（未软删）
 app.get('/api/iot-channels', adminOnly, (req, res) => {
@@ -2433,13 +2604,13 @@ app.get('/api/push-rules', adminOnly, (req, res) => {
   try { res.json(store.listPushRules()) } catch (e) { res.status(500).json({ error: e.message }) }
 })
 app.post('/api/push-rules', adminOnly, (req, res) => {
-  const { name, channelSipId, aiTypes, timeWindowHours, threshold, enabled, minConfidence, minLevel, activeHours, action } = req.body || {}
+  const { name, channelSipId, aiTypes, timeWindowHours, threshold, enabled, minConfidence, minLevel, minPlateConfidence, activeHours, action } = req.body || {}
   if (!name || !Array.isArray(aiTypes) || aiTypes.length === 0) return res.status(400).json({ error: 'name 与 aiTypes（非空数组）必填' })
   try {
     res.json(store.createPushRule({
       name, channel_sip_id: channelSipId || null, ai_types: aiTypes, time_window_hours: timeWindowHours, threshold, enabled,
       // P1-1 / P1-2：维度与动作
-      min_confidence: minConfidence, min_level: minLevel, active_hours: activeHours, action,
+      min_confidence: minConfidence, min_level: minLevel, min_plate_confidence: minPlateConfidence, active_hours: activeHours, action,
     }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
@@ -2478,6 +2649,7 @@ app.post('/api/push-rules/bulk-generate', adminOnly, (req, res) => {
       timeWindowHours: Number(b.timeWindowHours) || 24,
       minConfidence: Number(b.minConfidence) || 0,
       minLevel: Number(b.minLevel) || 0,
+      minPlateConfidence: Number(b.minPlateConfidence) || 0,
       activeHours: String(b.activeHours || ''),
       action: b.action || 'admit_front',
       overwrite: !!b.overwrite,
@@ -2609,7 +2781,7 @@ app.get('/api/warnings/export', adminOnly, (req, res) => {
     }
     const csv = '\ufeff' + lines.join('\r\n')   // BOM 防 Excel 乱码
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`告警记录_${new Date().toISOString().slice(0, 10)}.csv`)}`)
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`告警记录_${new Date().toLocaleString('sv', { timeZone: 'Asia/Shanghai' }).slice(0, 10)}.csv`)}`)
     res.setHeader('X-Warnings-Total', String(rows.length))
     if (truncated) res.setHeader('X-Warnings-Truncated', '1')
     res.send(csv)
@@ -2930,6 +3102,14 @@ app.post('/api/smart-push/plans', (req, res) => {
   const { event_type, name, api_url, api_method, api_headers, body_template, description, enabled, platform_id,
           api_url_other, api_method_other, api_headers_other, body_template_other } = req.body || {}
   if (!event_type || !name) return res.status(400).json({ error: 'event_type 和 name 必填' })
+  // 🔴 2026-10-11 审计修复（P1-4）：校验 platform_id 存在性。
+  //   原实现直接写入 ⇒ 绑到不存在的平台时规则照样"已启用"，但推送时预案不可用
+  //   ⇒ 仅 log.warn、界面无提示 = 典型的**配置错误静默失效**。
+  if (platform_id) {
+    const pl = store.getDb().prepare('SELECT id, name, enabled FROM smart_push_platforms WHERE id = ?').get(platform_id)
+    if (!pl) return res.status(400).json({ error: `platform_id「${platform_id}」不存在（目标平台可能已被删除）—— 请重新选择目标平台` })
+    if (!pl.enabled) return res.status(400).json({ error: `目标平台「${pl.name}」已停用 —— 绑定后不会推送，请先启用它` })
+  }
   const id = uuidv4()
   const now = new Date().toLocaleString('sv', { timeZone: 'Asia/Shanghai' })
   try {
@@ -2945,6 +3125,12 @@ app.post('/api/smart-push/plans', (req, res) => {
 
 app.patch('/api/smart-push/plans/:id', (req, res) => {
   const { id } = req.params
+  // 🔴 P1-4：改绑平台时同样校验存在性（否则改完就静默推不出去）
+  if (req.body && req.body.platform_id) {
+    const pl = store.getDb().prepare('SELECT id, name, enabled FROM smart_push_platforms WHERE id = ?').get(req.body.platform_id)
+    if (!pl) return res.status(400).json({ error: `platform_id「${req.body.platform_id}」不存在 —— 请重新选择目标平台` })
+    if (!pl.enabled) return res.status(400).json({ error: `目标平台「${pl.name}」已停用 —— 绑定后不会推送，请先启用它` })
+  }
   const fields = ['event_type', 'name', 'enabled', 'api_url', 'api_method', 'api_headers', 'body_template', 'description', 'platform_id', 'api_url_other', 'api_method_other', 'api_headers_other', 'body_template_other']
   const sets = []
   const vals = []
@@ -3007,14 +3193,35 @@ app.patch('/api/smart-push/platforms/:id', (req, res) => {
   vals.push(id)
   try {
     store.getDb().prepare(`UPDATE smart_push_platforms SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
-    res.json({ ok: true })
+    // 🔴 P1-4：停用平台时提示引用了它的预案（停用后这些预案会静默推不出去）
+    let warning = null
+    if (req.body && req.body.enabled === false) {
+      const ref = store.getDb().prepare('SELECT name FROM smart_push_plans WHERE platform_id = ?').all(id)
+      if (ref.length) warning = `该平台被 ${ref.length} 个预案引用（${ref.map(p => p.name).join('、')}）—— 停用后这些预案将无法推送`
+    }
+    res.json(warning ? { ok: true, warning } : { ok: true })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 app.delete('/api/smart-push/platforms/:id', (req, res) => {
   try {
+    // 🔴 P1-4：删除前先记下"引用了它的预案"与"这些预案被哪些启用规则引用"。
+    //   store.deleteSmartPushPlatform 会自动把预案 platform_id 置 NULL（避免悬空引用），
+    //   但**受影响范围必须回给前端** —— 否则用户不知道删掉一个平台影响了哪些推送。
+    const db = store.getDb()
+    const plans = db.prepare('SELECT id, name FROM smart_push_plans WHERE platform_id = ?').all(req.params.id)
+    let rules = []
+    if (plans.length) {
+      const ph = plans.map(() => '?').join(',')
+      rules = db.prepare(`SELECT name FROM smart_push_rules WHERE plan_id IN (${ph}) AND enabled = 1`).all(...plans.map(pl => pl.id))
+    }
     const r = store.deleteSmartPushPlatform(req.params.id)
-    res.json(r)
+    res.json(Object.assign({}, r, {
+      unboundPlans: plans.map(pl => pl.name),
+      unboundCount: plans.length,
+      affectedRules: rules.map(x => x.name),
+      note: plans.length ? '引用该平台的预案已自动解绑（platform_id 置空），请重新为它们指定目标平台' : '',
+    }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
@@ -3073,7 +3280,8 @@ app.delete('/api/smart-push/rules/:id', (req, res) => {
 
 // 推送历史（支持事件类型/状态筛选 + 超时判定）
 app.get('/api/smart-push/history', (req, res) => {
-  const limit = parseInt(req.query.limit) || 200
+  const limit = Math.min(parseInt(req.query.limit) || 200, 500)
+  const offset = Math.max(parseInt(req.query.offset) || 0, 0)   // 🔴 P2-1：服务端翻页
   const eventType = req.query.event_type
   const status = req.query.status
   const location = req.query.location
@@ -3081,7 +3289,17 @@ app.get('/api/smart-push/history', (req, res) => {
   const end = req.query.end
   const platformId = req.query.platform_id
   try {
-    res.json(store.getSmartPushHistory({ eventType, status, location, start, end, platformId, limit }))
+    res.json(store.getSmartPushHistory({ eventType, status, location, start, end, platformId, limit, offset }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// 🔴 2026-10-11 新增（P2-1）：与列表**完全同口径**的命中总数，供服务端分页显示"共 N 条 / 共 M 页"。
+//   之所以单开一个只读接口、而不是改 /history 的返回结构：现网有两个调用方
+//   （SmartPushPage 与 WorkReportPage）都把响应当**数组**用，改结构会同时打断它们。
+app.get('/api/smart-push/history/count', (req, res) => {
+  const { event_type: eventType, status, location, start, end, platform_id: platformId } = req.query
+  try {
+    res.json({ ok: true, total: store.countSmartPushHistory({ eventType, status, location, start, end, platformId }) })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
@@ -3107,7 +3325,7 @@ app.get('/api/smart-push/stats', (req, res) => {
 // 返回：今日推送件数、已结案件数、处置率（%）
 app.get('/api/smart-push/today-stats', (req, res) => {
   try {
-    const todayStart = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+    const todayStart = new Date().toLocaleString('sv', { timeZone: 'Asia/Shanghai' }).slice(0, 10)   // YYYY-MM-DD（上海时；原先用 toISOString 取 UTC 日期，凌晨 0–8 点会错天）
     const row = store.getDb().prepare(`
       SELECT
         COUNT(*) AS pushed,
@@ -3146,6 +3364,28 @@ function absolutizeImageUrls(text, base) {
 }
 
 // 执行 HTTP 推送
+// 🔴 2026-10-11 审计修复（P1-2）：智治推送出站超时。
+//   原实现 `fetch(plan.api_url, fetchOpts)` **没有 signal** ⇒ 对端挂住则 promise 永久 pending：
+//   ① 该次推送**永不写 smart_push_history**（历史静默缺一条，事后无法察觉）
+//   ② checkRulesAndPush 的 await 永久挂起
+//   同文件其它 8 处出站都用了 AbortSignal.timeout，此处属漏写。可用 SMART_PUSH_TIMEOUT_MS 覆盖。
+const SMART_PUSH_TIMEOUT_MS = Number(process.env.SMART_PUSH_TIMEOUT_MS) || 15000
+
+// 🔴 2026-10-11 审计修复（P2-4）：点位匹配的**唯一出处**。
+//   原实现两处口径不一致：事件匹配用 JS `String.includes()`，计数用 SQL `LIKE '%…%'`。
+//   两个坑：
+//     ① 用户输入的 `%` `_` 在 SQL LIKE 里是**通配符** ⇒ 「50ch_5」会匹配到「50chA5」，
+//        造成"计数与判定错位"（本该不触发却触发了）；
+//     ② 两处各写一份，将来改一处漏一处。
+//   现统一：JS 侧与 SQL 侧都按「包含匹配」，且 SQL 侧显式转义 + 声明 ESCAPE。
+function likeEscape(s) { return String(s == null ? '' : s).replace(/[\\%_]/g, ch => '\\' + ch) }
+function matchLocation(pattern, location) {
+  const p2 = String(pattern || '').trim()
+  if (!p2) return true                 // 空 = 匹配所有点位
+  if (!location) return false
+  return String(location).includes(p2) // 包含匹配（与 SQL 侧 ESCAPE 后语义一致）
+}
+
 async function executePush(plan, events, rule, platformId) {
   const histId = uuidv4()
   const vars = {
@@ -3192,6 +3432,7 @@ async function executePush(plan, events, rule, platformId) {
   const fetchOpts = {
     method: plan.api_method || 'POST',
     headers: headers,
+    signal: AbortSignal.timeout(SMART_PUSH_TIMEOUT_MS),   // P1-2：防对端挂住导致历史静默缺条
   }
   if (fetchOpts.method !== 'GET') fetchOpts.body = body
 
@@ -3223,7 +3464,7 @@ async function executePush(plan, events, rule, platformId) {
         if (typeof otherHeadersObj === 'string') { try { otherHeadersObj = JSON.parse(otherHeadersObj) } catch { otherHeadersObj = {} } }
         const otherHeaders = Object.assign({}, (otherHeadersObj && typeof otherHeadersObj === 'object') ? otherHeadersObj : { 'Content-Type': 'application/json' })
         otherHeaders['X-Push-Id'] = histId
-        const otherOpts = { method: plan.api_method_other || 'POST', headers: otherHeaders }
+        const otherOpts = { method: plan.api_method_other || 'POST', headers: otherHeaders, signal: AbortSignal.timeout(SMART_PUSH_TIMEOUT_MS) }
         if (otherOpts.method !== 'GET') otherOpts.body = otherBody
         const oResp = await fetch(plan.api_url_other, otherOpts)
         const oText = await oResp.text()
@@ -3245,25 +3486,46 @@ async function executePush(plan, events, rule, platformId) {
 // 检查规则并触发推送
 async function checkRulesAndPush(event) {
   const db = store.getDb()
+  // ── 🆕 S4（2026-10-12）：① 的「上报开关」作为**点位级覆盖**（S1 建字段，本步接线）──
+  //   'inherit'＝NULL 未设置 ⇒ 跟随②送达规则（**＝现行为**）｜'force' ⇒ 忽略②节流阈值｜'deny' ⇒ 不报
+  //   🔴 职责边界：① 管「进不进前台」，② 管「进前台的要不要对外报」——②**不判定"是否违规"**，
+  //      故②不是"算法过滤"；S4 是**正名 + 接点位级开关**，不是取消②。
+  //   ② 的窗口**保留 48h**（用户 2026-10-12 拍板）："进前台"与"报政府"的时效要求本就不同。
+  const _ov = (typeof store.reportOverride === 'function') ? store.reportOverride(event) : 'inherit'
+  if (_ov === 'deny') {
+    log.info(`[智治推送] ①该点位设为「不上报」⇒ 跳过：${event.event_type}`)
+    return { success: false, skipped: 'report_enabled=0' }
+  }
   // 查找匹配的启用规则
   const rules = db.prepare('SELECT * FROM smart_push_rules WHERE event_type = ? AND enabled = 1').all(event.event_type)
+  // 🔴 2026-10-11 审计修复（P1-3）：去重集合必须放在**规则循环之外**。
+  //   原实现声明在 for(rule) 内 ⇒ 只在"同一规则内"防重（预案 vs 平台订阅），
+  //   两条规则指向同一平台时会**各推一次** ⇒ 重复报单。
+  const deliveredPlatformIds = []
   for (const rule of rules) {
-    // 点位匹配：空=所有点位，否则模糊匹配
-    if (rule.location_match && rule.location_match.trim()) {
-      const pattern = rule.location_match.trim()
-      if (!event.location || !event.location.includes(pattern)) continue
-    }
+    // 点位匹配：空=所有点位，否则包含匹配（统一走 matchLocation，见上）
+    if (!matchLocation(rule.location_match, event.location)) continue
     // 统计时间窗口内同类型、同点位的事件数
-    let countSql = 'SELECT * FROM smart_push_events WHERE event_type = ? AND created_at > ?'
+    // 🔴 2026-10-11 审计修复（P0-2）：阈值判定必须只数**尚未推送**的事件。
+    //   原实现只按时间窗口计数、不看 status ⇒ 一旦达标，窗口内**此后每来一条新事件都会再推一次**
+    //   （已复现：6 条事件 / 阈值 3 ⇒ 推 4 次，且每批携带 3→4→5→6 条 = 重复报单）。
+    //   状态域：pending(入库) → pushed(推送成功) → processing/closed(回调/结案)。
+    //   ⚠️ 判据只用 `NULL 或 pending`，**不能用 `<> 'pushed'`** ——
+    //      后者会把已经推过的 closed/processing 也算成"未推送"，反而造成重复报单。
+    let countSql = "SELECT * FROM smart_push_events WHERE event_type = ? AND created_at > ? AND (status IS NULL OR status = 'pending')"
     const countArgs = [event.event_type, new Date(Date.now() - rule.time_window_hours * 3600000).toLocaleString('sv', { timeZone: 'Asia/Shanghai' })]
     if (rule.location_match && rule.location_match.trim()) {
-      countSql += ' AND location LIKE ?'
-      countArgs.push('%' + rule.location_match.trim() + '%')
+      // P2-4：转义 LIKE 通配符并声明 ESCAPE，否则用户输入的 % / _ 会被当通配符
+      countSql += " AND location LIKE ? ESCAPE '\\'"
+      countArgs.push('%' + likeEscape(rule.location_match.trim()) + '%')
     }
     countSql += ' ORDER BY created_at DESC'
     const events = db.prepare(countSql).all(...countArgs)
-    if (events.length >= rule.trigger_count) {
-      const deliveredPlatformIds = []  // 记录本次已送达的平台，避免与"平台自动订阅"重复推送
+    if (_ov === 'force' && events.length < rule.trigger_count) {
+      log.info(`[智治推送] ①「${event.event_type}」该点位设为「强制上报」⇒ 忽略②节流阈值（${events.length}/${rule.trigger_count}），仍走②的点位匹配与预案解析`)
+    }
+    if (_ov === 'force' || events.length >= rule.trigger_count) {
+      // deliveredPlatformIds 已提到循环外（见上），跨规则共用，避免同一平台被多条规则各推一次
       // (A) 预案关联推送（预案可引用平台，继承平台配置）
       const plan = db.prepare('SELECT * FROM smart_push_plans WHERE id = ?').get(rule.plan_id)
       if (plan && plan.enabled !== 0) {
@@ -3283,11 +3545,17 @@ async function checkRulesAndPush(event) {
               api_headers_other: plat.api_headers_other ? JSON.parse(plat.api_headers_other) : {},
               body_template_other: plat.body_template_other || '',
             }
-            deliveredPlatformIds.push(plat.id)
           }
         }
-        if (platformId || effectivePlan.api_url) {
-          if (!platformId) effectivePlan.api_headers = effectivePlan.api_headers ? JSON.parse(effectivePlan.api_headers) : { 'Content-Type': 'application/json' }
+        // 🔴 2026-10-11 审计修复（P1-3，补齐）：**(A) 预案分支也必须查去重集合**。
+        //   教训：只把 deliveredPlatformIds 提到循环外是不够的 —— 原 (A) 分支
+        //   **无条件 executePush**（只有 (B) 平台订阅分支才 includes 判重），
+        //   所以两条规则绑同一平台时仍会各推一次。实测复现：期望 1 次、实际 2 次。
+        if (platformId && deliveredPlatformIds.includes(platformId)) {
+          log.info(`[智治推送] 平台「${effectivePlan.name || platformId}」本次已送达 ⇒ 规则「${rule.name}」跳过（跨规则去重）`)
+        } else if (platformId || effectivePlan.api_url) {
+          if (platformId) deliveredPlatformIds.push(platformId)
+          else effectivePlan.api_headers = effectivePlan.api_headers ? JSON.parse(effectivePlan.api_headers) : { 'Content-Type': 'application/json' }
           await executePush(effectivePlan, events, rule, platformId)
         } else {
           log.warn(`[智治推送] 规则 ${rule.name} 匹配但预案不可用`)
@@ -3319,12 +3587,15 @@ async function checkRulesAndPush(event) {
 app.post('/api/smart-push/events', async (req, res) => {
   const { event_type, location, lat, lon, level, value, standard, description, image_url, raw_json, source } = req.body || {}
   if (!event_type) return res.status(400).json({ error: 'event_type 必填' })
+  // 🔴 2026-10-11 审计修复（P1-1）：source 改为**必填**。
+  //   原实现 `source || 'mqtt'` 把未标注来源统统伪装成 mqtt ⇒ 出事时无法追溯是谁写进来的。
+  if (!source) return res.status(400).json({ error: 'source 必填（如 mqtt / manual / api）—— 用于区分来源与事后审计' })
   const id = uuidv4()
   const now = new Date().toLocaleString('sv', { timeZone: 'Asia/Shanghai' })
   try {
     store.getDb().prepare(`INSERT INTO smart_push_events (id, event_type, location, lat, lon, level, value, standard, description, image_url, raw_json, source, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, event_type, location || '', lat || null, lon || null, level || null,
-           value || '', standard || '', description || '', image_url || '', raw_json ? JSON.stringify(raw_json) : null, source || 'mqtt', now)
+           value || '', standard || '', description || '', image_url || '', raw_json ? JSON.stringify(raw_json) : null, source, now)
     res.status(201).json({ ok: true, id })
     // 异步检查规则并推送（不阻塞响应）
     checkRulesAndPush({ id, event_type, location, lat, lon, level, value, standard, description, image_url, created_at: now }).catch(e => log.error('[智治推送] 规则检查异常:', e.message))
@@ -3704,9 +3975,13 @@ app.post('/client/handle_event_other', chengyunGuard, (req, res) => {
 const serverMonitor = require('./monitor.js')
 app.get('/api/monitor/status', (req, res) => {
   try {
-    const st = serverMonitor.getState()
-    const alerts = serverMonitor.loadAlerts()
-    res.json({ ok: true, state: st, alerts: (alerts || []).slice(-20) })
+    // 🔒 本端点在 PREFIX_PATHS 白名单里（免鉴权）。多机化后载荷含内网目录树 /
+    //    GPU 进程名 / 服务与端口清单 ⇒ 未登录调用方只给最小健康摘要（req.user 由鉴权
+    //    中间件在带有效 token 时挂载，即便是白名单路径）。
+    const full = !!req.user
+    const st = full ? serverMonitor.getState() : serverMonitor.getPublicState()
+    const alerts = full ? serverMonitor.loadAlerts() : []
+    res.json({ ok: true, state: st, alerts: (alerts || []).slice(-20), limited: !full })
   } catch (e) {
     res.json({ ok: false, error: e.message })
   }
@@ -3726,16 +4001,437 @@ app.post('/api/monitor/test-email', async (req, res) => {
 const ZLM_PUBLISH_SECRET = process.env.ZLM_PUBLISH_SECRET || 'sikong2026'
 app.post('/api/zlm/publish-check', (req, res) => {
   const body = req.body || {}
-  const url = body.url || ''
-  const params = body.params || {}
+  // 🔴 2026-10-01 修复：原实现读 body.url / body.params.secret，与 ZLM 实际上报体**不符** ⇒ 恒定拒绝。
+  //   ZLMediaKit on_publish 真实上报体（本机 ZLM 日志抓取，见 zlm/log/2026-10-01_00.log）：
+  //     { "app":"jsc", "stream":"xxx", "schema":"rtmp", "vhost":"__defaultVhost__",
+  //       "originType":1, "originTypeStr":"rtmp_push",
+  //       "params":"secret=sikong2026" }     ← params 是**查询串字符串**，且**没有 url 字段**
+  //   于是原代码里 url='' 且 params.secret=undefined ⇒ secret 恒为 '' ⇒ 100% 推流被拒。
+  //   实证：修复前 ZLM 媒体列表 15 条**全为 originType=pull**（RTSP 拉流）；日志中 4 次 rtmp_push 全部 rejected。
+  //   影响面：dji-bridge(司空抓流→RTMP)、dji-openapi RTMP 直推、transcoder 推流 全部静默失效。
+  //   修法：params 为字符串→按 URLSearchParams 解析；为对象→沿用；仍兼容 body.url 的 ?secret=。
+  const rawParams = body.params
+  let params = {}
+  if (typeof rawParams === 'string') {
+    try { params = Object.fromEntries(new URLSearchParams(rawParams)) } catch (e) { params = {} }
+  } else if (rawParams && typeof rawParams === 'object') {
+    params = rawParams
+  }
+  const url = typeof body.url === 'string' ? body.url : ''
   const secret = params.secret || (url.match(/[?&]secret=([^&]+)/) || [])[1] || ''
   if (secret === ZLM_PUBLISH_SECRET) {
     res.json({ code: 0, msg: 'ok' })
   } else {
-    log.warn(`[zlm] 推流被拒绝: url=${url.slice(0, 80)}`)
+    log.warn(`[zlm] 推流被拒绝: app=${body.app || ''} stream=${body.stream || ''} schema=${body.schema || ''} params=${String(rawParams).slice(0, 80)} url=${url.slice(0, 80)}`)
     res.json({ code: -1, msg: 'unauthorized push stream' })
   }
 })
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 时间服务器：只读状态 + 写通道（方案 B）—— 2026-10-04/05 需求
+//        「驾驶舱后台系统设置 · 时间服务器」
+
+//
+//   设计约束（来自实查，不是猜测）：
+//   · jsc-backend 以 User=jsc 运行，实测 `sudo -l -U jsc` ⇒ «not allowed to run sudo»
+//     ⇒ 本模块**绝不能**尝试写 /etc/systemd/** 或 systemctl restart —— 那必然失败。
+//     可写能力走「方案 B」（期望值落库 + 落请求文件 → root 侧应用器执行），二期已落地。
+//     本模块对「读」保持零副作用；对「写」只写 kv_config 与
+//     /var/lib/easyaiot-timesync/request.json 两个 jsc 有权写的位置，**从不**碰 /etc 或 systemctl。
+
+//   · jsc 用户可读：timedatectl / timedatectl show-timesync / /etc/systemd/timesyncd.conf
+//     不可读：journalctl -u systemd-timesyncd（权限不足）⇒ 不用 journal 当证据，
+//     改用 NTPMessage（含 Stratum/RootDelay/Dispersion）+ 进程内独立 SNTP 反测。
+//   · 设备层（NVR / 相机 14 台）数据来自 11 机 timekit 日巡检，经 5001 静态服务只读拉取。
+//     🔴 **只展示、不控制** —— 实测 NVR 固件「客户端在发包但从不应用 NTP」（同型号 .52 重启后仍偏 −2.0 s），
+//        在后台提供「改 NVR 授时」的开关会给出虚假承诺。
+// ══════════════════════════════════════════════════════════════════════════════
+const http = require('http')
+const dgram = require('dgram')
+
+const TIME_STATUS_URL = process.env.TIME_KIT_STATUS_URL || 'http://172.16.8.11:5001/images/_time/status.json'
+const DEFAULT_TIME_SERVER_EXPECT = {
+  // 内网拓扑不进仓库：默认源改由 env 提供。
+  //   生产实际生效值在 kv_config.time_server_expect（loadTimeServerExpect 用 {...默认, ...kv} 覆盖），
+  //   本处仅"全新库首次播种"时用到。
+  primary: process.env.TIME_SERVER_PRIMARY || '',
+  fallbacks: String(process.env.TIME_SERVER_FALLBACKS || 'ntp.ubuntu.com')
+    .split(',').map(s => s.trim()).filter(Boolean),
+  note: '主源＝局域网一级授时源（Stratum 1 / refid=pps / RootDelay 0）；备源按顺序兜底。',
+  updatedAt: null,
+  updatedBy: null,
+  source: 'default-seed',
+}
+function loadTimeServerExpect() {
+  const v = store.kvGet('time_server_expect', null)
+  if (v && typeof v === 'object' && v.primary) return { ...DEFAULT_TIME_SERVER_EXPECT, ...v }
+  return { ...DEFAULT_TIME_SERVER_EXPECT }
+}
+// 首次运行播种（只写 kv_config，不触碰系统）
+try { if (store.kvGet('time_server_expect') == null) store.kvSet('time_server_expect', DEFAULT_TIME_SERVER_EXPECT) } catch (e) { log.warn('time_server_expect 播种失败: ' + e.message) }
+
+function _sh(cmd, timeout) {
+  try {
+    const out = require('child_process').execSync(cmd, { timeout: timeout || 4000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return { ok: true, out: String(out) }
+  } catch (e) {
+    return { ok: false, out: String(e.stdout || ''), err: String(e.message || e) }
+  }
+}
+function _parseShowTimesync(text) {
+  const g = (k) => { const m = new RegExp('^' + k + '=(.*)$', 'm').exec(text || ''); return m ? m[1].trim() : null }
+  const msg = g('NTPMessage')
+  const num = (re) => { const m = new RegExp(re).exec(msg || ''); return m ? Number(m[1]) : null }
+  return {
+    serverName: g('ServerName'),
+    serverAddress: g('ServerAddress'),
+    systemServers: g('SystemNTPServers'),
+    fallbackServers: g('FallbackNTPServers'),
+    pollIntervalUSec: g('PollIntervalUSec'),
+    ntpMessage: msg,
+    stratum: num('Stratum=(-?[0-9.]+)'),
+    reference: (new RegExp('Reference=([^,}]+)').exec(msg || '') || [, null])[1],
+    rootDelayMs: num('RootDelay=(-?[0-9.]+)'),
+    rootDispersionMs: num('RootDispersion=(-?[0-9.]+)'),
+    jitterMs: num('Jitter=(-?[0-9.]+)'),
+    packetCount: num('PacketCount=([0-9]+)'),
+    leap: num('Leap=(-?[0-9]+)'),
+    version: num('Version=(-?[0-9]+)'),
+  }
+}
+function _parseTimedatectl(text) {
+  const g = (k) => { const m = new RegExp('^ *' + k + ': *(.*)$', 'm').exec(text || ''); return m ? m[1].trim() : null }
+  return {
+    localTime: g('Local time'),
+    universalTime: g('Universal time'),
+    timeZone: g('Time zone'),
+    synchronized: g('System clock synchronized'),
+    ntpService: g('NTP service'),
+  }
+}
+// ── 进程内独立 SNTP（48B UDP，零依赖）────────────────────────────────────────
+// ⚠️ 偏移公式的两个坑（已踩过）：①绝对时刻必须用 Date.now()，hrtime 只有相对原点；
+//    ②报文偏移 16=Reference｜24=Originate（回显我方发包时刻）｜32=Receive｜40=Transmit。
+//    把 24 当 Transmit ⇒ 请求里 Originate 全 0 ⇒ offset 恒为 −(T0+NTP)≈−2e9 s，看起来像「钟差 63 年」。
+const _NTP_EPOCH = 2208988800
+function _sntpOnce(host, timeoutMs) {
+  return new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4')
+    const buf = Buffer.alloc(48); buf[0] = 0x1b
+    const t0 = Date.now(), h0 = process.hrtime.bigint()
+    let done = false
+    const fin = (o) => { if (!done) { done = true; try { sock.close() } catch (e) { /* ignore */ } resolve(o) } }
+    sock.on('message', (m) => {
+      const t3 = t0 + Number(process.hrtime.bigint() - h0) / 1e6
+      const fr = (v) => v / 4294967296
+      const rq = t0 / 1000 + _NTP_EPOCH
+      const t1 = m.readUInt32BE(32) + fr(m.readUInt32BE(36))
+      const t2 = m.readUInt32BE(40) + fr(m.readUInt32BE(44))
+      const t3s = t3 / 1000 + _NTP_EPOCH
+      fin({
+        ok: true, stratum: m[1], refid: m.slice(12, 16).toString('ascii').replace(/\0/g, ''),
+        offsetMs: ((t1 - rq) + (t2 - t3s)) / 2 * 1000,
+        rttMs: ((t3s - rq) - (t2 - t1)) * 1000,
+      })
+    })
+    sock.on('error', () => fin({ ok: false, err: 'socket' }))
+    setTimeout(() => fin({ ok: false, err: 'timeout' }), timeoutMs || 1200)
+    sock.send(buf, 0, 48, 123, host, (e) => { if (e) fin({ ok: false, err: String(e) }) })
+  })
+}
+async function _sntpBatch(host, n) {
+  const rs = []
+  for (let i = 0; i < n; i++) rs.push(await _sntpOnce(host))
+  const ok = rs.filter((r) => r.ok)
+  if (!ok.length) return { host, n, nOk: 0, ok: false, err: (rs[0] && rs[0].err) || 'unknown' }
+  const offs = ok.map((r) => r.offsetMs).sort((a, b) => a - b)
+  const rtts = ok.map((r) => r.rttMs).sort((a, b) => a - b)
+  const med = (a) => a[Math.floor(a.length / 2)]
+  return {
+    host, n, nOk: ok.length, ok: true,
+    stratum: ok[0].stratum, refid: ok[0].refid,
+    offsetMsMed: med(offs), offsetMsMin: offs[0], offsetMsMax: offs[offs.length - 1],
+    offsetMsRange: offs[offs.length - 1] - offs[0], rttMsMed: med(rtts),
+  }
+}
+function _fetchJson(url, timeoutMs) {
+  return new Promise((resolve) => {
+    let u
+    try { u = new URL(url) } catch (e) { return resolve({ ok: false, err: 'URL 非法' }) }
+    const req = http.get({ hostname: u.hostname, port: u.port || 80, path: u.pathname + u.search, timeout: timeoutMs || 4000 }, (r) => {
+      if (r.statusCode !== 200) { r.resume(); return resolve({ ok: false, err: 'HTTP ' + r.statusCode }) }
+      let d = ''
+      r.setEncoding('utf8')
+      r.on('data', (c) => { d += c })
+      r.on('end', () => { try { resolve({ ok: true, data: JSON.parse(d) }) } catch (e) { resolve({ ok: false, err: 'JSON 解析失败' }) } })
+    })
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, err: 'timeout' }) })
+    req.on('error', (e) => resolve({ ok: false, err: e.message }))
+  })
+}
+
+let _tsCache = { at: 0, payload: null }
+const _TS_TTL_MS = 60000   // 60s 缓存：页面刷新不会反复打设备
+
+// ── 二期（方案 B）：期望值 → 落库 + 落「请求文件」；系统改动由 root 侧应用器执行 ─────────
+//   为什么后端不直接改：jsc-backend 以 User=jsc 运行且无 sudo（实测 `sudo -l -U jsc` 拒绝），
+//   而 /etc/systemd/timesyncd.conf.d 是 root:root 644 ⇒ 后端只写得了「请求」，执行交给 root。
+//   数据流：
+//     request.json（jsc 可写：目录 root:jsc 2775，原子 rename 落盘）
+//       → systemd.path 监视到 IN_MOVED_TO → 触发 easyaiot-timesync-apply.service（root, oneshot）
+//       → 应用器：写 drop-in / restart systemd-timesyncd / 按「真的收到应答」判定 / 失败自动回滚
+//       → 结果落 last-run.json（每次都写）与 result.json（**仅在真发生变更时写**）
+//       → 本接口把它们读回来给面板
+const TIMESYNC_BASE = process.env.EASYAIOT_TIMESYNC_DIR || '/var/lib/easyaiot-timesync'
+const TIMESYNC_REQ = path.join(TIMESYNC_BASE, 'request.json')
+const TIMESYNC_LASTRUN = path.join(TIMESYNC_BASE, 'last-run.json')
+const TIMESYNC_RESULT = path.join(TIMESYNC_BASE, 'result.json')
+// 与应用器**同一套**白名单（两端一致，避免后端放行、应用器又拒）：
+// 正则天然拒绝 ':' ⇒ 从根上挡住 host:port —— timesyncd 的 NTP= 不支持端口，
+// 写 "＜主机＞:123" 会被当主机名解析，不报错、不记日志（血泪教训）。
+const TIMESYNC_VAL_RE = /^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$/
+const TIMESYNC_MAX_FALLBACKS = 8
+
+function timeServerNowIso() {
+  // 铁律 4：一律上海时（不依赖设备本地时区、禁 toLocaleString）
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19)
+}
+function timeServerNewReqId() {
+  return 'ui-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+}
+function validateTimeServerExpect(body) {
+  const b = body || {}
+  const primary = String(b.primary == null ? '' : b.primary).trim()
+  if (!primary) return { ok: false, error: '主源地址不能为空' }
+  if (!TIMESYNC_VAL_RE.test(primary)) {
+    return {
+      ok: false,
+      error: primary.indexOf(':') >= 0
+        ? "主源地址不能带端口 —— systemd-timesyncd 的 NTP= 不支持 host:port（写 '＜主机＞:123' 会被当主机名解析，不报错、不记日志）"
+        : '主源地址不合法：只允许字母/数字/点/下划线/连字符，且不能以符号开头或结尾',
+    }
+  }
+  const raw = Array.isArray(b.fallbacks) ? b.fallbacks : []
+  const fallbacks = []
+  for (let i = 0; i < raw.length; i++) {
+    const x = String(raw[i] == null ? '' : raw[i]).trim()
+    if (!x) continue
+    if (!TIMESYNC_VAL_RE.test(x)) {
+      return {
+        ok: false,
+        error: x.indexOf(':') >= 0
+          ? `备源[${i}]「${x}」不能带端口（同主源约束）`
+          : `备源[${i}]「${x}」不合法：只允许字母/数字/点/下划线/连字符`,
+      }
+    }
+    if (fallbacks.indexOf(x) < 0) fallbacks.push(x)
+  }
+  if (!fallbacks.length) {
+    return { ok: false, error: '至少要有 1 个备源 —— systemd 的 FallbackNTP 不允许留空（留空会退回编译期内置默认的公网源）' }
+  }
+  if (fallbacks.length > TIMESYNC_MAX_FALLBACKS) {
+    return { ok: false, error: `备源最多 ${TIMESYNC_MAX_FALLBACKS} 个` }
+  }
+  return { ok: true, value: { primary, fallbacks, note: String(b.note == null ? '' : b.note).slice(0, 500) } }
+}
+function readJsonSafe(p) {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch (e) { return null }
+}
+function timeServerExpectMeta() {
+  const v = store.kvGet('time_server_expect', null) || {}
+  return { updatedAt: v.updatedAt || null, updatedBy: v.updatedBy || null, source: v.source || null, reqId: v.reqId || null }
+}
+function timeServerApplyState() {
+  const lastReq = readJsonSafe(TIMESYNC_REQ)
+  const lastRun = readJsonSafe(TIMESYNC_LASTRUN)
+  const lastResult = readJsonSafe(TIMESYNC_RESULT)
+  return {
+    dir: TIMESYNC_BASE,
+    requestPath: TIMESYNC_REQ,
+    installed: fs.existsSync(TIMESYNC_REQ) || fs.existsSync(TIMESYNC_LASTRUN),
+    lastRequest: lastReq
+      ? { reqId: lastReq.reqId || null, requestedAt: lastReq.requestedAt || null, requestedBy: lastReq.requestedBy || null }
+      : null,
+    // pending = 已提交、但应用器还没为这个 reqId 跑完（path unit 秒级触发；timer 每 2 分钟兜底）
+    pending: !!(lastReq && lastReq.reqId && (!lastRun || lastRun.reqId !== lastReq.reqId)),
+    lastRun: lastRun || null,
+    lastResult: lastResult || null,
+  }
+}
+function writeTimeServerRequest(obj) {
+  if (!fs.existsSync(TIMESYNC_BASE)) {
+    throw new Error(`同步目录不存在：${TIMESYNC_BASE}（root 侧应用器未安装？）`)
+  }
+  // 原子写（同目录 temp + rename）：应用器的 .path 靠 IN_MOVED_TO 触发，
+  // 这样它绝不会读到半截 JSON；也正好满足「目录挂 2775 后 jsc 可写」的最小授权。
+  const tmp = path.join(TIMESYNC_BASE, '.tmp-req-' + process.pid + '-' + Date.now())
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 1) + '\n', { mode: 0o664 })
+  try { fs.chmodSync(tmp, 0o664) } catch (e) { /* ignore */ }
+  fs.renameSync(tmp, TIMESYNC_REQ)
+}
+function timeServerActor(req) {
+  return (req.user && (req.user.username || req.user.name)) || 'unknown'
+}
+function timeServerSaveExpect(req, v, applyNow) {
+  const who = timeServerActor(req)
+  const nowIso = timeServerNowIso()
+  const value = Object.assign({}, loadTimeServerExpect(), {
+    primary: v.primary, fallbacks: v.fallbacks, note: v.note,
+    updatedAt: nowIso, updatedBy: who, source: 'ui',
+  })
+  if (applyNow) value.reqId = timeServerNewReqId()
+  store.kvSet('time_server_expect', value)          // ① 先落库（面板立刻可见）
+  let applyError = null
+  if (applyNow) {                                    // ② 再落请求文件（触发 root 侧应用器）
+    try {
+      writeTimeServerRequest({
+        reqId: value.reqId, requestedAt: nowIso, requestedBy: who,
+        expect: { primary: value.primary, fallbacks: value.fallbacks },
+      })
+    } catch (e) { applyError = e.message }           // 落库成功但提交失败：如实上报，不假装成功
+  }
+  _tsCache = { at: 0, payload: null }               // ③ 让下一次 status 重新采集
+  return { value, who, nowIso, applyError }
+}
+
+
+async function collectTimeServerStatus() {
+  const expect = loadTimeServerExpect()
+  const out = {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    host: { name: 'JSC 驾驶舱主机', machine: 'dajiang', ip: '172.16.8.12' },
+    expect,
+    expectMeta: timeServerExpectMeta(),
+    applyState: timeServerApplyState(),
+    local: {}, probe: { targets: [] }, audit: null, remote: null,
+    // 二期（方案 B）：后台**可写**，但写的是「期望值 + 请求文件」；
+    // 真正的系统改动由 root 侧应用器（/usr/local/lib/easyaiot-timesync/apply.py）执行。
+    readonly: false,
+    writeMode: 'expect + root-applier',
+    readonlyReason: '写操作不直接改系统：保存期望值 + 落请求文件 → root 侧应用器写 drop-in、重启 systemd-timesyncd、按「真的收到应答」判定，失败自动回滚。需要管理员权限（写操作默认要求 admin）。',
+  }
+
+
+  // ① 本机授时状态
+  const st = _sh('timedatectl show-timesync')
+  const td = _sh('timedatectl')
+  out.local.showTimesync = Object.assign({ ok: st.ok }, _parseShowTimesync(st.out), st.ok ? {} : { err: st.err })
+  out.local.timedatectl = Object.assign({ ok: td.ok }, _parseTimedatectl(td.out), td.ok ? {} : { err: td.err })
+
+  // ② 合规判定：实际使用中的源 是否落在期望清单里
+  const allowed = [expect.primary].concat(expect.fallbacks || []).filter(Boolean)
+  const actual = out.local.showTimesync.serverAddress
+  out.local.allowed = allowed
+  // 🔴 ServerAddress 只是「timesyncd 当前**正在尝试连接**的地址」：IP 字面量无需 DNS，
+  //   一解析就填上 —— 「可解析但不可达」时照样有值。实测某台完全无应答的内网 NTP 主机，
+  //   仍被填成 ServerAddress=＜该主机地址＞ ⇒ 只看它会把死源判成「已生效」。
+  //   真判据 = NTPMessage.Stratum ≥ 1（无应答时该结构体是零值、Stratum=0）。
+  out.local.replied = !!(out.local.showTimesync.stratum >= 1)
+  out.local.conform = !!(actual && allowed.indexOf(actual) >= 0)
+  out.local.effective = !!(out.local.replied && out.local.conform)
+  out.local.conformDetail = !actual
+    ? '读不到 ServerAddress（尚未选定上游）'
+    : (!out.local.replied
+      ? `未收到 NTP 应答 —— ServerAddress=${actual} 只表示「正在尝试连接的地址」，不代表同步成功`
+      : (out.local.conform
+        ? `当前上游 ${actual} 在期望清单内，且已收到应答（Stratum=${out.local.showTimesync.stratum}）`
+        : `当前上游 ${actual} 不在期望清单 [${allowed.join(', ')}] 内`))
+
+  out.local.isPrimary = !!(actual && actual === expect.primary)
+  out.local.isLanSource = !!(out.local.showTimesync.stratum === 1 && /^172\.16\./.test(actual || ''))
+
+  // ③ 独立 SNTP 反测（主源优先，备源去重）
+  const targets = [expect.primary].concat((expect.fallbacks || []).filter((f) => f && f !== expect.primary)).slice(0, 3)
+  for (let i = 0; i < targets.length; i++) {
+    out.probe.targets.push(await _sntpBatch(targets[i], i === 0 ? 7 : 3))
+  }
+
+  // ④ 设备层（NVR / 相机）—— 只展示不控制
+  const r = await _fetchJson(TIME_STATUS_URL, 4000)
+  if (r.ok) {
+    const d = r.data || {}
+    out.remote = { ok: true, url: TIME_STATUS_URL }
+    out.audit = {
+      ts: d.ts || null,
+      serverTime: d.server_time || null,
+      source: d.source || null,
+      db: d.db || null,
+      elapsedS: d.elapsed_s || null,
+      deviceCount: Array.isArray(d.devices) ? d.devices.length : 0,
+      snapCount: Array.isArray(d.snap_osd) ? d.snap_osd.length : 0,
+    }
+    out.devices = Array.isArray(d.devices) ? d.devices : []
+    out.snapOsd = Array.isArray(d.snap_osd) ? d.snap_osd : []
+  } else {
+    out.remote = { ok: false, url: TIME_STATUS_URL, err: r.err }
+    out.devices = []
+    out.snapOsd = []
+  }
+  return out
+}
+
+app.get('/api/time-server/status', async (req, res) => {
+  try {
+    const now = Date.now()
+    if (!_tsCache.payload || now - _tsCache.at > _TS_TTL_MS) {
+      _tsCache = { at: now, payload: await collectTimeServerStatus() }
+    }
+    res.json(_tsCache.payload)
+  } catch (e) {
+    log.error('time-server/status 失败: ' + e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── 写接口（方案 B 二期）—— 只落「期望值 + 请求文件」，系统改动交给 root 侧应用器 ──────
+//   鉴权：本项目写操作默认要求 admin（见鉴权中间件 requiredRoleForWrite 末尾 `return 'admin'`），
+//   故这两个 POST **无需**额外声明即已被 admin 限定；req.user 由中间件挂载，用于审计归属。
+//   语义：/expect = 保存期望值（可带 apply=true 顺带同步）；/apply = 用当前（或传入的）期望值同步。
+app.post('/api/time-server/expect', (req, res) => {
+  try {
+    const v = validateTimeServerExpect(req.body)
+    if (!v.ok) return res.status(400).json({ ok: false, error: v.error })
+    const applyNow = !!(req.body && req.body.apply)
+    const r = timeServerSaveExpect(req, v.value, applyNow)
+    log.info(`[time-server] 期望值已保存 by=${r.who} primary=${r.value.primary} fallbacks=${r.value.fallbacks.join(',')} apply=${applyNow}${r.applyError ? ' applyError=' + r.applyError : ''}`)
+    res.json({
+      ok: true,
+      expect: r.value,
+      apply: applyNow ? { reqId: r.value.reqId, requestedAt: r.nowIso, requestedBy: r.who } : null,
+      applyError: r.applyError,
+      note: r.applyError
+        ? '期望值已保存，但同步请求未提交成功：' + r.applyError
+        : (applyNow ? '已提交同步请求，root 侧应用器通常数秒内完成' : '仅保存期望值，未触发同步'),
+    })
+  } catch (e) {
+    log.error('time-server/expect 失败: ' + e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.post('/api/time-server/apply', (req, res) => {
+  try {
+    const cur = loadTimeServerExpect()
+    const b = req.body || {}
+    const v = validateTimeServerExpect({
+      primary: b.primary == null ? cur.primary : b.primary,
+      fallbacks: b.fallbacks == null ? cur.fallbacks : b.fallbacks,
+      note: b.note == null ? (cur.note || '') : b.note,
+    })
+    if (!v.ok) return res.status(400).json({ ok: false, error: v.error })
+    const r = timeServerSaveExpect(req, v.value, true)
+    log.info(`[time-server] 已提交同步 by=${r.who} reqId=${r.value.reqId} primary=${r.value.primary} fallbacks=${r.value.fallbacks.join(',')}${r.applyError ? ' applyError=' + r.applyError : ''}`)
+    if (r.applyError) return res.status(500).json({ ok: false, reqId: r.value.reqId, expect: r.value, error: r.applyError })
+    res.json({ ok: true, reqId: r.value.reqId, requestedAt: r.nowIso, requestedBy: r.who, expect: r.value, note: '已提交同步请求，root 侧应用器通常数秒内完成（失败会自动回滚）' })
+  } catch (e) {
+    log.error('time-server/apply 失败: ' + e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── 时间服务器 状态与写接口 END ──────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   log.info(`JSC Media Server 已启动 http://localhost:${PORT}`)

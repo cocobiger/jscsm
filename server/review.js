@@ -15,7 +15,13 @@
 const path = require('path')
 
 let db = null
-let evidenceRoot = '/opt/jsc/straw-engine'
+// 🔴 2026-10-01：迁移到 /data/HBJSC 后此处仍指向**已删除的旧根** `/opt/jsc/straw-engine`
+//   （实测 `ls /opt/jsc` → No such file or directory）。影响面（本文件 276/277/302 行）：
+//     · GET /api/review/image 取帧：path.join(旧根, 'evidence/...') 恒不存在 → 复检页取不到图（404）
+//     · 标注导出 doExport：src 不存在 → 每一帧都被 `if (!fs.existsSync(src)) continue` 静默跳过
+//   注：277 行的 `abs.startsWith(evidenceRoot)` 越权防护也用的是错前缀，故一并纠正。
+//   evidence 目录在 12 机上为软链 → /data/video/evidence（实测有数据）。
+let evidenceRoot = process.env.JSC_EVIDENCE_ROOT || process.env.STRAW_ENGINE_ROOT || '/data/HBJSC/straw-engine'
 // 宿主上下文：{ store, onVerdict }；onVerdict 为异步回调，fire-and-forget 不阻塞复检响应
 let ctx = {}
 

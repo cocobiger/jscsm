@@ -10,7 +10,11 @@ const { execFile } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-const PY = '/opt/jsc/straw-engine/venv/bin/python'
+// 🔴 2026-10-01：旧根 `/opt/jsc` 已随迁移删除（实测不存在）⇒ 改为新根。
+//   venv 实测存在：/data/HBJSC/straw-engine/venv/bin/python。
+//   ⚠️ 但 SCRIPT（/video/xunlian/quarantine_collect.py）当前**不存在**，即本模块整体未部署；
+//      此处仅纠正路径口径，避免将来补部署后仍指向幽灵路径（错误信息指向真实缺失物）。
+const PY = process.env.STRAW_ENGINE_PY || '/data/HBJSC/straw-engine/venv/bin/python'
 const SCRIPT = '/video/xunlian/quarantine_collect.py'
 const QUAR = '/video/shujuji/datasets/v5_train_v5/quarantine'
 

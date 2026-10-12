@@ -1,16 +1,19 @@
 'use strict'
 /**
  * 大疆司空 WebRTC 适配器管理模块
- * 通过启动 /opt/jsc/dji-bridge/dji_bridge.py 子进程，
+ * 通过启动 /data/HBJSC/dji-bridge/dji_bridge.py 子进程，
  * 把大疆司空 share/live 页面的机场视频转推为 RTMP 流到 ZLMediaKit。
  */
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-const PYTHON = '/opt/jsc/dji-bridge/venv/bin/python3'
-const SCRIPT = '/opt/jsc/dji-bridge/dji_bridge.py'
-const WORKDIR = '/opt/jsc/dji-bridge'
+// 🔴 2026-10-01：原三常量硬编码旧根 `/opt/jsc/dji-bridge`（迁移后该根已删除，本机 /opt 下只剩 skymonitor）
+//   ⇒ 以 jsc 身份 mkdir /opt/... 必 EACCES，每次启动刷一条 ERROR。改为 env 可覆盖 + 新根默认值，
+//   与 systemd unit 中 straw-engine / dock-guard 等路径口径一致。
+const PYTHON = process.env.DJI_BRIDGE_PYTHON || '/data/HBJSC/dji-bridge/venv/bin/python3'
+const SCRIPT = process.env.DJI_BRIDGE_SCRIPT || '/data/HBJSC/dji-bridge/dji_bridge.py'
+const WORKDIR = process.env.DJI_BRIDGE_DIR || '/data/HBJSC/dji-bridge'
 
 let log = { info() {}, warn() {}, error() {}, debug() {} }
 
@@ -19,11 +22,23 @@ const sessions = new Map()
 
 function init(logger) {
   if (logger) log = logger
+  // 🔴 2026-10-01：原实现**无条件** mkdir(WORKDIR)，旧根已不存在 ⇒ 每次服务启动必报
+  //   `ERROR 创建 dji-bridge 工作目录失败: EACCES: permission denied, mkdir '/opt/jsc/dji-bridge'`。
+  //   该 ERROR 与主服务无关（init 不抛错、不阻断启动），但属**噪音**且掩盖真实问题。
+  //   现改为「以脚本存在性为部署判据」：
+  //     · 脚本不存在 ⇒ 本模块未部署（12 机实际情况）→ 记一条 info 后跳过，不建目录、不报 ERROR；
+  //     · 脚本存在   ⇒ 再建工作目录；失败降级为 warn（仅影响运行期会话文件，不影响主服务）。
+  if (!fs.existsSync(SCRIPT)) {
+    log.info(`dji-bridge 未部署（未找到 ${SCRIPT}），跳过初始化`)
+    return false
+  }
   try {
     fs.mkdirSync(WORKDIR, { recursive: true })
     fs.mkdirSync(path.join(WORKDIR, 'sessions'), { recursive: true })
+    return true
   } catch (e) {
-    log.error('创建 dji-bridge 工作目录失败: ' + e.message)
+    log.warn('创建 dji-bridge 工作目录失败: ' + e.message)
+    return false
   }
 }
 
@@ -113,7 +128,10 @@ function buildUrls(streamId) {
     hls: `/jsc/${streamId}/hls.m3u8`,
     flv: `/jsc/${streamId}.live.flv`,
     ws_flv: `/jsc/${streamId}.live.flv`,
-    rtmp: `rtmp://127.0.0.1:1935/jsc/${streamId}`,
+    // 🔴 2026-10-01：原写死 1935（旧 Docker 时代的 ZLM 端口）。现 ZLM 为**裸机**部署
+    //   （/data/HBJSC/zlm，systemd zlmediakit-jsc），活动配置 config/config.ini 的 [rtmp] port=1936。
+    //   ⚠️ 同目录 /data/HBJSC/zlm/config.ini（少一层 config/）是**陈旧副本**（1935），勿照它改。
+    rtmp: `rtmp://127.0.0.1:1936/jsc/${streamId}`,
     rts: `/jsc/${streamId}.live.ts`,
   }
 }
@@ -148,6 +166,12 @@ async function _startSessionCore(streamId, djiConfig) {
   if (!djiConfig?.shareUrl) throw new Error('缺少 shareUrl')
   if (!djiConfig?.airportName && djiConfig?.airportIndex == null) {
     throw new Error('缺少 airportName 或 airportIndex')
+  }
+
+  // 🔴 2026-10-01：把「未部署」与「启动失败」区分开 —— 脚本不存在时直接给出明确原因，
+  //   而不是让 spawn 抛 ENOENT（原先日志只有 `spawn ... ENOENT`，看不出是"没装"还是"坏了"）。
+  if (!fs.existsSync(SCRIPT)) {
+    throw new Error(`dji-bridge 未部署：未找到 ${SCRIPT}（本机未安装该模块，无法启动转码会话）`)
   }
 
   // 1. 如果该流已经在运行，直接返回播放地址（避免重复推流导致 ZLM Already publishing）

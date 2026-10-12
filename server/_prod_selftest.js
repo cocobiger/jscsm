@@ -10,7 +10,7 @@
 const store = require('./store-db')
 
 const TAG = 'SELFTEST-judge-' + Date.now()
-const DIR = '/opt/jsc/backend/data'
+const DIR = '/data/HBJSC/backend/data'
 const log = { info() {}, warn() {}, error() {} }
 store.init(DIR, log)
 
