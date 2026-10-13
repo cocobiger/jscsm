@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../../lib/apiFetch'
 import type {
   WechatStatusResp, WechatTargetsResp, WechatTestSendResp, WechatRefreshResp, WechatDefaultTarget,
+  WechatDefaultTargetResp, WechatDefaultTargetPutResp,
 } from '../../lib/api-types'
 import { RefreshCw, QrCode, CheckCircle2, Send, WifiOff } from 'lucide-react'
 
@@ -41,7 +42,11 @@ const smallBtn: React.CSSProperties = {
   border: '1px solid rgba(255,112,67,0.35)', background: 'rgba(255,112,67,0.12)', color: ORANGE,
 }
 
-export function WeChatLoginPanel({ onStatusChange }: { onStatusChange?: (s: WechatStatusResp | null) => void }) {
+export function WeChatLoginPanel({ onStatusChange, onTargetsChanged }: {
+  onStatusChange?: (s: WechatStatusResp | null) => void
+  /** 默认对象被"同步到全部责任行"后回调，让父级刷新责任映射表 */
+  onTargetsChanged?: () => void
+}) {
   const [st, setSt] = useState<WechatStatusResp | null>(null)
   const [err, setErr] = useState('')
   const [qrUrl, setQrUrl] = useState('')
@@ -232,34 +237,86 @@ export function WeChatLoginPanel({ onStatusChange }: { onStatusChange?: (s: Wech
       )}
 
       {/* 已登录：全局默认推送对象 */}
-      {loggedIn && <DefaultTargetPicker current={st?.defaultTarget || null} onSaved={() => loadStatus(true)} />}
+      {loggedIn && <DefaultTargetPicker onSaved={() => loadStatus(true)} onTargetsChanged={onTargetsChanged} />}
     </div>
   )
 }
 
 // ── 全局默认推送对象（方案 C：逐行为主、全局兜底）──
-//   ⚠️ 目前只做「配置读写」；让推送链路真正回落到它需要改 strawWorkflow（单独的 T16 步骤）。
-function DefaultTargetPicker({ current, onSaved }: { current: WechatDefaultTarget | null; onSaved: () => void }) {
+//   用户需求（2026-10-13）：设了默认对象，下面各镇街的推送对象**也要跟着变**。
+//   ⇒ 保存时默认勾选「同时应用到全部镇街」，后端会**先快照再批量改写**，并支持一键恢复。
+//   ⚠️ 这属于批量高危动作（会覆盖各行单独设过的地址）⇒ 前端二次确认 + 后端快照/回滚。
+function DefaultTargetPicker({ onSaved, onTargetsChanged }: {
+  onSaved: () => void
+  onTargetsChanged?: () => void
+}) {
   const { targets, loading, error, reload } = useWechatTargets(true)
   const [sel, setSel] = useState('')
+  const [cur, setCur] = useState<WechatDefaultTarget | null>(null)
+  const [backup, setBackup] = useState<{ at: string; by: string; rows: number } | null>(null)
+  const [applyAll, setApplyAll] = useState(true)   // 默认开：符合"同步改变"的诉求
   const [msg, setMsg] = useState('')
+  const [msgOk, setMsgOk] = useState(true)
   const [busy, setBusy] = useState(false)
 
+  const loadCur = useCallback(async () => {
+    try {
+      const r = await authFetch('/api/wechat/default-target')
+      const d: WechatDefaultTargetResp = await r.json()
+      if (d.ok) { setCur(d.target); setBackup(d.backup) }
+    } catch { /* 忽略：下拉本身还能用 */ }
+  }, [])
+  useEffect(() => { loadCur() }, [loadCur])
+
+  const say = (t: string, ok = true) => { setMsg(t); setMsgOk(ok); setTimeout(() => setMsg(''), 6000) }
+
   const save = async (clear = false) => {
+    if (!clear && !sel) { say('请先选择一个对象', false); return }
+    if (!clear && applyAll) {
+      const n = (targets.groups.length + targets.contacts.length) ? '全部镇街' : '全部镇街'
+      if (!window.confirm(
+        `将把「${sel}」同步写入${n}的推送对象。\n\n` +
+        '这会把各行**单独设置过**的推送地址一并覆盖（改前自动快照，可一键恢复）。\n\n确认继续？')) return
+    }
     setBusy(true); setMsg('')
     try {
-      const body = clear ? { clear: true } : { target: sel, kind: selKind(sel, targets) }
+      const body = clear
+        ? { clear: true }
+        : { target: sel, kind: selKind(sel, targets), applyToAll: applyAll }
       const r = await authFetch('/api/wechat/default-target', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
-      const d = await r.json()
-      setMsg(d.ok ? '✓ 已保存' : ('失败: ' + (d.error || '')))
-      if (d.ok) onSaved()
+      const d: WechatDefaultTargetPutResp = await r.json()
+      if (!d.ok) { say('失败: ' + (d.error || ''), false) }
+      else if (d.applied) {
+        say(d.applied.changed > 0
+          ? `✓ 已设为默认，并同步 ${d.applied.changed} 行（共 ${d.applied.total} 行）`
+          : `✓ 已设为默认（全部 ${d.applied.total} 行本来就指向它）`)
+      } else {
+        say(clear ? '✓ 已清除默认对象' : '✓ 已设为默认（未改动各镇街行）')
+      }
+      await loadCur()
+      if (d.ok) { onSaved(); onTargetsChanged?.() }
     } catch (e) {
-      setMsg('失败: ' + ((e as Error)?.message || e))
+      say('失败: ' + ((e as Error)?.message || e), false)
     }
     setBusy(false)
-    setTimeout(() => setMsg(''), 4000)
+  }
+
+  const rollback = async () => {
+    if (!backup) return
+    if (!window.confirm(`把全部镇街的推送对象恢复到「${backup.at}」那一批改之前的值？（共 ${backup.rows} 行）`)) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await authFetch('/api/wechat/default-target/rollback', { method: 'POST' })
+      const d: { ok: boolean; restored?: number; error?: string; snapshotAt?: string } = await r.json()
+      say(d.ok ? `✓ 已恢复 ${d.restored} 行到「${d.snapshotAt}」之前的值` : ('恢复失败: ' + (d.error || '')), !!d.ok)
+      await loadCur()
+      if (d.ok) onTargetsChanged?.()
+    } catch (e) {
+      say('恢复失败: ' + ((e as Error)?.message || e), false)
+    }
+    setBusy(false)
   }
 
   return (
@@ -279,23 +336,38 @@ function DefaultTargetPicker({ current, onSaved }: { current: WechatDefaultTarge
             </optgroup>
           )}
         </select>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#7ab8e0', cursor: 'pointer' }}>
+          <input type="checkbox" checked={applyAll} onChange={e => setApplyAll(e.target.checked)} />
+          同时应用到全部镇街
+        </label>
         <button onClick={() => save(false)} disabled={busy || !sel} style={{ ...smallBtn, opacity: busy || !sel ? 0.5 : 1 }}>
-          <CheckCircle2 size={13} /> 设为默认
+          <CheckCircle2 size={13} /> {applyAll ? '设为默认并同步全部' : '设为默认'}
         </button>
-        {current && (
+        {backup && (
+          <button onClick={rollback} disabled={busy} title={`把全部镇街恢复到 ${backup.at} 之前的值（${backup.rows} 行）`}
+            style={{ ...smallBtn, borderColor: 'rgba(255,184,77,0.35)', background: 'rgba(255,184,77,0.1)', color: AMBER }}>
+            恢复上一批改动
+          </button>
+        )}
+        {cur && (
           <button onClick={() => save(true)} disabled={busy} style={{ ...smallBtn, borderColor: 'rgba(255,80,80,0.3)', background: 'rgba(255,60,60,0.1)', color: RED }}>
-            清除
+            清除默认
           </button>
         )}
         <button onClick={reload} disabled={loading} style={{ ...smallBtn, borderColor: 'rgba(0,150,220,0.3)', background: 'rgba(0,80,180,0.12)', color: '#7ab8e0' }}>
           {loading ? '读取中…' : '刷新列表'}
         </button>
-        {msg && <span style={{ fontSize: 12, color: msg.startsWith('✓') ? GREEN : RED }}>{msg}</span>}
+        {msg && <span style={{ fontSize: 12, color: msgOk ? GREEN : RED }}>{msg}</span>}
       </div>
       <div style={{ fontSize: 12, color: '#7ab8e0' }}>
-        当前：{current ? <b style={{ color: GREEN }}>{current.name}</b> : <span style={{ color: AMBER }}>未设置</span>}
-        {current?.setAt ? `（${current.setAt} 由 ${current.setBy || '-'} 设置）` : ''}
+        当前：{cur ? <b style={{ color: GREEN }}>{cur.name}</b> : <span style={{ color: AMBER }}>未设置</span>}
+        {cur?.setAt ? `（${cur.setAt} 由 ${cur.setBy || '-'} 设置）` : ''}
+        {backup && <span style={{ color: AMBER }}>　· 上一批同步（{backup.at}，{backup.rows} 行）可恢复</span>}
         {error && <span style={{ color: RED }}>　· {error}</span>}
+      </div>
+      <div style={{ fontSize: 11.5, color: '#5a8aaa' }}>
+        勾选「同时应用到全部镇街」保存后，下方每一行的「推送对象」会一起改成它 —— 改前自动快照，可点「恢复上一批改动」还原。
+        若只想给个别镇街单独指定，请取消勾选（或直接在表格里逐行改）。
       </div>
       {targets.caveat && <div style={{ fontSize: 11.5, color: '#5a8aaa' }}>⚠️ {targets.caveat}</div>}
     </div>

@@ -176,7 +176,7 @@ function ResponsibilityManager() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* 微信登录：在线状态 / 离线二维码 / 手动刷新 / 全局默认推送对象 */}
-      <WeChatLoginPanel onStatusChange={setWx} />
+      <WeChatLoginPanel onStatusChange={setWx} onTargetsChanged={load} />
 
       {/* 统计卡 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>

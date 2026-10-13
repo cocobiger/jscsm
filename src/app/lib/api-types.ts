@@ -407,3 +407,19 @@ export interface WechatTestSendResp {
   error?: string
 }
 export const WECHAT_TEST_SEND_REQUIRED = ['ok']
+
+/** GET /api/wechat/default-target —— 全局默认对象 + 上一次「同步到全部行」的快照元信息 */
+export interface WechatDefaultTargetResp {
+  ok: boolean
+  target: WechatDefaultTarget | null
+  /** 上一次批量同步的快照（非空时可"恢复上一批"）；只回元信息不回明细 */
+  backup: { at: string; by: string; rows: number } | null
+  error?: string
+}
+/** PUT /api/wechat/default-target 的返回：applied 表示对责任映射行的同步结果 */
+export interface WechatDefaultTargetPutResp {
+  ok: boolean
+  target: WechatDefaultTarget | null
+  applied?: { total: number; changed: number; unchanged: number; target: string } | null
+  error?: string
+}

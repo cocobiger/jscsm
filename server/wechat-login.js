@@ -46,6 +46,8 @@ const QR_PNG = path.join(QR_DIR, 'latest.png')
 const QR_META = path.join(QR_DIR, 'latest.json')
 const RESET_FLAG = path.join(QR_DIR, 'reset.request')
 const DEFAULT_TARGET_KEY = 'wechat_default_target'
+// 「设默认对象时同步改写全部责任行」的**改前快照**（供一键回滚）；一次性使用，回滚后清空
+const DEFAULT_APPLY_BACKUP_KEY = 'wechat_default_apply_backup'
 
 const PROXY_TIMEOUT_MS = Number(process.env.WECHAT_PROXY_TIMEOUT_MS || 60000)
 const STATUS_TTL_MS = Number(process.env.WECHAT_STATUS_TTL_MS || 3000)
@@ -373,36 +375,103 @@ function registerWechatLoginRoutes(app, { store, log, adminOnly, sendWechatPush 
   })
 
   // ── ⑥ 全局默认推送对象（方案 C：逐行为主、全局兜底）──────────────────────
-  // ⚠️ 本阶段只提供"读写配置"。真正让推送链路回落到它，属于 P3 的 T16
-  //    （要改 index.js 的 strawWorkflow，需单独一步 + 单独验收）。
+  // ⚠️ 让推送链路**回落到**它（findResponsibility 取不到 webhook 时兜底）属于 T16，
+  //    需要改 index.js 的 strawWorkflow，单独一步 + 单独验收。
+  // 但「设了默认对象，下面各镇街也跟着改」是明确的用户需求 ⇒ 由 applyToAll 承担：
+  //    直接批量改写 area_responsibility.webhook（**先快照、可一键回滚**）。
   app.get('/api/wechat/default-target', adm, (req, res) => {
-    try { res.json({ ok: true, target: store.kvGet(DEFAULT_TARGET_KEY, null) }) }
-    catch (e) { res.status(500).json({ ok: false, error: errMsg(e) }) }
+    try {
+      const b = store.kvGet(DEFAULT_APPLY_BACKUP_KEY, null)
+      res.json({
+        ok: true,
+        target: store.kvGet(DEFAULT_TARGET_KEY, null),
+        // 上一次批量应用的快照（供"恢复上一批"用；只回元信息，不回 52 行明细）
+        backup: b ? { at: b.at, by: b.by, rows: (b.rows || []).length } : null,
+      })
+    } catch (e) { res.status(500).json({ ok: false, error: errMsg(e) }) }
   })
 
   app.put('/api/wechat/default-target', adm, (req, res) => {
     try {
       const b = req.body || {}
       const name = String(b.target || '').trim()
-      if (!name && !b.clear) {
+      const clear = !!b.clear
+      if (!name && !clear) {
         return res.status(400).json({ ok: false, error: '需要 target（会话名），或传 clear=true 清空' })
       }
-      const value = (!name || b.clear) ? null : {
+      const who = (req.user && (req.user.username || req.user.name)) || 'admin'
+      const value = clear ? null : {
         name,
         kind: (b.kind === 'contact') ? 'contact' : 'group',
         webhook: webhookFor(name),
-        setBy: (req.user && (req.user.username || req.user.name)) || 'admin',
+        setBy: who,
         setAt: shTime(),
       }
       store.kvSet(DEFAULT_TARGET_KEY, value)
-      res.json({ ok: true, target: value })
+
+      // ── 批量同步到全部责任映射行（默认开；传 applyToAll:false 可只设默认不改行）──
+      let applied = null
+      if (!clear && b.applyToAll !== false) {
+        const rows = store.listAreaResponsibilities()
+        const target = value.webhook
+        const changed = rows.filter((r) => (r.webhook || '') !== target)
+        if (changed.length) {
+          // ① 先快照（含逐行回滚 SQL），再去改 —— 顺序不能反
+          const snapshot = {
+            at: shTime(), by: who,
+            rows: changed.map((r) => ({ id: r.id, town: r.town, community: r.community || '', webhook: r.webhook || '' })),
+            rollbackSql: changed.map((r) =>
+              `UPDATE area_responsibility SET webhook='${String(r.webhook || '').replace(/'/g, "''")}' WHERE id=${r.id};  -- ${r.town}`).join('\n'),
+          }
+          store.kvSet(DEFAULT_APPLY_BACKUP_KEY, snapshot)
+          // ② 复用应用自己的幂等 upsert（保留 unit/person/phone/remark，只换 webhook）
+          store.importAreaResponsibilities(rows.map((r) => ({
+            district: r.district, town: r.town, community: r.community || '',
+            unit: r.unit || '', person: r.person || '', phone: r.phone || '',
+            webhook: target, remark: r.remark || '',
+          })))
+          applied = { total: rows.length, changed: changed.length, unchanged: rows.length - changed.length, target: name }
+          if (log) log.info(`[微信登录] 默认推送对象「${name}」已同步到 ${changed.length}/${rows.length} 条责任映射（by=${who}）`)
+        } else {
+          applied = { total: rows.length, changed: 0, unchanged: rows.length, target: name }
+        }
+      }
+      res.json({ ok: true, target: value, applied })
+    } catch (e) {
+      res.status(500).json({ ok: false, error: errMsg(e) })
+    }
+  })
+
+  // 回滚上一次「默认对象同步」：把各行 webhook 还原成快照里的原值
+  app.post('/api/wechat/default-target/rollback', adm, (req, res) => {
+    try {
+      const snap = store.kvGet(DEFAULT_APPLY_BACKUP_KEY, null)
+      if (!snap || !Array.isArray(snap.rows) || !snap.rows.length) {
+        return res.status(404).json({ ok: false, error: '没有可回滚的快照' })
+      }
+      const rows = store.listAreaResponsibilities()
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      const restore = []
+      for (const s of snap.rows) {
+        const cur = byId.get(s.id)
+        if (!cur) continue                                  // 行已被删除 ⇒ 跳过
+        restore.push({
+          district: cur.district, town: cur.town, community: cur.community || '',
+          unit: cur.unit || '', person: cur.person || '', phone: cur.phone || '',
+          webhook: s.webhook || '', remark: cur.remark || '',
+        })
+      }
+      store.importAreaResponsibilities(restore)
+      store.kvSet(DEFAULT_APPLY_BACKUP_KEY, null)           // 快照一次性使用
+      if (log) log.info(`[微信登录] 已回滚上一次默认对象同步（${restore.length} 行，快照时间 ${snap.at}）`)
+      res.json({ ok: true, restored: restore.length, snapshotAt: snap.at })
     } catch (e) {
       res.status(500).json({ ok: false, error: errMsg(e) })
     }
   })
 
   if (log) {
-    log.info('[微信登录] 路由已注册: /api/wechat/{status,qr,qr/refresh,targets,test-send,default-target}')
+    log.info('[微信登录] 路由已注册: /api/wechat/{status,qr,qr/refresh,targets,test-send,default-target,default-target/rollback}')
   }
 }
 
