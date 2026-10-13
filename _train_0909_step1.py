@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """9/9 5段视频：下载(MinIO) + 抽帧 + stage2_dilute 检测，统计检出/漏检选最有价值视频"""
+import os
 import sys, os, glob, subprocess
 sys.path.insert(0, '/video/venvs/vlm/lib/python3.10/site-packages')
 from minio import Minio
 
 BASE = '/video/shujuji/xunlian/train_0909'
 os.makedirs(BASE, exist_ok=True)
-client = Minio('127.0.0.1:9000', access_key='Xka@123.', secret_key='Xka@123.', secure=False)
+client = Minio('127.0.0.1:9000', access_key=os.environ.get('MINIO_ACCESS_KEY', ''), secret_key=os.environ.get('MINIO_SECRET_KEY', ''), secure=False)
 
 videos = [
     ('__defaultVhost__/live/1581F8HGX253U00A064U/20260909/10-36-10-0.mp4', '064U_1036'),

@@ -21,8 +21,17 @@ if (!fs.existsSync(gitDir)) {
 
 const hookPath = path.join(gitDir, 'hooks', 'pre-push')
 const hook = `#!/bin/sh
-# ── JSC 类型门禁（pre-push）· 由 scripts/install-git-hooks.mjs 生成 ──
-# 目的：不让类型错误绕过 CI 直接发到生产；跳过用 git push --no-verify
+# ── JSC 推送前门禁（pre-push）· 由 scripts/install-git-hooks.mjs 生成 ──
+# ① 密钥扫描（2026-10-13 新增：public 仓库曾明文暴露生产密钥一个半月）
+# ② 类型检查（2026-09-14 新增：不让类型错误绕过 CI 直接发到生产）
+# 跳过用 git push --no-verify
+echo "[pre-push] 密钥扫描 secret-scan ..."
+git ls-files -z | node ./scripts/secret-scan.mjs
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "[pre-push] ✗ 疑似明文密钥 —— 推送已阻断（修掉后重试；临时跳过：git push --no-verify）"
+  exit 1
+fi
 echo "[pre-push] 类型检查 tsc --noEmit ..."
 if command -v npx >/dev/null 2>&1; then
   npx tsc --noEmit

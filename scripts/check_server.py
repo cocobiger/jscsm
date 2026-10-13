@@ -2,6 +2,7 @@
 """
 通过 SSH 检查 Ubuntu 服务器上的 jsc 用户环境
 """
+import os
 import paramiko
 import sys
 
@@ -9,7 +10,7 @@ import sys
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 def check_server_status():
     """检查服务器状态"""

@@ -12,11 +12,12 @@ v5 扩源：从 MinIO 直播段拉取 + ffmpeg 抽帧 + 立即删 mp4（数据�
   pull_frames_v5.py --list <清单文件> --out <dir> --interval 5   # 逐段处理
   pull_frames_v5.py --plan <csv: key,out_subdir> --interval 5    # 按计划批量
 """
+import os
 import sys, os, re, json, time, subprocess, hashlib, hmac, datetime, urllib.request, urllib.parse
 
 ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'http://127.0.0.1:9000')
-ACCESS   = os.environ.get('MINIO_ACCESS', 'Xka@123.')
-SECRET   = os.environ.get('MINIO_SECRET', 'Xka@123.')
+ACCESS   = os.environ.get('MINIO_ACCESS', '')
+SECRET   = os.environ.get('MINIO_SECRET', '')
 BUCKET   = 'test'
 DL_DIR   = '/video/llm_infer/video_dl'
 STATE    = '/video/llm_infer/pull_frames_state.json'

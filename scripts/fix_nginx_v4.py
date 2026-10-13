@@ -10,7 +10,7 @@ import tempfile
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 # Nginx 配置文件
 NGINX_CONF = '/etc/nginx/sites-available/uav-sites'

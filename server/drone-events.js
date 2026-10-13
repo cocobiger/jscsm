@@ -35,6 +35,11 @@ const SECRET_INTERNAL = (() => {
  *   { type:'drone-live', on, eventId, deviceSn, dockSn, streamId, status,
  *     changeReason, eventTime, ts, zlm_online, whitelisted }
  */
+// ⚠️ 2026-10-13 安全审计：此处的兜底值曾在 public 仓库明文暴露。
+//   **暂不回退移除**，因为：生产 env 里没有 DRONE_BRIDGE_KEY，且仓库里还有 2 处客户端
+//   （infra/dji-openapi/index.js、infra/shot_dronepopup.cjs）在发这个头 ⇒ 直接删兜底会让
+//   无人机事件 ingest 立刻 401。已登记为技术债（scripts/secret-scan-allowlist.txt），
+//   彻底清理需：① 服务器 env 补 DRONE_BRIDGE_KEY ② 同步改那 2 处客户端 ③ 再删兜底并轮换。
 const BRIDGE_KEY = process.env.DRONE_BRIDGE_KEY || 'jsc-drone-bridge-2026'
 const WL_KEY = 'drone_dock_whitelist'
 const KEEPALIVE_MS = 25000
@@ -316,12 +321,14 @@ function registerDroneEventsRoutes(app, { store, log, adminOnly }) {
   // dock_media 录像上传 = 估算（在飞时按定档，q=3 HD1080P→2MB/s，q=4 UHD→4MB/s）。
   // 上行阈值 3MB/s（用户给定）；拥堵等级 safe(<60%)/warn(60-90%)/danger(>90%)。
   const SK_ZLM = process.env.SIKONG_ZLM_HTTP || 'http://172.28.0.90:9080'
-  const SK_ZLM_SECRET = process.env.SIKONG_ZLM_SECRET || 'ibxX0tCpM0GUF9qJKaLRnnNc0LEm7YKT'
+  // 🔴 共享密钥只从 env 取，**不留硬编码兜底**（2026-10-13：原值曾在 public 仓库明文暴露）
+  const SK_ZLM_SECRET = process.env.SIKONG_ZLM_SECRET || ''
   app.get('/api/drone-events/network-status', async (req, res) => {
     try {
       const dockSn = String(req.query.dockSn || '')
       const deviceSn = String(req.query.deviceSn || '')
       if (!dockSn && !deviceSn) return res.status(400).json({ ok: false, error: '缺 dockSn/deviceSn' })
+      if (!SK_ZLM_SECRET) return res.status(500).json({ ok: false, error: 'server SIKONG_ZLM_SECRET 未配置' })
 
       // 1. 从司空设备目录解析 childSn（若只给了 dockSn）
       let childSn = deviceSn

@@ -16,7 +16,7 @@
 SERVER_HOST="111.10.220.226"
 SERVER_PORT="22"
 SERVER_USER="root"
-SERVER_PASS="Chyy#3068"
+SERVER_PASS="${JSC_SSH_PASSWORD:?请先 export JSC_SSH_PASSWORD（服务器 root 口令）}"
 KEY_PATH="$HOME/.ssh/id_ed25519.pub"
 
 echo "=== 上传SSH公钥到服务器 ==="

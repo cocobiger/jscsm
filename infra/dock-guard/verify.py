@@ -4,12 +4,15 @@
 输出: 服务状态 / 各 dock 拉流 / ZLM 推流在线 / 最近告警 / 结论
 """
 import json
+import os
 import subprocess
 import sys
 import urllib.request
 
 HEALTH = 'http://127.0.0.1:7210/health'
-ZLM = 'http://127.0.0.1:6080/index/api/getMediaList?secret=035c73f7-bb6b-4889-a715-d9eb2d192abc&app=jsc'
+# 🔴 密钥从 env 取（不再硬编码）
+ZLM_SECRET = os.environ.get('ZLM_SECRET', '')
+ZLM = 'http://127.0.0.1:6080/index/api/getMediaList?secret=%s&app=jsc' % ZLM_SECRET
 
 
 def get(url):

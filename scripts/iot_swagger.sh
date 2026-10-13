@@ -6,7 +6,7 @@ PBASE="${BASE}/prod-api"
 LOGIN=$(curl -s --connect-timeout 5 -X POST "${PBASE}/login" \
   -H "Content-Type: application/json" \
   -H "isToken: false" \
-  -d '{"username":"iot-video","password":"video@123"}')
+  -d "{\"username\":\"iot-video\",\"password\":\"${IOT_PASSWORD:?请先 export IOT_PASSWORD}\"}")
 TOKEN=$(echo "$LOGIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null)
 
 echo "=== Check for Swagger/API docs ==="

@@ -21,7 +21,7 @@ sleep 6
 echo "  服务: $(systemctl is-active zlmediakit-jsc)"
 echo "  --- 实际监听（应含 6080/5540/1936/4443，且无 443）---"
 ss -lntp 2>/dev/null | grep -E ':(6080|5540|1936|4443|443|6081)\b' | awk '{print "    "$4}' | sort -u
-printf '  getServerConfig → HTTP %s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 'http://127.0.0.1:6080/index/api/getServerConfig?secret=035c73f7-bb6b-4889-a715-d9eb2d192abc')"
+printf '  getServerConfig → HTTP %s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:6080/index/api/getServerConfig?secret=${ZLM_SECRET:?请先 export ZLM_SECRET}")"
 
 echo
 echo "########## 2. 前端逐文件门禁：磁盘 md5 == HTTP md5，引用逐个 200 ##########"

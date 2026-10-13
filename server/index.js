@@ -4008,18 +4008,26 @@ app.post('/api/monitor/test-email', async (req, res) => {
 
 // ================= ZLM 推流鉴权 hook（on_publish） =================
 // ZLM 每次推流请求会回调此端点，校验推流 URL 携带的 secret 参数
-const ZLM_PUBLISH_SECRET = process.env.ZLM_PUBLISH_SECRET || 'sikong2026'
+// 🔴 共享密钥只从 env 取，**不留硬编码兜底**；未配置 ⇒ 显式拒绝（见下方 guard）。
+//    2026-10-13：原值曾在 public 仓库明文暴露 ⇒ 必须轮换。
+const ZLM_PUBLISH_SECRET = process.env.ZLM_PUBLISH_SECRET || ''
 app.post('/api/zlm/publish-check', (req, res) => {
   const body = req.body || {}
   // 🔴 2026-10-01 修复：原实现读 body.url / body.params.secret，与 ZLM 实际上报体**不符** ⇒ 恒定拒绝。
   //   ZLMediaKit on_publish 真实上报体（本机 ZLM 日志抓取，见 zlm/log/2026-10-01_00.log）：
   //     { "app":"jsc", "stream":"xxx", "schema":"rtmp", "vhost":"__defaultVhost__",
   //       "originType":1, "originTypeStr":"rtmp_push",
-  //       "params":"secret=sikong2026" }     ← params 是**查询串字符串**，且**没有 url 字段**
+  //       "params":"secret=<推流密钥>" }     ← params 是**查询串字符串**，且**没有 url 字段**
   //   于是原代码里 url='' 且 params.secret=undefined ⇒ secret 恒为 '' ⇒ 100% 推流被拒。
   //   实证：修复前 ZLM 媒体列表 15 条**全为 originType=pull**（RTSP 拉流）；日志中 4 次 rtmp_push 全部 rejected。
   //   影响面：dji-bridge(司空抓流→RTMP)、dji-openapi RTMP 直推、transcoder 推流 全部静默失效。
   //   修法：params 为字符串→按 URLSearchParams 解析；为对象→沿用；仍兼容 body.url 的 ?secret=。
+  // 未配置密钥 ⇒ 一律拒绝（fail-closed）：宁可推流全拒（立刻暴露配置缺失），
+  // 也不能因为"密钥为空"而把校验变成空转（那样等于完全开放）。
+  if (!ZLM_PUBLISH_SECRET) {
+    log.error('[zlm] server ZLM_PUBLISH_SECRET 未配置 ⇒ 拒绝本次推流（请在后端 env 里配置）')
+    return res.json({ code: -1, msg: 'server ZLM_PUBLISH_SECRET 未配置' })
+  }
   const rawParams = body.params
   let params = {}
   if (typeof rawParams === 'string') {

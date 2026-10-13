@@ -11,7 +11,7 @@ import tempfile
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 # 配置文件路径
 REMOTE_CONFIG = '/data/jsc/config.json'

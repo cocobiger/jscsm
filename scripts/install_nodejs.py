@@ -3,6 +3,7 @@
 通过 SSH 在 Ubuntu 服务器上为 jsc 用户安装 Node.js 22 + pnpm
 改进版：显式加载 nvm
 """
+import os
 import paramiko
 import sys
 import time
@@ -11,7 +12,7 @@ import time
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 def install_nodejs():
     """安装 Node.js 22 和 pnpm"""

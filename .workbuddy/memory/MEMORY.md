@@ -51,7 +51,7 @@
   登录 `/api/auth/login`（**不是 `/api/login`**）`admin/admin123`；
   nginx `/jsc/` 的 alias 指向 **`/data/HBJSC/frontend/`**；**Node 必须 22+**（后端用 `require('node:sqlite')`）；
   **ZLM hook 非 200 会拒绝推流** ⇒ 只配 `on_publish=…/api/zlm/publish-check`。
-- **ZLM secret = `035c73f7-bb6b-4889-a715-d9eb2d192abc`**（在 `backend/data/config.json`）。
+- **ZLM secret = `<ZLM_API_SECRET（见服务器 /data/HBJSC/backend/data/config.json 的 zlm.zlmSecret）>`**（在 `backend/data/config.json`）。
 - git `git@github-jsc:cocobiger/jscsm.git`；**禁提交** `.env` / `streams.json` / `backups/`。
   ⚠️ 本机仓库长期有大量未提交改动 ⇒ 是**独特资产**，别 `git checkout --` 一把清掉。
 

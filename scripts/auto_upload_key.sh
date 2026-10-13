@@ -7,7 +7,7 @@ SERVER="root@111.10.220.226"
 
 # 检查密码文件
 if [ ! -f "$PASSWORD_FILE" ]; then
-    printf 'Chyy#3068' > "$PASSWORD_FILE"
+    printf '%s' "${JSC_SSH_PASSWORD:?请先 export JSC_SSH_PASSWORD（服务器 root 口令）}" > "$PASSWORD_FILE"
     echo "密码文件已创建"
 fi
 

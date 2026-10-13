@@ -21,13 +21,16 @@ echo "  基线 $(stat -c%s "$CFG") 字节"
 
 echo
 echo "########## 2. 精确修补（按 section 改，改完逐项回读）##########"
+# 🔴 密钥不再硬编码：必须由调用者 export（值见服务器 backend/data/config.json 的 zlm.zlmSecret）
+: "${ZLM_SECRET:?请先 export ZLM_SECRET（ZLM API secret）}"
+export ZLM_SECRET
 python3 - "$CFG" "$R" <<'PY'
-import sys, io, re
+import sys, io, re, os
 cfg_path, R = sys.argv[1], sys.argv[2]
 txt = io.open(cfg_path, encoding='utf-8').read()
 
 WANT = {
-    'api':   {'secret': '035c73f7-bb6b-4889-a715-d9eb2d192abc', 'apiDebug': '0'},
+    'api':   {'secret': os.environ.get('ZLM_SECRET', ''), 'apiDebug': '0'},
     # 🔴 实测校正：ZLM 的 SSL http 端口键名是 [http] sslport（不是 [https] port；[https] 段会被忽略）
     'http':  {'port': '6080', 'sslport': '4443', 'rootPath': f'{R}/www', 'ssl': '0'},
     'rtsp':  {'port': '5540'},
@@ -137,7 +140,7 @@ sleep 6
 echo "  服务: $(systemctl is-active zlmediakit-jsc)"
 echo "  --- 监听 ---"; ss -lntp 2>/dev/null | grep -E ':(6080|5540|1936|4443|6081)\b' | awk '{print "    "$4}' | sort -u
 echo "  --- API 门禁 ---"
-printf '    getServerConfig → HTTP %s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 'http://127.0.0.1:6080/index/api/getServerConfig?secret=035c73f7-bb6b-4889-a715-d9eb2d192abc')"
+printf '    getServerConfig → HTTP %s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:6080/index/api/getServerConfig?secret=${ZLM_SECRET}")"
 echo "  --- 日志 ---"; journalctl -u zlmediakit-jsc -n 10 --no-pager | sed 's/^/    /'
 echo
 echo "P0_06_ZLM_CFG_DONE"

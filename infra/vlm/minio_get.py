@@ -6,11 +6,12 @@
 示例:
   python3 minio_get.py test tenantResource/special/.../DJI_xxx_V.jpeg /video/llm_infer/photo_merge/x.jpg
 """
+import os
 import sys, os, hashlib, hmac, datetime, urllib.request, urllib.parse
 
 ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'http://127.0.0.1:9000')
-ACCESS   = os.environ.get('MINIO_ACCESS', 'Xka@123.')
-SECRET   = os.environ.get('MINIO_SECRET', 'Xka@123.')
+ACCESS   = os.environ.get('MINIO_ACCESS', '')
+SECRET   = os.environ.get('MINIO_SECRET', '')
 
 def sign(key, msg):
     return hmac.new(key, msg.encode(), hashlib.sha256).digest()

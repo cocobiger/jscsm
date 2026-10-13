@@ -17,7 +17,7 @@
 import os, time, json, urllib.request, urllib.parse, datetime
 
 ZLM = "http://127.0.0.1:6080"
-SECRET = "035c73f7-bb6b-4889-a715-d9eb2d192abc"
+SECRET = os.environ.get("ZLM_SECRET", "")   # 🔴 从 env 取，不再硬编码
 EXCLUDE = {"sl27evw"}          # 海康常开流，非司空目标
 OUT_ROOT = "/video/llm_infer/v5_photos"
 SNAP_INTERVAL = 6              # 同一流两次抽帧最小间隔（秒）

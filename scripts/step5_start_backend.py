@@ -6,6 +6,7 @@ Step 5: 启动JSC后端服务
 - 验证服务状态
 """
 
+import os
 import paramiko
 import sys
 
@@ -13,7 +14,7 @@ import sys
 HOST = '111.10.220.226'
 PORT = 22
 USERNAME = 'root'
-PASSWORD = 'Chyy#3068'
+PASSWORD = os.environ.get('JSC_SSH_PASSWORD', '')
 
 def create_ssh_client():
     """创建SSH连接"""

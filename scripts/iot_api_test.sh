@@ -5,7 +5,7 @@ echo "=== LOGIN ==="
 LOGIN=$(curl -s --connect-timeout 5 -X POST "$BASE/login" \
   -H "Content-Type: application/json" \
   -H "isToken: false" \
-  -d '{"username":"iot-video","password":"video@123"}')
+  -d "{\"username\":\"iot-video\",\"password\":\"${IOT_PASSWORD:?请先 export IOT_PASSWORD}\"}")
 echo "$LOGIN"
 echo ""
 

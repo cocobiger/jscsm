@@ -13,7 +13,7 @@ Write-Host ""
 
 # 方法1: 尝试使用SSH客户端
 $server = "root@111.10.220.226"
-$password = "Chyy#3068"
+$password = $env:JSC_SSH_PASSWORD
 
 Write-Host "请手动复制以下命令到PowerShell中执行（交互式输入密码）：" -ForegroundColor Green
 Write-Host ""

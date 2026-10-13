@@ -21,8 +21,8 @@ from PIL import Image
 
 # ---- S3 凭据（同 minio_get.py） ----
 ENDPOINT = os.environ.get("MINIO_ENDPOINT", "http://127.0.0.1:9000")
-ACCESS   = os.environ.get("MINIO_ACCESS", "Xka@123.")
-SECRET   = os.environ.get("MINIO_SECRET", "Xka@123.")
+ACCESS   = os.environ.get("MINIO_ACCESS", "")
+SECRET   = os.environ.get("MINIO_SECRET", "")
 BUCKET   = "test"
 PREFIX   = "tenantResource/special/1435364026368000/dock_media/"
 OUT_ROOT = "/video/llm_infer/v5_photos"

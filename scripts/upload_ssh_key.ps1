@@ -5,7 +5,7 @@ $keyPath = "$env:USERPROFILE\.ssh\id_ed25519.pub"
 $serverHost = "111.10.220.226"
 $serverPort = 22
 $username = "root"
-$password = "Chyy#3068"
+$password = $env:JSC_SSH_PASSWORD
 
 # 读取公钥
 $publicKey = Get-Content $keyPath

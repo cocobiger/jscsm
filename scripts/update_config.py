@@ -2,6 +2,7 @@
 """
 更新服务器上的 config.json（将 zlmHost 从本地 IP 改为 127.0.0.1）
 """
+import os
 import paramiko
 import json
 
@@ -9,7 +10,7 @@ import json
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 # 配置文件路径
 CONFIG_FILE = '/data/jsc/config.json'

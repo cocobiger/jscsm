@@ -9,7 +9,7 @@ import os
 HOST = '111.10.220.226'
 PORT = 22
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 # 本地路径
 LOCAL_SERVER_SRC = 'E:/CC work/CC jsc/server'

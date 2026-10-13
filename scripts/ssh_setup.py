@@ -2,6 +2,7 @@
 """
 通过 SSH 在 Ubuntu 服务器上执行环境准备
 """
+import os
 import paramiko
 import sys
 
@@ -9,7 +10,7 @@ import sys
 HOST = '111.10.220.226'
 PORT = 22  # SSH 端口（根据您的要求使用 22）
 USER = 'root'
-PASS = 'Chyy#3068'
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 def run_setup_commands():
     """执行环境准备命令"""

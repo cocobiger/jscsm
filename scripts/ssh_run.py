@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """SSH connect helper to remote Ubuntu server for analysis."""
+import os
 import paramiko
 import sys
 
 HOST = "111.10.220.226"
 PORT = 22
 USER = "root"
-PASS = "Chyy#3068"
+PASS = os.environ.get('JSC_SSH_PASSWORD', '')
 
 def run(ssh, cmd, timeout=30):
     """Execute a command on the remote host and return (stdout, stderr, exit_code)."""
