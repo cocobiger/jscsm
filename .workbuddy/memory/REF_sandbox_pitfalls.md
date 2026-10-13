@@ -137,3 +137,12 @@
 29. **`python`/`pip` 的「可用列表」≠「实际生效」** —— 例如 `onnxruntime.get_available_providers()`
     会列出 `CUDAExecutionProvider`，但真正创建 session 时因缺 so **静默回退 CPU**。
     ⇒ 判断"某能力是否生效"要**看运行时的实际选择**（`sess.get_providers()`），不要看静态清单。
+
+## 🔴 仓库是 public + 曾长期明文存凭据（2026-10-13）
+- **`cocobiger/jscsm` 是公开仓库**（`raw.githubusercontent.com` 未登录可读）。
+- 2026-06 ~ 10-13 期间，**生产机 root 口令（= ESXi root）以明文存在于 `scripts/*.py|sh|ps1` 19 个文件**，
+  另有 ZLM API secret / 推流密钥 / 司空 restful-secret / IoT 平台口令 / MinIO key。
+- **已清理工作区尖端 + 加 pre-push 密钥门禁**（`scripts/secret-scan.mjs`），
+  但**历史里的值删不掉 ⇒ 必须轮换**。详见 `docs/安全事件_公开仓库明文凭据_20261013.md`。
+- 写脚本时的铁律：**共享密钥只从 env 读，不留 `|| '硬编码'` 兜底**；
+  未配置就**显式失败**（`${VAR:?}` / `if (!SECRET) return 500`），绝不"空值当作不校验"。
