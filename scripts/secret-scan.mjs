@@ -61,7 +61,8 @@ try {
 const sha16 = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16)
 
 // ── 检测规则（2026-10-13 按"高信号 / 低误报"标定；首版太钝，131 处误报 ⇒ 会被绕过 = 等于没装）──
-//   A  env 兜底写死：`process.env.X_SECRET || 'abc12345'`  ← 抓的就是本次事故的写法
+//   A  env 兜底写死：`process.env.X_SECRET || '<占位>'`  ← 抓的就是本次事故的写法
+//      （本行的示例用占位符写，否则会被自己的规则命中 —— 实测被拦过一次）
 //   B  直接赋值敏感名 + 值像密钥（字母+数字，或超长）
 //   C  URL 里带真 secret（排除 xyz/xxx/example/REPLACE 这类人为打码值）
 //   D  已知泄漏值黑名单
