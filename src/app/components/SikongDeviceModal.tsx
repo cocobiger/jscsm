@@ -9,7 +9,7 @@
  *   ② 提供头部副指标角标 FlyingBadge（在飞 N 架）。这样 5 个 KPI 的下钻只维护一套骨架。
  *
  * 数据源：useDashboard() 的 sikongDevices（DashboardContext 全局单例 15s 轮询 /api/sikong/devices）。
- *   ⚠️ 数组每项是「机场(dock)」，无人机在其 drone 字段里 —— 不是无人机列表。
+ *   ⚠ 数组每项是「机场(dock)」，无人机在其 drone 字段里 —— 不是无人机列表。
  * 降级：available=false（司空链路不可达且超 5min 宽限）时顶部显式告警，避免把"未知"读成"0 架"。
  */
 import { useMemo } from 'react'
@@ -24,7 +24,7 @@ const mono = { fontFamily: "'JetBrains Mono', monospace" } as const
 export function SikongDeviceModal({ devices, available, flyingCount, dockedCount, osdMissingCount, onLocate, onClose }: {
   devices: SikongDevice[]
   available: boolean
-  /** 副指标：在飞 / 待命 / 遥测未推送。⚠️ 由后端与 Context 统一口径（lib/sikongStatus.ts），
+  /** 副指标：在飞 / 待命 / 遥测未推送。⚠ 由后端与 Context 统一口径（lib/sikongStatus.ts），
    *  本组件不再自行统计，避免"头部角标说在飞、列表却显示待命"的矛盾。 */
   flyingCount: number
   dockedCount: number

@@ -1,0 +1,254 @@
+/**
+ * PushCaliberPanel.tsx —— 「推送口径统一台」后台可配置面板 · 2026-10-12
+ *
+ * 背景（实测 REF §H35.10）：现网三个「推送规则」是链路上串联的三道闸，
+ * ①研判(push_rules) ②送达(smart_push_rules) ③展示过滤(alert_filter_rules)，
+ * 而窗口/阈值/置信度三处口径互不一致。
+ *
+ * 本面板做的是：在一个表里维护「统一口径」，然后**预览差异 → 一键下发到三处**。
+ *   🔴 不改读取路径：生效＝显式下发（后端先快照→再 UPDATE→记日志，可回滚）。
+ *   🔴 ②③ 无点位维度 ⇒ 同类型下口径不一致时会报冲突、拒绝下发（这正是"统一"要解决的）。
+ */
+import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '../../lib/apiFetch'
+import type { CurrentUser } from '../../lib/auth'
+
+const CYAN = '#00aaff', GREEN = '#00e676', AMBER = '#ffd740', RED = '#ff4444', DIM = '#5a8aaa'
+const BORDER = 'rgba(0,150,220,0.25)'
+const btn = (c: string, dis = false): React.CSSProperties => ({
+  padding: '5px 14px', fontSize: 12, borderRadius: 3, border: `1px solid ${c}55`,
+  background: dis ? 'transparent' : `${c}15`, color: dis ? '#3a5a70' : c, cursor: dis ? 'default' : 'pointer',
+})
+const input: React.CSSProperties = {
+  padding: '5px 8px', background: 'rgba(0,20,60,0.6)', border: `1px solid ${BORDER}`,
+  borderRadius: 3, color: '#c8e6ff', fontSize: 12, outline: 'none',
+}
+const th: React.CSSProperties = { textAlign: 'left', padding: '6px 8px', fontSize: 11.5, color: DIM, borderBottom: `1px solid ${BORDER}`, fontWeight: 500 }
+const td: React.CSSProperties = { padding: '6px 8px', fontSize: 12, color: '#c8e6ff', borderBottom: '1px solid rgba(0,120,200,0.1)' }
+
+type Item = { keyId: string; aiType: string; channelSipId?: string | null; channelName?: string | null; windowHours?: number | null; threshold?: number | null; minConfidence?: number | null; note?: string; enabled: boolean }
+type Live = { pushRules: Record<string, { name: string; win: number; thr: number; conf: number; enabled: number }>, smartRules: Record<string, { win: number; thr: number; enabled: number }>, filters: Record<string, { name: string; conf: number; enabled: number }> }
+type DryRow = { channelSipId: string; channelName: string; caliber: { win: number | null; thr: number | null; conf: number | null }; live1: { win: number; thr: number; conf: number } | null; hasRule1: boolean; diffs: string[] }
+type Dry = { aiType: string; rows: DryRow[]; conflicts: Array<{ field: string; label: string; values: Array<{ value: number; at: string[] }> }>; liveTarget: { smartRules: Record<string, any>; filters: Record<string, any> }; willApply: any; ok: boolean; note: string }
+type LogRow = { id: number; at: string; who: string; aiType: string; result: any }
+
+export function PushCaliberPanel({ user }: { user: CurrentUser }) {
+  const [aiType, setAiType] = useState('堆头未覆盖')
+  const [aiTypes, setAiTypes] = useState<string[]>(['堆头未覆盖'])
+  const [items, setItems] = useState<Item[]>([])
+  const [live, setLive] = useState<Live | null>(null)
+  const [dry, setDry] = useState<Dry | null>(null)
+  const [logs, setLogs] = useState<LogRow[]>([])
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ k: 'ok' | 'err' | 'warn'; t: string } | null>(null)
+  const [draft, setDraft] = useState<Record<string, any>>({})
+  const [bulk, setBulk] = useState('')
+
+  const load = useCallback(async () => {
+    setBusy(true); setMsg(null)
+    try {
+      const [c, at, lg] = await Promise.all([
+        apiFetch<{ items: Item[]; live: Live | null }>(`/api/push-caliber?aiType=${encodeURIComponent(aiType)}`),
+        apiFetch<{ items: Array<{ name: string }> }>('/api/ai-types').catch(() => ({ items: [] })),
+        apiFetch<{ items: LogRow[] }>('/api/push-caliber/log?limit=8').catch(() => ({ items: [] })),
+      ])
+      setItems(c.items || []); setLive(c.live || null)
+      const names = (at.items || []).map(x => x.name).filter(Boolean)
+      if (names.length) setAiTypes(names)
+      setLogs(lg.items || [])
+    } catch (e: any) { setMsg({ k: 'err', t: '加载失败：' + (e?.error || e?.message || e) }) }
+    finally { setBusy(false) }
+  }, [aiType])
+  useEffect(() => { load() }, [load])
+
+  const doDry = async () => {
+    setBusy(true); setMsg(null)
+    try { setDry(await apiFetch<Dry>('/api/push-caliber/dry-run', { method: 'POST', body: JSON.stringify({ aiType }) })) }
+    catch (e: any) { setMsg({ k: 'err', t: '预演失败：' + (e?.error || e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const saveRow = async (it: Item) => {
+    const k = it.keyId
+    const v = draft[k] || {}
+    setBusy(true); setMsg(null)
+    try {
+      await apiFetch('/api/push-caliber', { method: 'PUT', body: JSON.stringify({
+        aiType: it.aiType, channelSipId: it.channelSipId, channelName: it.channelName,
+        windowHours: v.win ?? it.windowHours, threshold: v.thr ?? it.threshold,
+        minConfidence: v.conf ?? it.minConfidence, note: it.note }) })
+      setDraft(d => { const n = { ...d }; delete n[k]; return n })
+      await load(); setMsg({ k: 'ok', t: `已保存：${it.channelName}` })
+    } catch (e: any) { setMsg({ k: 'err', t: '保存失败：' + (e?.error || e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const doBulk = async () => {
+    if (!bulk.trim()) { setMsg({ k: 'warn', t: '请先粘贴点位（每行 点位名[,窗口,阈值,置信度]）' }); return }
+    setBusy(true); setMsg(null)
+    try {
+      const r = await apiFetch<any>('/api/push-caliber/bulk', { method: 'POST', body: JSON.stringify({ aiType, text: bulk, windowHours: 24, threshold: 5, minConfidence: 70 }) })
+      setBulk(''); await load()
+      setMsg({ k: 'ok', t: `批量写入 ${(r.results || []).length} 条` })
+    } catch (e: any) { setMsg({ k: 'err', t: '批量失败：' + (e?.error || e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const doApply = async (force: boolean) => {
+    if (!confirm(force ? '口径仍有冲突，将按"保守值"下发。确认继续？' : '确认把统一口径下发到 ①研判 ②送达 ③展示过滤 三处？\n（后端会先快照，可回滚）')) return
+    setBusy(true); setMsg(null)
+    try {
+      const r = await apiFetch<any>('/api/push-caliber/apply', { method: 'POST', body: JSON.stringify({ aiType, confirm: true, force }) })
+      await load(); await doDry()
+      setMsg({ k: 'ok', t: `已下发：① ${r.applied?.pushRules ?? 0} 行 · ② ${r.applied?.smartPushRules ?? 0} 行 · ③ ${r.applied?.alertFilterRules ?? 0} 行` })
+    } catch (e: any) { setMsg({ k: 'err', t: '下发失败：' + (e?.error || e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const live1 = (sp?: string | null) => (live && sp ? live.pushRules[sp] : undefined)
+  const smartVals = live ? Object.values(live.smartRules) : []
+  const filterVals = live ? Object.values(live.filters) : []
+
+  return (
+    <div style={{ padding: 14, display: 'grid', gap: 14, maxWidth: 1240 }}>
+      <div style={{ fontSize: 12.5, lineHeight: 1.75, color: DIM, borderLeft: `3px solid ${CYAN}`, paddingLeft: 10 }}>
+        <b style={{ color: CYAN }}>一处配、三处一致</b>：在下面维护「统一口径」，然后<b>预览差异 → 下发</b>。
+        字段映射：<code>窗口</code>→①<code>time_window_hours</code>／②<code>time_window_hours</code>；
+        <code>阈值</code>→①<code>threshold</code>／②<code>trigger_count</code>；
+        <code>置信度</code>→①<code>min_confidence</code>／③<code>min_confidence</code>。
+        <br /><span style={{ color: AMBER }}>⚠️ ②③ 是<b>类型级</b>（无点位维度）⇒ 同类型下各点位口径必须一致，否则下发会被拒绝（除非强制取保守值）。</span>
+        <span style={{ color: GREEN }}> ✅ 下发前后端自动快照，可回滚。</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const }}>
+        <span style={{ fontSize: 12, color: DIM }}>算法类型</span>
+        <select value={aiType} onChange={e => setAiType(e.target.value)} style={{ ...input, width: 200 }}>
+          {aiTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <button style={btn(DIM, busy)} onClick={load} disabled={busy}>刷新</button>
+        <button style={btn(CYAN, busy)} onClick={doDry} disabled={busy}>差异预览</button>
+        <div style={{ flex: 1 }} />
+        <button style={btn(GREEN, busy || !dry || !dry.ok)} onClick={() => doApply(false)} disabled={busy || !dry || !dry.ok}
+          title={!dry ? '请先「差异预览」' : (!dry.ok ? '存在冲突，需先统一口径' : '')}>下发到三处</button>
+        {dry && !dry.ok && <button style={btn(AMBER, busy)} onClick={() => doApply(true)} disabled={busy}>强制下发（取保守值）</button>}
+      </div>
+
+      {msg && (
+        <div style={{ padding: '7px 11px', fontSize: 12, borderRadius: 3,
+          border: `1px solid ${msg.k === 'ok' ? GREEN : msg.k === 'warn' ? AMBER : RED}55`,
+          color: msg.k === 'ok' ? GREEN : msg.k === 'warn' ? AMBER : RED,
+          background: msg.k === 'ok' ? `${GREEN}12` : msg.k === 'warn' ? `${AMBER}12` : `${RED}12` }}>{msg.t}</div>
+      )}
+
+      {/* ── 冲突 ── */}
+      {dry && !dry.ok && (
+        <section style={{ border: `1px solid ${AMBER}55`, background: `${AMBER}10`, borderRadius: 4, padding: 12 }}>
+          <b style={{ fontSize: 13, color: AMBER }}>⚠️ 口径冲突（②③ 无点位维度，必须同类型一致）</b>
+          {dry.conflicts.map(c => (
+            <div key={c.field} style={{ fontSize: 12, color: '#e0c98a', marginTop: 6 }}>
+              <b>{c.label}</b>：
+              {c.values.map(v => <span key={v.value} style={{ marginLeft: 6 }}><code>{v.value}</code>（{v.at.join('、')}）</span>)}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* ── 统一口径表 ── */}
+      <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>统一口径（唯一真源）</b>
+          <span style={{ fontSize: 11.5, color: DIM }}>{items.length} 条</span>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr><th style={th}>点位</th><th style={th}>窗口(h)</th><th style={th}>阈值</th><th style={th}>置信度</th><th style={th}>①现网</th><th style={th}>差异</th><th style={th} /></tr></thead>
+          <tbody>
+            {items.length === 0 && <tr><td style={{ ...td, color: DIM }} colSpan={7}>（空）—— 用下面「批量粘贴」快速铺开</td></tr>}
+            {items.map(it => {
+              const v = draft[it.keyId] || {}
+              const L = live1(it.channelSipId)
+              const diffs = dry ? (dry.rows.find(r => r.channelSipId === it.channelSipId)?.diffs || []) : []
+              const dirty = v.win !== undefined || v.thr !== undefined || v.conf !== undefined
+              const cell = (field: 'win' | 'thr' | 'conf', val: any) => (
+                <input style={{ ...input, width: 64 }} value={v[field] ?? (val ?? '')}
+                  onChange={e => setDraft(d => ({ ...d, [it.keyId]: { ...(d[it.keyId] || {}), [field]: e.target.value === '' ? null : Number(e.target.value) } }))} />
+              )
+              return (
+                <tr key={it.keyId}>
+                  <td style={{ ...td, color: '#fff' }}>{it.channelName || '—'}</td>
+                  <td style={td}>{cell('win', it.windowHours)}</td>
+                  <td style={td}>{cell('thr', it.threshold)}</td>
+                  <td style={td}>{cell('conf', it.minConfidence)}</td>
+                  <td style={{ ...td, color: DIM, fontFamily: 'monospace', fontSize: 11.5 }}>
+                    {L ? `${L.win}h / ${L.thr} / ${L.conf}` : <span style={{ color: AMBER }}>无研判规则</span>}
+                  </td>
+                  <td style={{ ...td, color: diffs.length ? RED : GREEN, fontSize: 11.5 }}>{diffs.length ? diffs.join('；') : '一致'}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <button style={btn(dirty ? GREEN : DIM, busy || !dirty)} onClick={() => saveRow(it)} disabled={busy || !dirty}>保存</button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+          <label style={{ fontSize: 11.5, color: DIM }}>
+            批量粘贴（每行：<code>点位名[,窗口,阈值,置信度]</code>，只写点位名则用下面默认值；# 后可写备注）
+            <textarea style={{ ...input, marginTop: 3, width: '100%', height: 66, resize: 'vertical' as const }}
+              value={bulk} onChange={e => setBulk(e.target.value)}
+              placeholder={'九龙沙场\n华歌三牧堆场\n桐子园码头\n红溪沟作业区\n苏商码头,24,5,70\n龙湖路下方堆场'} />
+          </label>
+          <div style={{ fontSize: 11.5, color: DIM }}>未写数值的行将使用：窗口 <b>24</b> · 阈值 <b>5</b> · 置信度 <b>70</b></div>
+          <div><button style={btn(CYAN, busy)} onClick={doBulk} disabled={busy}>批量写入</button></div>
+        </div>
+      </section>
+
+      {/* ── ②③ 目标值 ── */}
+      {live && dry && (
+        <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>②③ 类型级目标（下发后生效）</b>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+            <thead><tr><th style={th}>位置</th><th style={th}>现网</th><th style={th}>下发后</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style={td}>② 送达规则 <span style={{ color: DIM }}>（{Object.keys(live.smartRules).length} 条）</span></td>
+                <td style={{ ...td, fontFamily: 'monospace' }}>{smartVals.length ? `${smartVals[0].win}h / ${smartVals[0].thr}` : '无'}</td>
+                <td style={{ ...td, fontFamily: 'monospace', color: GREEN }}>{dry.willApply.smartRules ? `${dry.willApply.smartRules.win ?? '—'}h / ${dry.willApply.smartRules.thr ?? '—'}` : '—'}</td>
+              </tr>
+              <tr>
+                <td style={td}>③ 展示过滤 <span style={{ color: DIM }}>（{filterVals.length} 条）</span></td>
+                <td style={{ ...td, fontFamily: 'monospace' }}>{filterVals.length ? `conf ${filterVals[0].conf}` : '无'}</td>
+                <td style={{ ...td, fontFamily: 'monospace', color: GREEN }}>{dry.willApply.filters ? `conf ${dry.willApply.filters.conf ?? '—'}` : '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* ── 下发日志 ── */}
+      {logs.length > 0 && (
+        <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>最近下发（含快照，可据此回滚）</b>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+            <thead><tr><th style={th}>时间</th><th style={th}>操作人</th><th style={th}>类型</th><th style={th}>结果</th></tr></thead>
+            <tbody>
+              {logs.map(l => (
+                <tr key={l.id}>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11.5 }}>{l.at}</td>
+                  <td style={td}>{l.who}</td><td style={td}>{l.aiType}</td>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11.5 }}>
+                    ① {l.result?.applied?.pushRules ?? 0} · ② {l.result?.applied?.smartPushRules ?? 0} · ③ {l.result?.applied?.alertFilterRules ?? 0}
+                    {l.result?.force ? ' （force）' : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      <div style={{ fontSize: 11, color: DIM }}>
+        当前用户：{user?.username || '?'} ｜ 接口：<code>/api/push-caliber</code>（GET/PUT/DELETE/bulk/dry-run/apply/log/health，均管理员）
+      </div>
+    </div>
+  )
+}

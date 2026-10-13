@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 import { getApiKey } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 
 // 带 API Key 的原始 fetch（保留 Response 供 .ok 判断）
 function apiFetchRaw(url: string, options: RequestInit = {}): Promise<Response> {
@@ -457,7 +458,7 @@ export function GasMonitorPage() {
             <tbody>
               {logs.map((l, i) => (
                 <tr key={l.id} style={{ borderBottom: '1px solid rgba(0,50,100,0.15)', background: i % 2 ? 'rgba(0,20,50,0.2)' : 'transparent' }}>
-                  <td style={{ padding: '8px 10px', color: '#7ab8e0', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{new Date(l.time).toLocaleString('zh-CN')}</td>
+                  <td style={{ padding: '8px 10px', color: '#7ab8e0', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{fmtShanghai(l.time)}</td>
                   <td style={{ padding: '8px 10px', color: '#7ab8e0' }}>{l.source}</td>
                   <td style={{ padding: '8px 10px', color: '#c8e6ff' }}>{l.point}</td>
                   <td style={{ padding: '8px 10px' }}>

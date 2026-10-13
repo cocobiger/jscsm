@@ -110,7 +110,7 @@ function CollectPanel() {
   }
   const doIngest = async () => {
     const r = await authFetch('/api/collect/ingest', { method: 'POST' }).then(x => x.json()).catch(() => null)
-    if (r && r.ingest) { setIngMsg(`✅ 入集成功：${r.added} 帧 → 子集 ${r.sub}`); setInspect(null) }
+    if (r && r.ingest) { setIngMsg(`✓ 入集成功：${r.added} 帧 → 子集 ${r.sub}`); setInspect(null) }
     else setIngMsg(`⛔ 入集失败：${r?.error || '未知'}`)
     loadQuar()
   }
@@ -184,7 +184,7 @@ function CollectPanel() {
             <button key={k || 'all'} onClick={() => setCatFilter(k)} style={{ padding: '3px 12px', fontSize: 11, borderRadius: 4, cursor: 'pointer', border: `1px solid ${catFilter === k ? CYAN : 'rgba(0,170,255,0.25)'}`, background: catFilter === k ? 'rgba(0,170,255,0.12)' : 'transparent', color: catFilter === k ? CYAN : '#5a8aaa' }}>{k === '' ? '全部' : CAT_NAME[k]}</button>
           ))}
           <span style={{ width: 1, height: 18, background: 'rgba(0,150,220,.3)' }} />
-          {[['', '全部状态'], ['todo', '未标注'], ['ok', '✅真烟'], ['wrong', '❌误报'], ['unsure', '❓不确定']].map(([k, l]) => (
+          {[['', '全部状态'], ['todo', '未标注'], ['ok', '✓真烟'], ['wrong', '✕误报'], ['unsure', '❓不确定']].map(([k, l]) => (
             <button key={k} onClick={() => setVerFilter(k)} style={{ padding: '3px 12px', fontSize: 11, borderRadius: 4, cursor: 'pointer', border: `1px solid ${verFilter === k ? GREEN : 'rgba(74,222,128,0.25)'}`, background: verFilter === k ? 'rgba(74,222,128,0.12)' : 'transparent', color: verFilter === k ? GREEN : '#5a8aaa' }}>{l}</button>
           ))}
         </div>
@@ -193,18 +193,18 @@ function CollectPanel() {
           <button onClick={doInspect} style={{ padding: '6px 14px', fontSize: 12, borderRadius: 5, cursor: 'pointer', border: '1px solid rgba(0,170,255,0.4)', background: 'rgba(0,170,255,0.1)', color: CYAN, fontWeight: 600 }}>🧪 体检（6 道闸）</button>
           <button onClick={doIngest} disabled={!inspect?.allpass} style={{ padding: '6px 14px', fontSize: 12, borderRadius: 5, cursor: inspect?.allpass ? 'pointer' : 'not-allowed', border: '1px solid rgba(74,222,128,0.4)', background: inspect?.allpass ? 'rgba(74,222,128,0.15)' : 'rgba(74,222,128,0.05)', color: inspect?.allpass ? GREEN : '#3a5568', fontWeight: 700 }}>⬆ 配平入集</button>
           {inspect?.counts && <span style={{ fontSize: 12, color: '#7ab8e0' }}>真烟 {inspect.counts.ok} / 误报 {inspect.counts.wrong} / 不确定 {inspect.counts.unsure}</span>}
-          {ingMsg && <span style={{ fontSize: 12, color: ingMsg.includes('✅') ? GREEN : RED }}>{ingMsg}</span>}
+          {ingMsg && <span style={{ fontSize: 12, color: ingMsg.includes('✓') ? GREEN : RED }}>{ingMsg}</span>}
         </div>
         {inspect?.gates && (
           <div style={{ marginTop: 8, border: '1px solid rgba(0,150,220,0.2)', borderRadius: 6, padding: '8px 12px', background: 'rgba(4,14,35,0.5)' }}>
             {inspect.gates.map((g: any, i: number) => (
               <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '2px 0', alignItems: 'center' }}>
-                <span style={{ color: g.pass ? GREEN : RED, flexShrink: 0, fontWeight: 700 }}>{g.pass ? '✅' : '❌'}</span>
+                <span style={{ color: g.pass ? GREEN : RED, flexShrink: 0, fontWeight: 700 }}>{g.pass ? '✓' : '✕'}</span>
                 <span style={{ color: '#9ad6f0', flexShrink: 0, width: 80 }}>{g.name}</span>
                 <span style={{ color: g.pass ? '#5a8aaa' : '#ff8a80' }}>{g.detail}</span>
               </div>
             ))}
-            {!inspect.allpass && <div style={{ fontSize: 11.5, color: AMBER, marginTop: 4 }}>⚠️ 有闸门未通过，入集被阻断。请继续采集/标注，攒够数量并配平后再试。</div>}
+            {!inspect.allpass && <div style={{ fontSize: 11.5, color: AMBER, marginTop: 4 }}>⚠ 有闸门未通过，入集被阻断。请继续采集/标注，攒够数量并配平后再试。</div>}
           </div>
         )}
         {/* 批量操作条（多选模式） */}
@@ -240,7 +240,7 @@ function CollectPanel() {
               <div style={{ position: 'relative', aspectRatio: '4/3', background: '#0a1a2e' }}>
                 <img src={`/api/collect/image?cat=${it.cat}&file=${encodeURIComponent(it.file)}`} alt={it.file} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                 <span style={{ position: 'absolute', left: 5, top: 5, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: CAT_COLOR[it.cat], color: '#04101f', fontWeight: 700 }}>{CAT_NAME[it.cat]}</span>
-                {it.verdict && !multi && <span style={{ position: 'absolute', right: 5, top: 5, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: it.verdict === 'ok' ? GREEN : it.verdict === 'wrong' ? RED : AMBER, color: '#04101f', fontWeight: 700 }}>{it.verdict === 'ok' ? '✅真烟' : it.verdict === 'wrong' ? '❌误报' : '❓不确定'}</span>}
+                {it.verdict && !multi && <span style={{ position: 'absolute', right: 5, top: 5, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: it.verdict === 'ok' ? GREEN : it.verdict === 'wrong' ? RED : AMBER, color: '#04101f', fontWeight: 700 }}>{it.verdict === 'ok' ? '✓真烟' : it.verdict === 'wrong' ? '✕误报' : '❓不确定'}</span>}
                 {/* 多选勾选框 */}
                 {multi && <span style={{ position: 'absolute', left: 5, top: 5, width: 18, height: 18, borderRadius: 4, border: `2px solid ${isSel ? '#1668dc' : '#5a6b7a'}`, background: isSel ? '#1668dc' : 'rgba(0,0,0,.5)', color: '#fff', fontSize: 12, lineHeight: '16px', textAlign: 'center', fontWeight: 700 }}>{isSel ? '✓' : ''}</span>}
                 {/* hover 操作按钮（非多选模式）*/}
@@ -358,8 +358,8 @@ function AnnotateModal({ items, startIdx, onAnnotate, onClose }: {
         <button onClick={e => { e.stopPropagation(); setMode('smoke') }} style={mbtn(mode === 'smoke')}>烟羽（红框）</button>
         <button onClick={e => { e.stopPropagation(); setMode('distractor') }} style={mbtn(mode === 'distractor')}>干扰区（青框）</button>
         <button onClick={e => { e.stopPropagation(); undoBox() }} style={{ padding: '5px 12px', fontSize: 12, borderRadius: 5, cursor: 'pointer', border: '1px solid #30363d', background: '#21262d', color: '#c9d1d9' }}>↩ 撤销框</button>
-        <button onClick={e => { e.stopPropagation(); judge('ok') }} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 5, cursor: 'pointer', border: '1px solid #4ade80', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 700 }}>✅ 真烟</button>
-        <button onClick={e => { e.stopPropagation(); judge('wrong') }} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 5, cursor: 'pointer', border: '1px solid #ff4444', background: 'rgba(255,68,68,0.15)', color: '#ff4444', fontWeight: 700 }}>❌ 误报</button>
+        <button onClick={e => { e.stopPropagation(); judge('ok') }} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 5, cursor: 'pointer', border: '1px solid #4ade80', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 700 }}>✓ 真烟</button>
+        <button onClick={e => { e.stopPropagation(); judge('wrong') }} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 5, cursor: 'pointer', border: '1px solid #ff4444', background: 'rgba(255,68,68,0.15)', color: '#ff4444', fontWeight: 700 }}>✕ 误报</button>
         <button onClick={e => { e.stopPropagation(); judge('unsure') }} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 5, cursor: 'pointer', border: '1px solid #ffb74d', background: 'rgba(255,183,77,0.15)', color: '#ffb74d', fontWeight: 700 }}>❓ 不确定</button>
         <button onClick={e => { e.stopPropagation(); onClose() }} style={{ padding: '6px 12px', fontSize: 12, borderRadius: 5, cursor: 'pointer', border: '1px solid rgba(255,68,68,0.4)', background: 'rgba(255,68,68,0.12)', color: '#ff8a80' }}>✕ 关闭</button>
       </div>

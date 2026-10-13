@@ -4,6 +4,7 @@ import { useDashboard, VIDEO_GROUPS, GROUP_COLORS, STREAM_CATEGORIES } from '../
 import type { VideoStream, VideoGroup, GB28181Config, DJIWebRTCConfig } from '../../context/DashboardContext'
 import { MediaServerPage } from './MediaServerPage'
 import { fetchMe, roleAtLeast } from '../../lib/auth'
+import { Check } from 'lucide-react'
 
 // 表单中的分类三态：'' = 未分类（全域态势可见）；'气环境' / '水环境' = 对应驾驶舱
 const CATEGORIES = ['', ...STREAM_CATEGORIES] as const
@@ -710,7 +711,7 @@ export function VideoStreamPage() {
                 />
                 {form.protocol === 'hls' && form.url.startsWith('rtsp://') && (
                   <div style={{ marginBottom: 12, padding: '8px 10px', background: `${GREEN}10`, border: `1px solid ${GREEN}33`, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: GREEN, fontSize: 11 }}>✓</span>
+                    <Check size={11} color={GREEN} style={{ verticalAlign: 'middle' }} />
                     <span style={{ color: GREEN, fontSize: 11 }}>检测到 RTSP 源，播放时将自动通过 ZLMediaKit 转为 HLS，无需手动填写流ID</span>
                   </div>
                 )}

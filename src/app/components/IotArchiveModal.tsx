@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { authFetch } from '../lib/apiFetch'
+import { fmtShanghai } from '../lib/time'
+// 图片 URL 统一解析：/api/evidence/… 直连、绝对 http(s) 走代理（旧版无条件套代理会 400 → 空图）
+import { evidenceImgUrl } from '../lib/evidenceImage'
+import { X } from 'lucide-react'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 
 const CYAN = '#00aaff'
 
@@ -15,6 +20,10 @@ interface IotRecord {
   imageUrl: string | null
   channelName: string
   deviceName: string
+  // 🔴 2026-09-26：车牌（「渣土车冒装/帽盖」判罚证据必备字段）。
+  //   空串 = 该帧没抓到车牌（卡片显示「车牌未获取」）；堆头未覆盖等链路不跑车牌，恒为空串。
+  licensePlate?: string
+  plateConfidence?: number | null
 }
 
 interface IotChannel {
@@ -55,6 +64,14 @@ function levelColor(l: number): string {
   return ['#64b5f6', '#64b5f6', '#ffd740', '#ff7043', '#ff4444'][l] || '#64b5f6'
 }
 
+// 🔴 2026-09-26：「渣土车冒装/帽盖」＝直接判罚证据，**没车牌就不算一个完整事件**。
+//   口语叫「渣土车帽盖」，库里/网关叫「渣土车冒装」（同一条链 cover_det），两个名字都认。
+const MUCK_COVER_NAMES = ['渣土车冒装', '渣土车帽盖']
+function isMuckCoverType(aiType?: string): boolean {
+  const s = aiType || ''
+  return MUCK_COVER_NAMES.some(n => s.includes(n))
+}
+
 export function IotArchiveModal({ onClose, onLocate }: Props) {
   const [channels, setChannels] = useState<IotChannel[]>([])
   const [statusMap, setStatusMap] = useState<Record<string, StatusChannel>>({})
@@ -66,6 +83,8 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
       authFetch('/api/iot-analysis/status').then(r => r.ok ? r.json() : { channels: [] }),
     ]).then(([arc, st]) => {
       const chs: IotChannel[] = Array.isArray(arc.channels) ? arc.channels : []
+      // 图片地址归一（幂等），与存档页同一口径：修「无人机证据图空块」
+      for (const c of chs) for (const rec of (c.records || [])) rec.imageUrl = evidenceImgUrl(rec.imageUrl)
       const m: Record<string, StatusChannel> = {}
       for (const c of (st.channels || [])) m[c.spid] = c
       setChannels(chs)
@@ -76,7 +95,9 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 10000)
+    // 2026-09-20：10s → 60s（与存档页一致）。本接口修复「SQL 预截断」后响应体 ~3.6MB，
+    //   10s 轮询过密；存档属历史数据，60s 足够。
+    const t = setInterval(load, 60000)
     return () => clearInterval(t)
   }, [load])
 
@@ -99,7 +120,9 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
   const totalRecords = channels.reduce((s, c) => s + c.total, 0)
   const alertingCount = channels.filter(c => statusMap[c.spid]?.alerting).length
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
@@ -138,7 +161,7 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
               border: '1px solid rgba(0,170,255,0.25)', background: 'rgba(0,170,255,0.1)',
               color: '#80cfff', cursor: 'pointer', fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>✕</button>
+            }}><X size={14} style={{ verticalAlign: 'middle' }} /></button>
           </div>
         </div>
 
@@ -237,8 +260,34 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
                             <span style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600 }}>{rec.aiType || 'AI分析'}</span>
                           </div>
                           <div style={{ color: '#5a8aaa', fontSize: 11, marginTop: 3, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {rec.fullTime ? rec.fullTime.slice(5) : (rec.time || '—')}
+                            {fmtShanghai(rec.fullTime, 'short') || rec.time || '—'}
                           </div>
+                          {/* 车牌（2026-09-26）：渣土车冒装/帽盖的判罚证据；抓不到时显式提示「车牌未获取」 */}
+                          {isMuckCoverType(rec.aiType) && (
+                            <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                              {rec.licensePlate ? (
+                                <>
+                                  <span style={{
+                                    padding: '1px 6px', borderRadius: 2,
+                                    background: 'rgba(255,112,67,0.12)', border: '1px solid rgba(255,112,67,0.4)',
+                                    color: '#ff7043', fontSize: 11, fontWeight: 700,
+                                    fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.06em',
+                                    whiteSpace: 'nowrap',
+                                  }}>{rec.licensePlate}</span>
+                                  {typeof rec.plateConfidence === 'number' && (
+                                    <span style={{ color: '#4a6a80', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+                                      title="车牌识别置信度">{(rec.plateConfidence * 100).toFixed(0)}%</span>
+                                  )}
+                                </>
+                              ) : (
+                                <span style={{
+                                  padding: '1px 6px', borderRadius: 2,
+                                  background: 'rgba(120,140,160,0.10)', border: '1px dashed rgba(120,140,160,0.45)',
+                                  color: '#7f96a8', fontSize: 11, whiteSpace: 'nowrap',
+                                }} title="该帧未能识别出车牌（车距远 / 角度偏 / 模糊 / 夜间）">车牌未获取</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -262,5 +311,6 @@ export function IotArchiveModal({ onClose, onLocate }: Props) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

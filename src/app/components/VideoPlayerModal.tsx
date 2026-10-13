@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { getApiKey } from '../lib/apiFetch'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 import mpegtsRaw from 'mpegts.js'
 import HlsRaw from 'hls.js'
 const mpegts = ((mpegtsRaw as any).default ?? mpegtsRaw) as typeof mpegtsRaw
 const Hls = ((HlsRaw as any).default ?? HlsRaw) as typeof HlsRaw
 
 import type { DJIWebRTCConfig } from '../context/DashboardContext'
+import { X } from 'lucide-react'
 
 // 判断是否需经后端转换（浏览器无法直接播 RTSP / DJI WebRTC）
 function needsTranscode(url: string, protocol: string) {
@@ -325,7 +327,9 @@ export function VideoPlayerModal({ name, location, url, protocol, djiConfig, onC
       ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', height: 480 }
       : { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr 1fr 1fr', height: 600 }
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -353,7 +357,7 @@ export function VideoPlayerModal({ name, location, url, protocol, djiConfig, onC
             ))}
           </div>
 
-          <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 3, border: '1px solid rgba(0,150,220,0.2)', background: 'rgba(0,80,150,0.15)', color: '#5a8aaa', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 3, border: '1px solid rgba(0,150,220,0.2)', background: 'rgba(0,80,150,0.15)', color: '#5a8aaa', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} style={{ verticalAlign: 'middle' }} /></button>
         </div>
 
         {/* Video grid */}
@@ -388,6 +392,7 @@ export function VideoPlayerModal({ name, location, url, protocol, djiConfig, onC
         @keyframes live-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
       `}</style>
     </div>
+    </ModalPortal>
   )
 }
 

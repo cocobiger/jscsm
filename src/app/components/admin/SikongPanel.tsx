@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 import { Satellite, Zap, FolderArchive, Shield } from 'lucide-react'
 import { DockGuardPage } from './DockGuardPage'
 import { roleAtLeast, type CurrentUser } from '../../lib/auth'
@@ -52,7 +53,7 @@ interface MediaItem {
 
 function fmtTs(ts?: string | null) {
   if (!ts) return '—'
-  try { return new Date(ts).toLocaleString('sv-SE', { timeZone: 'Asia/Shanghai' }).slice(5, 19) } catch { return ts }
+  try { return fmtShanghai(ts, 'short') } catch { return ts }
 }
 
 // ── 轻量月历（直播录制按日期浏览：有录制的日期打点高亮，点击筛选/再点取消）──

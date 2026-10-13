@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { SinglePlayer } from './VideoPlayerModal'
 import { useDashboard } from '../context/DashboardContext'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 import type { VideoStream, VideoGroup } from '../context/DashboardContext'
+import { X } from 'lucide-react'
 
 const CYAN = '#00aaff'
 
@@ -39,9 +41,11 @@ export function VideoWall({ groups, onClose }: Props) {
 
   useEffect(() => { setSlideOffset(0) }, [groupIdx])
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(3px)', display: 'flex', flexDirection: 'column' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1900, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(3px)', display: 'flex', flexDirection: 'column' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       {/* Header：群组切换 + 所有视频 + 关闭 */}
@@ -65,7 +69,7 @@ export function VideoWall({ groups, onClose }: Props) {
             color: showAll ? CYAN : '#5a8aaa', cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600,
           }}>所有视频<span style={{ color: '#3a5a70', marginLeft: 6, fontSize: 11 }}>{allCount}</span></button>
         </div>
-        <button onClick={onClose} style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: 4, border: '1px solid rgba(0,150,220,0.25)', background: 'rgba(0,80,150,0.15)', color: '#5a8aaa', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        <button onClick={onClose} style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: 4, border: '1px solid rgba(0,150,220,0.25)', background: 'rgba(0,80,150,0.15)', color: '#5a8aaa', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} style={{ verticalAlign: 'middle' }} /></button>
       </div>
 
       {/* 九宫格：3×3 */}
@@ -125,5 +129,6 @@ export function VideoWall({ groups, onClose }: Props) {
         )}
       </div>
     </div>
+    </ModalPortal>
   )
 }

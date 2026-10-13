@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { AlertItem } from './AlertPanel'
 import { apiFetch, authFetch } from '../lib/apiFetch'
+import { fmtShanghai, parseAnyTime } from '../lib/time'
 import type { AggregateWarning } from '../context/DashboardContext'
 import { AlertEvidenceModal } from './AlertEvidenceModal'
 import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
 import { playAlertChime, unlockAudioOnGesture } from '../lib/droneLive'
 import { evidenceImgUrl } from '../lib/evidenceImage'
+import { AlertTriangle, FileDown, X } from 'lucide-react'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 
 // T23: 新告警提示音持久化 key（与无人机弹窗 jsc:drone-popup-sound 解耦，独立开关）
 const ALERT_SOUND_KEY = 'jsc:alert-sound'
@@ -113,14 +116,10 @@ interface AggRow {
 }
 
 function fmtFull(iso?: string, monitorTime?: string): string {
-  if (iso) {
-    const d = new Date(iso)
-    if (!isNaN(d.getTime())) {
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      return `${mm}-${dd} ${d.toTimeString().slice(0, 8)}`
-    }
-  }
+  // 2026-09-20 修复：原实现用 getMonth()/getDate()/toTimeString()（**设备本地时区**），违反「一律上海时」铁律，
+  //   值班电脑时区一变就错；统一改走 lib/time 的 fmtShanghai（+8h 后取 getUTC*）。
+  const ms = parseAnyTime(iso)
+  if (Number.isFinite(ms)) return fmtShanghai(ms, 'short')
   return (monitorTime || '').slice(5) || '—'
 }
 
@@ -148,6 +147,42 @@ function resolveSource(w: WarnRecord): string | null {
   // 带 AI 通道/类型/图 → AI 视频分析（iotcloud）
   if (w.aiType || w.channelSipId || w.picUrl) return 'iotcloud'
   return null
+}
+
+// ── T25: 分组桶（上栏=AI视频分析 / 下栏=气体监测站 / 其他来源仅在有数据时补一小节）──
+type Bucket = 'ai' | 'gas' | 'other'
+
+/**
+ * 行 → 分组桶。
+ * 口径（2026-09-21 定）：
+ *  - 聚合行全部为 AI 视频类 → 上栏
+ *  - sourceKey=iotcloud / 内存态 AI 识别告警 → 上栏「AI 视频分析」
+ *  - sourceKey=cq_api（气体监测，含按 pointName/code/standardValue 推断的历史记录）→ 下栏「气体监测站」
+ *  - 秸秆检测 straw-engine / 城运中心 chengyun-platform / 未知来源 → 「其他来源」（有数据才渲染，避免把秸秆误标为气体）
+ */
+function bucketOf(r: Row | AggRow): Bucket {
+  if (r.kind === 'aggregate') return 'ai'
+  if (r.sourceKey === 'iotcloud') return 'ai'
+  if (r.sourceKey === 'cq_api') return 'gas'
+  // 内存告警（无 source 字段）：AI 识别类归上栏，其余（无人机等）归其他
+  if (!r.backend && !r.sourceKey) {
+    return (isPlateType(r.type) || isDustAiType(r.type) || /AI|视频|识别/.test(r.type) || !!r.picUrl) ? 'ai' : 'other'
+  }
+  return 'other'
+}
+
+// T25: 相对时间（小节头「最新 X 前」，弥补全局倒序被打断后的跨组时间感知）
+function relTime(iso?: string): string {
+  const ms = parseAnyTime(iso)
+  if (!Number.isFinite(ms)) return ''
+  const diff = Date.now() - ms
+  if (!Number.isFinite(diff) || diff < 0) return ''
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return `${m} 分钟前`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} 小时前`
+  return `${Math.floor(h / 24)} 天前`
 }
 
 export function AlertHistoryModal({ alerts, onClose }: Props) {
@@ -211,7 +246,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     lat: 0, lon: 0,
     isAggregate: true,
     ruleId: a.ruleId,
-    ruleName: `${a.channelName || ''} ${a.aiType} 推送规则`.trim() || '聚合推送规则',
+    ruleName: `${a.channelName || ''} ${a.aiType} 研判规则`.trim() || '聚合研判规则',
     aggregateAiType: a.aiType,
     windowHours: a.windowHours,
     // P2 补丁: 补 threshold —— 后端聚合对象带出，缺则研判依据摘要「阈值」恒显示 0 条
@@ -385,7 +420,36 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
   // T22: 分页切片——全量在内存，displayList 仅取前 displayLimit 条渲染
   //   fullList 每次 render 重新构造（pending/handledList 引用变化）→ displayList 重算
   const fullList = tab === 'pending' ? pending : handledList
-  const displayList = fullList.slice(0, displayLimit)
+
+  // ── T25: 分桶 + 渲染项构造（渲染顺序：AI视频分析 → 气体监测站 → 其他来源）──
+  //   分页口径：displayLimit 为「每组各自」的渲染上限（沿用原 T22 数值 50），
+  //   IO 触底 +50 时各组同步扩展；shownRows 为实际渲染行数，供底部状态栏显示。
+  const aiRows = fullList.filter(r => bucketOf(r) === 'ai')
+  const gasRows = fullList.filter(r => bucketOf(r) === 'gas')
+  const otherRows = fullList.filter(r => bucketOf(r) === 'other')
+  const groups: { key: Bucket; label: string; icon: string; rows: (Row | AggRow)[] }[] = [
+    { key: 'ai', label: 'AI 视频分析', icon: '📹', rows: aiRows },
+    { key: 'gas', label: '气体监测站', icon: '📊', rows: gasRows },
+    { key: 'other', label: '其他来源', icon: '🧩', rows: otherRows },
+  ]
+  type RenderItem =
+    | { kind: 'header'; key: Bucket; label: string; icon: string; count: number; latest: string }
+    | { kind: 'empty'; key: Bucket; label: string }
+    | { kind: 'row'; row: Row | AggRow; idx: number }
+  const renderItems: RenderItem[] = []
+  for (const g of groups) {
+    if (g.key === 'other' && g.rows.length === 0) continue  // 其他来源：仅当真的有数据才出现
+    renderItems.push({
+      kind: 'header', key: g.key, label: g.label, icon: g.icon,
+      count: g.rows.length, latest: relTime(g.rows[0]?.sortKey),
+    })
+    if (g.rows.length === 0) {
+      renderItems.push({ kind: 'empty', key: g.key, label: g.label })
+      continue
+    }
+    g.rows.slice(0, displayLimit).forEach((row, i) => renderItems.push({ kind: 'row', row, idx: i }))
+  }
+  const shownRows = renderItems.reduce((n, it) => n + (it.kind === 'row' ? 1 : 0), 0)
 
   // T22: 分页触底 IntersectionObserver
   //   监听 listSentinelRef（sentinel div 出现即视为滚动到底）→ setDisplayLimit +50
@@ -521,7 +585,9 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
     }
   }
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
@@ -547,7 +613,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 3, height: 16, background: '#ff4444', borderRadius: 1 }} />
             <span style={{ color: '#c8e6ff', fontSize: 15, fontWeight: 600, letterSpacing: '0.05em' }}>告警记录</span>
-            <span style={{ color: '#3a5a70', fontSize: 12 }}>（按时间倒序 · 实时同步后端）</span>
+            <span style={{ color: '#3a5a70', fontSize: 12 }}>（分组显示 · 组内按时间倒序 · 实时同步后端）</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ color: '#3a5a70', fontSize: 12 }}>
@@ -571,7 +637,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
               border: '1px solid rgba(255,68,68,0.25)', background: 'rgba(255,68,68,0.1)',
               color: '#ff8080', cursor: 'pointer', fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>✕</button>
+            }}><X size={14} style={{ verticalAlign: 'middle' }} /></button>
           </div>
         </div>
 
@@ -615,12 +681,48 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         <div ref={listRef} style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none', padding: '8px 16px 12px' }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: '#3a5a70', fontSize: 13 }}>加载中…</div>
-          ) : displayList.length === 0 ? (
+          ) : fullList.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: '#3a5a70', fontSize: 13 }}>
               暂无{tab === 'pending' ? '未处理' : '已处理'}告警
             </div>
           ) : (
-            displayList.map((row, idx) => {
+            renderItems.map((item) => {
+              // ── T25: 分组小节头（sticky 吸顶；组内计数 + 最新相对时间）──
+              if (item.kind === 'header') {
+                return (
+                  <div key={`grp-${item.key}`} data-testid={`t25-group-${item.key}`} style={{
+                    position: 'sticky', top: 0, zIndex: 3,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    margin: '8px 0 4px', padding: '5px 10px',
+                    background: 'linear-gradient(90deg, rgba(0,60,120,0.92), rgba(3,12,30,0.92))',
+                    border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3,
+                  }}>
+                    <span style={{ fontSize: 12 }}>{item.icon}</span>
+                    <span style={{ color: '#c8e6ff', fontSize: 12.5, fontWeight: 600, letterSpacing: '0.04em' }}>{item.label}</span>
+                    <span style={{
+                      color: CYAN, fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                      padding: '1px 6px', borderRadius: 2,
+                      background: 'rgba(0,170,255,0.12)', border: '1px solid rgba(0,170,255,0.25)',
+                    }}>{item.count} 条</span>
+                    <div style={{ flex: 1 }} />
+                    {item.latest && <span style={{ color: '#3a5a70', fontSize: 10.5 }}>最新 {item.latest}</span>}
+                  </div>
+                )
+              }
+              // ── T25: 该组在当前筛选下无数据（组内空态，而非整弹窗空态）──
+              if (item.kind === 'empty') {
+                return (
+                  <div key={`grp-empty-${item.key}`} style={{
+                    padding: '10px 12px', margin: '2px 0 6px', borderRadius: 3,
+                    border: '1px dashed rgba(0,150,220,0.18)', background: 'rgba(0,20,50,0.25)',
+                    color: '#3a5a70', fontSize: 12, textAlign: 'center',
+                  }}>
+                    {item.label}：暂无{tab === 'pending' ? '未处理' : '已处理'}告警
+                  </div>
+                )
+              }
+              const row = item.row
+              const idx = item.idx   // T25: 组内序号（原为全局序号）
               // ── 聚合告警行（命中推送规则）──
               if (row.kind === 'aggregate') {
                 const a = row.agg
@@ -770,13 +872,13 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           {/* T22: 分页触底 sentinel + 状态栏 + 回顶部按钮 */}
           {fullList.length > 0 && (
             <>
-              {displayLimit < fullList.length && (
+              {shownRows < fullList.length && (
                 <div ref={listSentinelRef} data-testid="t22-load-sentinel" style={{ height: 1, marginTop: 8 }} />
               )}
               <div data-testid="t22-pager" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 4px', fontSize: 11, color: '#5a8aaa' }}>
                 <span>
-                  已显示 <span style={{ color: CYAN, fontFamily: "'JetBrains Mono', monospace" }}>{displayList.length}</span> / <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fullList.length}</span> 条
-                  {displayLimit < fullList.length ? ' · 滚动到底自动加载更多' : ' · 全部已加载'}
+                  已显示 <span style={{ color: CYAN, fontFamily: "'JetBrains Mono', monospace" }}>{shownRows}</span> / <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fullList.length}</span> 条
+                  {shownRows < fullList.length ? ' · 滚动到底自动加载更多' : ' · 全部已加载'}
                 </span>
                 {displayLimit > 50 && (
                   <button onClick={() => { setDisplayLimit(50); if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' }) }}
@@ -816,10 +918,10 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           <div style={{ width: 460, maxWidth: '90vw', background: 'linear-gradient(180deg,#081a36,#050f24)', border: '1px solid rgba(0,170,255,0.35)', borderRadius: 6, padding: '16px 20px 14px', boxShadow: '0 0 40px rgba(0,120,255,0.15)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 15 }}>📤</span>
+                <FileDown size={15} color="#7ab8e0" style={{ verticalAlign: 'middle' }} />
                 <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>导出告警明细 CSV</span>
               </div>
-              <button disabled={exporting} onClick={() => setShowExport(false)} style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid rgba(120,160,200,0.25)', background: 'transparent', color: '#5a7a90', cursor: exporting ? 'wait' : 'pointer', fontSize: 12 }}>✕</button>
+              <button disabled={exporting} onClick={() => setShowExport(false)} style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid rgba(120,160,200,0.25)', background: 'transparent', color: '#5a7a90', cursor: exporting ? 'wait' : 'pointer', fontSize: 12 }}><X size={14} style={{ verticalAlign: 'middle' }} /></button>
             </div>
             <div style={{ color: '#5a7a90', fontSize: 11, marginBottom: 12 }}>服务端全量导出（上限 5 万行）· 聚合组自动展开为成员明细 · 不受展示过滤规则影响</div>
 
@@ -920,7 +1022,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           onClick={e => { if (e.target === e.currentTarget) setConfirmAll(false) }}>
           <div style={{ width: 380, maxWidth: '88vw', background: 'linear-gradient(180deg,#081a36,#050f24)', border: '1px solid rgba(255,112,67,0.45)', borderRadius: 6, padding: '18px 20px 14px', boxShadow: '0 0 40px rgba(255,112,67,0.15)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 15 }}>⚠️</span>
+              <AlertTriangle size={15} color="#ffd740" style={{ verticalAlign: 'middle' }} />
               <span style={{ color: '#ffd740', fontSize: 14, fontWeight: 600 }}>全部标记处理</span>
             </div>
             <div style={{ color: '#9ec8e6', fontSize: 12, lineHeight: 1.8, margin: '12px 0 4px' }}>
@@ -953,7 +1055,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
           border: `1px solid ${toast.err ? 'rgba(255,90,90,0.5)' : 'rgba(0,230,118,0.4)'}`,
           boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
         }}>
-          {toast.err ? '⚠️ ' : '✅ '}{toast.msg}
+          {toast.err ? '⚠ ' : '✓ '}{toast.msg}
         </div>
       )}
 
@@ -987,7 +1089,7 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
                 <button onClick={() => setViewImg(null)} style={{
                   width: 26, height: 26, borderRadius: 4, cursor: 'pointer', fontSize: 13,
                   border: '1px solid rgba(120,160,200,0.25)', background: 'transparent', color: '#5a7a90',
-                }}>✕</button>
+                }}><X size={14} style={{ verticalAlign: 'middle' }} /></button>
               </div>
             </div>
             <div style={{ background: '#020a18', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, maxHeight: '72vh' }}>
@@ -1006,5 +1108,6 @@ export function AlertHistoryModal({ alerts, onClose }: Props) {
         </div>
       )}
     </div>
+    </ModalPortal>
   )
 }

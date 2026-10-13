@@ -198,10 +198,10 @@ export function specCameras(streams: CameraLike[], scopeLabel: string, now = Dat
 
 // ═══════════════════════════════════════════════════════════
 // ④ 重点企业（/api/enterprises）+ 视频监控联动
-//   ⚠️ 联动数据源用 **/api/streams**（与「摄像头」KPI 同源），**不用 map-points 的 camera 点位**：
+//   ⚠ 联动数据源用 **/api/streams**（与「摄像头」KPI 同源），**不用 map-points 的 camera 点位**：
 //      实测两者对同一批摄像头给出的离线状态不一致（streams 报 7 路离线 / camera 点位报 8 家），
 //      同页面出现两个口径会互相打脸——改为同源即可自洽。
-//   ⚠️ 名称必须归一化后匹配（两表差在空白，精确匹配会漏配 2 家）。
+//   ⚠ 名称必须归一化后匹配（两表差在空白，精确匹配会漏配 2 家）。
 // ═══════════════════════════════════════════════════════════
 export interface EnterpriseLike { id: number | string; name?: string; industry_type?: string | null; location?: string | null; contact?: string | null }
 

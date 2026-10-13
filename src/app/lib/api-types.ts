@@ -70,7 +70,7 @@ export interface DroneLiveEvent {
 // ─────────────────────────────────────────────────────────────
 // ② 推理引擎状态 /api/straw-engine/status
 //    后端：server/index.js（聚合 straw-engine /health + /metrics + 本地样本统计）
-//    ⚠️ 结构是**嵌套**的：{ engine, metrics, sampleStats }，不是平铺
+//    ⚠ 结构是**嵌套**的：{ engine, metrics, sampleStats }，不是平铺
 // ─────────────────────────────────────────────────────────────
 export interface EngineWorker {
   running?: boolean
@@ -121,7 +121,7 @@ export const STRAW_ENGINE_STATUS_REQUIRED = ['engine', 'metrics']
 
 // ─────────────────────────────────────────────────────────────
 // ③ 实时推理快照 /api/straw-engine/snapshot（straw-engine /debug/snapshot）
-//    ⚠️ 流字段是 boxes（**没有** last_boxes）
+//    ⚠ 流字段是 boxes（**没有** last_boxes）
 // ─────────────────────────────────────────────────────────────
 export interface SnapStream {
   running: boolean
@@ -223,7 +223,7 @@ export const TUNE_ALGORITHMS_REQUIRED = ['ok', 'algorithms']
 // ─────────────────────────────────────────────────────────────
 // ⑥ 司空2 设备台账 /api/sikong/devices
 //    后端：server/sikong.js fetchMergedDevices()（聚合 dji-openapi:17810 设备 + OSD 遥测）
-//    ⚠️ 结构陷阱：items 每项是「机场(dock)」，**无人机在它的 drone 字段里**（不是无人机列表）。
+//    ⚠ 结构陷阱：items 每项是「机场(dock)」，**无人机在它的 drone 字段里**（不是无人机列表）。
 //       统计无人机数必须 filter(i => i.drone?.droneSn)，不能 items.length。
 //    口径（2026-09-16 后端统一）：KPI「无人机 N 架」= droneCount；「无人机机场 N 座」= dockCount。
 // ─────────────────────────────────────────────────────────────
@@ -290,6 +290,27 @@ export interface EnterpriseRow {
   contact?: string | null
   created_at?: string
   updated_at?: string
+}
+
+
+// ── ⑨ ROI 电子围栏（2026-09-18）────────────────────────────────────────────
+//   真源：iot_channels.roi（按【算法名】分组）。SVG 无关，纯多边形。
+//   coord='norm' 表示 polygon 里是 **归一化坐标 0~1**（与分辨率解耦，换子码流/主码流不用重画）。
+//   消费方：11 机堆头链（掩膜）拉 GET /api/internal/iot-roi?algo=<算法名>。
+export interface RoiAlgoEntry {
+  /** 是否启用（关掉等价于不配） */
+  enable: boolean
+  /** 坐标口径：目前只用 'norm' */
+  coord: 'norm'
+  /** 归一化多边形顶点 [[x,y], ...]，至少 3 个；归一化到 [0,1] */
+  polygon: Array<[number, number]>
+  /** 掩膜时多边形外的填充灰度（默认 114） */
+  fill?: number
+}
+
+/** 一个通道的 ROI 配置：键 = 算法名（与 iot_channels.ai_types 里的中文名一致） */
+export interface RoiConfig {
+  [algoName: string]: RoiAlgoEntry
 }
 
 // ─────────────────────────────────────────────────────────────

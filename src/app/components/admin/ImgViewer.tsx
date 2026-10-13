@@ -23,13 +23,19 @@ const toolBtn: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-export function ImgViewer({ src, boxes, title, subtitle, showBoxes: initShow, onClose }: {
+export function ImgViewer({ src, boxes, title, subtitle, showBoxes: initShow, onClose, onPrev, onNext, index, total }: {
   src: string
   boxes?: B[]
   title?: string
   subtitle?: string
   showBoxes?: boolean
   onClose: () => void
+  // 2026-09-20 P0-2：可选的「上一张/下一张」——因为本组件在**捕获阶段** stopImmediatePropagation
+  //   拦截了所有键盘事件，父层收不到 ←/→，所以翻页必须在这里处理。全部可选 → 老调用方零改动。
+  onPrev?: () => void
+  onNext?: () => void
+  index?: number   // 1-based
+  total?: number
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -45,6 +51,10 @@ export function ImgViewer({ src, boxes, title, subtitle, showBoxes: initShow, on
   const moved = useRef(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const onPrevRef = useRef(onPrev)
+  onPrevRef.current = onPrev
+  const onNextRef = useRef(onNext)
+  onNextRef.current = onNext
 
   // 适应窗口（contain 填满）
   const fit = useCallback(() => {
@@ -95,6 +105,8 @@ export function ImgViewer({ src, boxes, title, subtitle, showBoxes: initShow, on
       const cx = stage ? stage.clientWidth / 2 : 0
       const cy = stage ? stage.clientHeight / 2 : 0
       if (e.key === 'Escape') onCloseRef.current()
+      else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') onPrevRef.current && onPrevRef.current()
+      else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') onNextRef.current && onNextRef.current()
       else if (e.key === '0') fit()
       else if (e.key === '1') actual()
       else if (e.key === '=' || e.key === '+') zoomAt(cx, cy, 1.25)
@@ -152,7 +164,18 @@ export function ImgViewer({ src, boxes, title, subtitle, showBoxes: initShow, on
       }}>
         <span style={{ color: '#7ee0ff', fontSize: 13, fontWeight: 700 }}>{title || '图片查看'}</span>
         {subtitle && <span style={{ fontSize: 11, color: '#5a8aaa', ...mono }}>{subtitle}</span>}
-        <span style={{ fontSize: 11, color: '#3a5a70', marginLeft: 8 }}>滚轮缩放 · 拖拽平移 · 0=适应 1=1:1 b=显隐框</span>
+        <span style={{ fontSize: 11, color: '#3a5a70', marginLeft: 8 }}>滚轮缩放 · 拖拽平移 · 0=适应 1=1:1 b=显隐框{(onPrev || onNext) ? ' ←/→=翻页' : ''}</span>
+        {(onPrev || onNext) && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
+            <button onClick={() => { if (onPrev) onPrev() }} disabled={!onPrev} title="上一张（←）"
+              style={{ ...toolBtn, opacity: onPrev ? 1 : 0.4, cursor: onPrev ? 'pointer' : 'default' }}>‹ 上一张</button>
+            <button onClick={() => { if (onNext) onNext() }} disabled={!onNext} title="下一张（→）"
+              style={{ ...toolBtn, opacity: onNext ? 1 : 0.4, cursor: onNext ? 'pointer' : 'default' }}>下一张 ›</button>
+            {typeof index === 'number' && typeof total === 'number' && (
+              <span style={{ fontSize: 11, color: '#7ab8e0', ...mono }}>{index} / {total}</span>
+            )}
+          </span>
+        )}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: '#7ab8e0', ...mono }}>{Math.round(view.scale * 100)}%</span>
         <button onClick={() => setShowBoxes(v => !v)} title="显示/隐藏检测标注框（b）"
           style={{ ...toolBtn, background: showBoxes ? 'rgba(0,170,255,0.25)' : 'rgba(90,138,170,0.12)', color: showBoxes ? '#7ee0ff' : '#7ab8e0', borderColor: showBoxes ? 'rgba(0,170,255,0.55)' : 'rgba(90,138,170,0.35)' }}>

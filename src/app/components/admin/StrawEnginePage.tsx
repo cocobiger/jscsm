@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { readStrawNav, clearStrawNav } from '../../lib/nav'
 import { authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
+import { evidenceImgUrl } from '../../lib/evidenceImage'
 import { Brain, Camera, Image as ImageIcon, Radio, ArrowUp } from 'lucide-react'
 
 const CYAN = '#00aaff'
@@ -364,7 +366,7 @@ export function StrawReviewBoard() {
               {list.map((w) => (
                 <tr key={w.id} data-straw-id={String(w.id)}>
                   <td style={td}>{String(w.id).slice(0, 28)}…</td>
-                  <td style={td}>{w.time || w.createdAt?.slice(11, 19) || '-'}</td>
+                  <td style={td}>{w.time || fmtShanghai(w.createdAt, 'short') || '-'}</td>
                   <td style={td}>{w.label || w.aiType || '-'}</td>
                   <td style={td}>{w.aiConfidence ? (w.aiConfidence * 100).toFixed(1) + '%' : '-'}</td>
                   <td style={td}>{w.lat?.toFixed(4) || '-'}, {w.lon?.toFixed(4) || '-'}</td>
@@ -412,7 +414,7 @@ export function StrawReviewBoard() {
                 <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Camera size={12} strokeWidth={1.75} />证据截图
                 </div>
-                <img src={picked.picUrl} alt="evidence"
+                <img src={evidenceImgUrl(picked.picUrl) || undefined} alt="evidence"
                   style={{ width: '100%', borderRadius: 6, border: '1px solid rgba(0,150,220,0.2)' }} />
               </div>
             )}
@@ -421,7 +423,7 @@ export function StrawReviewBoard() {
                 <div style={{ fontSize: 11, color: '#5a8aaa', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <ImageIcon size={12} strokeWidth={1.75} />告警卡片（微信推送图）
                 </div>
-                <img src={picked.wechatPush.cardUrl} alt="card"
+                <img src={evidenceImgUrl(picked.wechatPush.cardUrl) || undefined} alt="card"
                   style={{ width: '100%', borderRadius: 6, border: '1px solid rgba(0,150,220,0.2)' }} />
               </div>
             )}
@@ -456,7 +458,7 @@ export function StrawReviewBoard() {
                 <>
                   <div style={{ color: '#5a8aaa' }}>推送结果</div>
                   <div style={{ color: picked.wechatPush.pushed ? GREEN : AMBER, fontSize: 11 }}>
-                    {picked.wechatPush.pushed ? '✓ 已推送' : '✗ ' + (picked.wechatPush.reason || '失败')}
+                    {picked.wechatPush.pushed ? '✓ 已推送' : '✕ ' + (picked.wechatPush.reason || '失败')}
                   </div>
                 </>
               )}

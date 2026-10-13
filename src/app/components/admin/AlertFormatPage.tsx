@@ -10,12 +10,13 @@ const RED = '#ff4444'
 const LEVEL_COLORS: Record<number, string> = { 1: '#64b5f6', 2: AMBER, 3: ORANGE, 4: RED }
 const LEVEL_LABELS: Record<number, string> = { 1: '注意', 2: '轻度', 3: '中度', 4: '重度' }
 
-const ALERT_TYPE_CATEGORIES = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '堆头未覆盖'] as const
+const ALERT_TYPE_CATEGORIES = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '渣土车冒装', '堆头未覆盖'] as const
 const ALERT_TYPE_COLORS: Record<string, string> = {
   '气体污染': '#ab47bc',
   '水体污染': '#00bcd4',
   '秸秆燃烧': ORANGE,
   '道路扬尘': AMBER,
+  '渣土车冒装': '#e53935',   // 🆕 2026-10-10
   '堆头未覆盖': '#ff7043',
 }
 

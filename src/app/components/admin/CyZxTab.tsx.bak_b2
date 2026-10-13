@@ -1,0 +1,906 @@
+/**
+ * CyZxTab.tsx —— 智治推送 →「三级城运贯通」子页（批次 0 对应前端）
+ *
+ * 定位：把 AI 事件贯通到**三级城运中心（事件中心）**的后台配置与观测面板。
+ * 设计口径与后端 `cyzx.js` 严格对应；五个子标签：
+ *   ① 通道配置 ② 事件类型映射 ③ 码表 ④ 上报记录 ⑤ 配置自检
+ *
+ * 🔴 三条必须在 UI 上守住的原则：
+ *   1) **码值只来自城运官方码表** —— 界面不提供"猜码值"，只提供"填报"和"导入"。
+ *   2) **未就绪 = 不可上报** —— 「启用」与「码值非空」双条件；未满足的行显式标红"不可上报"。
+ *   3) **自检未清零不许开总开关** —— 前端软拦（后端也有硬拦）。
+ *
+ * 风格沿用本页既有暗色主题（CYAN 主色 / SECTION_BG 卡片底）。
+ */
+import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '../../lib/apiFetch'
+// 图标统一用 lucide-react —— 与驾驶舱后台侧栏同一套线性图标，避免 emoji 风格不一致
+import { Landmark, ShieldCheck, Plug, FolderTree, BookOpen, Upload, Save, CheckCheck, Search } from 'lucide-react'
+
+const CYAN = '#00aaff'
+const GREEN = '#00e676'
+const AMBER = '#ffd740'
+const RED = '#ff4444'
+const PURPLE = '#ab47bc'
+const SECTION_BG = 'rgba(0,15,40,0.5)'
+const TXT = '#c8e6ff'
+const SUB = '#5a8aaa'
+const DIM = '#3a5a70'
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '7px 10px', background: 'rgba(0,20,60,0.6)',
+  border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: TXT,
+  fontSize: 13, outline: 'none', boxSizing: 'border-box',
+}
+const labelStyle: React.CSSProperties = { color: SUB, fontSize: 12, display: 'block', marginBottom: 4 }
+const btnStyle = (color: string, ghost = false): React.CSSProperties => ({
+  padding: '6px 14px', fontSize: 12, borderRadius: 3, cursor: 'pointer',
+  border: `1px solid ${color}55`, background: ghost ? 'transparent' : `${color}18`,
+  color: ghost ? SUB : color,
+})
+const cardStyle: React.CSSProperties = {
+  background: SECTION_BG, border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4,
+  padding: 16, marginBottom: 12,
+}
+const badge = (color: string): React.CSSProperties => ({
+  padding: '1px 7px', fontSize: 11, borderRadius: 2, background: `${color}18`, color,
+})
+
+// ── 与后端 cyzx.js 对齐的类型 ────────────────────────────────
+interface CyzxConfig {
+  enabled: boolean; baseUrl: string; sourceSystemCode: string; reportModeDefault: string
+  authMode: string; token: string; tokenSet?: boolean; eventNature: string; isTest: boolean
+  coordMode: string; callbackUrl: string; timeoutMs: number; retry: number
+  perRecordEnabled: boolean; perRecordIntervalMs: number; perRecordLookbackH: number
+  perRecordBatch: number; perRecordGate: string; perRecordGateConf: number
+  connectTest: { at: string; ok: boolean; httpStatus: number | null; ms: number | null; error: string | null } | null
+  updatedAt: string | null; updatedBy: string | null; _source?: string
+}
+interface MapRow {
+  ai_type: string; source_key: string; cy_lv1: string; cy_lv2: string; cy_lv3: string
+  cy_event_type: string; report_mode: string; granularity: string; scene_code: string
+  enabled: boolean; note: string; mapped: boolean; ready: boolean
+}
+interface HealthItem { id: string; name: string; status: 'pass' | 'fail' | 'warn'; detail: string; hint: string }
+interface Health {
+  ok: boolean; summary: { fail: number; warn: number; pass: number; total: number }
+  items: HealthItem[]; counters: Record<string, unknown>; checkedAt: string
+}
+interface ReportRow {
+  id: number; event_num: string; warning_id: string; ai_type: string; cy_event_type: string
+  report_mode: string; granularity: string; state: string; skip_reason: string
+  success: number; retry_count: number; created_at: string
+}
+interface Reconcile {
+  windowHours: number; since: string; should: number; sent: number; pending: number
+  failed: number; gap: number; skippedByConfig: number; note: string
+}
+
+const STATE_COLOR: Record<string, string> = { pending: AMBER, sent: GREEN, failed: RED, skipped: DIM }
+// 自检状态 → 色点（与后台顶栏 MQTT 指示灯同一写法：小圆点，不用 emoji）
+const STATUS_DOT: Record<string, string> = { pass: GREEN, fail: RED, warn: AMBER }
+
+type SubTab = 'config' | 'map' | 'codes' | 'reports' | 'health'
+
+export function CyZxTab() {
+  const [sub, setSub] = useState<SubTab>('health')
+
+  const TABS: { key: SubTab; label: string; Icon: typeof Landmark }[] = [
+    { key: 'health', label: '配置自检', Icon: ShieldCheck },
+    { key: 'config', label: '通道配置', Icon: Plug },
+    { key: 'map', label: '事件类型映射', Icon: FolderTree },
+    { key: 'codes', label: '码表', Icon: BookOpen },
+    { key: 'reports', label: '上报记录', Icon: Upload },
+  ]
+
+  return (
+    <div style={{ height: '100%', overflow: 'auto', padding: '16px 24px 40px' }}>
+      {/* 面包屑 + 说明 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <Landmark size={17} color={CYAN} />
+        <span style={{ color: TXT, fontSize: 15, fontWeight: 700 }}>三级城运贯通</span>
+        <span style={{ ...badge(AMBER), marginLeft: 4 }}>批次 0 · 仅配置与记账，不发送请求</span>
+      </div>
+      <div style={{ color: SUB, fontSize: 12, marginBottom: 14, lineHeight: 1.7 }}>
+        把 AI 事件上报到城运中心事件中心。两种口径并行：
+        <span style={{ color: CYAN }}>「聚合」</span>按现有研判规则折叠后上报（如堆头未覆盖）；
+        <span style={{ color: CYAN }}>「逐条」</span>逐条直出、不经研判闸门（如渣土车冒装，判罚证据不可漏）。
+      </div>
+
+      {/* 子标签 */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setSub(t.key)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 18px', fontSize: 13, borderRadius: '3px 3px 0 0', cursor: 'pointer',
+            border: '1px solid rgba(0,80,150,0.2)',
+            background: sub === t.key ? 'rgba(0,170,255,0.08)' : 'transparent',
+            color: sub === t.key ? CYAN : SUB, fontWeight: sub === t.key ? 600 : 400,
+            borderBottom: sub === t.key ? '1px solid rgba(3,10,28,0.98)' : '1px solid rgba(0,80,150,0.2)',
+          }}><t.Icon size={14} /> {t.label}</button>
+        ))}
+      </div>
+
+      {sub === 'health' && <HealthPanel />}
+      {sub === 'config' && <ConfigPanel />}
+      {sub === 'map' && <MapPanel />}
+      {sub === 'codes' && <CodesPanel />}
+      {sub === 'reports' && <ReportsPanel />}
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════
+//  ⑤ 配置自检
+// ════════════════════════════════════════════════════════════
+function HealthPanel() {
+  const [h, setH] = useState<Health | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [dry, setDry] = useState<any>(null)
+  const [dryBusy, setDryBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setH(await apiFetch<Health>('/api/cyzx/health')) }
+    catch (e: any) { alert('自检失败: ' + (e?.error || e?.message || e)) }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const runDry = async () => {
+    setDryBusy(true)
+    try {
+      const r = await apiFetch<any>('/api/cyzx/dry-run', {
+        method: 'POST', body: JSON.stringify({ aiType: '渣土车冒装' }),
+      })
+      setDry(r)
+    } catch (e: any) { alert('干跑失败: ' + (e?.error || e?.message || e)) }
+    finally { setDryBusy(false) }
+  }
+
+  if (loading) return <div style={{ color: SUB, padding: 40, textAlign: 'center' }}>检查中...</div>
+  if (!h) return <div style={{ color: RED, padding: 20 }}>自检不可用</div>
+
+  const s = h.summary
+  const overall = s.fail > 0 ? RED : (s.warn > 0 ? AMBER : GREEN)
+  const overallText = s.fail > 0 ? `不可上线 · ${s.fail} 项阻断` : (s.warn > 0 ? `基本就绪 · ${s.warn} 项待办` : '全部就绪')
+
+  return (
+    <>
+      <div style={{ ...cardStyle, borderColor: `${overall}55` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: overall, fontSize: 15, fontWeight: 700 }}>{overallText}</div>
+            <div style={{ color: SUB, fontSize: 12, marginTop: 4 }}>
+              检查时间 {h.checkedAt} · 通过 {s.pass} · 待办 {s.warn} · 阻断 {s.fail}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={btnStyle(CYAN, true)} onClick={load}>重新检查</button>
+            <button style={btnStyle(PURPLE)} onClick={runDry} disabled={dryBusy}>
+              {dryBusy ? '生成中...' : '干跑一条报文'}
+            </button>
+          </div>
+        </div>
+        {s.fail > 0 && (
+          <div style={{ color: AMBER, fontSize: 12, marginTop: 10, lineHeight: 1.7 }}>
+            未清零时不允许打开总开关（此前端会拦，后端也有硬拦）。逐项补齐后再回来点「重新检查」。
+          </div>
+        )}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ color: TXT, fontSize: 13, fontWeight: 600, marginBottom: 10 }}>自检明细（8 条）</div>
+        {h.items.map(it => (
+          <div key={it.id} style={{
+            display: 'flex', gap: 10, padding: '8px 0', alignItems: 'flex-start',
+            borderBottom: '1px solid rgba(0,80,150,0.12)',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', marginTop: 5, flexShrink: 0,
+              background: STATUS_DOT[it.status] || DIM,
+              boxShadow: it.status === 'fail' ? `0 0 6px ${RED}` : 'none',
+            }} />
+            <span style={{ color: TXT, fontSize: 13, minWidth: 130 }}>{it.name}</span>
+            <span style={{ color: it.status === 'fail' ? AMBER : SUB, fontSize: 12, flex: 1, lineHeight: 1.6 }}>
+              {it.detail}{it.hint ? <span style={{ color: DIM }}>（{it.hint}）</span> : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {dry && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>
+              干跑结果 —— {dry.ready ? <span style={{ color: GREEN }}>校验通过</span> : <span style={{ color: RED }}>存在阻断项</span>}
+            </div>
+            <div style={{ ...badge(PURPLE) }}>只组装报文 · 未发送任何请求</div>
+          </div>
+          <div style={{ color: SUB, fontSize: 12, marginBottom: 8 }}>
+            告警 {dry.warning?.id} · {dry.warning?.aiType} · {dry.warning?.channelName} · 模式 {dry.reportMode}
+          </div>
+          {!dry.ready && (
+            <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>
+              阻断项：{dry.blockers?.join('、')}
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 6, marginBottom: 10 }}>
+            {(dry.checks || []).map((c: any, i: number) => (
+              <div key={i} style={{ fontSize: 12, color: c.ok ? SUB : RED }}>
+                {c.ok ? '✓' : '✕'} {c.name}{c.detail ? `：${c.detail}` : ''}
+              </div>
+            ))}
+          </div>
+          <pre style={{
+            background: 'rgba(0,10,30,0.7)', border: '1px solid rgba(0,100,180,0.2)',
+            borderRadius: 3, padding: 12, color: '#9ad0f5', fontSize: 11.5,
+            maxHeight: 320, overflow: 'auto', margin: 0,
+          }}>{JSON.stringify(dry.payload, null, 2)}</pre>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ════════════════════════════════════════════════════════════
+//  ① 通道配置
+// ════════════════════════════════════════════════════════════
+function ConfigPanel() {
+  const [cfg, setCfg] = useState<CyzxConfig | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+
+  const load = useCallback(async () => {
+    try { const r = await apiFetch<{ config: CyzxConfig }>('/api/cyzx/config'); setCfg(r.config) }
+    catch (e: any) { alert('加载配置失败: ' + (e?.error || e?.message || e)) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const set = (k: keyof CyzxConfig, v: any) => setCfg(c => c ? { ...c, [k]: v } : c)
+
+  const save = async () => {
+    if (!cfg) return
+    setSaving(true)
+    try {
+      // 安全阀：自检有阻断项时不允许打开总开关（后端也会拦）
+      if (cfg.enabled) {
+        const h = await apiFetch<Health>('/api/cyzx/health')
+        if (h.summary.fail > 0) {
+          alert(`还有 ${h.summary.fail} 项阻断未清零，不能打开总开关：\n` +
+            h.items.filter(i => i.status === 'fail').map(i => '· ' + i.name + '：' + i.detail).join('\n'))
+          setSaving(false); return
+        }
+      }
+      const body: any = { ...cfg }
+      delete body.connectTest; delete body.updatedAt; delete body.updatedBy; delete body._source; delete body.tokenSet
+      const r = await apiFetch<{ config: CyzxConfig }>('/api/cyzx/config', { method: 'PUT', body: JSON.stringify(body) })
+      setCfg(r.config)
+      alert('已保存（配置立刻生效，无需重启服务）')
+    } catch (e: any) { alert('保存失败: ' + (e?.error || e?.message || e)) }
+    finally { setSaving(false) }
+  }
+
+  const test = async () => {
+    setTesting(true)
+    try {
+      const r = await apiFetch<any>('/api/cyzx/test-connect', { method: 'POST', body: JSON.stringify({}) })
+      const res = r.result || {}
+      alert(res.ok
+        ? `连通成功\nHTTP ${res.httpStatus} · ${res.ms}ms\n时间 ${res.at}`
+        : `连通失败\n${res.error || ''}\n耗时 ${res.ms}ms`)
+      load()
+    } catch (e: any) { alert('测试异常: ' + (e?.error || e?.message || e)) }
+    finally { setTesting(false) }
+  }
+
+  if (!cfg) return <div style={{ color: SUB, padding: 40, textAlign: 'center' }}>加载中...</div>
+
+  const ct = cfg.connectTest
+  return (
+    <>
+      <div style={{ ...cardStyle, borderColor: cfg.enabled ? `${RED}55` : undefined }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: cfg.enabled ? RED : SUB, fontSize: 14, fontWeight: 700 }}>
+              {cfg.enabled ? '总开关：已开启（会真实上报）' : '总开关：关闭（零请求）'}
+            </div>
+            <div style={{ color: DIM, fontSize: 12, marginTop: 4 }}>
+              配置来源：{cfg._source || 'db'}{cfg.updatedAt ? ` · 最后修改 ${cfg.updatedAt} by ${cfg.updatedBy}` : ''}
+            </div>
+          </div>
+          <button style={btnStyle(cfg.enabled ? RED : GREEN)} onClick={() => set('enabled', !cfg.enabled)}>
+            {cfg.enabled ? '关闭总开关' : '开启总开关'}
+          </button>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ color: TXT, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>网关与准入</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12 }}>
+          <div><label style={labelStyle}>网关地址 baseUrl</label>
+            <input style={inputStyle} value={cfg.baseUrl} onChange={e => set('baseUrl', e.target.value)} placeholder="城运给，如 https://xxx.gov.cn" /></div>
+          <div><label style={labelStyle}>应用识别码 sourceSystemCode</label>
+            <input style={inputStyle} value={cfg.sourceSystemCode} onChange={e => set('sourceSystemCode', e.target.value)} placeholder="三级平台分配" /></div>
+          <div><label style={labelStyle}>鉴权方式 authMode</label>
+            <select style={inputStyle} value={cfg.authMode} onChange={e => set('authMode', e.target.value)}>
+              <option value="none">none</option><option value="token">token</option><option value="sign">sign</option>
+            </select></div>
+          <div><label style={labelStyle}>令牌 token（只写不读，界面显示掩码）</label>
+            <input style={inputStyle} type="text" value={cfg.token} onChange={e => set('token', e.target.value)} placeholder="不回显明文；不改动请勿填写" /></div>
+          <div><label style={labelStyle}>我方接收地址 callbackUrl（注册给城运）</label>
+            <input style={inputStyle} value={cfg.callbackUrl} onChange={e => set('callbackUrl', e.target.value)} placeholder="城运推事项单/抄告的目标地址" /></div>
+          <div><label style={labelStyle}>全局缺省上报模式 reportModeDefault</label>
+            <select style={inputStyle} value={cfg.reportModeDefault} onChange={e => set('reportModeDefault', e.target.value)}>
+              <option value="eventReport">eventReport（4.1 派单闭环）</option>
+              <option value="selfReport">selfReport（4.7 自闭环）</option>
+            </select></div>
+          <div><label style={labelStyle}>事件单属性 eventNature</label>
+            <select style={inputStyle} value={cfg.eventNature} onChange={e => set('eventNature', e.target.value)}>
+              <option value="1">1 测试单</option><option value="2">2 演练单</option><option value="3">3 正常单</option>
+            </select></div>
+          <div><label style={labelStyle}>坐标系 coordMode</label>
+            <select style={inputStyle} value={cfg.coordMode} onChange={e => set('coordMode', e.target.value)}>
+              <option value="84">84 坐标</option><option value="2000">2000 坐标</option>
+            </select></div>
+          <div><label style={labelStyle}>测试标 isTest</label>
+            <button style={btnStyle(cfg.isTest ? AMBER : DIM)} onClick={() => set('isTest', !cfg.isTest)}>
+              {cfg.isTest ? 'true（测试事件，不会发往正式环境）' : 'false（正式事件）'}
+            </button></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
+          <button style={btnStyle(GREEN)} onClick={save} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
+          <button style={btnStyle(CYAN, true)} onClick={test} disabled={testing}>{testing ? '测试中...' : '连通性测试'}</button>
+          {ct && (
+            <span style={{ fontSize: 12, color: ct.ok ? GREEN : RED }}>
+              上次测试 {ct.at} {ct.ok ? `成功 HTTP ${ct.httpStatus} ${ct.ms}ms` : `失败：${ct.error || ''}`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ color: TXT, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>逐条口径（如渣土车冒装）</div>
+        <div style={{ color: DIM, fontSize: 12, marginBottom: 12 }}>
+          逐条口径不经研判闸门（否则低位点永远攒不到阈值、会静默漏推）。这里单独控制它的开关与上报前门控。
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12 }}>
+          <div><label style={labelStyle}>逐条扫描开关 perRecordEnabled</label>
+            <button style={btnStyle(cfg.perRecordEnabled ? CYAN : DIM)} onClick={() => set('perRecordEnabled', !cfg.perRecordEnabled)}>
+              {cfg.perRecordEnabled ? '已启用' : '未启用'}
+            </button></div>
+          <div><label style={labelStyle}>上报前门控 perRecordGate</label>
+            <select style={inputStyle} value={cfg.perRecordGate} onChange={e => set('perRecordGate', e.target.value)}>
+              <option value="off">off（不门控，全量逐条）</option>
+              <option value="min_confidence">min_confidence（置信度阈值）</option>
+            </select></div>
+          <div><label style={labelStyle}>门控阈值 perRecordGateConf</label>
+            <input style={inputStyle} type="number" step="0.01" min="0" max="1"
+              value={cfg.perRecordGateConf} onChange={e => set('perRecordGateConf', Number(e.target.value))} /></div>
+          <div><label style={labelStyle}>回看窗口 perRecordLookbackH（小时）</label>
+            <input style={inputStyle} type="number" value={cfg.perRecordLookbackH}
+              onChange={e => set('perRecordLookbackH', Number(e.target.value))} /></div>
+          <div><label style={labelStyle}>单次处理上限 perRecordBatch</label>
+            <input style={inputStyle} type="number" value={cfg.perRecordBatch}
+              onChange={e => set('perRecordBatch', Number(e.target.value))} /></div>
+          <div><label style={labelStyle}>扫描周期 perRecordIntervalMs</label>
+            <input style={inputStyle} type="number" value={cfg.perRecordIntervalMs}
+              onChange={e => set('perRecordIntervalMs', Number(e.target.value))} /></div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ════════════════════════════════════════════════════════════
+//  ② 事件类型映射（表格化 · UX 批次 A）
+//  A-1 卡片→表格 ｜ A-2 目录只读/sceneCode条件显示/模式显示实际生效值
+//  A-3 启用改开关 ｜ A-4 筛选+搜索+批量启用 ｜ A-5 行动指引 + 红色只留待办子集
+// ════════════════════════════════════════════════════════════
+
+type RowFilter = 'all' | 'todo' | 'ready' | 'per_record' | 'aggregate'
+
+/** 生效上报模式：继承时用全局缺省（A-2：让用户看得出实际会走 4.1 还是 4.7） */
+function effMode(r: MapRow, globalDefault: string): 'eventReport' | 'selfReport' {
+  const m = (r.report_mode && r.report_mode !== 'inherit') ? r.report_mode : globalDefault
+  return m === 'selfReport' ? 'selfReport' : 'eventReport'
+}
+const MODE_LABEL: Record<string, string> = { eventReport: '4.1 派单', selfReport: '4.7 自闭环' }
+
+function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={on ? '点击停用' : '点击启用'} style={{
+      width: 34, height: 18, borderRadius: 9, padding: 0, cursor: 'pointer', position: 'relative',
+      border: `1px solid ${on ? GREEN : 'rgba(0,150,220,0.3)'}`,
+      background: on ? 'rgba(0,230,118,0.25)' : 'rgba(255,255,255,0.05)',
+    }}>
+      <span style={{
+        position: 'absolute', top: 1.5, left: on ? 17 : 1.5, width: 13, height: 13, borderRadius: '50%',
+        background: on ? GREEN : '#5a8aaa', transition: 'left .15s',
+      }} />
+    </button>
+  )
+}
+
+const TH: React.CSSProperties = {
+  textAlign: 'left', padding: '8px 10px', color: SUB, fontSize: 12, fontWeight: 400,
+  borderBottom: '1px solid rgba(0,80,150,0.3)', whiteSpace: 'nowrap', position: 'sticky', top: 0,
+  background: 'rgba(4,14,32,0.98)', zIndex: 1,
+}
+const TD: React.CSSProperties = { padding: '6px 10px', borderBottom: '1px solid rgba(0,80,150,0.1)', verticalAlign: 'middle' }
+
+function MapPanel() {
+  const [rows, setRows] = useState<MapRow[]>([])
+  const [draft, setDraft] = useState<Record<string, MapRow>>({})
+  const [globalMode, setGlobalMode] = useState('eventReport')
+  const [busy, setBusy] = useState(false)
+  const [paste, setPaste] = useState('')
+  const [showPaste, setShowPaste] = useState(false)
+  const [filter, setFilter] = useState<RowFilter>('all')
+  const [kw, setKw] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [m, c] = await Promise.all([
+        apiFetch<{ items: MapRow[] }>('/api/cyzx/event-type-map'),
+        apiFetch<{ config: { reportModeDefault?: string } }>('/api/cyzx/config')
+          .catch(() => ({ config: {} as { reportModeDefault?: string } })),
+      ])
+      setRows(m.items || [])
+      setDraft({})
+      setGlobalMode(c.config?.reportModeDefault || 'eventReport')
+    } catch (e: any) { alert('加载映射失败: ' + (e?.error || e?.message || e)) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const view = (r: MapRow): MapRow => draft[r.ai_type] || r
+  const patch = (r: MapRow, k: keyof MapRow, v: any) =>
+    setDraft(d => ({ ...d, [r.ai_type]: { ...(d[r.ai_type] || r), [k]: v } }))
+
+  /** A-1/A-3：整表保存（只提交有改动的行） */
+  const saveAll = async () => {
+    const keys = Object.keys(draft)
+    if (!keys.length) return
+    setBusy(true)
+    try {
+      for (const k of keys) {
+        const d = draft[k]
+        await apiFetch('/api/cyzx/event-type-map', {
+          method: 'PUT',
+          body: JSON.stringify({
+            ai_type: d.ai_type, cy_event_type: d.cy_event_type, report_mode: d.report_mode,
+            granularity: d.granularity, scene_code: d.scene_code, enabled: d.enabled,
+            cy_lv1: d.cy_lv1, cy_lv2: d.cy_lv2, cy_lv3: d.cy_lv3, note: d.note,
+          }),
+        })
+      }
+      await load()
+      alert(`已保存 ${keys.length} 行改动`)
+    } catch (e: any) { alert('保存失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }
+
+  /** A-4：批量启用「已就绪」的行（码值非空但未启用） */
+  const enableReady = async () => {
+    const targets = rows.filter(r => !r.enabled && r.cy_event_type && !draft[r.ai_type])
+    if (!targets.length) { alert('没有「已填码值但未启用」的行。\n请先在表格中粘贴/填写城运码值。'); return }
+    if (!confirm(`将启用 ${targets.length} 行（已填码值但未启用）。\n注意：启用后自检通过、且总开关打开时即会上报。继续？`)) return
+    setBusy(true)
+    try {
+      for (const t of targets) await apiFetch('/api/cyzx/event-type-map', {
+        method: 'PUT', body: JSON.stringify({ ai_type: t.ai_type, enabled: true }),
+      })
+      await load(); alert(`已启用 ${targets.length} 行`)
+    } catch (e: any) { alert('批量启用失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }
+
+  const doImport = async () => {
+    setBusy(true)
+    try {
+      const r = await apiFetch<any>('/api/cyzx/event-type-map/bulk', { method: 'POST', body: JSON.stringify({ text: paste }) })
+      const x = r.result || {}
+      alert(`导入完成\n总 ${x.total} 行 · 新增 ${x.created} · 更新 ${x.updated} · 失败 ${x.failed?.length || 0}` +
+        (x.failed?.length ? '\n\n失败明细：\n' + x.failed.slice(0, 10).map((f: any) => f.row + ' → ' + f.error).join('\n') : ''))
+      setPaste(''); setShowPaste(false); load()
+    } catch (e: any) { alert('导入失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }
+
+  const dirtyCount = Object.keys(draft).length
+  const readyCount = rows.filter(r => r.ready).length
+  const unmapped = rows.filter(r => !r.cy_event_type).length
+  const filledNotEnabled = rows.filter(r => r.cy_event_type && !r.enabled).length
+
+  const filtered = rows.filter(r => {
+    const d = view(r)
+    if (kw && !String(d.ai_type).toLowerCase().includes(kw.toLowerCase()) &&
+        ![d.cy_lv1, d.cy_lv2, d.cy_lv3, d.cy_event_type].join('/').toLowerCase().includes(kw.toLowerCase())) return false
+    if (filter === 'todo') return !(d.enabled && d.cy_event_type)
+    if (filter === 'ready') return !!(d.enabled && d.cy_event_type)
+    if (filter === 'per_record') return d.granularity === 'per_record'
+    if (filter === 'aggregate') return d.granularity === 'aggregate'
+    return true
+  })
+
+  const FILTERS: { k: RowFilter; label: string; n: number }[] = [
+    { k: 'all', label: '全部', n: rows.length },
+    { k: 'todo', label: '未就绪', n: rows.filter(r => !(view(r).enabled && view(r).cy_event_type)).length },
+    { k: 'ready', label: '已就绪', n: readyCount },
+    { k: 'per_record', label: '逐条', n: rows.filter(r => r.granularity === 'per_record').length },
+    { k: 'aggregate', label: '聚合', n: rows.filter(r => r.granularity === 'aggregate').length },
+  ]
+
+  return (
+    <>
+      {/* ── 操作条 + 摘要 + 行动指引（A-5）── */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, lineHeight: 1.7 }}>
+            <span style={{ color: GREEN, fontWeight: 600 }}>可上报 {readyCount}</span>
+            <span style={{ color: DIM }}> / 共 {rows.length} 行 · </span>
+            <span style={{ color: unmapped ? AMBER : DIM }}>未填码值 {unmapped}</span>
+            {filledNotEnabled > 0 && <span style={{ color: AMBER }}> · 已填未启用 {filledNotEnabled}</span>}
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {dirtyCount > 0 && (
+              <button style={btnStyle(CYAN)} onClick={saveAll} disabled={busy}>
+                <Save size={12} style={{ verticalAlign: 'middle' }} /> 保存改动（{dirtyCount}）
+              </button>
+            )}
+            <button style={btnStyle(GREEN, filledNotEnabled === 0)} onClick={enableReady} disabled={busy || filledNotEnabled === 0}>
+              <CheckCheck size={12} style={{ verticalAlign: 'middle' }} /> 批量启用已就绪{filledNotEnabled ? `（${filledNotEnabled}）` : ''}
+            </button>
+            <button style={btnStyle(PURPLE)} onClick={() => setShowPaste(v => !v)}>批量粘贴导入</button>
+          </div>
+        </div>
+
+        {unmapped > 0 && (
+          <div style={{ marginTop: 8, color: AMBER, fontSize: 12 }}>
+            下一步：把城运给的码表粘进「批量粘贴导入」→ 点「批量启用已就绪」→ 回「配置自检」确认阻断清零。
+          </div>
+        )}
+
+        {showPaste && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ color: SUB, fontSize: 12, marginBottom: 6 }}>
+              列顺序：<code style={{ color: CYAN }}>我方类型,算法key,一级,二级,三级,码值,报告模式,口径,场景码,启用,备注</code>
+              （带表头自动跳过；支持从 Excel 直接粘贴）
+            </div>
+            <textarea style={{ ...inputStyle, minHeight: 140, fontFamily: 'monospace' }}
+              value={paste} onChange={e => setPaste(e.target.value)}
+              placeholder={'我方类型,算法key,一级,二级,三级,码值,报告模式,口径,场景码,启用,备注\n渣土车冒装,cover_det,城市管理,渣土运输,渣土车冒装,ac-011501,eventReport,per_record,,1,'} />
+            <div style={{ marginTop: 8 }}>
+              <button style={btnStyle(GREEN)} onClick={doImport} disabled={busy || !paste.trim()}>
+                {busy ? '导入中...' : '确认导入'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 筛选 + 搜索（A-4）── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        {FILTERS.map(f => (
+          <button key={f.k} onClick={() => setFilter(f.k)} style={btnStyle(filter === f.k ? CYAN : DIM, filter !== f.k)}>
+            {f.label} {f.n}
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+          <Search size={13} color={DIM} style={{ position: 'absolute', left: 8, top: 8 }} />
+          <input style={{ ...inputStyle, width: 220, paddingLeft: 26 }} value={kw}
+            onChange={e => setKw(e.target.value)} placeholder="搜索类型 / 目录 / 码值" />
+        </div>
+      </div>
+
+      {/* ── 表格（A-1/A-2/A-3）── */}
+      <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 400px)', border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              <th style={{ ...TH, width: 150 }}>我方类型</th>
+              <th style={{ ...TH, width: 150 }}>城运 eventType 码值 *</th>
+              <th style={{ ...TH, width: 210 }}>三级目录（只读）</th>
+              <th style={{ ...TH, width: 145 }}>上报模式（实际生效）</th>
+              <th style={{ ...TH, width: 105 }}>上报口径</th>
+              <th style={{ ...TH, width: 130 }}>sceneCode</th>
+              <th style={{ ...TH, width: 66 }}>启用</th>
+              <th style={{ ...TH, width: 84 }}>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(r => {
+              const d = view(r)
+              const em = effMode(d, globalMode)
+              const dirty = !!draft[r.ai_type]
+              const ready = !!(d.enabled && d.cy_event_type)
+              // A-5：红色只留给「该处理却还没处理」的子集 = 已填码值但未启用
+              const todoRed = !!d.cy_event_type && !d.enabled
+              return (
+                <tr key={r.ai_type} style={{
+                  background: todoRed ? 'rgba(255,68,68,0.06)' : (dirty ? 'rgba(0,170,255,0.05)' : 'transparent'),
+                  borderLeft: todoRed ? `2px solid ${RED}` : (dirty ? `2px solid ${CYAN}` : '2px solid transparent'),
+                }}>
+                  <td style={TD}>
+                    <div style={{ color: TXT, fontSize: 13 }}>{r.ai_type}</div>
+                    <div style={{ color: DIM, fontSize: 10.5 }}>
+                      {r.source_key ? `key=${r.source_key}` : ''}{dirty ? ' · 未保存' : ''}
+                    </div>
+                  </td>
+                  <td style={TD}>
+                    <input style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }} value={d.cy_event_type}
+                      onChange={e => patch(r, 'cy_event_type', e.target.value)} placeholder="城运码表给" />
+                  </td>
+                  <td style={{ ...TD, color: DIM }}>{[d.cy_lv1, d.cy_lv2, d.cy_lv3].filter(Boolean).join(' / ') || '—'}</td>
+                  <td style={TD}>
+                    <select style={{ ...inputStyle, padding: '4px 6px', fontSize: 12 }} value={d.report_mode}
+                      onChange={e => patch(r, 'report_mode', e.target.value)}>
+                      <option value="inherit">继承全局</option>
+                      <option value="eventReport">4.1 派单</option>
+                      <option value="selfReport">4.7 自闭环</option>
+                    </select>
+                    <div style={{ color: em === 'selfReport' ? AMBER : DIM, fontSize: 10.5, marginTop: 2 }}>
+                      生效：{MODE_LABEL[em]}{d.report_mode === 'inherit' ? '（继承）' : ''}
+                    </div>
+                  </td>
+                  <td style={TD}>
+                    <select style={{ ...inputStyle, padding: '4px 6px', fontSize: 12 }} value={d.granularity}
+                      onChange={e => patch(r, 'granularity', e.target.value)}>
+                      <option value="aggregate">聚合事件</option>
+                      <option value="per_record">逐条直出</option>
+                    </select>
+                  </td>
+                  <td style={TD}>
+                    {em === 'selfReport' ? (
+                      <input style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }} value={d.scene_code}
+                        onChange={e => patch(r, 'scene_code', e.target.value)} placeholder="YABM 开头" />
+                    ) : <span style={{ color: DIM }}>—</span>}
+                  </td>
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    <Switch on={!!d.enabled} onClick={() => patch(r, 'enabled', !d.enabled)} />
+                  </td>
+                  <td style={TD}>
+                    <span style={badge(ready ? GREEN : (todoRed ? RED : DIM))}>{ready ? '可上报' : '不可上报'}</span>
+                  </td>
+                </tr>
+              )
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: 30, textAlign: 'center', color: DIM }}>没有匹配的行</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ color: DIM, fontSize: 11, marginTop: 8, lineHeight: 1.7 }}>
+        码值只能来自城运官方码表——本界面不提供"猜码值"。<b>启用 = 开</b> 且 <b>码值非空</b> 才算「可上报」。
+        红色行 = 已填码值但未启用（待处理）；蓝色左边 = 有未保存改动。
+      </div>
+    </>
+  )
+}
+// ════════════════════════════════════════════════════════════
+//  ③ 码表（B-3：导入后给前 10 行预览，避免"导了不知道对不对"）
+// ════════════════════════════════════════════════════════════
+function CodesPanel() {
+  const [areaText, setAreaText] = useState('')
+  const [orgText, setOrgText] = useState('')
+  const [areaCnt, setAreaCnt] = useState(0)
+  const [orgCnt, setOrgCnt] = useState(0)
+  const [areaPrev, setAreaPrev] = useState<Record<string, string>[]>([])
+  const [orgPrev, setOrgPrev] = useState<Record<string, string>[]>([])
+
+  const refresh = useCallback(async () => {
+    try {
+      const h = await apiFetch<Health>('/api/cyzx/health')
+      const num = (s?: string) => { const m = (s || '').match(/\d+/); return m ? Number(m[0]) : 0 }
+      setAreaCnt(num(h.items.find(i => i.id === 'areaCode')?.detail))
+      setOrgCnt(num(h.items.find(i => i.id === 'orgCode')?.detail))
+    } catch { /* 忽略 */ }
+  }, [])
+  const loadPrev = useCallback(async () => {
+    try {
+      const [a, o] = await Promise.all([
+        apiFetch<{ items: Record<string, string>[] }>('/api/cyzx/areas?limit=10'),
+        apiFetch<{ items: Record<string, string>[] }>('/api/cyzx/orgs?limit=10'),
+      ])
+      setAreaPrev(a.items || []); setOrgPrev(o.items || [])
+    } catch { /* 忽略 */ }
+  }, [])
+  useEffect(() => { refresh(); loadPrev() }, [refresh, loadPrev])
+
+  const imp = async (kind: 'areas' | 'orgs', text: string) => {
+    if (!text.trim()) return
+    try {
+      const r = await apiFetch<any>(`/api/cyzx/${kind}`, { method: 'POST', body: JSON.stringify({ text }) })
+      kind === 'areas' ? setAreaText('') : setOrgText('')
+      await Promise.all([refresh(), loadPrev()])
+      const p = await apiFetch<{ items: Record<string, string>[] }>(`/api/cyzx/${kind}?limit=10`)
+      const rows = (p.items || []).map(o => Object.values(o).slice(0, 4).join(' · ')).slice(0, 5).join('\n')
+      alert(`导入完成：本次 ${r.imported} 条，累计 ${r.total} 条\n\n库中前 5 行：\n${rows || '(空)'}`)
+    } catch (e: any) { alert('导入失败: ' + (e?.error || e?.message || e)) }
+  }
+
+  const prevTable = (rows: Record<string, string>[], cols: string[], labels: string[]) => (
+    rows.length === 0 ? (
+      <div style={{ color: DIM, fontSize: 12, marginTop: 8 }}>（库中暂无数据）</div>
+    ) : (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 8 }}>
+        <thead><tr>{labels.map(l => <th key={l} style={{ ...TH, width: 'auto' }}>{l}</th>)}</tr></thead>
+        <tbody>
+          {rows.slice(0, 10).map((r, i) => (
+            <tr key={i}>{cols.map(c => <td key={c} style={{ ...TD, color: TXT }}>{r[c] || '—'}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  )
+
+  return (
+    <>
+      <div style={{ color: DIM, fontSize: 12, marginBottom: 12, lineHeight: 1.7 }}>
+        码表用于把「我方点位地址」解析成城运要求的 <code style={{ color: CYAN }}>belongCounty / belongStreet</code>
+        （县与街道必须上下级匹配，不匹配会被城运拒单）。拿到城运码表文件后直接粘贴导入即可。
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>行政区划码表</span>
+          <span style={{ color: SUB, fontSize: 12 }}>已导入 <b style={{ color: areaCnt ? GREEN : DIM }}>{areaCnt}</b> 条</span>
+        </div>
+        <div style={{ color: SUB, fontSize: 12, marginBottom: 6 }}>
+          列顺序：<code style={{ color: CYAN }}>区划码,名称,级别(county|street|community|grid),父码</code>
+        </div>
+        <textarea style={{ ...inputStyle, minHeight: 110, fontFamily: 'monospace' }}
+          value={areaText} onChange={e => setAreaText(e.target.value)}
+          placeholder={'区划码,名称,级别,父码\n500101,万州区,county,500000\n500101001,九龙街道,street,500101'} />
+        <div style={{ marginTop: 8 }}>
+          <button style={btnStyle(GREEN)} onClick={() => imp('areas', areaText)} disabled={!areaText.trim()}>导入区划码表</button>
+        </div>
+        {prevTable(areaPrev, ['code', 'name', 'level', 'parent_code'], ['区划码', '名称', '级别', '父码'])}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>渝快政组织机构码表</span>
+          <span style={{ color: SUB, fontSize: 12 }}>已导入 <b style={{ color: orgCnt ? GREEN : DIM }}>{orgCnt}</b> 条</span>
+        </div>
+        <div style={{ color: SUB, fontSize: 12, marginBottom: 6 }}>
+          列顺序：<code style={{ color: CYAN }}>orgId,名称,类型</code>（用于 suggestDealUnit / copyToUnit / taskDeptId）
+        </div>
+        <textarea style={{ ...inputStyle, minHeight: 100, fontFamily: 'monospace' }}
+          value={orgText} onChange={e => setOrgText(e.target.value)}
+          placeholder={'orgId,名称,类型\nGO_xxxxx,万州区城市管理局,dept'} />
+        <div style={{ marginTop: 8 }}>
+          <button style={btnStyle(GREEN)} onClick={() => imp('orgs', orgText)} disabled={!orgText.trim()}>导入组织码表</button>
+        </div>
+        {prevTable(orgPrev, ['org_id', 'name', 'type'], ['orgId', '名称', '类型'])}
+      </div>
+    </>
+  )
+}
+
+// ════════════════════════════════════════════════════════════
+//  ④ 上报记录 + 对账（B-1：客户端筛选 + 只看问题 + 分页）
+// ════════════════════════════════════════════════════════════
+const PAGE_SIZE = 50
+
+type Sf = 'all' | 'pending' | 'sent' | 'failed' | 'skipped' | 'problem'
+const SF_LABEL: { k: Sf; label: string }[] = [
+  { k: 'all', label: '全部' }, { k: 'pending', label: '待上报' }, { k: 'sent', label: '已上报' },
+  { k: 'failed', label: '失败' }, { k: 'skipped', label: '被跳过' }, { k: 'problem', label: '只看问题' },
+]
+
+function ReportsPanel() {
+  const [items, setItems] = useState<ReportRow[]>([])
+  const [stats, setStats] = useState<Record<string, number>>({})
+  const [rec, setRec] = useState<Reconcile | null>(null)
+  const [sf, setSf] = useState<Sf>('all')
+  const [page, setPage] = useState(1)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const r = await apiFetch<{ items: ReportRow[]; stats: Record<string, number> }>('/api/cyzx/reports?limit=500')
+      setItems(r.items || []); setStats(r.stats || {})
+      setRec(await apiFetch<Reconcile>('/api/cyzx/reconcile?hours=24'))
+    } catch (e: any) { alert('加载记录失败: ' + (e?.error || e?.message || e)) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const scanNow = async () => {
+    setBusy(true)
+    try {
+      const r = await apiFetch<any>('/api/cyzx/scan-now', { method: 'POST', body: JSON.stringify({}) })
+      alert('已触发一次逐条扫描\n' + JSON.stringify(r.result || r))
+      load()
+    } catch (e: any) { alert('触发失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }
+
+  const filtered = items.filter(it => {
+    if (sf === 'all') return true
+    if (sf === 'problem') return it.state === 'failed' || it.state === 'skipped'
+    return it.state === sf
+  })
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const cur = Math.min(page, pages)
+  const view = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
+
+  return (
+    <>
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 18, fontSize: 12 }}>
+            {(['pending', 'sent', 'failed', 'skipped'] as const).map(k => (
+              <span key={k} style={{ color: STATE_COLOR[k], cursor: 'pointer' }}
+                onClick={() => { setSf(k); setPage(1) }}>
+                {({ pending: '待上报', sent: '已上报', failed: '失败', skipped: '被跳过' })[k]} {stats[k] || 0}
+              </span>
+            ))}
+          </div>
+          <button style={btnStyle(CYAN, true)} onClick={scanNow} disabled={busy}>
+            {busy ? '执行中...' : '立即扫描一次'}
+          </button>
+        </div>
+        {rec && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(0,80,150,0.15)', fontSize: 12, lineHeight: 1.8 }}>
+            <span style={{ color: TXT }}>近 {rec.windowHours}h 对账：</span>
+            <span style={{ color: SUB }}>应推 {rec.should} · 已推 {rec.sent} · </span>
+            <span style={{ color: rec.gap > 0 ? RED : GREEN }}>缺口 {rec.gap}</span>
+            <span style={{ color: SUB }}> · 待映射/缺场景码被跳过 {rec.skippedByConfig}</span>
+            <div style={{ color: DIM, marginTop: 4 }}>{rec.note}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        {SF_LABEL.map(f => (
+          <button key={f.k} style={btnStyle(sf === f.k ? (f.k === 'problem' ? RED : CYAN) : DIM, sf !== f.k)}
+            onClick={() => { setSf(f.k); setPage(1) }}>{f.label}</button>
+        ))}
+        <span style={{ marginLeft: 'auto', color: DIM, fontSize: 12 }}>
+          共 {filtered.length} 条{filtered.length > PAGE_SIZE ? ` · 第 ${cur}/${pages} 页` : ''}
+        </span>
+      </div>
+
+      <div style={{ overflowX: 'auto', border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              {['幂等键 event_num', '我方类型', '城运码值', '模式 / 口径', '状态', '原因', '时间'].map(h => (
+                <th key={h} style={TH}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {view.map(it => (
+              <tr key={it.id} style={{ borderLeft: it.state === 'failed' ? `2px solid ${RED}` : '2px solid transparent' }}>
+                <td style={{ ...TD, color: SUB, fontFamily: 'monospace' }}>{it.event_num}</td>
+                <td style={{ ...TD, color: TXT }}>{it.ai_type}</td>
+                <td style={{ ...TD, color: CYAN }}>{it.cy_event_type || '—'}</td>
+                <td style={{ ...TD, color: SUB }}>{it.report_mode} / {it.granularity}</td>
+                <td style={TD}><span style={badge(STATE_COLOR[it.state] || DIM)}>{it.state}</span></td>
+                <td style={{ ...TD, color: DIM, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={it.skip_reason}>{it.skip_reason || '—'}</td>
+                <td style={{ ...TD, color: SUB, whiteSpace: 'nowrap' }}>{it.created_at}</td>
+              </tr>
+            ))}
+            {view.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 30, textAlign: 'center', color: DIM }}>
+                {sf === 'all' ? '暂无上报记录' : '该筛选下没有记录'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {pages > 1 && (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 12 }}>
+          <button style={btnStyle(cur > 1 ? CYAN : DIM, cur <= 1)} disabled={cur <= 1} onClick={() => setPage(cur - 1)}>上一页</button>
+          <span style={{ color: SUB, fontSize: 12 }}>{cur} / {pages}</span>
+          <button style={btnStyle(cur < pages ? CYAN : DIM, cur >= pages)} disabled={cur >= pages} onClick={() => setPage(cur + 1)}>下一页</button>
+        </div>
+      )}
+    </>
+  )
+}

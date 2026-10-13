@@ -66,7 +66,10 @@ export const STREAM_CATEGORIES: StreamCategory[] = ['气环境', '水环境']
 // ────────────────────────────────────────────────────────────
 
 // AI 分析类型默认枚举（兜底，与后端 warnings.data_json.aiType 精确相等，Y2 方案）
+// 🆕 2026-10-10：首项加入「渣土车冒装」（后端 ai_types.source_key=cover_det，网关 SSOT 口径名），
+//   与「堆头未覆盖」（stockpile_cover）分族；该枚举仅离线兜底，在线以 /api/ai-types 为准。
 export const AI_ANALYSIS_TYPES = [
+  '渣土车冒装',
   '堆头未覆盖', '道路扬尘', '秸秆燃烧', '违规排污',
   '固废与危废违规倾倒', '固废运输违规', '侵占岸线与水面漂浮物',
 ] as const
@@ -82,6 +85,17 @@ export interface PushRule {
   threshold: number             // 窗口内命中阈值（条）
   enabled: boolean
   channelName?: string          // 展示用映射名（前端按 channelSipId 解析）
+  // P1-1 / P1-2（2026-09-19）研判维度补全 + 动作
+  minConfidence?: number        // 最低置信度（百分比 0-100，0=不限）
+  minLevel?: number             // 最低告警等级 1-4（0=不限）
+  minPlateConfidence?: number   // 2026-10-11 新增：最低车牌置信度（%，0=不限；>0 要求已识别到车牌）
+  activeHours?: string          // 生效时段（上海时），如 '8-18' / '20-6'；空=全天
+  action?: 'admit_front' | 'front_and_push' | 'archive_only'   // 进前台 / 进前台+推城运 / 仅存档
+  // 🆕 S1（2026-10-12，REF §H35.14）：为「算法过滤收口」预留的 3 个**可空**字段
+  //   🔴 NULL＝未设置＝**现行为**；本步（S1）只做"能读能写能显示"，**判定路径未接线** ⇒ 零行为变化
+  recordMinConfidence?: number | null  // S2 用：单条展示门槛（% 0-100；NULL＝不做单条门槛）
+  exempt?: number | null               // S3 用：作业区豁免（1＝豁免；0/NULL＝不豁免）
+  reportEnabled?: number | null        // S4 用：上报开关（NULL＝跟随②送达规则；1＝强制上报；0＝不上报）
 }
 
 // 告警列表中的聚合告警（命中规则后由后端折叠为 1 条）
@@ -268,6 +282,10 @@ const DEFAULT_ALERT_FORMAT: AlertFormatConfig = {
     'straw_burning': '秸秆燃烧',
     'road_dust': '道路扬尘',
     'uncovered_stockpile': '堆头未覆盖',
+    // 🆕 2026-10-10 渣土车冒装：网关 source_key / 平台历史键 / 告警层别名（统一口径名）
+    'cover_det': '渣土车冒装',
+    'unsoilcover': '渣土车冒装',
+    'spill': '渣土车冒装',
   },
   samplePayload: JSON.stringify({
     alarm_type: "PM2.5超标",
@@ -390,7 +408,7 @@ const AVAIL_GRACE_MS = 5 * 60 * 1000
  * 为什么抽成一处：统计条 5 项都要这套语义，禁止各写一份——否则会出现
  * 「无人机显示 —、摄像头显示 0」这种同页面不一致。
  *
- * ⚠️ 返回 `[available, mark]` 而不是对象：`mark` 是 useCallback 稳定引用，
+ * ⚠ 返回 `[available, mark]` 而不是对象：`mark` 是 useCallback 稳定引用，
  *   可直接当 useEffect 依赖（effect 只在挂载时跑一次）。
  *   早期版本返回 `{ available, markOk, markFail }` 新对象 → 依赖每渲染都变
  *   → 定时器被反复重建 + 每次渲染都发请求（请求风暴），且降级判定被拖慢。**勿回退。**
@@ -598,6 +616,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         base.imageUrl = evidenceImgUrl(w.picUrl) || undefined
         base.aiType = w.aiType
         base.aiConfidence = w.aiConfidence
+        // 🔴 2026-09-26：车牌（「渣土车冒装/帽盖」判罚证据必备字段）。
+        //    来源 = 11 机 alarm-processor 写在 analyseInfo 的 plate → iot-fetcher 解析入库。
+        //    取不到时不写该字段 → AlertPanel 对冒装类告警显示「车牌未获取」。
+        if (w.licensePlate) base.licensePlate = w.licensePlate
+        if (typeof w.plateConfidence === 'number') base.plateConfidence = w.plateConfidence
         if (!base.type.startsWith('AI视频')) base.type = `AI视频分析 · ${w.aiType || '未知'}`
       }
       return base

@@ -111,11 +111,18 @@ function cleanup(proc) {
   try { fs.rmSync(userDataDir, { recursive: true, force: true }) } catch {}
 }
 
+// ⚠️ 必须禁代理：本机环境里有 HTTP_PROXY/HTTPS_PROXY（沙箱网关 http://127.0.0.1:58221），
+//    Edge 会继承 ⇒ 页面内 fetch('/api/...') 被送进代理后失败，报 "TypeError: Failed to fetch"，
+//    而同一时刻 curl 直连隧道却是 200 —— 极易误判成服务端问题（2026-10-13 实际踩到）。
+const childEnv = { ...process.env }
+for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']) delete childEnv[k]
+childEnv.NO_PROXY = '127.0.0.1,localhost'
 const edgeProc = spawn(EDGE, [
   '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
   '--hide-scrollbars', '--window-size=1600,2000',
+  '--no-proxy-server',                       // 关键：绕开系统/环境代理直连隧道
   `--remote-debugging-port=${PORT}`, `--user-data-dir=${userDataDir}`, 'about:blank',
-], { stdio: 'ignore' })
+], { stdio: 'ignore', env: childEnv })
 
 let cdp = null
 const report = []

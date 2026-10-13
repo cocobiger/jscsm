@@ -5,6 +5,7 @@ import { fetchMe, roleAtLeast } from '../lib/auth'
 import { EvidenceGrid } from './EvidenceGrid'
 import { reviewBadgeOf, reviewBadgeStyle } from './warningReview'
 import { StrawLiveModal } from './StrawLiveModal'
+import { XCircle } from 'lucide-react'
 
 interface MemberWarning {
   id: string
@@ -328,7 +329,7 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
                     background: (!canDispose || handling) ? '#3a5a70' : 'linear-gradient(90deg, #0e8f4a, #1fb96a)',
                     boxShadow: canDispose ? '0 2px 8px rgba(31,185,106,0.3)' : 'none',
                   }}
-                >✅ 有效 · 转处置</button>
+                >✓ 有效 · 转处置</button>
                 <button
                   type="button"
                   disabled={!canDispose || handling}
@@ -339,7 +340,7 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
                     background: 'rgba(255,170,60,0.12)', color: '#ffb74d',
                     opacity: canDispose ? 1 : 0.5,
                   }}
-                >❌ 误报 · 标记</button>
+                >✕ 误报 · 标记</button>
                 {!canDispose && <span style={{ color: '#5a8aaa', fontSize: 11 }}>当前账号无处置权限（需 operator）</span>}
               </>
             )}
@@ -354,7 +355,7 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
 
         {/* 底部说明 */}
         <div style={{ padding: '8px 20px', borderTop: '1px solid rgba(0,80,150,0.15)', color: '#3a5a70', fontSize: 11 }}>
-          以上为「{alert.ruleName || '推送规则'}」在 {alert.windowHours || 24}h 内命中的全部原始记录，作为本次聚合告警的研判依据。处置操作在驾驶舱内完成，无需跳转外部系统。
+          以上为「{alert.ruleName || '研判规则'}」在 {alert.windowHours || 24}h 内命中的全部原始记录，作为本次聚合告警的研判依据。处置操作在驾驶舱内完成，无需跳转外部系统。
         </div>
       </div>
 
@@ -365,7 +366,7 @@ export function AlertEvidenceModal({ alert, onClose }: Props) {
           style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: 420, maxWidth: '90vw', background: 'linear-gradient(180deg,#1a1428,#0d0a18)', border: '1px solid rgba(255,170,60,0.5)', borderRadius: 8, padding: '18px 20px 14px', boxShadow: '0 0 30px rgba(255,170,60,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 16 }}>❌</span>
+              <XCircle size={16} color="#ff4444" style={{ verticalAlign: 'middle' }} />
               <span style={{ color: '#ffb74d', fontSize: 14, fontWeight: 700 }}>误报归因</span>
               <span style={{ color: '#5a8aaa', fontSize: 11, marginLeft: 'auto' }}>{alert.memberIds?.length || 0} 条将标记误报</span>
             </div>

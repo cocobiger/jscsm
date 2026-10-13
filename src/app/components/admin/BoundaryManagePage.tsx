@@ -9,6 +9,12 @@ const GREEN = '#4ade80'
 const RED = '#ff4444'
 const AMBER = '#ffb74d'
 
+// [2026-10-07 离线化] 底图改走内网自托管瓦片（与 mapAdapter/leaflet.ts 同一套 .env 约定）。
+//   原写法硬编码 https://{s}.tile.openstreetmap.org/... → 断外网整张图空白。
+//   现在默认 /tiles/vec_w/{z}/{x}/{y}.png（由 nginx → 12345 的天地图缓存直供，命中缓存零外网）。
+const TILE_VEC_URL =
+  (import.meta.env.VITE_TILE_VEC_URL as string) || '/tiles/vec_w/{z}/{x}/{y}.png'
+
 const card: React.CSSProperties = {
   background: 'rgba(4,14,35,0.7)',
   border: '1px solid rgba(0,80,150,0.25)',
@@ -318,7 +324,9 @@ function BoundaryMapEditor({ onChanged }: { onChanged: () => void }) {
         if (cancelled || !mapRef.current) return
         const L = (window as any).L
         const map = L.map(mapRef.current, { center: [30.80, 108.40], zoom: 11 })
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map)
+        // [2026-10-07] maxZoom 由 18 收到 17：天地图 WMTS 的 z18 上游返回 418（不提供该层），
+        //   内网缓存也只到 z17 → 留 18 会在最深层永远留白。主地图 mapAdapter 同样是 16 级封顶。
+        L.tileLayer(TILE_VEC_URL, { maxZoom: 17 }).addTo(map)
         mapIns.current = map
         const res = await authFetch('/api/straw/boundary/export')
         const geo = await res.json()

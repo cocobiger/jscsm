@@ -479,7 +479,12 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
   ]
 
   return (
-    <div className="relative w-full h-full" style={{ background: '#040d1e', isolation: 'isolate' }}>
+    <div className="relative w-full h-full" style={{ background: '#040d1e' }}>
+      {/* 🔴 P0（2026-10-12）：地图本体**单独**隔离 —— 挡住 Leaflet 内部 z-index（实测最高 1474）向外外溢，
+          同时让下方的 <VideoPlayerModal> 待在隔离层**之外** ⇒ 它的 z-index:2000 才能与驾驶舱同级竞争。
+          原先把 isolation 放在根容器上，会把弹窗一起"关"在地图子树内 ⇒ 被左右侧栏盖住（REF §H35.22）。
+          ⚠️ 不要把这个 wrapper 去掉，也不要把它套到 VideoPlayerModal 外面。 */}
+      <div style={{ position: 'absolute', inset: 0, isolation: 'isolate' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Loading */}
@@ -600,6 +605,8 @@ export function MapView({ activeTab, selectedAlert, scene = 'none', timeline = n
           )}
         </div>
       )}
+
+      </div>{/* ← 地图隔离层结束（弹窗必须在其**外**，否则会被侧栏盖住） */}
 
       {/* 双击视频图标 → 推流播放 */}
       {playStream && (

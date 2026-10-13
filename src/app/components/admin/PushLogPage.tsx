@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
 import { roleAtLeast, type CurrentUser } from '../../lib/auth'
+import { fmtShanghai } from '../../lib/time'
 
 // ── 秸秆微信推送记录（P3 T19）──
 // 数据源 = 告警 data_json.wechatPush（strawWorkflow/strawCorrection 回写），90 天窗口只读
@@ -38,7 +39,7 @@ interface PushLogRow {
 const STATE_META: Record<PushLogRow['state'], { label: string; color: string }> = {
   pushed: { label: '✓ 已推送', color: GREEN },
   held: { label: '⏸ 待复核', color: AMBER },
-  failed: { label: '✗ 推送失败', color: RED },
+  failed: { label: '✕ 推送失败', color: RED },
   none: { label: '· 未推送', color: GREY },
 }
 
@@ -67,7 +68,7 @@ export function PushLogPage({ user }: Props) {
   const PAGE_SIZE = 20
   const isAdmin = roleAtLeast(user.role, 'admin')
 
-  const flash = (m: string, ok = true) => { setToast((ok ? '✅ ' : '❌ ') + m); setTimeout(() => setToast(''), 3500) }
+  const flash = (m: string, ok = true) => { setToast((ok ? '✓ ' : '✕ ') + m); setTimeout(() => setToast(''), 3500) }
 
   const load = useCallback((pg = page) => {
     setLoading(true)
@@ -174,7 +175,7 @@ export function PushLogPage({ user }: Props) {
               padding: '6px 12px', borderBottom: '1px solid rgba(0,80,150,0.12)',
               alignItems: 'center', fontSize: 12, gap: 4,
             }}>
-              <span style={{ color: '#7ab8e0', fontFamily: "'JetBrains Mono', monospace" }}>{row.createdAt ? row.createdAt.slice(5) : '—'}</span>
+              <span style={{ color: '#7ab8e0', fontFamily: "'JetBrains Mono', monospace" }}>{row.createdAt ? fmtShanghai(row.createdAt, 'short') : '—'}</span>
               <span style={{ color: '#c8e6ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.label}>{row.label || row.aiType || '—'}</span>
               <span style={{ color: '#7ab8e0' }}>{row.town || '—'}</span>
               <span style={{ color: row.unit ? '#c8e6ff' : '#3a5a70' }}>{row.unit || '未配置'}</span>
@@ -192,7 +193,7 @@ export function PushLogPage({ user }: Props) {
               <span style={{ fontSize: 11 }}>
                 {row.correctedAt ? (
                   <span style={{ color: row.correctionOk ? GREEN : RED }}>
-                    {row.correctionOk ? '✓ 更正成功' : '✗ 更正失败'}
+                    {row.correctionOk ? '✓ 更正成功' : '✕ 更正失败'}
                     <span style={{ color: '#3a5a70' }}> {row.correctedBy || ''}</span>
                   </span>
                 ) : <span style={{ color: '#2a4a60' }}>—</span>}

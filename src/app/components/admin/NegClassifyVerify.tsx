@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 import { CheckCircle2, XCircle, HelpCircle, ChevronLeft, ChevronRight, Download, RotateCcw, ScanEye } from 'lucide-react'
 
 // ── 负样本抽检标注（P3-2a）──
@@ -28,8 +29,8 @@ const CATS = ['pole', 'concrete', 'cloud', 'building', 'reflection', 'none', 'ot
 const FIX_CATS = CATS.filter(c => c !== 'none')
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  ok: { label: '✅ 正确', color: GREEN, bg: 'rgba(74,222,128,0.12)' },
-  no: { label: '❌ 错误', color: RED, bg: 'rgba(255,68,68,0.12)' },
+  ok: { label: '✓ 正确', color: GREEN, bg: 'rgba(74,222,128,0.12)' },
+  no: { label: '✕ 错误', color: RED, bg: 'rgba(255,68,68,0.12)' },
   dn: { label: '❓ 不确定', color: AMBER, bg: 'rgba(255,183,77,0.12)' },
 }
 
@@ -129,7 +130,7 @@ export function NegClassifyVerify() {
       })
       const d = await r.json()
       if (!d.ok) throw new Error(d.error || '提交失败')
-      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review, reviewer: d.reviewer || '', reviewedAt: new Date().toLocaleString('zh-CN'), labelFix } : f))
+      setFrames(list => list.map(f => f.fp === cur.fp ? { ...f, review, reviewer: d.reviewer || '', reviewedAt: fmtShanghai(Date.now()), labelFix } : f))
       // 同步本地统计
       setStats(s => {
         const by = { ...s.byStatus }
@@ -211,8 +212,8 @@ export function NegClassifyVerify() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
         {statCard('总帧数', stats.total, '#c8e6ff')}
         {statCard('已审', stats.reviewed, CYAN)}
-        {statCard('✅ 正确', stats.byStatus.ok || 0, GREEN)}
-        {statCard('❌ 错误', stats.byStatus.no || 0, RED)}
+        {statCard('✓ 正确', stats.byStatus.ok || 0, GREEN)}
+        {statCard('✕ 错误', stats.byStatus.no || 0, RED)}
         {statCard('❓ 不确定', stats.byStatus.dn || 0, AMBER)}
         {statCard('待审', stats.byStatus.pending || 0, PURPLE)}
       </div>
@@ -222,8 +223,8 @@ export function NegClassifyVerify() {
         <span style={{ fontSize: 12, color: '#5a8aaa' }}>筛选：</span>
         {filterBtn('pending', '待审')}
         {filterBtn('all', '全部')}
-        {filterBtn('ok', '✅ 正确')}
-        {filterBtn('no', '❌ 错误')}
+        {filterBtn('ok', '✓ 正确')}
+        {filterBtn('no', '✕ 错误')}
         {filterBtn('dn', '❓ 不确定')}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: '#3a5a70' }}>
           {filtered.length} 帧 · 手动复核 VLM 干扰物分类，结果回流训练负样本
@@ -330,7 +331,7 @@ export function NegClassifyVerify() {
                     color: '#0a1628', fontWeight: 700,
                     background: f.review ? STATUS_META[f.review].color : 'rgba(125,133,144,0.85)',
                   }}>
-                    {f.review ? (f.review === 'ok' ? '✓' : f.review === 'no' ? '✗' : '?') : '·'}
+                    {f.review ? (f.review === 'ok' ? '✓' : f.review === 'no' ? '✕' : '?') : '·'}
                   </span>
                 </button>
               ))}

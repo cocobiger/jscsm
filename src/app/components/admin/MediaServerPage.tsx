@@ -197,7 +197,7 @@ export function MediaServerPage() {
             border: `1px solid ${testResult.ok ? 'rgba(0,230,118,0.35)' : 'rgba(255,68,68,0.3)'}`,
             color: testResult.ok ? GREEN : '#ff8080',
           }}>
-            {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+            {testResult.ok ? '✓ ' : '✕ '}{testResult.msg}
           </div>
         )}
 

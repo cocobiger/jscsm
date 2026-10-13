@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, getApiKey, authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -180,7 +181,7 @@ export function SmsWarningPage() {
   }
   const testConfig = async () => {
     setBusy('test')
-    try { const r = await apiFetch<any>('/api/sms/test', { method: 'POST' }); flash(r.ok ? `✓ ${r.note || '网关可达'}` : `✗ ${r.error}`) }
+    try { const r = await apiFetch<any>('/api/sms/test', { method: 'POST' }); flash(r.ok ? `✓ ${r.note || '网关可达'}` : `✕ ${r.error}`) }
     catch (e: any) { flash('失败: ' + (e.error || e.message)) }
     finally { setBusy('') }
   }
@@ -192,7 +193,7 @@ export function SmsWarningPage() {
     setBusy('send')
     try {
       const r = await apiFetch<any>('/api/sms/send', { method: 'POST', body: JSON.stringify({ content: sendContent }) })
-      flash(r.ok ? '✓ 短信已发送给全部启用联系人' : `✗ ${r.error}`); setSendContent(''); loadHistory()
+      flash(r.ok ? '✓ 短信已发送给全部启用联系人' : `✕ ${r.error}`); setSendContent(''); loadHistory()
     } catch (e: any) { flash('失败: ' + (e.error || e.message)) }
     finally { setBusy('') }
   }
@@ -371,7 +372,7 @@ export function SmsWarningPage() {
                     <tr key={b.id}>
                       <td style={{ ...cell, fontFamily: "'JetBrains Mono',monospace" }}>{b.mobile}</td>
                       <td style={cell}>{b.reason || '—'}</td>
-                      <td style={cell}>{b.createdAt ? new Date(b.createdAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</td>
+                      <td style={cell}>{b.createdAt ? fmtShanghai(b.createdAt) : '—'}</td>
                       <td style={cell}><button onClick={() => delBlacklist(b.id)} style={btn(GREEN, true)}>移出</button></td>
                     </tr>
                   ))}
@@ -426,12 +427,12 @@ export function SmsWarningPage() {
               <tbody>
                 {pagedHistory.map(h => (
                   <tr key={h.id}>
-                    <td style={{ ...cell, fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap' }}>{new Date(h.time).toLocaleString('zh-CN', { hour12: false })}</td>
+                    <td style={{ ...cell, fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap' }}>{fmtShanghai(h.time)}</td>
                     <td style={cell}><span style={{ color: h.trigger === 'manual' ? CYAN : PURPLE }}>{TRIGGER_LABELS[h.trigger === 'auto-warning' ? 'air' : h.trigger] || h.trigger}</span></td>
                     <td style={{ ...cell, maxWidth: 320 }}>{h.content}</td>
                     <td style={cell}>{h.recipientCount ?? h.recipients?.length ?? 0} 人</td>
                     <td style={cell}>
-                      <span style={{ color: h.status === 'success' ? GREEN : RED }}>{h.status === 'success' ? '✓ 成功' : '✗ 失败'}</span>
+                      <span style={{ color: h.status === 'success' ? GREEN : RED }}>{h.status === 'success' ? '✓ 成功' : '✕ 失败'}</span>
                       {h.error && <span style={{ color: '#5a8aaa', fontSize: 11, marginLeft: 6 }}>{h.error}</span>}
                     </td>
                   </tr>

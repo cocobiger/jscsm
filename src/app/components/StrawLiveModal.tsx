@@ -4,6 +4,8 @@ import { BboxOverlay } from './drvPopup/BboxOverlay'
 import { MiniDroneMap } from './drvPopup/MiniDroneMap'
 import { LiveTextOverlay } from './drvPopup/LiveTextOverlay'
 import { fetchDroneStreamStatus } from '../lib/droneLive'
+import { X } from 'lucide-react'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 
 /**
  * 秸秆告警「带框直播」弹窗（P2 · 2026-09-14）
@@ -77,7 +79,9 @@ export function StrawLiveModal({ deviceSn, title, sub, onClose }: Props) {
   const boxAspect = aspect ?? ((width && height) ? width / height : 16 / 9)
   const headerTitle = title || dockName || deviceSn
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
       onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -94,7 +98,7 @@ export function StrawLiveModal({ deviceSn, title, sub, onClose }: Props) {
           <span style={{ marginLeft: 'auto', color: live ? '#ff4444' : '#5a8aaa', fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
             {live ? '● LIVE' : status === 'offline' ? '流未接入' : status === 'loading' ? '解析中…' : '连接中…'}
           </span>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: '#5a8aaa', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: '#5a8aaa', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}><X size={16} style={{ verticalAlign: 'middle' }} /></button>
         </div>
 
         {/* 画面区 */}
@@ -130,5 +134,6 @@ export function StrawLiveModal({ deviceSn, title, sub, onClose }: Props) {
       </div>
       <style>{`@keyframes dpl-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
+    </ModalPortal>
   )
 }

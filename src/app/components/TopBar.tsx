@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { authFetch } from '../lib/apiFetch'
+import { AlertTriangle, Flame } from 'lucide-react'
 
 export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [time, setTime] = useState(new Date())
@@ -207,7 +208,7 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
       {/* Right: 模式标签（参考图「大气环境管理/渝小蓝/PC端」位） + 系统状态 */}
       <div className="flex items-center gap-4" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, lineHeight: 1 }}>🔥</span>
+          <Flame size={13} color="#ff7043" style={{ verticalAlign: 'middle' }} />
           <span style={{
             fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace",
             color: strawCount > 0 ? '#ff6b6b' : '#5a8aaa',
@@ -215,7 +216,7 @@ export function TopBar({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
           }}>秸秆 {strawCount}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, lineHeight: 1 }}>⚠️</span>
+          <AlertTriangle size={13} color="#ffd740" style={{ verticalAlign: 'middle' }} />
           <span style={{
             fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace",
             color: guardCount > 0 ? '#ff2222' : '#5a8aaa',

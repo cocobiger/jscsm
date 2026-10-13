@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../../lib/apiFetch'
-import { Shield, Save, CircleDot, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CircleDot, Lightbulb, Save, Shield, X } from 'lucide-react'
 
 // ── 机场布防配置页（dock-guard 服务）：人员检测 ROI / 时段 / 阈值 / 实时状态 ──
 
@@ -130,7 +130,7 @@ function DockCard({ dc, status, onPatch, onRemove }: {
           <input type="checkbox" checked={on} onChange={e => onPatch({ enabled: e.target.checked })} />
           布防
         </label>
-        <button type="button" style={btn('rgba(255,80,80,0.1)', DIM, 'rgba(255,80,80,0.3)')} onClick={onRemove} title="移除该路布防">✕</button>
+        <button type="button" style={btn('rgba(255,80,80,0.1)', DIM, 'rgba(255,80,80,0.3)')} onClick={onRemove} title="移除该路布防"><X size={13} style={{ verticalAlign: 'middle' }} /></button>
       </div>
       {/* 参数行 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px 14px', marginBottom: 10 }}>
@@ -212,7 +212,7 @@ export function DockGuardPage() {
         body: JSON.stringify({ ...extra, docks }),
       })
       const d = await r.json()
-      if (d.ok) { setMsg({ ok: true, text: '✅ 已保存并热重载（4 路 worker 重启中，约 10s 生效）' }); setTimeout(() => setMsg(null), 5000) }
+      if (d.ok) { setMsg({ ok: true, text: '✓ 已保存并热重载（4 路 worker 重启中，约 10s 生效）' }); setTimeout(() => setMsg(null), 5000) }
       else setMsg({ ok: false, text: d.error || '保存失败' })
     } catch (e: any) { setMsg({ ok: false, text: e.message }) }
   }
@@ -274,7 +274,7 @@ export function DockGuardPage() {
       )}
 
       <div style={{ marginTop: 14, color: DIM, fontSize: 11, lineHeight: 1.8 }}>
-        💡 <b>布防说明</b>：ROI 多边形=允许检测的区域（建议只圈停机坪，边缘路人不会误报）；「清空=全画面」=不限定区域。
+        <Lightbulb size={12} color="#ffd740" style={{ verticalAlign: 'middle' }} /> <b>布防说明</b>：ROI 多边形=允许检测的区域（建议只圈停机坪，边缘路人不会误报）；「清空=全画面」=不限定区域。
         夜间（亮度&lt;判夜亮度）自动采用夜间阈值；连续 N 帧检测到人且冷却期结束才告警（防瞬时误报）。
         保存后自动热重载，约 10s 内生效；当前非任务时段流不在线属正常，流上线即自动检测。
       </div>

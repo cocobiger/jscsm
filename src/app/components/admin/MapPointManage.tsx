@@ -258,7 +258,7 @@ export function MapPointManage() {
           background: 'rgba(255,215,64,0.07)', border: '1px solid rgba(255,215,64,0.28)',
           borderRadius: 4, color: '#d8c98a', fontSize: 11.5, lineHeight: 1.7,
         }}>
-          <b>⚠️ 本页的「无人机机场」点位只影响地图图标，不再参与驾驶舱 KPI。</b>
+          <b>⚠ 本页的「无人机机场」点位只影响地图图标，不再参与驾驶舱 KPI。</b>
           统计条「无人机 N 架」与「无人机机场 N 座」已改为取<b>司空2 设备台账</b>
           （<code style={{ color: '#9ad6f0' }}>/api/sikong/devices</code>，由 dji-openapi 从司空同步，15s 刷新）。
           所以：<b>在这里增删 uav 点位不会改变统计条数字</b>；若要调整机场/无人机数量，请在司空2 平台侧增删设备。
@@ -369,7 +369,7 @@ export function MapPointManage() {
               <div style={{ color: '#3a5a70', fontSize: 10, marginTop: 3 }}>用于补充任意其它字段（如备注、设备编号），会合并进点位数据</div>
             </div>
 
-            {error && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>✗ {error}</div>}
+            {error && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>✕ {error}</div>}
           </div>
 
           <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(0,80,150,0.2)', display: 'flex', gap: 8, flexShrink: 0 }}>
@@ -381,7 +381,7 @@ export function MapPointManage() {
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 4000, background: '#061530', border: `1px solid ${toast.ok ? GREEN : RED}55`, borderRadius: 4, padding: '10px 20px', color: '#c8e6ff', fontSize: 13, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
-          {toast.ok ? '✓ ' : '✗ '}{toast.text}
+          {toast.ok ? '✓ ' : '✕ '}{toast.text}
         </div>
       )}
     </div>

@@ -36,7 +36,7 @@ const NAV: { key: Page; label: string; icon: LucideIcon; desc: string; minRole: 
   { key: 'airquality', label: '市局监测站数据', icon: Wind,        desc: '市局整点数据 · 气体采集预警 · 短信推送', minRole: 'viewer' },
   { key: 'iotarchive', label: 'AI分析存档',  icon: Bot,           desc: 'IoT视频分析记录按通道归档', minRole: 'viewer' },
   { key: 'straw',      label: '秸秆焚烧监控', icon: Flame,         desc: '无人机秸秆 · 引擎/告警/责任推送/复核', minRole: 'viewer' },
-  { key: 'settings',   label: '系统设置',   icon: Map,             desc: '地图管理 · 政务数据导入', minRole: 'operator' },
+  { key: 'settings',   label: '系统设置',   icon: Map,             desc: '地图管理 · 政务数据导入 · 时间服务器', minRole: 'operator' },
   { key: 'stats',      label: '数据统计报表', icon: BarChart3,     desc: '采集趋势与超标统计', minRole: 'viewer' },
   { key: 'enterprise', label: '重点企业管理', icon: Building2,     desc: '企业名单与污染事件', minRole: 'operator' },
   { key: 'users',      label: '用户管理',   icon: Users,           desc: '账号、角色与权限', minRole: 'admin' },
@@ -162,7 +162,7 @@ export function AdminPanel({ onClose, user, onLogout }: Props) {
               style={{ width: '100%', padding: '8px 12px', background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff', fontSize: 13, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
             <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="新密码（至少6位）"
               style={{ width: '100%', padding: '8px 12px', background: 'rgba(0,20,60,0.6)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 3, color: '#c8e6ff', fontSize: 13, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }} />
-            {pwdMsg && <div style={{ color: pwdMsg.ok ? GREEN : RED, fontSize: 12, marginBottom: 10 }}>{pwdMsg.ok ? '✓ ' : '✗ '}{pwdMsg.text}</div>}
+            {pwdMsg && <div style={{ color: pwdMsg.ok ? GREEN : RED, fontSize: 12, marginBottom: 10 }}>{pwdMsg.ok ? '✓ ' : '✕ '}{pwdMsg.text}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               {user.forceChange !== true && <button onClick={() => setShowPwd(false)} style={{ padding: '7px 16px', fontSize: 13, borderRadius: 3, border: '1px solid rgba(0,100,180,0.3)', background: 'transparent', color: '#5a8aaa', cursor: 'pointer' }}>取消</button>}
               <button onClick={savePwd} style={{ padding: '7px 18px', fontSize: 13, borderRadius: 3, border: `1px solid ${CYAN}55`, background: `${CYAN}18`, color: CYAN, cursor: 'pointer' }}>保存</button>

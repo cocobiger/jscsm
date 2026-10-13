@@ -8,6 +8,7 @@ import {
   DRONE_AUTO_HIDE_MS, DRONE_FALLBACK_FOLD_MS,
   type LiveEntry,
 } from './dronePopupModel'
+import { X } from 'lucide-react'
 
 /**
  * v2 无人机回传弹窗 —— 单个窗口（≤2 路之一，React key 由 host 以 w-<key>-<openSeq> 控制重挂载）
@@ -171,7 +172,7 @@ export function DronePopupWindow({
         <button
           onClick={() => onFold(entry.key)} title="收起至队列（播放后 30s 自动收起；点队列缩略图可拉回）"
           style={{ width: 22, height: 22, borderRadius: 3, border: '1px solid rgba(0,150,220,0.3)', background: 'rgba(0,80,150,0.18)', color: '#7fc9ff', cursor: 'pointer', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-        >✕</button>
+        ><X size={14} style={{ verticalAlign: 'middle' }} /></button>
       </div>
 
       {/* 画面区：比例跟随视频（默认 16:9） */}
@@ -264,7 +265,7 @@ export function DronePopupWindow({
                 borderRadius: 6, border: '1px solid rgba(255,255,255,0.35)', background: 'rgba(0,0,0,0.6)',
                 color: '#fff', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0,
               }}
-            >✕</button>
+            ><X size={14} style={{ verticalAlign: 'middle' }} /></button>
           </div>
           <div style={{ color: '#9fc3dd', fontSize: 13, textAlign: 'center', padding: '0 20px' }}>
             {entry.title || '无人机'}

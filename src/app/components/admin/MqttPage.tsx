@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDashboard } from '../../context/DashboardContext'
 import type { MqttTopic } from '../../context/DashboardContext'
+import { Zap } from 'lucide-react'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -159,7 +160,7 @@ export function MqttPage() {
         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
           {mqttStatus === 'disconnected' || mqttStatus === 'error' ? (
             <button onClick={simulateMqttConnect} style={{ flex: 1, ...btn(GREEN) }}>
-              <span style={{ marginRight: 4 }}>⚡</span> 连接 Broker
+              <Zap size={12} color="#ffd740" style={{ verticalAlign: 'middle' }} /> 连接 Broker
             </button>
           ) : mqttStatus === 'connected' ? (
             <button onClick={simulateMqttDisconnect} style={{ flex: 1, ...btn(RED) }}>断开连接</button>

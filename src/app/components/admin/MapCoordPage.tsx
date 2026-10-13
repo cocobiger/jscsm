@@ -115,7 +115,7 @@ export function MapCoordPage() {
             {saving ? '保存中…' : '保存设置'}
           </button>
           {msg && (
-            <span style={{ color: msg.ok ? GREEN : RED, fontSize: 12 }}>{msg.ok ? '✓ ' : '✗ '}{msg.text}</span>
+            <span style={{ color: msg.ok ? GREEN : RED, fontSize: 12 }}>{msg.ok ? '✓ ' : '✕ '}{msg.text}</span>
           )}
         </div>
       </div>

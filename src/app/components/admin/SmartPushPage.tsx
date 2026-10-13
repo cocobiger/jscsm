@@ -5,6 +5,8 @@ import { Block, BlockType, WORKREPORT_VARS, newBlock, shouldOpenBlockEditor } fr
 import { EvidenceGrid, type EvidenceItem, type EvidenceType } from '../EvidenceGrid'
 import { MqttPage } from './MqttPage'
 import { AlertFormatPage } from './AlertFormatPage'
+import { Check, ClipboardList, Eye, FileText, Landmark, Lightbulb, Link2, Lock, Monitor, Paperclip, PlayCircle, Radio, Scale, ScrollText, Send, ShieldCheck, X } from 'lucide-react'
+import { CyZxTab } from './CyZxTab'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -13,10 +15,10 @@ const RED = '#ff4444'
 const PURPLE = '#ab47bc'
 const ORANGE = '#ff7043'
 
-const EVENT_TYPES = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '堆头未覆盖']
+const EVENT_TYPES = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '渣土车冒装', '堆头未覆盖']
 const TYPE_COLORS: Record<string, string> = {
   '气体污染': PURPLE, '水体污染': '#00bcd4', '秸秆燃烧': ORANGE,
-  '道路扬尘': AMBER, '堆头未覆盖': '#ff8a65',
+  '道路扬尘': AMBER, '渣土车冒装': '#e53935', '堆头未覆盖': '#ff8a65',
 }
 
 // 智治推送回执状态：pending(待上报) → pushed(已推送) → processing(受理中) → closed(已结案)
@@ -395,7 +397,7 @@ function FieldMappingTable({ mappings, setMapping, onAddCustom, onRemoveCustom }
                       style={{ ...inputStyle, padding: '4px 8px', fontFamily: "'JetBrains Mono',monospace", fontSize: 12, flex: 1, borderColor: nameInvalid ? '#ff6b6b' : undefined }}
                       value={m.target} onChange={e => setMapping(m.sysKey, { target: e.target.value })}
                       placeholder="对方字段名，如 districtCode" />
-                    <button type="button" onClick={() => onRemoveCustom(m.sysKey)} style={{ ...btnStyle('#ff8a8a', true), padding: '4px 8px', flexShrink: 0 }} title="删除该自定义字段">✕</button>
+                    <button type="button" onClick={() => onRemoveCustom(m.sysKey)} style={{ ...btnStyle('#ff8a8a', true), padding: '4px 8px', flexShrink: 0 }} title="删除该自定义字段"><X size={12} style={{ verticalAlign: 'middle' }} /></button>
                   </td>
                 </tr>
               )
@@ -411,7 +413,7 @@ function FieldMappingTable({ mappings, setMapping, onAddCustom, onRemoveCustom }
   )
 }
 
-type Tab = 'plans' | 'rules' | 'platforms' | 'history' | 'templates'
+type Tab = 'plans' | 'rules' | 'platforms' | 'history' | 'templates' | 'cyzx' | 'health'
 
 interface Plan {
   id: string; event_type: string; name: string; enabled: boolean
@@ -471,11 +473,13 @@ export function SmartPushPage() {
   const [advanced, setAdvanced] = useState(false)
 
   const allTabs = [
-    { key: 'platforms' as Tab, label: '目标平台', icon: '\u{1F5A5}', simple: true },
-    { key: 'history' as Tab, label: '推送历史', icon: '\u{1F4DD}', simple: true },
-    { key: 'templates' as Tab, label: '结案模板', icon: '\u{1F4C4}', simple: true },
-    { key: 'plans' as Tab, label: '处置预案', icon: '\u{1F4CB}', simple: false },
-    { key: 'rules' as Tab, label: '推送规则', icon: '\u{2696}', simple: false },
+    { key: 'platforms' as Tab, label: '目标平台', Icon: Monitor, simple: true },
+    { key: 'history' as Tab, label: '推送历史', Icon: ScrollText, simple: true },
+    { key: 'templates' as Tab, label: '结案模板', Icon: FileText, simple: true },
+    { key: 'health' as Tab, label: '配置自检', Icon: ShieldCheck, simple: true },
+    { key: 'cyzx' as Tab, label: '三级城运贯通', Icon: Landmark, simple: true },
+    { key: 'plans' as Tab, label: '处置预案', Icon: ClipboardList, simple: false },
+    { key: 'rules' as Tab, label: '送达规则', Icon: Scale, simple: false },
   ]
   const visibleTabs = allTabs.filter(t => t.simple || advanced)
 
@@ -503,7 +507,7 @@ export function SmartPushPage() {
       {/* Header */}
       <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid rgba(0,80,150,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <span style={{ fontSize: 18 }}>{'\u{1F3E0}'}</span>
+          <Send size={18} color={CYAN} />
           <span style={{ color: '#c8e6ff', fontSize: 17, fontWeight: 700, letterSpacing: '0.04em' }}>智治推送</span>
           <span style={{ color: '#3a5a70', fontSize: 12 }}>城运中心处置预案对接</span>
         </div>
@@ -516,6 +520,7 @@ export function SmartPushPage() {
             {visibleTabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
                   padding: '8px 20px', fontSize: 13, borderRadius: '3px 3px 0 0',
                   border: '1px solid rgba(0,80,150,0.2)',
                   background: tab === t.key ? 'rgba(0,170,255,0.08)' : 'transparent',
@@ -523,7 +528,7 @@ export function SmartPushPage() {
                   fontWeight: tab === t.key ? 600 : 400,
                   borderBottom: tab === t.key ? '1px solid rgba(3,10,28,0.98)' : '1px solid rgba(0,80,150,0.2)',
                 }}>
-                {t.icon} {t.label}
+                <t.Icon size={14} /> {t.label}
               </button>
             ))}
           </div>
@@ -548,6 +553,8 @@ export function SmartPushPage() {
         {tab === 'platforms' && <PlatformsTab />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'templates' && <ReportTemplatesTab />}
+        {tab === 'cyzx' && <CyZxTab />}
+        {tab === 'health' && <SmartPushHealthTab />}
       </div>
       </>
       ) : outerTab === 'mqtt' ? (
@@ -640,7 +647,7 @@ function PlansTab() {
             </span>
             {p.platform_id && (() => {
               const bp = platforms.find(x => x.id === p.platform_id)
-              return <span style={{ padding: '1px 7px', fontSize: 11, borderRadius: 2, background: `${PURPLE}18`, color: PURPLE }}>{'\u{1F5A5}'} {bp ? bp.name : '已绑定平台'}</span>
+              return <span style={{ padding: '1px 7px', fontSize: 11, borderRadius: 2, background: `${PURPLE}18`, color: PURPLE }}><Monitor size={12} style={{ verticalAlign: 'middle' }} /> {bp ? bp.name : '已绑定平台'}</span>
             })()}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button style={btnStyle(GREEN, true)} onClick={() => testPush(p)}>测试推送</button>
@@ -789,14 +796,14 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
 
         {/* P2：目标平台绑定（可选） */}
         <div style={{ padding: 12, background: 'rgba(171,71,188,0.08)', border: '1px solid rgba(171,71,188,0.25)', borderRadius: 4, marginBottom: 14 }}>
-          <label style={{ ...labelStyle, color: PURPLE, fontWeight: 600 }}>{'\u{1F5A5}'} 绑定目标平台（可选，推荐）</label>
+          <label style={{ ...labelStyle, color: PURPLE, fontWeight: 600 }}><Monitor size={13} style={{ verticalAlign: 'middle' }} /> 绑定目标平台（可选，推荐）</label>
           <select style={inputStyle} value={form.platform_id} onChange={e => set('platform_id', e.target.value)}>
             <option value="">-- 不绑定（独立配置接口地址/模板） --</option>
             {platforms.filter(p => p.enabled).map(p => <option key={p.id} value={p.id}>{p.name}{p.event_types && p.event_types !== 'ALL' ? `（订阅 ${p.event_types.split(',').length} 类）` : ''}</option>)}
           </select>
           {boundPlatform ? (
             <div style={{ marginTop: 8, fontSize: 12, color: '#7ab8e0', lineHeight: 1.6 }}>
-              <span style={{ color: GREEN }}>{'\u{2713}'}</span> 已绑定平台「{boundPlatform.name}」，接口地址 / 鉴权 / 报文模板将<span style={{ color: CYAN }}>自动继承该平台配置</span>，下方无需填写。
+              <span style={{ color: GREEN }}><Check size={12} style={{ verticalAlign: 'middle' }} /></span> 已绑定平台「{boundPlatform.name}」，接口地址 / 鉴权 / 报文模板将<span style={{ color: CYAN }}>自动继承该平台配置</span>，下方无需填写。
               <div style={{ color: '#5a8aaa', marginTop: 4 }}>
                 平台接口：<span style={{ fontFamily: "'JetBrains Mono',monospace", color: '#7ab8e0' }}>{boundPlatform.api_method} {boundPlatform.api_url}</span>
               </div>
@@ -811,14 +818,14 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
         {/* 平台预设：选中即自动填好模板与请求头（仅未绑定平台时） */}
         {!boundPlatform && (<>
         <div style={{ padding: 12, background: 'rgba(0,40,80,0.35)', border: '1px solid rgba(0,150,220,0.25)', borderRadius: 4, marginBottom: 14 }}>
-          <label style={{ ...labelStyle, color: CYAN, fontWeight: 600 }}>{'\u{1F517}'} 选择目标平台（推荐先选，自动填好报文模板与请求头）</label>
+          <label style={{ ...labelStyle, color: CYAN, fontWeight: 600 }}><Link2 size={13} style={{ verticalAlign: 'middle' }} /> 选择目标平台（推荐先选，自动填好报文模板与请求头）</label>
           <select style={inputStyle} value={presetKey} onChange={e => applyPreset(e.target.value)}>
             <option value="">-- 请选择要推送的政府平台 --</option>
             {PLATFORM_PRESETS.map(p => <option key={p.key} value={p.key}>{p.name}</option>)}
           </select>
           {activePreset && (
             <div style={{ marginTop: 8, fontSize: 12, color: '#7ab8e0', lineHeight: 1.6 }}>
-              <span style={{ color: AMBER }}>{'\u{1F4A1}'} </span>{activePreset.hint}
+              <span style={{ color: AMBER }}><Lightbulb size={12} style={{ verticalAlign: 'middle' }} /> </span>{activePreset.hint}
               <div style={{ color: '#5a8aaa', marginTop: 4 }}>
                 建议接口地址格式：<span style={{ fontFamily: "'JetBrains Mono',monospace", color: '#7ab8e0' }}>{activePreset.api_url_hint}</span>
               </div>
@@ -867,8 +874,8 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#5a8aaa', fontSize: 12 }}>配置方式:</span>
           {([
-            { k: 'wizard' as const, label: '\u{1F9ED} 向导模式（填表，无需懂 JSON）' },
-            { k: 'advanced' as const, label: '\u{2699} 高级模式（手写 JSON）' },
+            { k: 'wizard' as const, label: '向导模式（填表，无需懂 JSON）' },
+            { k: 'advanced' as const, label: '高级模式（手写 JSON）' },
           ]).map(m => (
             <button key={m.k} onClick={() => setFormMode(m.k)}
               style={{
@@ -885,7 +892,7 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
           <>
             {/* 鉴权向导 */}
             <div style={{ marginTop: 12, padding: 12, background: 'rgba(0,15,40,0.5)', border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4 }}>
-              <label style={{ ...labelStyle, color: '#7ab8e0', fontWeight: 600 }}>{'\u{1F510}'} 接口鉴权（对方平台要求带令牌时选择）</label>
+              <label style={{ ...labelStyle, color: '#7ab8e0', fontWeight: 600 }}><Lock size={13} style={{ verticalAlign: 'middle' }} /> 接口鉴权（对方平台要求带令牌时选择）</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <select style={{ ...inputStyle, width: 'auto' }} value={authMode} onChange={e => setAuthMode(e.target.value as any)}>
                   <option value="none">无需鉴权</option>
@@ -948,7 +955,7 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
         {/* 报文预览：用示例数据渲染真实报文 + JSON 合法性校验 */}
         <div style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <label style={{ ...labelStyle, marginBottom: 0 }}>{'\u{1F441}'} 报文预览（用示例数据渲染，即实际发送内容）</label>
+            <label style={{ ...labelStyle, marginBottom: 0 }}><Eye size={13} style={{ verticalAlign: 'middle' }} /> 报文预览（用示例数据渲染，即实际发送内容）</label>
             {isForm
               ? <span style={{ color: CYAN, fontSize: 11 }}>{'\u2713'} 表单格式（key=value&...）</span>
               : jsonValid
@@ -967,7 +974,7 @@ function PlanForm({ plan, onSave, onCancel }: { plan: Plan | null; onSave: (p: P
         {/* 副接口（附件/补充信息接口，如城运中心 /client/handle_event_other）：主接口推送后顺序调用 */}
         <div style={{ marginTop: 16, border: '1px solid rgba(0,150,220,0.2)', borderRadius: 6, overflow: 'hidden' }}>
           <button type="button" onClick={() => setShowOther(!showOther)} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'rgba(0,30,70,0.4)', border: 'none', color: '#c8e6ff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{'\u{1F4CE}'} 附件接口（副接口，可选）</span>
+            <span><Paperclip size={13} style={{ verticalAlign: 'middle' }} /> 附件接口（副接口，可选）</span>
             <span style={{ color: '#5a8aaa', fontSize: 11 }}>{showOther ? '收起 ▲' : '展开 ▼'}</span>
           </button>
           {showOther && (
@@ -1097,7 +1104,7 @@ function PlatformsTab() {
         return (
           <div key={p.id} style={{ background: SECTION_BG, border: `1px solid rgba(0,100,180,0.2)`, borderRadius: 4, padding: 16, marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <span style={{ fontSize: 16 }}>{'\u{1F5A5}'}</span>
+              <Monitor size={16} color={CYAN} />
               <span style={{ color: '#c8e6ff', fontSize: 14, fontWeight: 600 }}>{p.name}</span>
               <span style={{ padding: '1px 7px', fontSize: 11, borderRadius: 2, background: p.enabled ? `${GREEN}18` : `${RED}18`, color: p.enabled ? GREEN : RED }}>
                 {p.enabled ? '启用' : '停用'}
@@ -1225,7 +1232,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
 
         {/* 订阅事件类型（核心：选“全部”即零预案自动送达） */}
         <div style={{ marginTop: 14, padding: 12, background: 'rgba(171,71,188,0.08)', border: '1px solid rgba(171,71,188,0.25)', borderRadius: 4 }}>
-          <label style={{ ...labelStyle, color: PURPLE, fontWeight: 600 }}>{'\u{1F4E1}'} 订阅事件类型（勾选后，这些类型的告警触发规则即自动推送到本平台，无需逐类建预案）</label>
+          <label style={{ ...labelStyle, color: PURPLE, fontWeight: 600 }}><Radio size={13} style={{ verticalAlign: 'middle' }} /> 订阅事件类型（勾选后，这些类型的告警触发规则即自动推送到本平台，无需逐类建预案）</label>
           <label style={{ color: etAll ? PURPLE : '#5a8aaa', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 16 }}>
             <input type="checkbox" checked={etAll} onChange={e => { setEtAll(e.target.checked); if (e.target.checked) setEtSelected([]) }} /> 全部事件类型（ALL）
           </label>
@@ -1243,7 +1250,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
         {/* 配置方式切换 */}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#5a8aaa', fontSize: 12 }}>配置方式:</span>
-          {([{ k: 'wizard' as const, label: '\u{1F9ED} 向导模式（填表，无需懂 JSON）' }, { k: 'advanced' as const, label: '\u{2699} 高级模式（手写 JSON）' }]).map(m => (
+          {([{ k: 'wizard' as const, label: '向导模式（填表，无需懂 JSON）' }, { k: 'advanced' as const, label: '高级模式（手写 JSON）' }]).map(m => (
             <button key={m.k} onClick={() => setFormMode(m.k)}
               style={{ padding: '5px 14px', fontSize: 12, borderRadius: 3, cursor: 'pointer', border: `1px solid ${formMode === m.k ? CYAN : 'rgba(0,80,150,0.3)'}`, background: formMode === m.k ? 'rgba(0,170,255,0.12)' : 'transparent', color: formMode === m.k ? CYAN : '#5a8aaa', fontWeight: formMode === m.k ? 600 : 400 }}>{m.label}</button>
           ))}
@@ -1252,7 +1259,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
         {formMode === 'wizard' && (
           <>
             <div style={{ marginTop: 12, padding: 12, background: 'rgba(0,15,40,0.5)', border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4 }}>
-              <label style={{ ...labelStyle, color: '#7ab8e0', fontWeight: 600 }}>{'\u{1F510}'} 接口鉴权（对方平台要求带令牌时选择）</label>
+              <label style={{ ...labelStyle, color: '#7ab8e0', fontWeight: 600 }}><Lock size={13} style={{ verticalAlign: 'middle' }} /> 接口鉴权（对方平台要求带令牌时选择）</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <select style={{ ...inputStyle, width: 'auto' }} value={authMode} onChange={e => setAuthMode(e.target.value as any)}>
                   <option value="none">无需鉴权</option>
@@ -1300,7 +1307,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
         {/* 报文预览 */}
         <div style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <label style={{ ...labelStyle, marginBottom: 0 }}>{'\u{1F441}'} 报文预览（用示例数据渲染，即实际发送内容）</label>
+            <label style={{ ...labelStyle, marginBottom: 0 }}><Eye size={13} style={{ verticalAlign: 'middle' }} /> 报文预览（用示例数据渲染，即实际发送内容）</label>
             {isForm ? <span style={{ color: CYAN, fontSize: 11 }}>{'\u2713'} 表单格式（key=value&...）</span>
               : jsonValid ? <span style={{ color: GREEN, fontSize: 11 }}>{'\u2713'} JSON 格式合法</span>
                 : <span style={{ color: RED, fontSize: 11 }}>{'\u2717'} JSON 格式错误：{jsonErr}</span>}
@@ -1310,7 +1317,7 @@ function PlatformForm({ platform, onSave, onCancel }: { platform: Platform | nul
         {/* 副接口（附件/补充信息接口，如城运中心 /client/handle_event_other）：主接口推送后顺序调用 */}
         <div style={{ marginTop: 16, border: '1px solid rgba(0,150,220,0.2)', borderRadius: 6, overflow: 'hidden' }}>
           <button type="button" onClick={() => setShowOther(!showOther)} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'rgba(0,30,70,0.4)', border: 'none', color: '#c8e6ff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{'\u{1F4CE}'} 附件接口（副接口，可选）</span>
+            <span><Paperclip size={13} style={{ verticalAlign: 'middle' }} /> 附件接口（副接口，可选）</span>
             <span style={{ color: '#5a8aaa', fontSize: 11 }}>{showOther ? '收起 ▲' : '展开 ▼'}</span>
           </button>
           {showOther && (
@@ -1423,7 +1430,24 @@ function RulesTab() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ color: '#7ab8e0', fontSize: 13 }}>
-          推送规则 — 设置自动推送条件（同点位 + 时间窗口 + 累计次数）
+          送达规则 — 设置**对外上报**条件（同点位 + 时间窗口 + 累计次数）
+          <div style={{ marginTop: 4, color: '#5a8aaa', fontSize: 12, lineHeight: 1.7 }}>
+            <b style={{ color: '#7ab8e0' }}>本页是什么</b>：<b>「上报范围 + 节流」</b> ——
+            只决定「**进前台的告警要不要发给外部平台、发多密**」。
+            <b style={{ color: '#00e676' }}>它不判定"这条是不是违规"</b>，所以它<b>不是</b>「算法过滤」，
+            与「事件研判逻辑」不重叠、不需要收口。
+          </div>
+          <div style={{ marginTop: 3, color: '#5a8aaa', fontSize: 12, lineHeight: 1.7 }}>
+            <b style={{ color: '#7ab8e0' }}>与①的分工</b>：
+            「<b>事件研判逻辑</b>」＝进不进<b>驾驶舱前台</b>（窗口 <b>24h</b>）；
+            本页＝进前台的要不要<b>对外上报</b>（窗口 <b>48h</b>，2026-10-12 拍板<b>保留</b>——
+            "进前台"与"报政府"的<b>时效要求本就不同</b>，故两套窗口分离）。
+          </div>
+          <div style={{ marginTop: 3, color: '#5a8aaa', fontSize: 12, lineHeight: 1.7 }}>
+            <b style={{ color: '#7ab8e0' }}>点位级覆盖</b>：在「事件研判逻辑 → 编辑规则」里的
+            <b>「上报开关」</b>可覆盖本页 —— <b>不上报</b>（即使本页配了也不发）／
+            <b>强制上报</b>（忽略本页的节流阈值）／跟随送达规则（默认）。
+          </div>
         </div>
         <button style={btnStyle(CYAN)} onClick={() => { setEditing(null); setShowForm(true) }}>+ 新增规则</button>
       </div>
@@ -1562,6 +1586,7 @@ function RuleForm({ rule, plans, onSave, onCancel }: { rule: Rule | null; plans:
 function HistoryTab() {
   const [history, setHistory] = useState<PushHistory[]>([])
   const [events, setEvents] = useState<PushEvent[]>([])
+  const [total, setTotal] = useState(0)   // C-1b：服务端命中总数（用于显示共 N 条 / 共 M 页）
   const [loading, setLoading] = useState(true)
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -1634,30 +1659,39 @@ function HistoryTab() {
     finally { setReportBusy(null) }
   }
 
-  const load = useCallback(async () => {
-    try {
-      const url = '/api/smart-push/history?limit=200'
-        + (filterType ? `&event_type=${encodeURIComponent(filterType)}` : '')
-        + (filterStatus ? `&status=${filterStatus}` : '')
-        + (filterLocation.trim() ? `&location=${encodeURIComponent(filterLocation.trim())}` : '')
-        + (filterStart ? `&start=${encodeURIComponent(filterStart + ' 00:00:00')}` : '')
-        + (filterEnd ? `&end=${encodeURIComponent(filterEnd + ' 23:59:59')}` : '')
-        + (filterPlatform ? `&platform_id=${encodeURIComponent(filterPlatform)}` : '')
-      const [h, e] = await Promise.all([
-        apiFetch<PushHistory[]>(url),
-        apiFetch<PushEvent[]>('/api/smart-push/events?limit=200'),
-      ])
-      setHistory(h || []); setEvents(e || [])
-    } catch (e) { console.error('加载历史失败:', e) }
-    finally { setLoading(false) }
+  // 🔴 2026-10-11 审计修复（P2-1）：改为**服务端分页**。
+  //   原实现固定 `limit=200` 再前端切片 ⇒ 第 21 页之后**再也看不到**，更早的推送历史
+  //   从界面上无法访问（导出同样受这条 limit 限制）。
+  const buildFilterQS = useCallback(() => {
+    return (filterType ? `&event_type=${encodeURIComponent(filterType)}` : '')
+      + (filterStatus ? `&status=${filterStatus}` : '')
+      + (filterLocation.trim() ? `&location=${encodeURIComponent(filterLocation.trim())}` : '')
+      + (filterStart ? `&start=${encodeURIComponent(filterStart + ' 00:00:00')}` : '')
+      + (filterEnd ? `&end=${encodeURIComponent(filterEnd + ' 23:59:59')}` : '')
+      + (filterPlatform ? `&platform_id=${encodeURIComponent(filterPlatform)}` : '')
   }, [filterType, filterStatus, filterLocation, filterStart, filterEnd, filterPlatform])
 
-  useEffect(() => { load() }, [load])
+  const load = useCallback(async (pageNo = 1) => {
+    try {
+      const qs = buildFilterQS()
+      const pageQS = qs + `&limit=${PAGE_SIZE}&offset=${Math.max(pageNo - 1, 0) * PAGE_SIZE}`
+      const [h, c, e] = await Promise.all([
+        apiFetch<PushHistory[]>('/api/smart-push/history?' + pageQS.replace(/^&/, '')),
+        apiFetch<{ total: number }>('/api/smart-push/history/count?' + qs.replace(/^&/, '')),
+        apiFetch<PushEvent[]>('/api/smart-push/events?limit=200'),
+      ])
+      setHistory(h || []); setTotal(c?.total || 0); setEvents(e || [])
+    } catch (e) { console.error('加载历史失败:', e) }
+    finally { setLoading(false) }
+  }, [buildFilterQS])
+
+  useEffect(() => { load(page) }, [load, page])
 
   // 前端分页：每页 10 条
-  const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE))
+  // 服务端已按页返回 ⇒ 这里不再切片；页数按**命中总数**算
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const pagedHistory = history.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pagedHistory = history
   useEffect(() => { setPage(1) }, [filterType, filterStatus, filterLocation, filterStart, filterEnd, filterPlatform])
 
   if (loading) return <div style={{ color: '#5a8aaa', padding: 40, textAlign: 'center' }}>加载中...</div>
@@ -1760,7 +1794,7 @@ function HistoryTab() {
                 <td style={{ padding: '8px 12px' }}>
                   {h.success
                     ? <span style={{ color: GREEN }}>✓ 成功 ({h.response_status})</span>
-                    : <span style={{ color: RED }}>✗ {h.error_message || `失败 (${h.response_status})`}</span>}
+                    : <span style={{ color: RED }}>✕ {h.error_message || `失败 (${h.response_status})`}</span>}
                 </td>
                 <td style={{ padding: '8px 12px' }}>
                   {(() => {
@@ -1792,7 +1826,7 @@ function HistoryTab() {
       {/* 分页栏 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
         <span style={{ color: '#3a5a70', fontSize: 12 }}>
-          第 <span style={{ color: '#7ab8e0' }}>{safePage}</span> / {totalPages} 页 · 每页 {PAGE_SIZE} 条 · 共 {history.length} 条
+          第 <span style={{ color: '#7ab8e0' }}>{safePage}</span> / {totalPages} 页 · 每页 {PAGE_SIZE} 条 · 共 {total} 条
         </span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} style={btnStyle(CYAN, true)}>上一页</button>
@@ -2116,5 +2150,170 @@ function ReportTemplatesTab() {
         />
       )}
     </div>
+  )
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  配置自检 / 干跑 / 失败明细（审计批次 D · 2026-10-11）
+//  背景：本模块此前**没有任何自检** —— 平台/预案/规则/订阅四张表的引用关系全靠人工记忆，
+//        配错了只打一条日志，界面上完全看不出来（审计 P1-4 的根因）。
+//  🔴 本页全部只读：干跑只做本地渲染，**不发请求、不落库**。
+// ════════════════════════════════════════════════════════════
+interface SpHealthItem { id: string; name: string; status: 'pass' | 'warn' | 'fail' | 'unknown'; detail: string; hint: string; list?: string[] }
+interface SpHealthResp { ok: boolean; summary: { fail: number; warn: number; pass: number; total: number }; items: SpHealthItem[]; counts: Record<string, number>; checkedAt: string }
+interface SpFailRow { id: string; event_type: string; location: string; api_url: string; response_status: number | null; error_message: string | null; trigger_count: number; created_at: string }
+
+const SP_H_STATUS: Record<string, { color: string; label: string }> = {
+  pass: { color: '#00e676', label: '通过' },
+  warn: { color: '#ffd740', label: '待办' },
+  fail: { color: '#ff4444', label: '阻断' },
+  unknown: { color: '#5a8aaa', label: '无法判定' },
+}
+
+function SmartPushHealthTab() {
+  const [h, setH] = useState<SpHealthResp | null>(null)
+  const [fails, setFails] = useState<SpFailRow[]>([])
+  const [rules, setRules] = useState<any[]>([])
+  const [dry, setDry] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
+  const [sel, setSel] = useState('')
+
+  const load = useCallback(async () => {
+    setBusy(true)
+    try {
+      const [a, b, c] = await Promise.all([
+        apiFetch<SpHealthResp>('/api/smart-push/health'),
+        apiFetch<{ items: SpFailRow[] }>('/api/smart-push/failures?hours=24&limit=50'),
+        apiFetch<any[]>('/api/smart-push/rules').catch(() => []),
+      ])
+      setH(a); setFails(b.items || []); setRules(c || [])
+    } catch (e: any) { alert('自检失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const runDry = async () => {
+    if (!sel) { alert('请先选择一条规则'); return }
+    setBusy(true)
+    try {
+      const r = await apiFetch<any>('/api/smart-push/dry-run', { method: 'POST', body: JSON.stringify({ ruleId: sel }) })
+      setDry(r)
+    } catch (e: any) { alert('干跑失败: ' + (e?.error || e?.message || e)) }
+    finally { setBusy(false) }
+  }
+
+  if (!h) return <div style={{ color: '#5a8aaa', padding: 40, textAlign: 'center' }}>{busy ? '自检中...' : '加载中...'}</div>
+  const sm = h.summary
+  const overall = sm.fail > 0 ? '#ff4444' : (sm.warn > 0 ? '#ffd740' : '#00e676')
+  const overallText = sm.fail > 0 ? `有 ${sm.fail} 项阻断` : (sm.warn > 0 ? `基本就绪 · ${sm.warn} 项待办` : '全部通过')
+
+  return (
+    <>
+      <div style={{ background: SECTION_BG, border: `1px solid ${overall}55`, borderRadius: 4, padding: 16, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <div style={{ color: overall, fontSize: 15, fontWeight: 700 }}>{overallText}</div>
+            <div style={{ color: '#5a8aaa', fontSize: 12, marginTop: 4 }}>
+              检查时间 {h.checkedAt} · 通过 {sm.pass} · 待办 {sm.warn} · 阻断 {sm.fail}
+            </div>
+            <div style={{ color: '#3a5a70', fontSize: 11.5, marginTop: 4 }}>
+              平台 {h.counts.platformsOn}/{h.counts.platforms} 启用 · 预案 {h.counts.plans} · 规则 {h.counts.rulesOn}/{h.counts.rules} 启用 · 事件 {h.counts.events} · 推送记录 {h.counts.history}
+            </div>
+          </div>
+          <button style={btnStyle(CYAN, true)} onClick={load} disabled={busy}>{busy ? '检查中...' : '重新检查'}</button>
+        </div>
+        {sm.fail > 0 && (
+          <div style={{ marginTop: 10, color: '#ffd740', fontSize: 12, lineHeight: 1.7 }}>
+            阻断项会导致「规则看着已启用、实际一条都推不出去」—— 此前只写日志、界面无提示，本页就是为补这个缺口而加。
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: SECTION_BG, border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4, padding: 16, marginBottom: 12 }}>
+        <div style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>检查明细（{h.items.length} 条）</div>
+        {h.items.map(it => {
+          const m = SP_H_STATUS[it.status] || SP_H_STATUS.unknown
+          return (
+            <div key={it.id} style={{ padding: '9px 0', borderBottom: '1px solid rgba(0,80,150,0.12)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, marginTop: 6, flexShrink: 0, boxShadow: it.status === 'fail' ? `0 0 6px ${m.color}` : 'none' }} />
+                <span style={{ color: '#c8e6ff', fontSize: 13, minWidth: 170 }}>{it.name}</span>
+                <span style={{ color: it.status === 'fail' ? '#ffd740' : '#5a8aaa', fontSize: 12, flex: 1, lineHeight: 1.6 }}>
+                  {it.detail}{it.hint ? <span style={{ color: '#3a5a70' }}>（{it.hint}）</span> : ''}
+                </span>
+                <span style={{ fontSize: 11, color: m.color, flexShrink: 0 }}>{m.label}</span>
+              </div>
+              {Array.isArray(it.list) && it.list.length > 0 && (
+                <div style={{ marginLeft: 18, color: '#8aa0b8', fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>
+                  {it.list.slice(0, 8).map((x, i) => <div key={i}>· {x}</div>)}
+                  {it.list.length > 8 && <div>… 另有 {it.list.length - 8} 条</div>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ background: SECTION_BG, border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4, padding: 16, marginBottom: 12 }}>
+        <div style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+          <PlayCircle size={14} style={{ verticalAlign: 'middle' }} /> 干跑一条报文
+        </div>
+        <div style={{ color: '#3a5a70', fontSize: 11.5, marginBottom: 10 }}>
+          按所选规则渲染出**实际会发送的报文**，供联调前核对。**只本地渲染：不发请求、不落库。**
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select style={{ ...inputStyle, maxWidth: 340 }} value={sel} onChange={e => setSel(e.target.value)}>
+            <option value="">选择要干跑的规则…</option>
+            {rules.map((r: any) => (
+              <option key={r.id} value={r.id}>{r.name}（{r.event_type}｜{r.trigger_count}次/{r.time_window_hours}h）{r.enabled ? '' : ' [已停用]'}</option>
+            ))}
+          </select>
+          <button style={btnStyle(CYAN)} onClick={runDry} disabled={busy || !sel}>干跑</button>
+        </div>
+        {dry && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.8 }}>
+              {dry.ready ? <span style={{ color: '#00e676' }}>校验通过</span> : <span style={{ color: '#ff4444' }}>存在缺失：{dry.missing.join('、')}</span>}
+              <span style={{ color: '#3a5a70' }}><br />规则「{dry.resolved.rule || '—'}」→ 预案「{dry.resolved.plan || '—'}」→ 平台「{dry.resolved.platform || '（直连）'}」　{dry.api.method} {dry.api.url}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 6, marginBottom: 10 }}>
+              {(dry.checks || []).map((c: any, i: number) => (
+                <div key={i} style={{ fontSize: 12, color: c.ok ? '#5a8aaa' : '#ff4444' }}>{c.ok ? '✓' : '✗'} {c.name}{c.detail ? `：${c.detail}` : ''}</div>
+              ))}
+            </div>
+            <pre style={{ background: 'rgba(0,10,30,0.7)', border: '1px solid rgba(0,100,180,0.2)', borderRadius: 3, padding: 12, color: '#9ad0f5', fontSize: 11.5, maxHeight: 300, overflow: 'auto', margin: 0 }}>{dry.body}</pre>
+            <div style={{ color: '#3a5a70', fontSize: 11, marginTop: 6 }}>{dry.note}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: SECTION_BG, border: '1px solid rgba(0,100,180,0.2)', borderRadius: 4, padding: 16 }}>
+        <div style={{ color: '#c8e6ff', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>近 24h 失败明细（{fails.length}）</div>
+        {fails.length === 0 ? (
+          <div style={{ color: '#3a5a70', fontSize: 12 }}>无失败记录</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>{['时间', '事件类型', '点位', '接口', 'HTTP', '错误'].map(x => (
+                <th key={x} style={{ textAlign: 'left', padding: '7px 8px', color: '#5a8aaa', fontWeight: 400, borderBottom: '1px solid rgba(0,80,150,0.3)', whiteSpace: 'nowrap' }}>{x}</th>
+              ))}</tr></thead>
+              <tbody>
+                {fails.map(f => (
+                  <tr key={f.id}>
+                    <td style={{ padding: '6px 8px', color: '#5a8aaa', whiteSpace: 'nowrap' }}>{f.created_at}</td>
+                    <td style={{ padding: '6px 8px', color: '#c8e6ff' }}>{f.event_type}</td>
+                    <td style={{ padding: '6px 8px', color: '#5a8aaa' }}>{f.location || '—'}</td>
+                    <td style={{ padding: '6px 8px', color: '#5a8aaa', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.api_url}>{f.api_url}</td>
+                    <td style={{ padding: '6px 8px', color: '#ff4444' }}>{f.response_status ?? '—'}</td>
+                    <td style={{ padding: '6px 8px', color: '#ffd740', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.error_message || ''}>{f.error_message || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

@@ -5,7 +5,9 @@ import { AlertThumbnail } from './AlertThumbnail'
 import { StrawLiveModal } from './StrawLiveModal'
 import { useDashboard } from '../context/DashboardContext'
 import { fetchUnhandledCount } from '../lib/alertsApi'
+import { apiFetch } from '../lib/apiFetch'   // 🆕 S2.5：拉保留期摘要（只读）
 import { requestStrawNav } from '../lib/nav'
+import { BellOff } from 'lucide-react'
 
 export interface AlertItem {
   id: string
@@ -18,7 +20,8 @@ export interface AlertItem {
   level: 1 | 2 | 3 | 4
   lat: number
   lon: number
-  licensePlate?: string  // 仅道路扬尘事件携带，有值才显示
+  licensePlate?: string  // 道路扬尘（外部 JSON 的 plate_no）/ 渣土车冒装·帽盖（IoT 链路的 plate），有值才显示
+  plateConfidence?: number | null  // 车牌识别置信度（0~1），仅渣土车冒装/帽盖链路带
   imageUrl?: string     // AI视频分析缩略图（通过 /api/iot-image 代理）
   aiType?: string       // AI 分析类型（如 "堆头未覆盖"）
   aiConfidence?: number // AI 置信度 (0~1)
@@ -63,6 +66,69 @@ const DUST_AI_TYPES = ['扬尘超标 AI识别']
 
 function isPlateType(type: string) { return PLATE_TYPES.includes(type) }
 function isDustAiType(type: string) { return DUST_AI_TYPES.includes(type) }
+
+// 「渣土车冒装/帽盖」告警识别（业务口语叫「渣土车帽盖」，库里/网关叫「渣土车冒装」）。
+// 为什么单独识别：这是**直接判罚证据**类事件 —— 没有车牌就不是一个完整事件，
+//   所以「有车牌就展示车牌、没抓到就显式提示『车牌未获取』」，不像其它类型那样静默留白。
+const MUCK_COVER_NAMES = ['渣土车冒装', '渣土车帽盖']
+function isMuckCoverAlert(alert: AlertItem): boolean {
+  const s = `${alert.aiType || ''} ${alert.aggregateAiType || ''} ${alert.type || ''}`
+  return MUCK_COVER_NAMES.some(n => s.includes(n))
+}
+// 需要展示「车牌行」的告警：道路扬尘（外部 JSON 推入 plate_no）+ 渣土车冒装/帽盖（IoT 链路 plate）
+function needsPlateRow(alert: AlertItem): boolean {
+  return !!alert.type?.includes('道路扬尘') || isMuckCoverAlert(alert)
+}
+
+/**
+ * 车牌行（抽成组件，供**两种卡片布局**共用 —— 普通卡片 + AI视频分析卡片）。
+ * 🔴 2026-09-26 教训：一开始只加在「普通告警卡片」分支里，但渣土车冒装走的是
+ *    `iotVideo` 分支 → 实时预警里根本看不到车牌（自检时用模拟数据才发现）。
+ *    今后凡「告警卡片上的通用字段」，务必确认加在了**两个分支**上。
+ */
+function PlateRow({ alert }: { alert: AlertItem }) {
+  if (!needsPlateRow(alert)) return null
+  if (alert.licensePlate) {
+    return (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <span style={{
+          padding: '1px 7px',
+          borderRadius: 2,
+          background: 'rgba(255,112,67,0.12)',
+          border: '1px solid rgba(255,112,67,0.4)',
+          color: '#ff7043',
+          fontSize: 11,
+          fontFamily: "'JetBrains Mono', monospace",
+          letterSpacing: '0.06em',
+          fontWeight: 700,
+        }}>
+          {alert.licensePlate}
+        </span>
+        {typeof alert.plateConfidence === 'number' && (
+          <span style={{ color: '#4a6a80', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+            title="车牌识别置信度">
+            {(alert.plateConfidence * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+    )
+  }
+  if (!isMuckCoverAlert(alert)) return null
+  return (
+    <div style={{ marginTop: 4 }}>
+      <span style={{
+        padding: '1px 7px',
+        borderRadius: 2,
+        background: 'rgba(120,140,160,0.10)',
+        border: '1px dashed rgba(120,140,160,0.45)',
+        color: '#7f96a8',
+        fontSize: 11,
+      }} title="该帧未能识别出车牌（车距远 / 角度偏 / 模糊 / 夜间）">
+        车牌未获取
+      </span>
+    </div>
+  )
+}
 
 // AI视频分析类告警（IoTCloud 推入）
 const IOT_VIDEO_PREFIX = 'AI视频分析'
@@ -120,6 +186,24 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
   const { externalAlerts } = useDashboard()
+  // 🆕 S2.5（2026-10-12）：保留期标注 —— 前台列表只显示「最近 N 天」，超期为软归档。
+  //   不标注的话，值班看到条数变少会以为「系统坏了/漏了」（原值堆头仅 2 天）。
+  const [retention, setRetention] = useState<{ defaultDays: number | null; byType: Record<string, number | null>; gasDays?: number | null; note?: string } | null>(null)
+  useEffect(() => {
+    let alive = true
+    apiFetch<any>('/api/retention-info')
+      .then(r => { if (alive && r && r.ok !== false) setRetention(r) })
+      .catch(() => { /* 拉不到就不显示，绝不因此报错影响列表 */ })
+    return () => { alive = false }
+  }, [])
+  /** 把各算法保留期压成一句人话：全部相同→'N 天'；不同→'a–b 天'；全为 null→'不限' */
+  const retentionLabel = (() => {
+    if (!retention) return null
+    const vs = Object.values(retention.byType || {}).filter(v => v !== null && v !== undefined) as number[]
+    if (vs.length === 0) return retention.defaultDays ? `${retention.defaultDays} 天` : '不限'
+    const mn = Math.min(...vs), mx = Math.max(...vs)
+    return mn === mx ? `${mn} 天` : `${mn}–${mx} 天`
+  })()
 
   // T23: 入口角标——每 15s 拉一次后端未处理总数（聚合 + 平铺去重）；失败静默保持上值
   //   节奏 15s > 弹窗内 10s 轮询，避免双重请求；alerts:refresh 处置后也会被通知重拉
@@ -284,7 +368,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         聚合
                       </span>
-                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠️ 人员入侵</span>}
+                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠ 人员入侵</span>}
                       {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
                       {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
                       {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
@@ -373,7 +457,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                       <span style={{ padding: '2px 7px', background: '#7c3aed30', border: '1px solid #7c3aed60', color: '#a78bfa', fontSize: 10, borderRadius: 2, fontWeight: 600 }}>
                         AI视频
                       </span>
-                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠️ 人员入侵</span>}
+                      {isDockGuard && <span style={{ padding: '2px 7px', background: 'rgba(255,30,30,0.22)', border: '1px solid rgba(255,60,60,0.8)', color: '#ff5252', fontSize: 10, borderRadius: 2, fontWeight: 800, animation: 'alert-flash 0.8s ease 3' }}>⚠ 人员入侵</span>}
                       {isStraw && <span style={{ padding: '2px 7px', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.5)', color: '#ff6b6b', fontSize: 10, borderRadius: 2, fontWeight: 700 }}>🔥 秸秆</span>}
                       {isHandled && <span style={{ padding: '2px 7px', background: 'rgba(120,140,160,0.15)', border: '1px solid rgba(120,140,160,0.4)', color: '#8aa0b0', fontSize: 10, borderRadius: 2 }}>已处置</span>}
                       {isPartial && <span style={{ padding: '2px 7px', background: 'rgba(0,140,255,0.15)', border: '1px solid rgba(0,140,255,0.4)', color: '#64b5f6', fontSize: 10, borderRadius: 2 }}>部分处置</span>}
@@ -398,6 +482,8 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                         </span>
                       )}
                     </div>
+                    {/* 车牌行（判罚证据必备）—— 渣土车冒装/帽盖走的就是这一支 */}
+                    <PlateRow alert={alert} />
                   </div>
                 </div>
               ) : (
@@ -429,23 +515,8 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                     {alert.type}
                   </div>
                   <div style={{ color: '#5a8aaa', fontSize: 12 }}>{alert.location}</div>
-                  {alert.licensePlate && alert.type.includes('道路扬尘') && (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <span style={{
-                        padding: '1px 7px',
-                        borderRadius: 2,
-                        background: 'rgba(255,112,67,0.12)',
-                        border: '1px solid rgba(255,112,67,0.4)',
-                        color: '#ff7043',
-                        fontSize: 11,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '0.06em',
-                        fontWeight: 700,
-                      }}>
-                        {alert.licensePlate}
-                      </span>
-                    </div>
-                  )}
+                  {/* 车牌行（道路扬尘 plate_no / 渣土车冒装·帽盖 plate）：见 PlateRow 组件 */}
+                  <PlateRow alert={alert} />
                 </div>
                 <div className="text-right shrink-0" style={{ maxWidth: 130 }}>
                   {isPlateType(alert.type) || isDustAiType(alert.type) ? (
@@ -483,6 +554,13 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
   return (
     <div className="flex flex-col h-full">
       <PanelHeader color="#ff4444" title="实时告警" count={todayAlerts.length} onMore={() => setShowModal(true)} badge={pendingCount} onBadgeClick={jumpToFirstPending} />
+      {/* 🆕 S2.5：保留期显式标注（前台列表按算法软归档；数据未删，可在 AI分析存档 查） */}
+      {retention && retentionLabel && (
+        <div style={{ padding: "2px 12px 4px", fontSize: 10.5, color: "#3a5a70", lineHeight: 1.5 }}>
+          列表仅显示<b style={{ color: "#5f92b8" }}>最近 {retentionLabel}</b>
+          <span title={retention.note || ""}>（超期已软归档·数据未删，可在「AI分析存档」查看）</span>
+        </div>
+      )}
       <div ref={listRef} className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,150,220,0.35) transparent' }}>
         {alerts.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#3a5a70', gap: 8, padding: 20 }}>
@@ -518,7 +596,7 @@ export function AlertPanel({ onSelectAlert, selectedAlertId }: Props) {
                 color: '#9ad6f0',
               }}
             >
-              <span>🔕</span>
+              <BellOff size={13} color="#5a8aaa" style={{ verticalAlign: 'middle' }} />
               <span style={{ fontWeight: 600 }}>低置信度告警（{lowConfStraw.length} 条）</span>
               <span style={{ color: '#5a8aaa' }}>· 最高置信度 &lt; 30% · 疑似误报</span>
               <span style={{ marginLeft: 'auto', color: '#ffb74d' }}>{showLowConf ? '收起 ▲' : '展开 ▼'}</span>

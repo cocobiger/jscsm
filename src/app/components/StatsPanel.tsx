@@ -15,10 +15,11 @@ const ALERT_TYPE_COLORS: Record<string, string> = {
   '水体污染': TEAL,
   '秸秆燃烧': AMBER,
   '道路扬尘': ORANGE,
+  '渣土车冒装': '#e53935',   // 🆕 2026-10-10 判罚证据类（原误并入「堆头未覆盖」）
   '堆头未覆盖': RED,
   '气体采集预警': CYAN,
 }
-const ALERT_TYPE_ORDER = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '堆头未覆盖', '气体采集预警']
+const ALERT_TYPE_ORDER = ['气体污染', '水体污染', '秸秆燃烧', '道路扬尘', '渣土车冒装', '堆头未覆盖', '气体采集预警']
 
 const CHART_TOOLTIP_STYLE = {
   background: 'rgba(4,14,35,0.95)',

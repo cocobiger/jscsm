@@ -13,12 +13,13 @@
  *   ④ 口径脚注（数据源 / 统计规则 / 脱敏说明，逐项写明）
  *   另：行内「地图定位」（spec.locateKeys + onLocate）
  *
- * ⚠️ 安全：URL 等敏感字段由描述符预先脱敏（lib/maskUrl.ts），本组件不做任何凭据处理。
+ * ⚠ 安全：URL 等敏感字段由描述符预先脱敏（lib/maskUrl.ts），本组件不做任何凭据处理。
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { KpiSpec, KpiRow } from '../lib/kpiDrilldown'
 import { CK, alpha } from '../lib/cockpitTheme'
+import { ModalPortal, useModalBehavior } from './ui/ModalPortal'   // P1：全屏浮层统一基座（Portal + Esc + 锁滚动）
 
 const mono = { fontFamily: "'JetBrains Mono', monospace" } as const
 
@@ -76,7 +77,9 @@ export function KpiDrilldownModal({ spec, degraded, degradedText, headerExtra, o
     }}>{label}</th>
   )
 
+  useModalBehavior(onClose)   // P1：Esc 关闭 + 锁背景滚动
   return (
+    <ModalPortal>
     <div
       onClick={onClose}
       style={{
@@ -214,5 +217,6 @@ export function KpiDrilldownModal({ spec, degraded, degradedText, headerExtra, o
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -1,0 +1,295 @@
+/**
+ * StackExemptPanel.tsx —— 「堆头未覆盖 · 作业区豁免名单」后台可配置面板 · 2026-10-11
+ *
+ * 口径（用户裁定）：
+ *   **靠近江边的作业区（码头作业面 / 装卸区 / 施工堆料作业面）不受「防尘网未覆盖 > 40% 即违规」约束。**
+ *   作业区是**点位属性** ⇒ 做成名单，填完即生效（后端 10s 缓存 + 写即失效）。
+ *
+ * 设计原则：
+ *   ① **单一真源在后端** `stack_exempt_points` 表。本组件不缓存，只做「读 → 改 → 提交 → 回读」。
+ *   ② 文案/值域以后端返回为准；前端只维护展示层。
+ *   ③ 影响预演（dry-run）只读，用来回答「填了这条，会少掉多少条违规」。
+ *   ④ 真源 DB ⇒ 改完**无需重启**任何服务。
+ */
+import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '../../lib/apiFetch'
+import type { CurrentUser } from '../../lib/auth'
+
+const CYAN = '#00aaff'
+const GREEN = '#00e676'
+const AMBER = '#ffd740'
+const RED = '#ff4444'
+const DIM = '#5a8aaa'
+const BORDER = 'rgba(0,150,220,0.25)'
+
+const btn = (color: string, disabled = false): React.CSSProperties => ({
+  padding: '5px 14px', fontSize: 12, borderRadius: 3, border: `1px solid ${color}55`,
+  background: disabled ? 'transparent' : `${color}15`, color: disabled ? '#3a5a70' : color,
+  cursor: disabled ? 'default' : 'pointer',
+})
+const input: React.CSSProperties = {
+  padding: '5px 8px', background: 'rgba(0,20,60,0.6)', border: `1px solid ${BORDER}`,
+  borderRadius: 3, color: '#c8e6ff', fontSize: 12, outline: 'none', width: '100%',
+}
+const th: React.CSSProperties = {
+  textAlign: 'left', padding: '6px 8px', fontSize: 11.5, color: DIM,
+  borderBottom: `1px solid ${BORDER}`, fontWeight: 500,
+}
+const td: React.CSSProperties = { padding: '6px 8px', fontSize: 12, color: '#c8e6ff', borderBottom: '1px solid rgba(0,120,200,0.1)' }
+
+type Item = {
+  keyId: string; channelSipId?: string | null; channelName?: string | null
+  scope: string; reason: string; enabled: boolean; updatedBy?: string | null
+}
+type Dry = {
+  days: number; since: string; total: number; exempted: number; kept: number
+  exemptedPct: number | null
+  byChannel: Array<{ channelName: string; count: number; exempt: boolean }>
+  appliedNames: string[]
+}
+type Health = {
+  count: number; enabledCount: number
+  noSip: string[]; notInChannels: string[]
+  items: Array<{ channelName: string; enabled: boolean; sip?: string | null; sipOk: boolean; inIotChannels: boolean }>
+}
+
+export function StackExemptPanel({ user }: { user: CurrentUser }) {
+  const [items, setItems] = useState<Item[]>([])
+  const [channels, setChannels] = useState<Array<{ channelSipId: string; channelName: string }>>([])
+  const [observed, setObserved] = useState<Array<{ channelName: string; observed: number }>>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'warn'; text: string } | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newReason, setNewReason] = useState('江边码头作业区，不适用防尘网覆盖要求')
+  const [bulkText, setBulkText] = useState('')
+  const [days, setDays] = useState(30)
+  const [dry, setDry] = useState<Dry | null>(null)
+  const [health, setHealth] = useState<Health | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [a, b] = await Promise.all([
+        apiFetch<{ items: Item[] }>('/api/stack-exempt').catch(() => ({ items: [] })),
+        apiFetch<{ channels: any[]; observed: any[] }>('/api/stack-exempt/candidates').catch(() => ({ channels: [], observed: [] })),
+      ])
+      setItems(a.items || [])
+      setChannels(b.channels || [])
+      setObserved(b.observed || [])
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function run(label: string, fn: () => Promise<any>) {
+    setBusy(true); setMsg(null)
+    try { const r = await fn(); if (r?.items) setItems(r.items); return r }
+    catch (e: any) { setMsg({ kind: 'err', text: `${label}失败：${e?.message || e}` }); return null }
+    finally { setBusy(false) }
+  }
+
+  const addOne = async (channelName: string, reason = newReason) => {
+    if (!channelName.trim()) { setMsg({ kind: 'warn', text: '请先填点位名' }); return }
+    const r = await run('添加', () => apiFetch('/api/stack-exempt', {
+      method: 'PUT', body: JSON.stringify({ channelName: channelName.trim(), reason }),
+    }))
+    if (r) { setMsg({ kind: 'ok', text: `已加入豁免名单：${channelName.trim()}（立即生效）` }); setNewName('') }
+  }
+
+  const doBulk = async () => {
+    if (!bulkText.trim()) { setMsg({ kind: 'warn', text: '请先粘贴点位（每行一个，可用 # 注释）' }); return }
+    const r = await run('批量导入', () => apiFetch('/api/stack-exempt/bulk', {
+      method: 'POST', body: JSON.stringify({ text: bulkText, reason: newReason }),
+    }))
+    if (r) { setMsg({ kind: 'ok', text: `批量导入完成：${(r.results || []).length} 条` }); setBulkText('') }
+  }
+
+  const doDry = async () => {
+    setBusy(true); setMsg(null)
+    try {
+      const r = await apiFetch<Dry>(`/api/stack-exempt/dry-run`, { method: 'POST', body: JSON.stringify({ days }) })
+      setDry(r)
+    } catch (e: any) { setMsg({ kind: 'err', text: '预演失败：' + (e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const doHealth = async () => {
+    setBusy(true); setMsg(null)
+    try { setHealth(await apiFetch<Health>('/api/stack-exempt/health')) }
+    catch (e: any) { setMsg({ kind: 'err', text: '自检失败：' + (e?.message || e) }) }
+    finally { setBusy(false) }
+  }
+
+  const used = new Set(items.map(i => i.channelName).filter(Boolean) as string[])
+  const candidates = channels.filter(c => c.channelName && !used.has(c.channelName))
+  const obsMap = new Map(observed.map(o => [o.channelName, o.observed]))
+
+  return (
+    <div style={{ padding: 14, display: 'grid', gap: 14, maxWidth: 1180 }}>
+      <div style={{ fontSize: 12.5, lineHeight: 1.75, color: DIM, borderLeft: `3px solid ${CYAN}`, paddingLeft: 10 }}>
+        <b style={{ color: CYAN }}>口径</b>：<b>靠近江边的作业区</b>（码头作业面 / 装卸区 / 施工堆料作业面）
+        <b style={{ color: GREEN }}>不受「防尘网未覆盖 &gt; 40% 即违规」约束</b>。
+        作业区是<b>点位属性</b>，填进名单即对其全部告警生效（后端 10s 缓存 + 写即失效，<b>无需重启</b>）。
+        <br />
+        <span style={{ color: AMBER }}>⚠️ 豁免只影响「是否算违规」的口径；不会删除任何原始记录。</span>
+      </div>
+
+      {msg && (
+        <div style={{
+          padding: '7px 11px', fontSize: 12, borderRadius: 3,
+          border: `1px solid ${msg.kind === 'ok' ? GREEN : msg.kind === 'warn' ? AMBER : RED}55`,
+          color: msg.kind === 'ok' ? GREEN : msg.kind === 'warn' ? AMBER : RED,
+          background: msg.kind === 'ok' ? `${GREEN}12` : msg.kind === 'warn' ? `${AMBER}12` : `${RED}12`,
+        }}>{msg.text}</div>
+      )}
+
+      {/* ── 名单 ── */}
+      <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>豁免名单</b>
+          <span style={{ fontSize: 11.5, color: DIM }}>
+            {loading ? '读取中…' : `${items.length} 条（启用 ${items.filter(i => i.enabled).length}）`}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button style={btn(DIM, busy)} onClick={load} disabled={busy}>刷新</button>
+          <button style={btn(CYAN, busy)} onClick={doHealth} disabled={busy}>自检</button>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>
+            <th style={th}>点位</th><th style={th}>sip</th><th style={th}>范围</th>
+            <th style={th}>原因</th><th style={th}>启用</th><th style={th}>最近改</th><th style={th} />
+          </tr></thead>
+          <tbody>
+            {items.length === 0 && (
+              <tr><td style={{ ...td, color: DIM }} colSpan={7}>（空）—— 从下面「候选点位」点选，或直接输入点位名添加</td></tr>
+            )}
+            {items.map(it => (
+              <tr key={it.keyId}>
+                <td style={{ ...td, color: '#fff' }}>{it.channelName || '—'}</td>
+                <td style={{ ...td, color: DIM, fontFamily: 'monospace' }}>{it.channelSipId || '—'}</td>
+                <td style={td}>{it.scope === 'area' ? '区域' : '点位'}</td>
+                <td style={{ ...td, color: DIM, maxWidth: 300 }}>{it.reason || '—'}</td>
+                <td style={td}>
+                  <span
+                    onClick={async () => {
+                      await run('切换', () => apiFetch('/api/stack-exempt', {
+                        method: 'PUT', body: JSON.stringify({ channelName: it.channelName, enabled: !it.enabled, reason: it.reason }),
+                      }))
+                    }}
+                    style={{ cursor: 'pointer', color: it.enabled ? GREEN : DIM, fontWeight: 600 }}
+                  >{it.enabled ? '● 启用' : '○ 停用'}</span>
+                </td>
+                <td style={{ ...td, color: DIM }}>{it.updatedBy || '—'}</td>
+                <td style={{ ...td, textAlign: 'right' }}>
+                  <button style={btn(RED, busy)} onClick={async () => {
+                    await run('删除', () => apiFetch(`/api/stack-exempt/${encodeURIComponent(it.keyId)}`, { method: 'DELETE' }))
+                  }}>删除</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* ── 新增 ── */}
+      <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12, display: 'grid', gap: 10 }}>
+        <b style={{ fontSize: 13, color: CYAN }}>新增</b>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+          <label style={{ fontSize: 11.5, color: DIM }}>点位名
+            <input style={{ ...input, marginTop: 3 }} value={newName} onChange={e => setNewName(e.target.value)}
+              list="stack-exempt-cands" placeholder="如：桐子园码头" />
+            <datalist id="stack-exempt-cands">
+              {candidates.map(c => (
+                <option key={c.channelSipId} value={c.channelName}>
+                  {obsMap.has(c.channelName) ? `近30天 ${obsMap.get(c.channelName)} 条` : ''}
+                </option>
+              ))}
+            </datalist>
+          </label>
+          <label style={{ fontSize: 11.5, color: DIM }}>原因（写清依据，便于审计）
+            <input style={{ ...input, marginTop: 3 }} value={newReason} onChange={e => setNewReason(e.target.value)} />
+          </label>
+          <button style={btn(GREEN, busy)} onClick={() => addOne(newName)} disabled={busy}>加入名单</button>
+        </div>
+        {candidates.length > 0 && (
+          <div style={{ fontSize: 11.5, color: DIM }}>
+            候选点位（点一下即加入，括号内为近 30 天告警量）：
+            {candidates.slice(0, 14).map(c => (
+              <button key={c.channelSipId} style={{ ...btn(CYAN, busy), margin: '4px 6px 0 0' }}
+                onClick={() => addOne(c.channelName)} disabled={busy}>
+                {c.channelName}{obsMap.has(c.channelName) ? ` (${obsMap.get(c.channelName)})` : ''}
+              </button>
+            ))}
+          </div>
+        )}
+        <label style={{ fontSize: 11.5, color: DIM }}>批量粘贴（每行一个点位名，# 后可写备注）
+          <textarea style={{ ...input, marginTop: 3, height: 70, resize: 'vertical' as const }}
+            value={bulkText} onChange={e => setBulkText(e.target.value)}
+            placeholder={'桐子园码头   # 江边码头作业区\n苏商码头'} />
+        </label>
+        <div><button style={btn(CYAN, busy)} onClick={doBulk} disabled={busy}>批量导入</button></div>
+      </section>
+
+      {/* ── 影响预演 ── */}
+      <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12, display: 'grid', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>影响预演</b>
+          <span style={{ fontSize: 11.5, color: DIM }}>按当前名单，算窗口内有多少条告警会被豁免（<b>只读</b>）</span>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 11.5, color: DIM }}>天数</span>
+          <input style={{ ...input, width: 70 }} value={days} onChange={e => setDays(Number(e.target.value) || 30)} />
+          <button style={btn(CYAN, busy)} onClick={doDry} disabled={busy}>预演</button>
+        </div>
+        {dry && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: '#c8e6ff' }}>
+              窗口 <b>{dry.since}</b> ~ 今：共 <b>{dry.total}</b> 条 →
+              <b style={{ color: GREEN }}> 豁免 {dry.exempted}</b> /
+              <b style={{ color: AMBER }}> 保留 {dry.kept}</b>
+              {dry.exemptedPct !== null && <>（豁免占比 <b>{dry.exemptedPct}%</b>）</>}
+            </div>
+            {dry.total === 0 && (
+              <div style={{ fontSize: 11.5, color: AMBER }}>
+                ⚠️ 窗口内没有该算法的告警记录 —— 要么时间窗太短，要么该算法近期无产出。
+              </div>
+            )}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr><th style={th}>点位</th><th style={th}>告警数</th><th style={th}>是否豁免</th></tr></thead>
+              <tbody>
+                {dry.byChannel.map(b => (
+                  <tr key={b.channelName}>
+                    <td style={td}>{b.channelName}</td>
+                    <td style={td}>{b.count}</td>
+                    <td style={{ ...td, color: b.exempt ? GREEN : DIM }}>{b.exempt ? '● 豁免' : '○ 计入违规'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ── 自检 ── */}
+      {health && (
+        <section style={{ border: `1px solid ${BORDER}`, borderRadius: 4, padding: 12, display: 'grid', gap: 6 }}>
+          <b style={{ fontSize: 13, color: CYAN }}>自检</b>
+          <div style={{ fontSize: 12, color: '#c8e6ff' }}>
+            共 <b>{health.count}</b> 条 / 启用 <b>{health.enabledCount}</b> 条
+          </div>
+          {health.noSip.length > 0
+            ? <div style={{ fontSize: 12, color: AMBER }}>⚠️ 未解析到 sip（链路可能按名称兜底匹配）：{health.noSip.join('、')}</div>
+            : <div style={{ fontSize: 12, color: GREEN }}>✓ 全部条目已解析到 sip</div>}
+          {health.notInChannels.length > 0
+            ? <div style={{ fontSize: 12, color: AMBER }}>⚠️ 不在 iot_channels 里的点位（需核对拼写）：{health.notInChannels.join('、')}</div>
+            : <div style={{ fontSize: 12, color: GREEN }}>✓ 全部条目都能在 iot_channels 里找到</div>}
+        </section>
+      )}
+
+      <div style={{ fontSize: 11, color: DIM }}>
+        当前用户：{user?.username || '?'} ｜ 接口：<code>/api/stack-exempt</code>（GET/PUT/DELETE/bulk/dry-run/health，均管理员）
+        ｜ 11 机链路拉取端点：<code>/api/internal/stack-exempt</code>（X-Admin-Token）
+      </div>
+    </div>
+  )
+}

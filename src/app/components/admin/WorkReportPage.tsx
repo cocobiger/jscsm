@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { apiFetch, authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 import * as XLSX from 'xlsx'
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel } from 'docx'
 
@@ -223,7 +224,7 @@ export function WorkReportPage() {
         sections: [{
           children: [
             new Paragraph({ text: '智慧治理推送处置工作报表', heading: HeadingLevel.HEADING_1 }),
-            new Paragraph(`统计周期：${data.period.label}　　生成时间：${new Date().toLocaleString('zh-CN')}`),
+            new Paragraph(`统计周期：${data.period.label}　　生成时间：${fmtShanghai(Date.now())}`),
             new Paragraph(`推送总数：${data.summary.total}　已结案：${data.summary.closed}　受理中：${data.summary.processing}　已推送：${data.summary.pushed}`),
             new Paragraph({ text: '处置明细台账', heading: HeadingLevel.HEADING_2 }),
             table,

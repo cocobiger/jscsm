@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CK, alpha } from '../../lib/cockpitTheme'
 import { authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 
 // ── 算法调参：自研推理引擎参数优化（注册表驱动，多算法可扩展）──
 // 数据边界：自研算法（source='straw-engine'）参数调优；IoTCloud 通道分析见「AI分析存档」
@@ -256,7 +257,7 @@ export function TunePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 13, color: CK.green, fontWeight: 600 }}>最优参数（{t?.out?.algName}）</span>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={applyBest} style={btn(alpha(CK.green, 0.15), CK.green, alpha(CK.green, 0.4))}>✅ 应用最优</button>
+                  <button onClick={applyBest} style={btn(alpha(CK.green, 0.15), CK.green, alpha(CK.green, 0.4))}>✓ 应用最优</button>
                   <button onClick={rollback} style={btn('rgba(0,20,50,0.4)', CK.amber, alpha(CK.border, 0.3))}>↩ 回滚</button>
                 </div>
               </div>
@@ -310,7 +311,7 @@ export function TunePage() {
             <tbody>
               {history.map((h, i) => (
                 <tr key={i} style={{ borderTop: `1px solid ${alpha(CK.borderSoft, 0.5)}`, color: CK.textMain }}>
-                  <td style={{ padding: '4px 6px', ...mono, color: CK.textDim }}>{h.startedAt ? new Date(h.startedAt).toLocaleString('sv-SE', { timeZone: 'Asia/Shanghai' }).replace(' ', ' ') : ''}</td>
+                  <td style={{ padding: '4px 6px', ...mono, color: CK.textDim }}>{h.startedAt ? fmtShanghai(h.startedAt) : ''}</td>
                   <td style={{ padding: '4px 6px' }}>{h.algId}</td>
                   <td style={{ padding: '4px 6px' }}>{h.method}</td>
                   <td style={{ padding: '4px 6px', ...mono }}>

@@ -1,4 +1,5 @@
 import { authFetch } from '../../lib/apiFetch'
+import { fmtShanghai } from '../../lib/time'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useDashboard } from '../../context/DashboardContext'
 import type { AirQualityRecord } from '../../context/DashboardContext'
@@ -235,7 +236,7 @@ export function AirQualityDataPage({ role }: { role: Role }) {
 
         {stats.lastPush && (
           <div style={{ padding: '8px 10px', background: 'rgba(0,0,0,0.25)', borderRadius: 3, fontSize: 11, color: '#3a5a70', fontFamily: "'JetBrains Mono', monospace", marginBottom: 16, wordBreak: 'break-all' }}>
-            最后推送：{new Date(stats.lastPush).toLocaleString('zh-CN', { hour12: false })}
+            最后推送：{fmtShanghai(stats.lastPush)}
           </div>
         )}
 
@@ -419,7 +420,7 @@ export function AirQualityDataPage({ role }: { role: Role }) {
                       }}>{aqiLabel(r.aqi)}</span>
                     </td>
                     <td style={{ padding: '7px 10px', color: '#3a5a70', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
-                      {new Date(r.pushedAt).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {fmtShanghai(r.pushedAt, 'short')}
                     </td>
                     <td style={{ padding: '7px 10px' }}>
                       <button onClick={() => deleteAirQualityRecord(r.id)} style={btn(RED, 'sm')}>删除</button>

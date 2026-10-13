@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/apiFetch'
+import { X } from 'lucide-react'
 
 /**
  * 无人机起飞模拟测试面板（T4 回归工具 · 仅 admin 可见，由 App.tsx 按角色渲染）
@@ -60,12 +61,12 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'D', name: 'D · 回灌专项', desc: '缺陷①回归：注入在飞(zlm=0) → 刷新页面应回灌弹窗',
-    guide: '✅ 已注入 1 台「在飞（zlm=0）」。现在：① 刷新本页面 → 应看到回灌弹窗（resolving）；② 等 ~60s 无 mirror 自动收起（timeout 路径）；③ 点下方「一键停止全部」清理。',
+    guide: '✓ 已注入 1 台「在飞（zlm=0）」。现在：① 刷新本页面 → 应看到回灌弹窗（resolving）；② 等 ~60s 无 mirror 自动收起（timeout 路径）；③ 点下方「一键停止全部」清理。',
     steps: [{ action: 'on', sn: 'SIM_T4_D_1', waitMs: 0 }],
   },
   {
     key: 'E', name: 'E · 断线自愈', desc: '缺陷②回归：注入后重启后端 → 看门狗自动重连',
-    guide: '✅ 已注入 2 台在飞。现在：① 到服务器执行 systemctl restart jsc-backend；② 回到本页应 ≤45s 自动重连（无需刷新）；③ 用下方单条注入器发一条 OFF(SIM_T4_E_1) → 弹窗应收起，证明重连后广播生效；④ 一键停止全部清理。',
+    guide: '✓ 已注入 2 台在飞。现在：① 到服务器执行 systemctl restart jsc-backend；② 回到本页应 ≤45s 自动重连（无需刷新）；③ 用下方单条注入器发一条 OFF(SIM_T4_E_1) → 弹窗应收起，证明重连后广播生效；④ 一键停止全部清理。',
     steps: [
       { action: 'on', sn: 'SIM_T4_E_1', waitMs: 4000 },
       { action: 'on', sn: 'SIM_T4_E_2', waitMs: 0 },
@@ -128,7 +129,7 @@ export function DroneSimPanel() {
       setActiveFlag(sn, dock, on)
       return true
     } catch (e: any) {
-      logLine(`✗ ${on ? 'ON' : 'OFF'} ${sn}：${e?.error || '失败'}`)
+      logLine(`✕ ${on ? 'ON' : 'OFF'} ${sn}：${e?.error || '失败'}`)
       return false
     }
   }, [logLine, setActiveFlag])
@@ -141,7 +142,7 @@ export function DroneSimPanel() {
       logLine(`🧹 off-all: 补 OFF ${r.offCount} 台 / 清理 ${r.deleted} 行`)
       setActive([])
       setGuide('')
-    } catch (e: any) { logLine(`✗ off-all：${e?.error || '失败'}`) }
+    } catch (e: any) { logLine(`✕ off-all：${e?.error || '失败'}`) }
     setBusy(false)
   }, [logLine])
 
@@ -187,7 +188,7 @@ export function DroneSimPanel() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <b style={{ fontSize: 12.5 }}>🧪 模拟起飞测试</b>
         {busy && <span style={{ color: '#dc2626', fontWeight: 700 }}>● 运行中</span>}
-        <span style={{ marginLeft: 'auto', cursor: 'pointer', color: '#8aa0b8' }} onClick={() => setOpen(false)} title="收起">✕</span>
+        <span style={{ marginLeft: 'auto', cursor: 'pointer', color: '#8aa0b8' }} onClick={() => setOpen(false)} title="收起"><X size={13} style={{ verticalAlign: 'middle' }} /></span>
       </div>
 
       {/* 场景剧本 */}

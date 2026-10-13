@@ -2,6 +2,7 @@ import { authFetch } from '../lib/apiFetch'
 import { useState, useMemo, useEffect } from 'react'
 import { useDashboard } from '../context/DashboardContext'
 import type { AirQualityRecord } from '../context/DashboardContext'
+import { X } from 'lucide-react'
 
 const CYAN = '#00aaff'
 const GREEN = '#00e676'
@@ -160,7 +161,7 @@ export function AirQualityModal({ onClose }: Props) {
               color: '#5a8aaa', cursor: 'pointer', fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-          >✕</button>
+          ><X size={14} style={{ verticalAlign: 'middle' }} /></button>
         </div>
 
         {/* Controls */}

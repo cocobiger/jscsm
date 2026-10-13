@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../../lib/apiFetch'
-import { Camera, Image as ImageIcon, BarChart3 } from 'lucide-react'
+import { Ban, BarChart3, Camera, Image as ImageIcon } from 'lucide-react'
 import { ImgViewer, useCanvasZoom } from './ImgViewer'
 // 接口契约统一出处（P2 · 2026-09-14）
 import type { StrawResultsResp } from '../../lib/api-types'
@@ -102,7 +102,7 @@ function pushBadge(p?: PushInfo) {
   if (s === 'held') return { text: '⏸ 待复核后推送', color: PURPLE, bg: 'rgba(179,136,255,0.12)' }
   if (s === 'pushed' && p?.correctedAt) return { text: '✓ 已推送·已更正', color: RED, bg: 'rgba(255,68,68,0.10)' }
   if (s === 'pushed') return { text: '✓ 已推送', color: GREEN, bg: 'rgba(74,222,128,0.12)' }
-  if (s === 'failed') return { text: '✗ 推送失败', color: RED, bg: 'rgba(255,68,68,0.12)' }
+  if (s === 'failed') return { text: '✕ 推送失败', color: RED, bg: 'rgba(255,68,68,0.12)' }
   if (s === 'pending') return { text: '⏳ 处理中', color: AMBER, bg: 'rgba(255,183,77,0.12)' }
   return { text: '— 未推送', color: '#5a8aaa', bg: 'rgba(90,138,170,0.08)' }
 }
@@ -620,7 +620,7 @@ export function StrawResultsView() {
           <button onClick={() => setBatchAsk({ status: 'true', ids: [...sel] })}
             style={{ ...tinyBtn('rgba(74,222,128,0.15)', GREEN, 'rgba(74,222,128,0.4)'), padding: '4px 12px', fontSize: 12 }}>✓ 批量真烟</button>
           <button onClick={() => setBatchAsk({ status: 'false', ids: [...sel] })}
-            style={{ ...tinyBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)'), padding: '4px 12px', fontSize: 12 }}>✗ 批量误报</button>
+            style={{ ...tinyBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)'), padding: '4px 12px', fontSize: 12 }}>✕ 批量误报</button>
           <button onClick={() => setBatchAsk({ status: 'uncertain', ids: [...sel] })}
             style={{ ...tinyBtn('rgba(255,183,77,0.15)', AMBER, 'rgba(255,183,77,0.4)'), padding: '4px 12px', fontSize: 12 }}>⏸ 批量稍后</button>
           {/* P2：批量不纳入判例（导出重训默认剔除） */}
@@ -683,7 +683,7 @@ export function StrawResultsView() {
                       onClick={e => e.stopPropagation()}
                       style={{ position: 'absolute', top: 6, left: 6, cursor: 'pointer', accentColor: CYAN, width: 16, height: 16 }} />
                     {r.exclude === 1 && (
-                      <span style={{ position: 'absolute', top: 4, right: 6, fontSize: 13, color: RED }}>⛔</span>
+                      <span style={{ position: 'absolute', top: 4, right: 6, fontSize: 13, color: RED }}><Ban size={13} color="#ff4444" style={{ verticalAlign: 'middle' }} /></span>
                     )}
                   </div>
                   {/* 信息区 */}
@@ -1025,7 +1025,7 @@ function DetailModal({ row, onClose, imgSizes, setImgSizes, onApply, onUndo, onS
 
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
             <button onClick={() => onApply(row.id, 'true', note)} style={opBtn('rgba(74,222,128,0.15)', GREEN, 'rgba(74,222,128,0.4)')}>✓ 真烟 (1)</button>
-            <button onClick={() => onApply(row.id, 'false', note)} style={opBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)')}>✗ 误报 (2)</button>
+            <button onClick={() => onApply(row.id, 'false', note)} style={opBtn('rgba(255,68,68,0.15)', RED, 'rgba(255,68,68,0.4)')}>✕ 误报 (2)</button>
             <button onClick={() => onApply(row.id, 'uncertain', note)} style={opBtn('rgba(255,183,77,0.15)', AMBER, 'rgba(255,183,77,0.4)')}>⏸ 稍后 (3)</button>
             <button onClick={() => onUndo(row.id)} disabled={!done} style={{ ...opBtn('rgba(90,138,170,0.12)', '#7ab8e0', 'rgba(90,138,170,0.35)'), opacity: done ? 1 : 0.4 }}>↩ 撤销 (4)</button>
             <button onClick={() => setDrawing(true)} style={opBtn('rgba(0,170,255,0.15)', CYAN, 'rgba(0,170,255,0.4)')}>✏ 画框补标 (5)</button>

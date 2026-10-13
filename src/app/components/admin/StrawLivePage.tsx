@@ -22,7 +22,7 @@ const card: React.CSSProperties = {
 }
 
 // ── 接口契约统一出处：src/app/lib/api-types.ts（P2 · 2026-09-14）──
-// ⚠️ 历史 bug：此处曾把 /api/straw-engine/status 声明为平铺 { ok, workers, resource }，
+// ⚠ 历史 bug：此处曾把 /api/straw-engine/status 声明为平铺 { ok, workers, resource }，
 //    实际返回是嵌套 { engine, metrics, sampleStats } → S0 面板 Worker/CPU/内存/告警全部显示 0 或 '-'
 import type { StrawEngineStatus as EngStatus, EngineSnapshot, SnapStream } from '../../lib/api-types'
 import { checkShape, STRAW_ENGINE_STATUS_REQUIRED, ENGINE_SNAPSHOT_REQUIRED } from '../../lib/api-types'
