@@ -156,7 +156,7 @@ export function WeChatLoginPanel({ onStatusChange, onTargetsChanged }: {
   const dot = bridgeDown ? RED : updating ? AMBER : loggedIn ? GREEN : AMBER
   const headline = bridgeDown ? '桥不可达'
     : updating ? '微信正在自动更新 · 请稍候'
-    : loggedIn ? '已登录' : '未登录 · 请扫码'
+    : loggedIn ? '已登录' : '未登录 · 待扫码或一键进入'
 
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -221,7 +221,23 @@ export function WeChatLoginPanel({ onStatusChange, onTargetsChanged }: {
                 </div>}
           </div>
           <div style={{ fontSize: 12, color: '#7ab8e0', lineHeight: 1.9, minWidth: 260, flex: 1 }}>
-            <div style={{ color: '#c8e6ff', fontWeight: 700, marginBottom: 4 }}>扫码登录步骤</div>
+            {/* 2026-10-17 新增：两种未登录形态。此前只有「扫码步骤」，会让人对着
+                「进入微信」页去扫一张并不存在的码（该页根本没有二维码）。
+                配合 226 上的 wx_qr_keepalive（检测到该形态会自动点击 login 预设）。 */}
+            <div style={{
+              background: 'rgba(0,150,220,0.08)', border: '1px solid rgba(0,150,220,0.2)',
+              borderRadius: 6, padding: '7px 10px', marginBottom: 8,
+            }}>
+              <div style={{ color: '#c8e6ff', fontWeight: 700, marginBottom: 2 }}>
+                情况一（常见）：微信记得上次账号
+              </div>
+              <div>
+                客户端屏幕上显示的是<b>「进入微信」按钮</b>，<b>不是二维码</b>——
+                系统会<b>自动帮你点击</b>，稍候本页即变为「已登录」，<b>无需任何操作</b>。
+                若等了 2 分钟仍无变化，再点右上角「手动刷新二维码」。
+              </div>
+            </div>
+            <div style={{ color: '#c8e6ff', fontWeight: 700, marginBottom: 4 }}>情况二：需要扫码</div>
             <div>1. 用<b>推送用的那个微信号</b>在手机上扫左侧二维码（建议小号）</div>
             <div>2. 手机上确认登录；本页 5 秒内会自动变为「已登录」</div>
             <div>3. 登录后在下方「责任映射」里为各镇街选择推送的群/人</div>
